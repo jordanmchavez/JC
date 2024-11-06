@@ -1,4 +1,4 @@
-*.vxproj
-*.vxproj.filters
-*.vxproj.user
+.vxproj
+.vxproj.filters
+.vxproj.user
 Build
