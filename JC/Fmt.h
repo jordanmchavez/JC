@@ -1,6 +1,11 @@
 #pragma once
 
+#include "JC/Common.h"
+
 namespace JC {
+
+template <class T> struct Array;
+struct Allocator;
 
 //--------------------------------------------------------------------------------------------------
 
