@@ -113,8 +113,7 @@ static u64 Rapid_ReadSmall(const u8* p, u64 k) {
 
 static constexpr u64 Rapid_Secret[3] = { 0x2d358dccaa6c78a5ull, 0x8bb84b93962eacc9ull, 0x4b33a62ed433d4a3ull };
 
-u64 Hash(const void* data, u64 len) {
-	u64 seed = 0xbdd89aa982704029;
+u64 HashCombine(u64 seed, const void* data, u64 len) {
 	const u8* p = (const u8*)data;
 	seed ^= Rapid_Mix(seed ^ Rapid_Secret[0], Rapid_Secret[1]) ^ len;
 	u64 a, b;

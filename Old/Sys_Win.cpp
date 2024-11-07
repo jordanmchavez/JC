@@ -46,39 +46,6 @@ s8 WinLastErrStr() { return WinErrStr(GetLastError()); }
 */
 //--------------------------------------------------------------------------------------------------
 
-void Sys_Abort() {
-	TerminateProcess(GetCurrentProcess(), 3);
-}
-
-//--------------------------------------------------------------------------------------------------
-
-bool Debugger_IsPresent() {
-	return IsDebuggerPresent();
-}
-
-void Debugger_Print(const char* msg) {
-	OutputDebugStringA(msg);
-}
-//--------------------------------------------------------------------------------------------------
-
-struct VirtualMemApiImpl : VirtualMemApi {
-	void* Map(u64 size) override {
-		return VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-	}
-
-	void Unmap(void* ptr, u64 size) {
-		VirtualFree(ptr, size, MEM_RELEASE);
-	}
-};
-
-VirtualMemApiImpl virtualMemApiImpl;
-
-VirtualMemApi* VirtualMemApi::Init() {
-	return &virtualMemApiImpl;
-}
-
-//--------------------------------------------------------------------------------------------------
-
 static_assert(sizeof(SRWLOCK) == sizeof(Mutex));
 
 struct ThreadApiImpl : ThreadApi {

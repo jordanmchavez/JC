@@ -1,42 +1,45 @@
 #include "JC/Sys.h"
+
 #include "JC/MinimalWindows.h"
+#include "JC/Unicode.h"
 
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-struct SysApiImpl : SysApi {
-	void Abort() override {
-		TerminateProcess(GetCurrentProcess(), 3);
+void Sys::Abort() {
+	TerminateProcess(GetCurrentProcess(), 3);
+}
+
+bool Sys::IsDebuggerPresent() {
+	return ::IsDebuggerPresent();
+}
+
+void Sys::DebuggerPrint(TempAllocator* tempAllocator, s8 msg) {
+	if (Res<s16z> res = Unicode::Utf8ToWtf16z(tempAllocator, msg)) {
+		OutputDebugStringW((LPCWSTR)res.val.data);
+	} else {
+		OutputDebugStringW(L"<bad UTF-8 string>");
 	}
-};
-
-SysApiImpl sysApiImpl;
-
-SysApi* SysApi::Get() {
-	return &sysApiImpl;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-struct DbgApiImpl : DbgApi {
-	bool IsPresent() override {
-		return IsDebuggerPresent();
+struct VirtualMemoryApiImpl : VirtualMemoryApi {
+	void* Map(u64 size) override {
+		return VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	}
 
-	void Print(s8 msg) override {
-		OutputDebugStringA(msg);
-	}
-
-	void Break() override {
+	void Unmap(const void* ptr, u64 size) {
+		VirtualFree((void*)ptr, size, MEM_RELEASE);
 	}
 };
 
-static DbgApiImpl dbgApiImpl;
+static VirtualMemoryApiImpl virtualMemoryApiImpl;
 
-DbgApi* DbgApi::Get() {
-	return &dbgApiImpl;
-};
+VirtualMemoryApi* VirtualMemoryApi::Get() {
+	return &virtualMemoryApiImpl;
+}
 
 //--------------------------------------------------------------------------------------------------
 

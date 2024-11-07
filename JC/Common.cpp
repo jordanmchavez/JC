@@ -1,0 +1,47 @@
+#include "JC/Common.h"
+
+#include "JC/Panic.h"
+#include "JC/Sys.h"
+
+namespace JC {
+
+//--------------------------------------------------------------------------------------------------
+
+static PanicApi* panicApi = nullptr;
+
+// Implemented here rather than Panic.cpp
+PanicApi* SetPanicApi(PanicApi* newPanicApi) {
+	PanicApi* oldPanicApi = panicApi;
+	panicApi = newPanicApi;
+	return oldPanicApi;
+}
+
+void VPanic(s8 file, i32 line, s8 expr, s8 fmt, Args args) {
+	static bool recursive = false;
+	if (recursive) {
+		Sys::Abort();
+	}
+	recursive = true;
+
+	if (panicApi) {
+		panicApi->VPanic(file, line, expr, fmt, args);
+	} else {
+		Sys::Abort();
+	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Err* Err::VMake(TempAllocator* alloc, Err* prev, s8 file, i32 line, ErrCode ec, const ErrArg* errArgs, u32 errArgsLen) {
+	Err* err  = (Err*)alloc->Alloc(sizeof(Err) + errArgsLen > 0 ? errArgsLen - 1 : 0);
+	err->prev    = (Err*)prev;
+	err->file    = file;
+	err->line    = line;
+	err->ec      = ec;
+	err->argsLen = errArgsLen;
+	JC_MEMCPY(err->args, errArgs, errArgsLen * sizeof(errArgs[0]));
+	return err;
+}
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC

@@ -6,20 +6,25 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-struct SysApi {
-	static SysApi* Get();
-
-	virtual void Abort() = 0;
+namespace Sys {
+	void Abort();
+	bool IsDebuggerPresent();
+	void DebuggerPrint(TempAllocator* tempAllocator, s8 msg);
 };
+
+#if defined JC_COMPILER_MSVC
+	#define JC_DEBUGGER_BREAK __debugbreak()
+#else // JC_COMPILER
+	#error("unsupported compiler")
+#endif	// JC_COMPILER
 
 //--------------------------------------------------------------------------------------------------
 
-struct DbgApi {
-	static DbgApi* Get();
+struct VirtualMemoryApi {
+	static VirtualMemoryApi* Get();
 
-	virtual bool IsPresent() = 0;
-	virtual void Print(s8 msg) = 0;
-	virtual void Break() = 0;
+	virtual void* Map(u64 size) = 0;
+	virtual void  Unmap(const void* ptr, u64 size) = 0;
 };
 
 //--------------------------------------------------------------------------------------------------

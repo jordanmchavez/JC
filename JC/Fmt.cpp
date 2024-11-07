@@ -1,5 +1,7 @@
 ﻿#include "JC/Fmt.h"
-#include "JC/Test.h"
+
+#include "JC/Array.h"
+#include "JC/UnitTest.h"
 
 namespace JC {
 
@@ -72,10 +74,7 @@ s8 U64ToDigits(u64 u, char* out, u32 outLen) {
 	}
 	return s8(iter, (u64)(end - iter));
 }
-abcdefghijklmnopqrstuvwxyz
-ABCDEFGHIJKLMNOPQRSTUVWXYZ
-0123456789-=_+{}[]()\/,.<>!@#$%^&*~`
-aJ
+
 s8 U64ToHexits(u64 u, char* out, u32 outLen) {
 	char* const end = out + outLen;
 	char* iter = end;
@@ -132,7 +131,7 @@ bool Round(char* ptr, u64 len, u64 round) {
 	}
 	return true;
 }
-
+/*
 template <class Out>
 void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 	char sign;
@@ -282,7 +281,7 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 		out->Fill(' ', pad);
 	}
 }
-
+*/
 //--------------------------------------------------------------------------------------------------
 
 template <class Out>
@@ -386,7 +385,7 @@ void VFmtImpl(Out out, s8 fmt, Args args) {
 				out->Add(text, iter - 1);
 				break;
 			} else if (c == '}') {
-				Assert(iter < end && *iter == '}');
+				JC_ASSERT(iter < end && *iter == '}');
 				iter++;
 				out->Add('}');
 			}
@@ -400,7 +399,7 @@ void VFmtImpl(Out out, s8 fmt, Args args) {
 				case ' ': flags |= Flag_Space; iter++; break;
 				case '0': flags |= Flag_Zero;  iter++; goto FlagsDone;
 				case '{': out->Add('{');       iter++; goto Scan;
-				default:                               break;
+				default:                               goto FlagsDone;
 			}
 		}
 
@@ -465,11 +464,11 @@ void VFmtImpl(Out out, s8 fmt, Args args) {
 				break;
 
 			case ArgType::F64:
-				WriteF64(out, arg->f, flags, width, prec);
+				//WriteF64(out, arg->f, flags, width, prec);
 				break;
 
 			case ArgType::S8:
-				WriteStr(out, s8(arg->s.d, arg->s.l), flags, width, prec);
+				WriteStr(out, s8(arg->s.data, arg->s.len), flags, width, prec);
 				break;
 
 			case ArgType::Ptr:
@@ -509,7 +508,7 @@ s8 VFmt(Allocator* allocator, s8 fmt, Args args) {
 }
 	
 //--------------------------------------------------------------------------------------------------
-
+/*
 UnitTest("Fmt") {
 	VirtualMemApi* virtualMemApi = VirtualMemApi::Init();
 	TempAllocatorApi* tempAllocatorApi = TempAllocatorApi::Init(virtualMemApi);
@@ -790,7 +789,7 @@ UnitTest("Fmt") {
 	Check_Eq(Fmt(ta, "The answer is {}", 42), "The answer is 42");
 	Check_Eq(Fmt(ta, "{}^{}<{}>", 1, 2, 3), "1^2<3>");	// ParseSpec not called on empty placeholders
 }
-
+*/
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC

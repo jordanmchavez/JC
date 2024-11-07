@@ -6,12 +6,20 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-u64 Hash(void const* data, u64 len);
+constexpr u64 HashSeed = 0xbdd89aa982704029;
 
-u64 Hash(s8 s)          { return Hash(s.data, s.len); }
-u64 Hash(const void* p) { return Hash(&p, sizeof(p)); }
-u64 Hash(i64 i)         { return Hash(&i, sizeof(i)); }
-u64 Hash(u64 u)         { return Hash(&u, sizeof(u)); }
+u64 HashCombine(u64 h, void const* data, u64 len);
+
+inline u64 HashCombine(u64 h, s8 s)          { return HashCombine(h,        s.data, s.len); }
+inline u64 HashCombine(u64 h, const void* p) { return HashCombine(h,        &p,     sizeof(p)); }
+inline u64 HashCombine(u64 h, i64 i)         { return HashCombine(h,        &i,     sizeof(i)); }
+inline u64 HashCombine(u64 h, u64 u)         { return HashCombine(h,        &u,     sizeof(u)); }
+
+inline u64 Hash(void const* data, u64 len)   { return HashCombine(HashSeed, data,   len); }
+inline u64 Hash(s8 s)                        { return HashCombine(HashSeed, s.data, s.len); }
+inline u64 Hash(const void* p)               { return HashCombine(HashSeed, &p,     sizeof(p)); }
+inline u64 Hash(i64 i)                       { return HashCombine(HashSeed, &i,     sizeof(i)); }
+inline u64 Hash(u64 u)                       { return HashCombine(HashSeed, &u,     sizeof(u)); }
 
 //--------------------------------------------------------------------------------------------------
 
