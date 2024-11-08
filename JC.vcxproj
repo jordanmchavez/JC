@@ -86,6 +86,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="3rd\dragonbox.h" />
     <ClInclude Include="JC\Allocator.h" />
     <ClInclude Include="JC\Array.h" />
     <ClInclude Include="JC\Common.h" />
@@ -106,6 +107,7 @@
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Log.cpp" />
     <ClCompile Include="JC\Panic.cpp" />
+    <ClCompile Include="JC\Scratch.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
     <ClCompile Include="JC\Unicode.cpp" />
     <ClCompile Include="Main.cpp" />

@@ -26,6 +26,9 @@ void VPanic(s8 file, i32 line, s8 expr, s8 fmt, Args args) {
 	if (panicApi) {
 		panicApi->VPanic(file, line, expr, fmt, args);
 	} else {
+		if (Sys::IsDebuggerPresent()) {
+			JC_DEBUGGER_BREAK;
+		}
 		Sys::Abort();
 	}
 }

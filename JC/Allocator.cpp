@@ -9,6 +9,12 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
+static constexpr u64 Align(u64 size, u64 align) {
+	return (size + align - 1) & ~(align - 1);
+}
+
+//--------------------------------------------------------------------------------------------------
+
 struct AllocatorImpl : Allocator {
 	s8             name;
 	u64            bytes    = 0;
@@ -21,11 +27,123 @@ struct AllocatorImpl : Allocator {
 	void  Free(const void* ptr, u64 size) override;
 };
 
+//--------------------------------------------------------------------------------------------------
+
+struct TempChunk {
+	u8*        free  = nullptr;
+	u8*        end   = nullptr;
+	u8*        last  = nullptr;
+	TempChunk* next  = nullptr;
+};
+struct TempFreeList {
+	TempChunk* chunks           = nullptr;
+	u32        count            = 0;
+	u32        unusedThisFrame  = 0;
+	u32        framesWithUnused = 0;
+};
+
+static constexpr u64 TempMinChunkSizeLog2 = 16;	// 64k
+static constexpr u64 TempMaxChunkSizeLog2 = 32;	// 4gb
+static constexpr u64 TempMaxChunkSize     = 0xffffffff;
+static constexpr u64 TempMaxAllocSize     = TempMaxChunkSize - sizeof(TempChunk);
+static constexpr u64 TempSizeCount        = TempChunkSizeLog2Max - TempChunkSizeLog2Min;
+static constexpr u64 TempAlign            = 8;
+
+static_assert(sizeof(TempChunk) % TempAlign == 0);
+static_assert(alignof(TempChunk) == TempAlign);
+
+
+struct TempAllocatorApi {
+	static constexpr TempChunk Empty;
+
+	VirtualMemoryApi* virtualMemoryApi = nullptr;
+	TempFreeList      freeLists[TempSizeCount];
+	TempChunk*        frameChunk = nullptr;
+
+	void Init(VirtualMemoryApi* inVirtualMemoryApi) {
+		virtualMemoryApi = inVirtualMemoryApi;
+	}
+
+	TempAllocator* Frame() {
+	}
+
+	void* FrameAlloc(u64 size) {
+	}
+
+	void FrameRealloc(void* ptr, u64 oldSize, u64 newSize) {
+	}
+
+	TempChunk* AllocChunk(u64 size) {
+		const u32 i = Log2(size);
+		TempFreeList* const freeList = freeLists[i];
+		TempChunk* chunk = freeList->chunks;
+		if (chunk) {
+			freeList->count--;
+			freeList->unusedThisFrame = Min(freeList->unusedThisFrame, freeList->count);
+		} else {
+			chunk = (TempChunk*)virtualMemoryApi->Map(size);
+		}
+		chunk->free = (u8*)(chunk + 1);
+		chunk->last = (u8*)(chunk + 1);
+		chunk->end  = (u8*)chunk + size;
+		return chunk;
+	}
+
+	void FreeChunk(TempChunk* chunk) {
+	}
+};
+
+TempAllocatorApi tempAllocatorApiImpl;
+
+//--------------------------------------------------------------------------------------------------
+
 struct TempAllocatorImpl : TempAllocator {
-	void* Alloc(u64 size, SrcLoc srcLoc) override;
-	void* Realloc(const void* ptr, u64 size, u64 newSize, SrcLoc srcLoc) override;
+	TempChunk* chunk = nullptr;
+
+	void* Alloc(u64 size, SrcLoc srcLoc) override {
+		size = Align(size, TempAlign);
+		JC_ASSERT(size <= TempMaxAllocSize);
+
+		if (!chunk || chunk->free + size > chunk->end) {
+			u64 newChunkSize = chunk->end - (u8*)chunk;
+			do {
+				newChunkSize *= 2;
+			} while (newChunkSize < size);
+			JC_ASSERT(newChunkSize <= TempMaxChunkSize);
+			TempChunk* const newChunk = tempAllocatorApiImpl.AllocChunk(newChunkSize);
+			newChunk->next = chunk;
+			chunk = newChunk;
+		}
+
+		chunk->last = chunk->free;
+		chunk->free += size;
+		return chunk->last;
+	}
+
+	void* Realloc(const void* ptr, u64 size, u64 newSize, SrcLoc srcLoc) override {
+	}
+
 	void  Free(const void*, u64) override {}
 };
+
+struct FrameAllocator : TempAllocator {
+	void* Alloc(u64 size, SrcLoc srcLoc) override {
+		JC_ASSERT(size <= TempMaxSize);
+		if (chunk) {
+		} else {
+			chunk =- 
+		}
+		tempAllocatorApiImpl
+	}
+
+	void* Realloc(const void* ptr, u64 size, u64 newSize, SrcLoc srcLoc) override {
+		tempAllocatorApiImpl
+	}
+
+	void  Free(const void*, u64) override {}
+};
+
+//--------------------------------------------------------------------------------------------------
 
 struct AllocTrace {
 	AllocatorImpl* allocator = nullptr;
@@ -34,30 +152,18 @@ struct AllocTrace {
 	u64            bytes     = 0;
 };
 
-struct TempChunk {
-	u64        size;
-	TempChunk* next;
-};
-
 struct AllocatorApiImpl : AllocatorApi {
 	static constexpr u32 MaxAllocators  = 1024;
 	static constexpr u64 TempAllocAlign = 16;
 	static constexpr u64 TempChunkSize  = 16 * 1024 * 1024;
 
-	LogApi*               logApi = nullptr;
 	VirtualMemoryApi*     virtualMemoryApi = nullptr;
+	MemLeakReporter*      memLeakReporter = nullptr;
 	AllocatorImpl         allocators[MaxAllocators];
-
 	AllocatorImpl*        freeAllocators = nullptr;	// parent is the "next" link field
 	Array<AllocTrace>     traces;
 	Map<u64, u64>         keyToTrace;
 	Map<const void*, u64> ptrToTrace;
-
-	TempAllocatorImpl     tempAllocatorImpl;
-	TempChunk*            tempChunks = nullptr;
-	u8*                   tempBegin = nullptr;
-	u8*                   tempEnd = nullptr;
-	u8*                   tempLastAlloc = nullptr;
 
 	u8* AddTempChunk(u64 size) {
 		TempChunk* tempChunk = (TempChunk*)virtualMemoryApi->Map(size);
@@ -100,44 +206,54 @@ struct AllocatorApiImpl : AllocatorApi {
 	Allocator* Create(s8 name, Allocator* parent) override {
 		JC_ASSERT(!parent || ((AllocatorImpl*)parent >= &allocators[1] && (AllocatorImpl*)parent <= &allocators[MaxAllocators]));
 		JC_ASSERT(freeAllocators);
-		AllocatorImpl* const sa = freeAllocators;
+		AllocatorImpl* const a = freeAllocators;
 		freeAllocators = freeAllocators->parent;
-		sa->name     = name;
-		sa->bytes    = 0;
-		sa->allocs   = 0;
-		sa->children = 0;
-		sa->parent   = (AllocatorImpl*)parent;
-		if (sa->parent) {
-			sa->parent->children++;
+		a->name     = name;
+		a->bytes    = 0;
+		a->allocs   = 0;
+		a->children = 0;
+		a->parent   = (AllocatorImpl*)parent;
+		if (a->parent) {
+			a->parent->children++;
 		}
-
-		return sa;
+		return a;
 	}
 
+	all temp allocators should use the 1024 local trick;
+	/*
+	Options:
+	1. pass logapi to Destroy
+		exposes the fact that w're coupling two things
+	2. separate temp allocator into its own interface
+	3. have Detroy return an error structure
+	4. separate the leak check into a dedicated function that either accepts logapi or returns leak stats
+	*/
 	void Destroy(Allocator* allocator) override {
-		JC_ASSERT(allocator);
-
-		AllocatorImpl* const sa = (AllocatorImpl*)allocator;
-		if (sa->bytes > 0 || sa->allocs > 0) {
-			JC_LOG_ERROR("Scope has unfreed allocs: name={}, bytes={}, allocs={}", sa->name, sa->bytes, sa->allocs);
-			for (u64 i = 0; i < traces.len; i++) {
-				if (traces[i].allocator == sa) {
-					JC_LOG_ERROR("  {}({}): bytes={} allocs={}", traces[i].srcLoc.file, traces[i].srcLoc.line, traces[i].bytes, traces[i].allocs);
+		AllocatorImpl* const a = (AllocatorImpl*)allocator;
+		if (memLeakReporter) {
+			memLeakReporter->Alloc(a->name, a->bytes, a->allocs, a->children);
+			if (a->bytes > 0 || a->allocs > 0) {
+				for (u64 i = 0; i < traces.len; i++) {
+					if (traces[i].allocator == a) {
+						memLeakReporter->Alloc(traces[i].srcLoc.file, traces[i].srcLoc.line, traces[i].bytes, traces[i].allocs);
+					}
+				}
+			}
+			if (a->children > 0) {
+				for (u32 i = 0; i < MaxAllocators; i++) {
+					if (allocators[i].parent == a) {
+						memLeakReporter->Child(allocators[i].name, allocators[i].bytes, allocators[i].allocs);
+					}
 				}
 			}
 		}
-		if (sa->children > 0) {
-			JC_LOG_ERROR("Scope has open child scopes: name={}, children={}", sa->name, sa->children);
-			for (u32 i = 0; i < MaxAllocators; i++) {
-				if (allocators[i].parent == sa) {
-					JC_LOG_ERROR("  Unclosed scope: name={}, bytes={}, allocs={}", allocators[i].name, allocators[i].bytes, allocators[i].allocs);
-				}
-			}
-		}
+		memset(a, 0, sizeof(AllocatorImpl));
+		a->parent = freeAllocators;
+		freeAllocators = a;
+	}
 
-		memset(sa, 0, sizeof(AllocatorImpl));
-		sa->parent = freeAllocators;
-		freeAllocators = sa;
+	void SetMemLeakReporter(MemLeakReporter* reporter) override {
+		memLeakReporter = reporter;
 	}
 
 	TempAllocator* Temp() override {
@@ -145,33 +261,41 @@ struct AllocatorApiImpl : AllocatorApi {
 	}
 
 	void ResetTemp() override {
-		
+		TempChunk* chunk = tempChunks;
+		while (chunk->next) {
+			TempChunk* next = chunk->next;
+			virtualMemoryApi->Unmap(chunk, chunk->size);
+			chunk = next;
+		}
+		tempBegin     = (u8*)(chunk + 1);
+		tempEnd       = tempBegin + chunk->size;
+		tempLastAlloc = nullptr;
 	}
 
-	inline u64 Key(SrcLoc srcLoc, AllocatorImpl* sa) {
+	inline u64 Key(SrcLoc srcLoc, AllocatorImpl* a) {
 		u64 key = Hash(srcLoc.file);
 		key = HashCombine(key, &srcLoc.line, sizeof(srcLoc.line));
-		const u32 index = (u32)(sa - allocators);
+		const u32 index = (u32)(a - allocators);
 		key = HashCombine(key, &index, sizeof(index));
 		return key;
 	}
 
-	void Trace(AllocatorImpl* sa, const void* ptr, u64 size, SrcLoc srcLoc) {
+	void Trace(AllocatorImpl* a, const void* ptr, u64 size, SrcLoc srcLoc) {
 		AllocTrace* trace = 0;
-		u64* idx = keyToTrace.Find(Key(srcLoc, sa)).Or(0);
+		u64* idx = keyToTrace.Find(Key(srcLoc, a)).Or(nullptr);
 		if (!idx) {
 			trace = traces.Add(AllocTrace {
-				.allocator = sa,
+				.allocator = a,
 				.srcLoc    = srcLoc,
 				.allocs    = 1,
 				.bytes     = size,
 			});
+			ptrToTrace.Put(ptr, traces.len - 1);
 		} else {
 			trace = &traces[*idx];
 			trace->allocs++;
 			trace->bytes += size;
 		}
-		ptrToTrace.Put(ptr, *idx);
 	}
 
 	void Untrace(const void* ptr, u64 size) {
@@ -186,40 +310,33 @@ struct AllocatorApiImpl : AllocatorApi {
 		}
 	}
 
-	void* Alloc(AllocatorImpl* sa, u64 size, SrcLoc srcLoc) {
+	void* Alloc(AllocatorImpl* a, u64 size, SrcLoc srcLoc) {
 		void* ptr = malloc(size);
 		JC_ASSERT(ptr != nullptr);
-
-		if (sa == &allocators[0]) {
+		if (a == &allocators[0]) {
 			return ptr;
 		}
-
-		Trace(sa, ptr, size, srcLoc);
-	
+		Trace(a, ptr, size, srcLoc);
 		return ptr;
 	}
 
-	void* Realloc(AllocatorImpl* sa, const void* oldPtr, u64 oldSize, u64 newSize, SrcLoc srcLoc) {
+	void* Realloc(AllocatorImpl* a, const void* oldPtr, u64 oldSize, u64 newSize, SrcLoc srcLoc) {
 		void* const newPtr = realloc((void*)oldPtr, newSize);
 		JC_ASSERT(newPtr != nullptr);
-		if (sa == &allocators[0]) {
+		if (a == &allocators[0]) {
 			return newPtr;
 		}
 		Untrace(oldPtr, oldSize);
-		Trace(sa, newPtr, newSize, srcLoc);
+		Trace(a, newPtr, newSize, srcLoc);
 		return newPtr;
 	}
 
-	void Free(AllocatorImpl* sa, const void* ptr, u64 size) {
+	void Free(AllocatorImpl* a, const void* ptr, u64 size) {
 		free((void*)ptr);
-		if (sa == &allocators[0]) {
+		if (a == &allocators[0]) {
 			return;
 		}
 		Untrace(ptr, size);
-	}
-
-	static u64 Align(u64 size, u64 align) {
-		return (size + align - 1) & ~(align - 1);
 	}
 
 	void* TempAlloc(u64 size) {

@@ -23,15 +23,15 @@ namespace JC {
 	using f32 = float;
 	using f64 = double;
 
-	#define JC_STRLEN  __builtin_strlen
-	#define JC_MEMCMP  __builtin_memcmp
-	#define JC_MEMSET  memset
-	#define JC_MEMCPY  memcpy
-	#define JC_MEMMOVE memmove
-	#define JC_FILE    __builtin_FILE()
-	#define JC_LINE    __builtin_LINE()
-
+	#define JC_STRLEN       __builtin_strlen
+	#define JC_MEMCMP       __builtin_memcmp
+	#define JC_MEMSET       memset
+	#define JC_MEMCPY       memcpy
+	#define JC_MEMMOVE      memmove
+	#define JC_FILE         __builtin_FILE()
+	#define JC_LINE         __builtin_LINE()
 	#define JC_IF_CONSTEVAL if (__builtin_is_constant_evaluated())
+	#define JC_IS_ENUM(T)   __is_enum(T)
 
 #else
 	#error("Unsupported compiler")
@@ -109,13 +109,18 @@ struct SrcLoc {
 
 //--------------------------------------------------------------------------------------------------
 
-struct Allocator {
-	virtual void* Alloc(u64 size, SrcLoc srcLoc = SrcLoc::Here()) = 0;
-	virtual void* Realloc(const void* p, u64 size, u64 newSize, SrcLoc srcLoc = SrcLoc::Here()) = 0;
-	virtual void  Free(const void* p, u64 size) = 0;
-};
-
-struct TempAllocator : Allocator {};
+template <class T>            struct                RemoveRef                   { using Type = T; };
+template <class T>            struct                RemoveRef<T&>               { using Type = T; };
+template <class T>            struct                RemoveRef<T&&>              { using Type = T; };
+template <class T>            struct                RemoveConst                 { using Type = T; };
+template <class T>            struct                RemoveConst<const T>        { using Type = T; };
+template <class T>            struct                RemoveVolatile              { using Type = T; };
+template <class T>            struct                RemoveVolatile<volatile T>  { using Type = T; };
+template <class T1, class T2> struct                IsSameTypeT                 { static constexpr bool Val = false; };
+template <class T>            struct                IsSameTypeT<T, T>           { static constexpr bool Val = true;  };
+template <class T1, class T2> inline constexpr bool IsSameType                  = IsSameTypeT<T1, T2>::Val;
+template <class...>           inline constexpr bool AlwaysFalse                 = false; 
+template <class T>            inline constexpr bool IsEnum                      = JC_IS_ENUM(T);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -134,6 +139,7 @@ struct ArgStr {
 	u64         len;
 };
 
+struct Args;
 
 struct Arg {
 	ArgType type;
@@ -147,26 +153,34 @@ struct Arg {
 		const void* p;
 	};
 
-	static constexpr Arg Make(Arg val)                { return val; }
-	static constexpr Arg Make(bool val)               { return { .type = ArgType::Bool, .b = val }; }
-	static constexpr Arg Make(char val)               { return { .type = ArgType::Char, .c = val }; }
-	static constexpr Arg Make(signed char val)        { return { .type = ArgType::I64,  .i = val }; }
-	static constexpr Arg Make(signed short val)       { return { .type = ArgType::U64,  .i = val }; }
-	static constexpr Arg Make(signed int val)         { return { .type = ArgType::I64,  .i = val }; }
-	static constexpr Arg Make(signed long val)        { return { .type = ArgType::I64,  .i = val }; }
-	static constexpr Arg Make(signed long long val)   { return { .type = ArgType::I64,  .i = val }; }
-	static constexpr Arg Make(unsigned char val)      { return { .type = ArgType::U64,  .u = val }; }
-	static constexpr Arg Make(unsigned short val)     { return { .type = ArgType::U64,  .u = val }; }
-	static constexpr Arg Make(unsigned int val)       { return { .type = ArgType::U64,  .u = val }; }
-	static constexpr Arg Make(unsigned long val)      { return { .type = ArgType::U64,  .u = val }; }
-	static constexpr Arg Make(unsigned long long val) { return { .type = ArgType::U64,  .u = val }; }
-	static constexpr Arg Make(float val)              { return { .type = ArgType::F64,  .f = val }; }
-	static constexpr Arg Make(double val)             { return { .type = ArgType::F64,  .f = val }; }
-	static constexpr Arg Make(const void* val)        { return { .type = ArgType::Ptr,  .p = val }; }
-	static constexpr Arg Make(decltype(nullptr))      { return { .type = ArgType::Ptr,  .p = 0 }; }
-	static constexpr Arg Make(s8 val)                 { return { .type = ArgType::S8,   .s = { .data = val.data, .len = val.len } }; }
-	static constexpr Arg Make(const char* val)        { return { .type = ArgType::S8,   .s = { .data = val,      .len = StrLen8(val) } }; }
-
+	template <class T>
+	static constexpr Arg Make(T val) {
+		using Underlying = typename RemoveConst<typename RemoveVolatile<typename RemoveRef<T>::Type>::Type>::Type;
+		     if constexpr (IsSameType<Underlying, bool>)               { return { .type = ArgType::Bool, .b = val }; }
+		else if constexpr (IsSameType<Underlying, char>)               { return { .type = ArgType::Char, .c = val }; }
+		else if constexpr (IsSameType<Underlying, signed char>)        { return { .type = ArgType::I64,  .i = val }; }
+		else if constexpr (IsSameType<Underlying, signed short>)       { return { .type = ArgType::U64,  .i = val }; }
+		else if constexpr (IsSameType<Underlying, signed int>)         { return { .type = ArgType::I64,  .i = val }; }
+		else if constexpr (IsSameType<Underlying, signed long>)        { return { .type = ArgType::I64,  .i = val }; }
+		else if constexpr (IsSameType<Underlying, signed long long>)   { return { .type = ArgType::I64,  .i = val }; }
+		else if constexpr (IsSameType<Underlying, unsigned char>)      { return { .type = ArgType::U64,  .u = val }; }
+		else if constexpr (IsSameType<Underlying, unsigned short>)     { return { .type = ArgType::U64,  .u = val }; }
+		else if constexpr (IsSameType<Underlying, unsigned int>)       { return { .type = ArgType::U64,  .u = val }; }
+		else if constexpr (IsSameType<Underlying, unsigned long>)      { return { .type = ArgType::U64,  .u = val }; }
+		else if constexpr (IsSameType<Underlying, unsigned long long>) { return { .type = ArgType::U64,  .u = val }; }
+		else if constexpr (IsSameType<Underlying, float>)              { return { .type = ArgType::F64,  .f = val }; }
+		else if constexpr (IsSameType<Underlying, double>)             { return { .type = ArgType::F64,  .f = val }; }
+		else if constexpr (IsSameType<Underlying, void*>)              { return { .type = ArgType::Ptr,  .p = val }; }
+		else if constexpr (IsSameType<Underlying, const void*>)        { return { .type = ArgType::Ptr,  .p = val }; }
+		else if constexpr (IsSameType<Underlying, decltype(nullptr)>)  { return { .type = ArgType::Ptr,  .p = nullptr }; }
+		else if constexpr (IsSameType<Underlying, s8>)                 { return { .type = ArgType::S8,   .s = { .data = val.data, .len = val.len } }; }
+		else if constexpr (IsSameType<Underlying, char*>)              { return { .type = ArgType::S8,   .s = { .data = val,      .len = StrLen8(val) } }; }
+		else if constexpr (IsSameType<Underlying, const char*>)        { return { .type = ArgType::S8,   .s = { .data = val,      .len = StrLen8(val) } }; }
+		else if constexpr (IsEnum<Underlying>)                         { return { .type = ArgType::U64,  .u = (u64)val }; }
+		else if constexpr (IsSameType<Underlying, Arg>)                { return val; }
+		else if constexpr (IsSameType<Underlying, Args>)               { static_assert(AlwaysFalse<T>, "You passed Args as a placeholder variable: you probably meant to call VFmt() instead of Fmt()"); }
+		else                                                           { static_assert(AlwaysFalse<T>, "Unsupported arg type"); }
+	}
 	template <u64 N> static constexpr Arg Make(char (&val)[N])       { return { .type = ArgType::S8, .s = { .data = val, .len = StrLen8(val) } }; }
 	template <u64 N> static constexpr Arg Make(const char (&val)[N]) { return { .type = ArgType::S8, .s = { .data = val, .len = StrLen8(val) } }; }
 };
@@ -210,21 +224,21 @@ template <class... A> struct _FmtStr {
 		u32 nextArg = 0;
 		while (i < end) {
 			if (*i == '{') {
-				++i;
+				i++;
 				if (i >= end) { UnmatchedOpenBrace(); }
 				if (*i != '{') {
 					if (nextArg >= argsLen) { NotEnoughArgs(); }
-					++nextArg;
+					nextArg++;
 					while (*i != '}') {
-						++i;
+						i++;
 						if (i >= end) { UnmatchedOpenBrace(); }
 					}
 				}
 			} else if (*i == '}') {
-				++i;
+				i++;
 				if (i >= end || *i != '}') { CloseBraceNotEscaped(); }
 			}
-			++i;
+			i++;
 		}
 		if (nextArg != argsLen) { TooManyArgs(); }
 		fmt = inFmt;
@@ -235,6 +249,18 @@ template <class... A> struct _FmtStr {
 template <class T> struct TypeIdentity { using Type = T; };
 //template <class T> using TypeIdentity = _TypeIdentity<T>::Type;
 template <class... A> using FmtStr = _FmtStr<typename TypeIdentity<A>::Type...>;
+
+//--------------------------------------------------------------------------------------------------
+
+struct Allocator {
+	virtual void* Alloc(u64 size, SrcLoc srcLoc = SrcLoc::Here()) = 0;
+	virtual void* Realloc(const void* p, u64 size, u64 newSize, SrcLoc srcLoc = SrcLoc::Here()) = 0;
+	virtual void  Free(const void* p, u64 size) = 0;
+};
+
+struct TempAllocator : Allocator {
+	void Free(const void*, u64) override {}
+};
 
 //--------------------------------------------------------------------------------------------------
 
@@ -256,7 +282,7 @@ template <class... A> [[noreturn]] void Panic(s8 file, i32 line, s8 expr, s8 fmt
 	} while (false)
 
 #define JC_PANIC(fmt, ...) \
-	Panic(__FILE__, __LINE__, nullptr, (fmt), Args::Make(__VA_ARGS__))
+	Panic(__FILE__, __LINE__, nullptr, (fmt), __VA_ARGS__)
 
 //--------------------------------------------------------------------------------------------------
 

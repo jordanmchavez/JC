@@ -2,10 +2,24 @@
 
 #include "JC/Array.h"
 #include "JC/UnitTest.h"
+#include "3rd/dragonbox.h"
+#include <math.h>
 
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
+
+static constexpr u32 Flag_Left  = 1 << 0;
+static constexpr u32 Flag_Plus  = 1 << 1;
+static constexpr u32 Flag_Space = 1 << 2;
+static constexpr u32 Flag_Zero  = 1 << 3;
+static constexpr u32 Flag_Bin   = 1 << 4;
+static constexpr u32 Flag_Hex   = 1 << 5;
+static constexpr u32 Flag_Fix   = 1 << 6;
+static constexpr u32 Flag_Sci   = 1 << 7;
+static constexpr u32 Flag_Cap   = 1 << 8;
+
+//--------------------------------------------------------------------------------------------------	
 
 struct FixedOut {
 	char* begin;
@@ -99,17 +113,6 @@ s8 U64ToBits(u64 u, char* out, u32 outLen) {
 
 //--------------------------------------------------------------------------------------------------	
 
-static constexpr u32 Flag_Left  = 1 << 0;
-static constexpr u32 Flag_Plus  = 1 << 1;
-static constexpr u32 Flag_Space = 1 << 2;
-static constexpr u32 Flag_Zero  = 1 << 3;
-static constexpr u32 Flag_Bin   = 1 << 4;
-static constexpr u32 Flag_Hex   = 1 << 5;
-static constexpr u32 Flag_Fix   = 1 << 6;
-static constexpr u32 Flag_Exp   = 1 << 7;
-
-//--------------------------------------------------------------------------------------------------	
-
 // This function assumes there's a space right before ptr to hold the possible rounding character
 bool Round(char* ptr, u64 len, u64 round) {
 	const char rem = ptr[round];
@@ -131,7 +134,7 @@ bool Round(char* ptr, u64 len, u64 round) {
 	}
 	return true;
 }
-/*
+
 template <class Out>
 void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 	char sign;
@@ -151,7 +154,7 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 
 	constexpr u32 MaxSigDigs = 17;
 	char sigBuf[MaxSigDigs + 1] = "";
-	s8  sigStr;
+	s8   sigStr;
 	u32  intDigs        = 0;
 	u32  intTrailZeros  = 0;
 	u32  fracLeadZeros  = 0;
@@ -178,7 +181,7 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 		exp = db.exponent;
 	}
 
-	const bool sci = (flags & Flag_Exp) || (!(flags & Flag_Fix) && (exp >= 6 || ((i32)sigStr.len + exp) <= -4));
+	const bool sci = (flags & Flag_Sci) || (!(flags & Flag_Fix) && (exp >= 6 || ((i32)sigStr.len + exp) <= -4));
 	if (sci) {
 		intDigs = 1u;
 		fracLeadZeros = (sigStr.len == 1u) ? 1u : 0u;
@@ -281,20 +284,21 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 		out->Fill(' ', pad);
 	}
 }
-*/
+
 //--------------------------------------------------------------------------------------------------
 
 template <class Out>
 void WriteStr(Out* out, s8 str, u32 flags, u32 width, u32 prec) {
-	if (prec > 0 && str.len > prec) {
+	if (prec && str.len > prec) {
 		str.len = prec;
 	}
 	const u32 pad = (width > (u32)str.len) ? width - (u32)str.len : 0;
-	if (!(flags & Flag_Left)) {
+	bool left = flags & Flag_Left;
+	if (!left) {
 		out->Fill(' ', pad);
 	}
 	out->Add(str.data, str.len);
-	if (flags & Flag_Left) {
+	if (left) {
 		out->Fill(' ', width);
 	}
 }
@@ -373,118 +377,86 @@ void WritePtr(Out* out, const void* p, u32 flags, u32 width) {
 
 template <class Out>
 void VFmtImpl(Out out, s8 fmt, Args args) {
-	const char* iter = fmt.data;
-	const char* const end = iter + fmt.len;
-	const char* text = iter;
-	u32 nextArg = 0;
+	const char*       i       = fmt.data;
+	const char* const end     = i + fmt.len;
+	u32               nextArg = 0;
+
 	for (;;) {
-		Scan:
-		while (iter < end) {
-			char c = *iter++;
-			if (c == '{') {
-				out->Add(text, iter - 1);
-				break;
-			} else if (c == '}') {
-				JC_ASSERT(iter < end && *iter == '}');
-				iter++;
-				out->Add('}');
-			}
-		}
-
 		u32 flags = 0;
-		while (iter < end) {
-			switch (*iter) {
-				case '<': flags |= Flag_Left;  iter++; break;
-				case '+': flags |= Flag_Plus;  iter++; break;
-				case ' ': flags |= Flag_Space; iter++; break;
-				case '0': flags |= Flag_Zero;  iter++; goto FlagsDone;
-				case '{': out->Add('{');       iter++; goto Scan;
-				default:                               goto FlagsDone;
-			}
-		}
-
-		FlagsDone:
-
 		u32 width = 0;
-		while (iter < end && *iter >= '0' && *iter <= '9') {
-			width = width * 10 + (*iter - '0');
-			iter++;
-		}
-
 		u32 prec = 0;
-		if (iter < end && *iter == '.') {
-			iter++;
-			while (iter < end && *iter >= '0' && *iter <= '9') {
-				prec = prec * 10 + (*iter - '0');
-				iter++;
+		ScanUntilPlaceholder:
+		const char* text = i;
+		for (;;) {
+			if (i >= end) {
+				out->Add(text, i);
+				JC_ASSERT(nextArg == args.len, "Too many args");
+				return;
+			} else if (*i == '{') {
+				out->Add(text, i);
+				i++;
+				break;
+			} else if (*i != '}') {
+				i++;
+			} else {
+				i++;
+				out->Add(text, i);
+				JC_ASSERT(i < end && *i == '}');
+				i++;
+				text = i;
 			}
 		}
 
-		if (iter >= end) {
-			// TODO: error
-			goto Done;
+		while (i < end) {
+			switch (*i) {
+				case '}':                           goto DoArg;
+				case '{': out->Add('{');       i++; goto ScanUntilPlaceholder;
+				case '<': flags |= Flag_Left;  i++; break;
+				case '+': flags |= Flag_Plus;  i++; break;
+				case ' ': flags |= Flag_Space; i++; break;
+				case '0': flags |= Flag_Zero;  i++; goto ScanWidthPrec;
+				default:                            goto ScanWidthPrec;
+			}
 		}
+		ScanWidthPrec:
+		while (i < end && *i >= '0' && *i <= '9') {
+			width = width * 10 + (*i - '0');
+			i++;
+		}
+		if (i < end && *i == '.') {
+			i++;
+			while (i < end && *i >= '0' && *i <= '9') {
+				prec = prec * 10 + (*i - '0');
+				i++;
+			}
+		}
+		JC_ASSERT(i < end);
+		switch (*i) {
+			case 'x': flags |= Flag_Hex;            i++; break;
+			case 'X': flags |= Flag_Hex | Flag_Cap; i++; break;
+			case 'b': flags |= Flag_Bin;            i++; break;
+			case 'f': flags |= Flag_Fix;            i++; break;
+			case 'e': flags |= Flag_Sci;            i++; break;
+			default:                                     break;
+		}
+		JC_ASSERT(i < end);
+		JC_ASSERT(*i == '}');
+		i++;
 
-		switch (*iter) {
-			case 'x': flags |= Flag_Hex; iter++; break;
-			case 'b': flags |= Flag_Bin; iter++; break;
-			case 'f': flags |= Flag_Fix; iter++; break;
-			case 'e': flags |= Flag_Exp; iter++; break;
-			default:                             break;
-		}
-
-		if (iter >= end || *iter != '}') {
-			// TODO: error
-			goto Done;
-		}
-		iter++;
-
-		if (nextArg >= args.len) {
-			// TODO: error;
-			goto Done;
-		}
+		DoArg:
+		JC_ASSERT(nextArg < args.len);
 		const Arg* arg = &args.args[nextArg++];
-
 		switch (arg->type)
 		{
-			case ArgType::Bool:
-				WriteStr(out, arg->b ? "true" : "false", flags, width, prec);
-				break;
-
-			case ArgType::Char:
-				WriteStr(out, s8(&arg->c, 1), flags, width, prec);
-				break;
-
-			case ArgType::I64:
-				WriteI64(out, arg->i, flags, width);
-				break;
-
-			case ArgType::U64:
-				WriteU64(out, arg->u, flags, width);
-				break;
-
-			case ArgType::F64:
-				//WriteF64(out, arg->f, flags, width, prec);
-				break;
-
-			case ArgType::S8:
-				WriteStr(out, s8(arg->s.data, arg->s.len), flags, width, prec);
-				break;
-
-			case ArgType::Ptr:
-				WritePtr(out, arg->p, flags, width);
-				break;
-
-			default:
-				// TODO: error;
-				break;
+			case ArgType::Bool: WriteStr(out, arg->b ? "true" : "false",   flags, width, prec); break;
+			case ArgType::Char: WriteStr(out, s8(&arg->c, 1),              flags, width, prec); break;
+			case ArgType::I64:  WriteI64(out, arg->i,                      flags, width);       break;													   
+			case ArgType::U64:  WriteU64(out, arg->u,                      flags, width);       break;													   
+			case ArgType::F64:  WriteF64(out, arg->f,                      flags, width, prec); break;
+			case ArgType::S8:   WriteStr(out, s8(arg->s.data, arg->s.len), flags, width, prec); break;
+			case ArgType::Ptr:  WritePtr(out, arg->p,                      flags, width);       break;
+			default: JC_PANIC("Unhandled arg type {}", arg->type);
 		}
-	}
-
-	Done:
-
-	if (nextArg < args.len) {
-		// TODO: error;
 	}
 }
 
