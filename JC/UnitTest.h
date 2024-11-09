@@ -6,10 +6,13 @@
 
 namespace JC {
 
+struct LogApi;
+struct TempAllocatorApi;
+
 //--------------------------------------------------------------------------------------------------
 
 namespace UnitTest {
-	void Run(TempAllocator* tempAllocator);
+	void Run(LogApi* logApi, TempAllocatorApi* tempAllocatorApi);
 
 	bool CheckFail(s8 file, i32 line, s8 expr);
 	bool CheckFail(s8 file, i32 line, s8 expr, Arg x, Arg y);

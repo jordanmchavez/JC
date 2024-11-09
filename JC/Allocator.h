@@ -4,7 +4,6 @@
 
 namespace JC {
 
-struct LogApi;
 struct VirtualMemoryApi;
 
 //--------------------------------------------------------------------------------------------------
@@ -19,16 +18,22 @@ struct MemLeakReporter {
 struct AllocatorApi {
 	static AllocatorApi* Get();
 
+	virtual void       Init() = 0;
+	virtual Allocator* Create(s8 name, Allocator* parent) = 0;
+	virtual void       Destroy(Allocator* allocator) = 0;
+	virtual void       SetMemLeakReporter(MemLeakReporter* reporter) = 0;
+};
+
+//--------------------------------------------------------------------------------------------------
+
+struct TempAllocatorApi {
+	static TempAllocatorApi* Get();
+
 	virtual void           Init(VirtualMemoryApi* virtualMemoryApi) = 0;
-	virtual void           Shutdown() = 0;
-
-	virtual Allocator*     Create(s8 name, Allocator* parent) = 0;
-	virtual void           Destroy(Allocator* allocator) = 0;
-
-	virtual void           SetMemLeakReporter(MemLeakReporter* reporter) = 0;
-
-	virtual TempAllocator* Temp() = 0;
-	virtual void           ResetTemp() = 0;
+	virtual TempAllocator* Create() = 0;
+	virtual TempAllocator* Create(void* buf, u64 size) = 0;
+	virtual void           Destroy(TempAllocator* ta) = 0;
+	virtual void           Frame() = 0;
 };
 
 //--------------------------------------------------------------------------------------------------

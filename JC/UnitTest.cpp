@@ -1,7 +1,9 @@
 #include "JC/UnitTest.h"
 
+#include "JC/Allocator.h"
 #include "JC/Array.h"
 #include "JC/Fmt.h"
+#include "JC/Log.h"
 #include <stdio.h>
 
 namespace JC {
@@ -21,17 +23,18 @@ namespace UnitTest {
 
 	enum struct State { Run, Pop, Done };
 
-	static TempAllocator* tempAllocator = nullptr;
-	static TestObj        tests[MaxTests];
-	static u32            testsLen = 0;
-	static Subtest::Sig   cur[MaxSubtests];
-	static u32            curLen;
-	static Subtest::Sig   next[MaxSubtests];
-	static u32            nextLen;
-	static Subtest::Sig   last[MaxSubtests];
-	static u32            lastLen;
-	static State          state = State::Run;
-	static u32            checkFails = 0;
+	static LogApi*           logApi;
+	static TempAllocatorApi* tempAllocatorApi;
+	static TestObj           tests[MaxTests];
+	static u32               testsLen;
+	static Subtest::Sig      cur[MaxSubtests];
+	static u32               curLen;
+	static Subtest::Sig      next[MaxSubtests];
+	static u32               nextLen;
+	static Subtest::Sig      last[MaxSubtests];
+	static u32               lastLen;
+	static State             state;
+	static u32               checkFails;
 
 	bool operator==(Subtest::Sig s1, Subtest::Sig s2) {
 		// order by most likely fast fail
@@ -88,22 +91,22 @@ namespace UnitTest {
 		}
 	}
 
-	void VPrint(s8 fmt, Args args) {
-		const s8 msg = VFmt(tempAllocator, fmt, args);
-		fwrite(msg.data, 1, msg.len, stdout);
-		if (Sys::IsDebuggerPresent()) {
-			Sys::DebuggerPrint(tempAllocator, msg);
-		}
-	}
+	void Run(LogApi* inLogApi, TempAllocatorApi* inTempAllocatorApi) {
+		logApi = inLogApi;
+		tempAllocatorApi = inTempAllocatorApi;
 
-	template <class... A> void Print(FmtStr<A...> fmt, A... args) {
-		VPrint(fmt, Args::Make(args...));
-	}
+		TempAllocator* tempAllocator;
 
-	void Run(TempAllocator* inTempAllocator) {
-		tempAllocator = inTempAllocator;
+		logApi->AddFn([](void* userData, s8, i32, LogCategory, s8 msg) {
+			TempAllocator* ta = *((TempAllocator**)userData);
+			fwrite(msg.data, 1, msg.len, stdout);
+			if (Sys::IsDebuggerPresent()) {
+				Sys::DebuggerPrint(ta, msg);
+			}
+		}, &tempAllocator);
 
 		for (u32 i = 0; i < testsLen; i++)  {
+			tempAllocator = tempAllocatorApi->Create();
 			nextLen = 0;
 			do {
 				state      = State::Run;
@@ -123,32 +126,33 @@ namespace UnitTest {
 				lastStr.len--;
 
 				if (checkFails > 0) {
-					Print("Failed: {}\n", s8(lastStr.data, lastStr.len));
+					JC_LOG("Failed: {}", s8(lastStr.data, lastStr.len));
 				} else {
-					Print("Passed: {}asdfaf\n", s8(lastStr.data, lastStr.len));
+					JC_LOG("Passed: {}", s8(lastStr.data, lastStr.len));
 				}
 			} while (nextLen > 0);
+			tempAllocatorApi->Destroy(tempAllocator);
+
 		}
 	}
 
 	bool CheckFail(s8 file, i32 line, s8 expr) {
-		Print("***CHECK FAILED***\n");
-		Print("{}({})\n", file, line);
-		Print("{}\n\n", expr);
+		JC_LOG("***CHECK FAILED***");
+		JC_LOG("{}({})", file, line);
+		JC_LOG("{}\n", expr);
 		checkFails++;
 		return false;
 	}
 
 	bool CheckFail(s8 file, i32 line, s8 expr, Arg x, Arg y) {
-		Print("***CHECK FAILED***\n");
-		Print("{}({})\n", file, line);
-		Print("{}\n", expr);
-		Print("left:  {}\n", x);
-		Print("right: {}\n\n", y);
+		JC_LOG("***CHECK FAILED***");
+		JC_LOG("{}({})", file, line);
+		JC_LOG("{}", expr);
+		JC_LOG("left:  {}", x);
+		JC_LOG("right: {}\n", y);
 		checkFails++;
 		return false;
 	}
-
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -161,42 +165,52 @@ TEST("UnitTest")
 	runRecord[runRecordLen++] = 0;
 	SUBTEST("1")
 	{
+		printf("1");
 		runRecord[runRecordLen++] = 1;
 		SUBTEST("2")
 		{
+			printf("2");
 			runRecord[runRecordLen++] = 2;
 			SUBTEST("3")
 			{
+				printf("3");
 				runRecord[runRecordLen++] = 3;
 			}
 			SUBTEST("4")
 			{
+				printf("4");
 				runRecord[runRecordLen++] = 4;
 			}
 			SUBTEST("5")
 			{
+				printf("5");
 				runRecord[runRecordLen++] = 5;
 			}
 			SUBTEST("6")
 			{
+				printf("6");
 				runRecord[runRecordLen++] = 6;
 			}
 		}
 		SUBTEST("7")
 		{
+			printf("7");
 			runRecord[runRecordLen++] = 7;
 			SUBTEST("8") 
 			{
+				printf("8");
 				runRecord[runRecordLen++] = 8;
 			}
 			SUBTEST("9")
 			{
+				printf("9");
 				runRecord[runRecordLen++] = 9;
 			}
 		}
 	}
 	SUBTEST("10")
 	{
+		printf("10");
 		runRecord[runRecordLen++] = 10;
 	}
 }
@@ -204,6 +218,10 @@ TEST("UnitTest")
 TEST("Test.Verify subtest recording")
 {
 	CHECK_EQ(runRecord[0], 0);
+	CHECK_EQ(runRecord[1], 1);
+	CHECK_EQ(runRecord[2], 2);
+	CHECK_EQ(runRecord[3], 3);
+	check arrays eq;
 		0, 1, 2, 3,
 		0, 1, 2, 4,
 		0, 1, 2, 5,

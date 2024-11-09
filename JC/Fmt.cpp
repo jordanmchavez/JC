@@ -409,7 +409,7 @@ void VFmtImpl(Out out, s8 fmt, Args args) {
 
 		while (i < end) {
 			switch (*i) {
-				case '}':                           goto DoArg;
+				case '}':                      i++; goto DoArg;
 				case '{': out->Add('{');       i++; goto ScanUntilPlaceholder;
 				case '<': flags |= Flag_Left;  i++; break;
 				case '+': flags |= Flag_Plus;  i++; break;

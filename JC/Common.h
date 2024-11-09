@@ -254,7 +254,7 @@ template <class... A> using FmtStr = _FmtStr<typename TypeIdentity<A>::Type...>;
 
 struct Allocator {
 	virtual void* Alloc(u64 size, SrcLoc srcLoc = SrcLoc::Here()) = 0;
-	virtual void* Realloc(const void* p, u64 size, u64 newSize, SrcLoc srcLoc = SrcLoc::Here()) = 0;
+	virtual void* Realloc(const void* p, u64 oldSize, u64 newSize, SrcLoc srcLoc = SrcLoc::Here()) = 0;
 	virtual void  Free(const void* p, u64 size) = 0;
 };
 
@@ -277,7 +277,7 @@ template <class... A> [[noreturn]] void Panic(s8 file, i32 line, s8 expr, s8 fmt
 #define JC_ASSERT(expr, ...) \
 	do { \
 		if (!(expr)) { \
-			Panic(__FILE__, __LINE__, #expr, __VA_ARGS__); \
+			Panic(__FILE__, __LINE__, #expr, ##__VA_ARGS__); \
 		} \
 	} while (false)
 

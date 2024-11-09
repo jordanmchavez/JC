@@ -93,6 +93,7 @@
     <ClInclude Include="JC\Fmt.h" />
     <ClInclude Include="JC\Hash.h" />
     <ClInclude Include="JC\Log.h" />
+    <ClInclude Include="JC\Math.h" />
     <ClInclude Include="JC\MinimalWindows.h" />
     <ClInclude Include="JC\Panic.h" />
     <ClInclude Include="JC\Sys.h" />
@@ -106,12 +107,13 @@
     <ClCompile Include="JC\Fmt.cpp" />
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Log.cpp" />
+    <ClCompile Include="JC\Math.cpp" />
     <ClCompile Include="JC\Panic.cpp" />
-    <ClCompile Include="JC\Scratch.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
     <ClCompile Include="JC\Unicode.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="JC\UnitTest.cpp" />
+    <ClCompile Include="Scratch.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
