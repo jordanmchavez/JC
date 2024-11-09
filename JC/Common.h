@@ -376,6 +376,39 @@ template <class T> struct [[nodiscard]] Opt {
 
 //--------------------------------------------------------------------------------------------------
 
+} namespace std {
+	template <class T>
+	struct initializer_list {
+		const T* _begin;
+		const T* _end;
+
+		constexpr initializer_list(const T* b, const T* e) { _begin = b; _end = e; }
+		constexpr const T* begin() const { return _begin; }
+		constexpr const T* end() const { return _end; }
+		constexpr size_t size() const { return _end - _begin; }
+	};
+} namespace JC {
+
+//--------------------------------------------------------------------------------------------------
+
+template <class T>
+struct Span {
+	const T* data;
+	u64 len;
+
+	constexpr Span() { data = nullptr; len = 0; }
+	constexpr Span(T* d, u64 l) { data = d; len = l; }
+	template <u64 N> constexpr Span(T (&a)[N]) { data = a; len = N; }
+	constexpr Span(std::initializer_list<T> il) { data = il.begin(), len = il.size(); }
+	constexpr Span(const Span&) = default;
+
+	constexpr Span& operator=(const Span&) = default;
+	
+	constexpr T operator[](u64 i) const { return data[i]; }
+};
+
+//--------------------------------------------------------------------------------------------------
+
 template <class T> constexpr T Min(T x, T y) { return x < y ? x : y; }
 template <class T> constexpr T Max(T x, T y) { return x > y ? x : y; }
 template <class T> constexpr T Clamp(T lo, T x, T hi) { return x < lo ? lo : (x > hi ? hi : x); }

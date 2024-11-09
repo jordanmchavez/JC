@@ -18,6 +18,8 @@ struct Array {
 	constexpr       T& operator[](u64 i)       { return data[i]; }
 	constexpr const T& operator[](u64 i) const { return data[i]; }
 
+	operator Span<T>() const { return Span { .data = data, .len = len }; }
+
 	void Init(Allocator* inAlloc) {
 		alloc = inAlloc;
 		data  = 0;

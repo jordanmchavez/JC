@@ -64,8 +64,9 @@ namespace UnitTest {
 				}
 				break;
 			case State::Pop:
-				memcpy(cur, next, sizeof(next[0]) * nextLen);
-				curLen = nextLen;
+				memcpy(next, cur, sizeof(cur[0]) * curLen);
+				nextLen = curLen;
+				next[nextLen++] = sig;
 				state = State::Done;
 				break;
 			case State::Done:
@@ -139,17 +140,37 @@ namespace UnitTest {
 	bool CheckFail(s8 file, i32 line, s8 expr) {
 		JC_LOG("***CHECK FAILED***");
 		JC_LOG("{}({})", file, line);
-		JC_LOG("{}\n", expr);
+		JC_LOG("  {}\n", expr);
 		checkFails++;
 		return false;
 	}
 
-	bool CheckFail(s8 file, i32 line, s8 expr, Arg x, Arg y) {
+	bool CheckEqFail(s8 file, i32 line, s8 expr, Arg x, Arg y) {
 		JC_LOG("***CHECK FAILED***");
 		JC_LOG("{}({})", file, line);
-		JC_LOG("{}", expr);
-		JC_LOG("left:  {}", x);
-		JC_LOG("right: {}\n", y);
+		JC_LOG("  {}", expr);
+		JC_LOG("  l: {}", x);
+		JC_LOG("  r: {}\n", y);
+		checkFails++;
+		return false;
+	}
+
+	bool CheckSpanEqFail_Len(s8 file, i32 line, s8 expr, u64 xLen, u64 yLen) {
+		JC_LOG("***CHECK FAILED***");
+		JC_LOG("{}({})", file, line);
+		JC_LOG("  {}", expr);
+		JC_LOG("  l len: {}", xLen);
+		JC_LOG("  r len: {}\n", yLen);
+		checkFails++;
+		return false;
+	}
+
+	bool CheckSpanEqFail_Elem(s8 file, i32 line, s8 expr, u64 i, Arg x, Arg y) {
+		JC_LOG("***CHECK FAILED***");
+		JC_LOG("{}({})", file, line);
+		JC_LOG("  {}", expr);
+		JC_LOG("  l[{}]: {}", i, x);
+		JC_LOG("  r[{}]: {}\n", i, y);
 		checkFails++;
 		return false;
 	}
@@ -157,83 +178,48 @@ namespace UnitTest {
 
 //--------------------------------------------------------------------------------------------------
 
-static i32 runRecord[128];
-static i32 runRecordLen;
+static u32 records[128];
+static u32 recordsLen;
 
-TEST("UnitTest")
-{
-	runRecord[runRecordLen++] = 0;
-	SUBTEST("1")
-	{
-		printf("1");
-		runRecord[runRecordLen++] = 1;
-		SUBTEST("2")
-		{
-			printf("2");
-			runRecord[runRecordLen++] = 2;
-			SUBTEST("3")
-			{
-				printf("3");
-				runRecord[runRecordLen++] = 3;
-			}
-			SUBTEST("4")
-			{
-				printf("4");
-				runRecord[runRecordLen++] = 4;
-			}
-			SUBTEST("5")
-			{
-				printf("5");
-				runRecord[runRecordLen++] = 5;
-			}
-			SUBTEST("6")
-			{
-				printf("6");
-				runRecord[runRecordLen++] = 6;
-			}
+void Record(u32 u) {
+	JC_ASSERT(recordsLen < (sizeof(records) / sizeof(records[0])));
+	records[recordsLen++] = u;
+}
+
+TEST("UnitTest") {
+	Record(0);
+	SUBTEST("1") {
+		Record(1);
+		SUBTEST("2") {
+			Record(2);
+			SUBTEST("3") { Record(3); }
+			SUBTEST("4") { Record(4); }
+			SUBTEST("5") { Record(5); }
+			SUBTEST("6") { Record(6); }
 		}
-		SUBTEST("7")
-		{
-			printf("7");
-			runRecord[runRecordLen++] = 7;
-			SUBTEST("8") 
-			{
-				printf("8");
-				runRecord[runRecordLen++] = 8;
-			}
-			SUBTEST("9")
-			{
-				printf("9");
-				runRecord[runRecordLen++] = 9;
-			}
+		SUBTEST("7") {
+			Record(7);
+			SUBTEST("8") { Record(8); }
+			SUBTEST("9") { Record(9); }
 		}
 	}
-	SUBTEST("10")
-	{
-		printf("10");
-		runRecord[runRecordLen++] = 10;
-	}
+	SUBTEST("10") { Record(10); }
 }
 
 TEST("Test.Verify subtest recording")
 {
-	CHECK_EQ(runRecord[0], 0);
-	CHECK_EQ(runRecord[1], 1);
-	CHECK_EQ(runRecord[2], 2);
-	CHECK_EQ(runRecord[3], 3);
-	check arrays eq;
+	CHECK_SPAN_EQ(Span(records, recordsLen), Span<u32>({
 		0, 1, 2, 3,
 		0, 1, 2, 4,
 		0, 1, 2, 5,
 		0, 1, 2, 6,
 		0, 1, 7, 8,
 		0, 1, 7, 9,
-		0, 10;
+		0, 10,
+	}));
+
 }
 
-
-
-
-
+//--------------------------------------------------------------------------------------------------
 
 }	// namespace JC
