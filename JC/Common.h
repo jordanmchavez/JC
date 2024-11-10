@@ -215,9 +215,46 @@ template <class... A> struct _FmtStr {
 	static inline void NotEnoughArgs() {}
 	static inline void CloseBraceNotEscaped() {}
 	static inline void TooManyArgs() {}
+	static inline void BadPlaceholderSpec() {}
 
 	consteval _FmtStr(s8          inFmt) { Init(inFmt); }
 	consteval _FmtStr(const char* inFmt) { Init(inFmt); }
+
+	consteval const char* CheckSpec(const char* i, const char* end) {
+		bool flagsDone = false;
+		while (!flagsDone && i < end) {
+			switch (*i) {
+				case '}': i++; return i;
+				case '<': i++; break;
+				case '+': i++; break;
+				case ' ': i++; break;
+				case '0': i++; flagsDone = true; break;
+				default:       flagsDone = true; break;
+			}
+		}
+		while (i < end && *i >= '0' && *i <= '9') {
+			i++;
+		}
+		if (i < end && *i == '.') {
+			i++;
+			while (i < end && *i >= '0' && *i <= '9') {
+				i++;
+			}
+		}
+		if (i >= end) { BadPlaceholderSpec(); }
+
+		switch (*i) {
+			case 'x': i++; break;
+			case 'X': i++; break;
+			case 'b': i++; break;
+			case 'f': i++; break;
+			case 'e': i++; break;
+			default:       break;
+		}
+		if (i >= end || *i != '}') { BadPlaceholderSpec(); }
+		i++;
+		return i;
+	}
 
 	consteval void Init(s8 inFmt) {
 		constexpr size_t  argsLen = sizeof...(A);
@@ -225,32 +262,35 @@ template <class... A> struct _FmtStr {
 		const char* i = inFmt.data;
 		const char* const end = i + inFmt.len;
 		u32 nextArg = 0;
-		while (i < end) {
-			if (*i == '{') {
+
+		for (;;) {
+			if (i >= end) {
+				if (nextArg != argsLen) { TooManyArgs(); }
+				fmt = inFmt;
+				return;
+			} else if (*i == '{') {
 				i++;
 				if (i >= end) { UnmatchedOpenBrace(); }
-				if (*i != '{') {
+				if (*i == '{') {
+					i++;
+				} else {
+					i = CheckSpec(i, end);
 					if (nextArg >= argsLen) { NotEnoughArgs(); }
 					nextArg++;
-					while (*i != '}') {
-						i++;
-						if (i >= end) { UnmatchedOpenBrace(); }
-					}
 				}
-			} else if (*i == '}') {
+			} else if (*i != '}') {
+				i++;
+			} else {
 				i++;
 				if (i >= end || *i != '}') { CloseBraceNotEscaped(); }
+				i++;
 			}
-			i++;
 		}
-		if (nextArg != argsLen) { TooManyArgs(); }
-		fmt = inFmt;
 	}
 	operator s8() const { return fmt; }
 };
 
 template <class T> struct TypeIdentity { using Type = T; };
-//template <class T> using TypeIdentity = _TypeIdentity<T>::Type;
 template <class... A> using FmtStr = _FmtStr<typename TypeIdentity<A>::Type...>;
 
 //--------------------------------------------------------------------------------------------------

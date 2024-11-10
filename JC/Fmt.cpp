@@ -17,7 +17,6 @@ static constexpr u32 Flag_Bin   = 1 << 4;
 static constexpr u32 Flag_Hex   = 1 << 5;
 static constexpr u32 Flag_Fix   = 1 << 6;
 static constexpr u32 Flag_Sci   = 1 << 7;
-static constexpr u32 Flag_Cap   = 1 << 8;
 
 //--------------------------------------------------------------------------------------------------	
 
@@ -145,10 +144,12 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 
 	if (const int fpc = fpclassify(f); fpc == FP_INFINITE || fpc == FP_NAN) {
 		const s8 str = (fpc == FP_INFINITE) ? "inf" : "nan";
-		const u32 pad = (width > 3) ? width - 3: 0;
+		const u32 len = (sign ? 1 : 0) + 3;
+		const u32 pad = (width > len) ? width - len: 0;
 		if (!(flags & Flag_Left)) { out->Fill(' ', pad); }
+		if (sign) { out->Add(sign); }
 		out->Add(str.data, str.len);
-		if (flags & Flag_Left) { out->Fill(' ', width); }
+		if (flags & Flag_Left) { out->Fill(' ', pad); }
 		return;
 	}
 
@@ -432,12 +433,12 @@ void VFmtImpl(Out out, s8 fmt, Args args) {
 		}
 		JC_ASSERT(i < end);
 		switch (*i) {
-			case 'x': flags |= Flag_Hex;            i++; break;
-			case 'X': flags |= Flag_Hex | Flag_Cap; i++; break;
-			case 'b': flags |= Flag_Bin;            i++; break;
-			case 'f': flags |= Flag_Fix;            i++; break;
-			case 'e': flags |= Flag_Sci;            i++; break;
-			default:                                     break;
+			case 'x': flags |= Flag_Hex; i++; break;
+			case 'X': flags |= Flag_Hex; i++; break;
+			case 'b': flags |= Flag_Bin; i++; break;
+			case 'f': flags |= Flag_Fix; i++; break;
+			case 'e': flags |= Flag_Sci; i++; break;
+			default:                          break;
 		}
 		JC_ASSERT(i < end);
 		JC_ASSERT(*i == '}');
@@ -660,16 +661,14 @@ TEST("Fmt") {
 	constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 	CHECK_EQ(Fmt(ta, "{}", nan), "nan");
 	CHECK_EQ(Fmt(ta, "{+}", nan), "+nan");
+	CHECK_EQ(Fmt(ta, "{+6}", nan), "  +nan");
 	CHECK_EQ(Fmt(ta, "{+06}", nan), "  +nan");
 	CHECK_EQ(Fmt(ta, "{<+6}", nan), "+nan  ");
-	CHECK_EQ(Fmt(ta, "{^+6}", nan), " +nan ");
-	CHECK_EQ(Fmt(ta, "{>+6}", nan), "  +nan");
 	CHECK_EQ(Fmt(ta, "{}", -nan), "-nan");
 	CHECK_EQ(Fmt(ta, "{+011}", -nan), "       -nan");
 	CHECK_EQ(Fmt(ta, "{ }", nan), " nan");
 	CHECK_EQ(Fmt(ta, "{<7}", nan), "nan    ");
-	CHECK_EQ(Fmt(ta, "{^7}", nan), "  nan  ");
-	CHECK_EQ(Fmt(ta, "{>7}", nan), "    nan");
+	CHECK_EQ(Fmt(ta, "{7}", nan), "    nan");
 
 	// Inf
 	constexpr double inf = std::numeric_limits<double>::infinity();
@@ -679,17 +678,15 @@ TEST("Fmt") {
 	CHECK_EQ(Fmt(ta, "{+06}", inf), "  +inf");
 	CHECK_EQ(Fmt(ta, "{+06}", -inf), "  -inf");
 	CHECK_EQ(Fmt(ta, "{<+6}", inf), "+inf  ");
-	CHECK_EQ(Fmt(ta, "{^+6}", inf), " +inf ");
-	CHECK_EQ(Fmt(ta, "{>+6}", inf), "  +inf");
+	CHECK_EQ(Fmt(ta, "{+6}", inf), "  +inf");
 	CHECK_EQ(Fmt(ta, "{ }", inf), " inf");
 	CHECK_EQ(Fmt(ta, "{<7}", inf), "inf    ");
-	CHECK_EQ(Fmt(ta, "{^7}", inf), "  inf  ");
-	CHECK_EQ(Fmt(ta, "{>7}", inf), "    inf");
+	CHECK_EQ(Fmt(ta, "{7}", inf), "    inf");
 
 	// Char
 	CHECK_EQ(Fmt(ta, "{}", 'a'), "a");
 	CHECK_EQ(Fmt(ta, "{1}", 'x'), "x");
-	CHECK_EQ(Fmt(ta, "{3}", 'x'), "x  ");
+	CHECK_EQ(Fmt(ta, "{3}", 'x'), "  x");
 	CHECK_EQ(Fmt(ta, "{}", '\n'), "\n");
 	volatile char x = 'x';
 	CHECK_EQ(Fmt(ta, "{}", x), "x");
@@ -709,7 +706,7 @@ TEST("Fmt") {
 	CHECK_EQ(Fmt(ta, "{}", reinterpret_cast<void*>(~uintptr_t())), "0xffffffffffffffff");
 	CHECK_EQ(Fmt(ta, "{}", nullptr), "0x0000000000000000");
 	
-	CHECK_EQ(Fmt(ta, "{0.6}:{04}:{+}:{}{}:{}%", 1.234, 42, 3.13, "str", reinterpret_cast<void*>(1000), 'X'), "1.234000:0042:+3.13:str:0x00000000000003e8:X%");
+	CHECK_EQ(Fmt(ta, "{0.6}:{04}:{+}:{}:{}:{}%", 1.234, 42, 3.13, "str", reinterpret_cast<void*>(1000), 'X'), "1.234000:0042:+3.13:str:0x00000000000003e8:X%");
 
 	// Multibyte codepoint params
 	// Note we support multibyte UTF-8 in the args, not in the actual format string
@@ -723,8 +720,7 @@ TEST("Fmt") {
 	CHECK_EQ(Fmt(ta, "{}, {}, {}", 'a', 'b', 'c'), "a, b, c");
 	CHECK_EQ(Fmt(ta, "{}{}", "abra", "cadabra"), "abracadabra");
 	CHECK_EQ(Fmt(ta, "{<30}", "left aligned"), "left aligned                  ");
-	CHECK_EQ(Fmt(ta, "{>30}", "right aligned"), "                 right aligned");
-	CHECK_EQ(Fmt(ta, "{^30}", "centered"), "           centered           ");
+	CHECK_EQ(Fmt(ta, "{30}", "right aligned"), "                 right aligned");
 	CHECK_EQ(Fmt(ta, "{+f}; {+f}", 3.14, -3.14), "+3.14; -3.14");
 	CHECK_EQ(Fmt(ta, "{ f}; { f}", 3.14, -3.14), " 3.14; -3.14");
 	CHECK_EQ(Fmt(ta, "bin: {b}; dec: {}; hex: {x}", 42u, 42, 42u), "bin: 101010; dec: 42; hex: 2a");
