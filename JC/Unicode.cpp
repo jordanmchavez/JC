@@ -8,9 +8,9 @@ namespace JC::Unicode {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<s16z> Utf8ToWtf16z(TempAllocator* tempAllocator, s8 s) {
+Res<s16z> Utf8ToWtf16z(TempAllocator* ta, s8 s) {
 	Array<char16_t> out;
-	out.Init(tempAllocator);
+	out.Init(ta);
 
 	const u8* p = (const u8*)s.data;
 	const u8* end = p + s.len;
@@ -36,41 +36,41 @@ Res<s16z> Utf8ToWtf16z(TempAllocator* tempAllocator, s8 s) {
 			cp = (u32)c1;
 
 		} else if (c1 >= 0xc2 && c1 <= 0xdf) {
-			if (p > end) { return JC_ERR(Err_Utf8MissingTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+			if (p > end) { return JC_ERR(ta, Err_Utf8MissingTrailingByte, "s", s, "i", p - (const u8*)s.data); }
 			const u32 c2 = (u32)*p++;
-			if (c2 < 0x80 || c2 > 0xbf) { return JC_ERR(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+			if (c2 < 0x80 || c2 > 0xbf) { return JC_ERR(ta, Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
 			cp = ((c1 & 0x1f) << 6) + (c2 & 0x3f);
 
 		} else if (c1 <= 0xef) {
-			if (p + 1 > end) { return JC_ERR(Err_Utf8MissingTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+			if (p + 1 > end) { return JC_ERR(ta, Err_Utf8MissingTrailingByte, "s", s, "i", p - (const u8*)s.data); }
 			const u32 c2 = (u32)*p++;
 			const u32 c3 = (u32)*p++;
 			if (c1 == 0xe0) {
-				if (c2 < 0xa0 || c2 > 0xbf) { return JC_ERR(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+				if (c2 < 0xa0 || c2 > 0xbf) { return JC_ERR(ta, Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
 			} else {
-				if (c2 < 0x80 || c2 > 0xbf) { return JC_ERR(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+				if (c2 < 0x80 || c2 > 0xbf) { return JC_ERR(ta, Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
 			}
-			if (c3 < 0x80 || c3 > 0xbf) { return JC_ERR(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+			if (c3 < 0x80 || c3 > 0xbf) { return JC_ERR(ta, Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
 			cp = ((c1 & 0xf) << 12) + ((c2 & 0x3f) << 6) + (c3 & 0x3f);
 
 		} else if (c1 <= 0xf4) {
-			if (p + 2 > end) { return JC_ERR(Err_Utf8MissingTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+			if (p + 2 > end) { return JC_ERR(ta, Err_Utf8MissingTrailingByte, "s", s, "i", p - (const u8*)s.data); }
 			const u32 c2 = (u32)*p++;
 			const u32 c3 = (u32)*p++;
 			const u32 c4 = (u32)*p++;
 			if (c1 == 0xf0) {
-				if (c2 < 0x90 || c2 > 0xbf) { return JC_ERR(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+				if (c2 < 0x90 || c2 > 0xbf) { return JC_ERR(ta, Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
 			} else if (c1 >= 0xf1 && c1 <= 0xf3) {
-				if (c2 < 0x80 || c2 > 0xbf) { return JC_ERR(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+				if (c2 < 0x80 || c2 > 0xbf) { return JC_ERR(ta, Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
 			} else {
-				if (c2 < 0x80 || c2 > 0x8f) { return JC_ERR(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+				if (c2 < 0x80 || c2 > 0x8f) { return JC_ERR(ta, Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
 			}
-			if (c3 < 0x80 || c3 > 0xbf) { return JC_ERR( Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
-			if (c4 < 0x80 || c4 > 0xbf) { return JC_ERR(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+			if (c3 < 0x80 || c3 > 0xbf) { return JC_ERR(ta, Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+			if (c4 < 0x80 || c4 > 0xbf) { return JC_ERR(ta, Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
 			cp = ((c1 & 0x7) << 18) + ((c2 & 0x3f) << 12) + ((c3 & 0x3f) << 6) + (c4 & 0x3f);
 
 		} else {
-			return JC_ERR(Err_Utf8BadByte, "s", s, "i", p - (const u8*)s.data);
+			return JC_ERR(ta, Err_Utf8BadByte, "s", s, "i", p - (const u8*)s.data);
 		}
 
 		if (cp <= 0xffff) {

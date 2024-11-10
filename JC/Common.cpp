@@ -35,8 +35,8 @@ void VPanic(s8 file, i32 line, s8 expr, s8 fmt, Args args) {
 
 //--------------------------------------------------------------------------------------------------
 
-Err* Err::VMake(TempAllocator* alloc, Err* prev, s8 file, i32 line, ErrCode ec, const ErrArg* errArgs, u32 errArgsLen) {
-	Err* err  = (Err*)alloc->Alloc(sizeof(Err) + errArgsLen > 0 ? errArgsLen - 1 : 0);
+Err* Err::VMake(TempAllocator* ta, Err* prev, s8 file, i32 line, ErrCode ec, const ErrArg* errArgs, u32 errArgsLen) {
+	Err* err  = (Err*)ta->Alloc(sizeof(Err) + (errArgsLen > 0 ? errArgsLen - 1 : 0) * sizeof(ErrArg));
 	err->prev    = (Err*)prev;
 	err->file    = file;
 	err->line    = line;

@@ -10,7 +10,7 @@ namespace JC {
 
 #if defined _MSC_VER
 	#define JC_COMPILER_MSVC
-	#define JC_OS_WIN
+	#define JC_OS_WINDOWS
 
 	using  i8 = signed char;
 	using  u8 = unsigned char;
@@ -349,7 +349,7 @@ struct [[nodiscard]] Err {
 	u32     argsLen = 0;
 	ErrArg  args[1];	// variable length
 
-	static Err* VMake(TempAllocator* alloc, Err* prev, s8 file, i32 line, ErrCode ec, const ErrArg* errArgs, u32 errArgsLen);
+	static Err* VMake(TempAllocator* ta, Err* prev, s8 file, i32 line, ErrCode ec, const ErrArg* errArgs, u32 errArgsLen);
 
 	template <class T, class... A> static void FillErrArgs(ErrArg* errArgs, s8 name, T arg, A... args) {
 		errArgs[0] = { .name = name, .arg = Arg::Make(arg) };
@@ -357,18 +357,18 @@ struct [[nodiscard]] Err {
 			Err::FillErrArgs(&errArgs[1], args...);
 		}
 	}
-	template <class... A> static Err* Make(TempAllocator* alloc, Err* prev, s8 file, i32 line, ErrCode ec, A... args) {
+	template <class... A> static Err* Make(TempAllocator* ta, Err* prev, s8 file, i32 line, ErrCode ec, A... args) {
 		static_assert(sizeof...(A) % 2 == 0);
 		constexpr u32 ErrArgsLen = sizeof...(A) / 2;
 		ErrArg errArgs[ErrArgsLen > 0 ? ErrArgsLen : 1];
 		if constexpr (ErrArgsLen > 0) {
 			FillErrArgs(errArgs, args...);
 		}
-		return VMake(alloc, prev, file, line, ec, errArgs, ErrArgsLen);
+		return VMake(ta, prev, file, line, ec, errArgs, ErrArgsLen);
 	}
 };
 
-#define JC_ERR(ec, ...) Err::Make(tempAllocator, nullptr, __FILE__, __LINE__, ec, __VA_ARGS__)
+#define JC_ERR(tempAllocator, ec, ...) Err::Make(tempAllocator, nullptr, __FILE__, __LINE__, ec, ##__VA_ARGS__)
 
 //--------------------------------------------------------------------------------------------------
 
@@ -394,7 +394,7 @@ template <> struct [[nodiscard]] Res<void> {
 	constexpr Res() = default;
 	constexpr Res(Err* e) { err = e; }
 
-	constexpr operator bool() const { return err != nullptr; }
+	constexpr operator bool() const { return err == nullptr; }
 };
 
 constexpr Res<> Ok() { return Res<>(); }

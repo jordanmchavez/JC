@@ -59,7 +59,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>.</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;3rd</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
       <DisableLanguageExtensions>true</DisableLanguageExtensions>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
@@ -81,7 +81,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>.</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;3rd</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
       <DisableLanguageExtensions>true</DisableLanguageExtensions>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
@@ -96,7 +96,19 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="3rd\dragonbox.h" />
+    <ClInclude Include="3rd\dragonbox\dragonbox.h" />
+    <ClInclude Include="3rd\vk_video\vulkan_video_codecs_common.h" />
+    <ClInclude Include="3rd\vk_video\vulkan_video_codec_av1std.h" />
+    <ClInclude Include="3rd\vk_video\vulkan_video_codec_av1std_decode.h" />
+    <ClInclude Include="3rd\vk_video\vulkan_video_codec_h264std.h" />
+    <ClInclude Include="3rd\vk_video\vulkan_video_codec_h264std_decode.h" />
+    <ClInclude Include="3rd\vk_video\vulkan_video_codec_h264std_encode.h" />
+    <ClInclude Include="3rd\vk_video\vulkan_video_codec_h265std.h" />
+    <ClInclude Include="3rd\vk_video\vulkan_video_codec_h265std_decode.h" />
+    <ClInclude Include="3rd\vk_video\vulkan_video_codec_h265std_encode.h" />
+    <ClInclude Include="3rd\vulkan\vk_platform.h" />
+    <ClInclude Include="3rd\vulkan\vulkan_core.h" />
+    <ClInclude Include="3rd\vulkan\vulkan_win32.h" />
     <ClInclude Include="JC\Allocator.h" />
     <ClInclude Include="JC\Array.h" />
     <ClInclude Include="JC\Common.h" />
@@ -106,6 +118,8 @@
     <ClInclude Include="JC\Math.h" />
     <ClInclude Include="JC\MinimalWindows.h" />
     <ClInclude Include="JC\Panic.h" />
+    <ClInclude Include="JC\Render.h" />
+    <ClInclude Include="JC\Render_VK.h" />
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\UnitTest.h" />
     <ClInclude Include="JC\Map.h" />
@@ -120,11 +134,18 @@
     <ClCompile Include="JC\Map.cpp" />
     <ClCompile Include="JC\Math.cpp" />
     <ClCompile Include="JC\Panic.cpp" />
+    <ClCompile Include="JC\Render_VkLoad.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
     <ClCompile Include="JC\Unicode.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="JC\UnitTest.cpp" />
+    <ClCompile Include="JC\Render.cpp" />
     <ClCompile Include="Scratch.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Game Notes.md" />
+    <None Include="Guidebook.md" />
+    <None Include="Todo.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -7,28 +7,13 @@
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
-/*
-constexpr s8 FileNameOnly(s8 path) {
-	for (const char* i = path.data + path.len - 1; i >= path.data; i--) {
-		if (*i == '/' || *i == '\\') {
-			return s8(i + 1, path.data + path.len);
-		}
-	}
-	return path;
-}
-*/
-
-struct LogFnObj {
-	LogFn* fn;
-	void*  userData;
-};
 
 struct LogApiImpl : LogApi {
 	static constexpr u32 MaxLogFns = 32;
 
 	TempAllocatorApi* tempAllocatorApi;
-	LogFnObj          logFnObjs[MaxLogFns];
-	u32               logFnObjsLen;
+	LogFn*            logFns[MaxLogFns];
+	u32               logFnsLen = 0;
 
 	void Init(TempAllocatorApi* inTempAllocatorApi) {
 		tempAllocatorApi = inTempAllocatorApi;
@@ -42,22 +27,22 @@ struct LogApiImpl : LogApi {
 		VFmt(&arr, fmt, args);
 		arr.Add('\n');
 		const s8 msg = s8(arr.data, arr.len);
-		for (u32 i = 0; i < logFnObjsLen; i++) {
-			(*logFnObjs[i].fn)(logFnObjs[i].userData, file, line, category, msg);
+		for (u32 i = 0; i < logFnsLen; i++) {
+			(*logFns[i])(file, line, category, msg);
 		}
 		tempAllocatorApi->Destroy(ta);
 	}
 
-	void AddFn(LogFn* fn, void* userData) override {
-		JC_ASSERT(logFnObjsLen < MaxLogFns);
-		logFnObjs[logFnObjsLen++] = { .fn = fn, .userData = userData };
+	void AddFn(LogFn* fn) override {
+		JC_ASSERT(logFnsLen < MaxLogFns);
+		logFns[logFnsLen++] = fn;
 	}
 
 	void RemoveFn(LogFn* fn) override {
-		for (u32 i = 0; i < logFnObjsLen; i++) {
-			if (logFnObjs[i].fn == fn) {
-				logFnObjs[i] = logFnObjs[logFnObjsLen - 1];
-				logFnObjsLen--;
+		for (u32 i = 0; i < logFnsLen; i++) {
+			if (logFns[i] == fn) {
+				logFns[i] = logFns[logFnsLen - 1];
+				logFnsLen--;
 			}
 		}
 	}

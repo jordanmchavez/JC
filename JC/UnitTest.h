@@ -12,7 +12,7 @@ struct TempAllocatorApi;
 //--------------------------------------------------------------------------------------------------
 
 namespace UnitTest {
-	void Run(LogApi* logApi, TempAllocatorApi* tempAllocatorApi);
+	bool Run(LogApi* logApi, TempAllocatorApi* tempAllocatorApi);
 
 	TempAllocator* GetTempAllocator();
 

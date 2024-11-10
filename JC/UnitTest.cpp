@@ -93,18 +93,19 @@ namespace UnitTest {
 		}
 	}
 
-	void Run(LogApi* inLogApi, TempAllocatorApi* inTempAllocatorApi) {
+	bool Run(LogApi* inLogApi, TempAllocatorApi* inTempAllocatorApi) {
 		logApi = inLogApi;
 		tempAllocatorApi = inTempAllocatorApi;
 
-		logApi->AddFn([](void* userData, s8, i32, LogCategory, s8 msg) {
-			TempAllocator* ta = *((TempAllocator**)userData);
+		logApi->AddFn([](s8, i32, LogCategory, s8 msg) {
 			fwrite(msg.data, 1, msg.len, stdout);
 			if (Sys::IsDebuggerPresent()) {
-				Sys::DebuggerPrint(ta, msg);
+				Sys::DebuggerPrint(tempAllocator, msg);
 			}
-		}, &tempAllocator);
+		});
 
+		u32 passedTests = 0;
+		u32 failedTests = 0;
 		for (u32 i = 0; i < testsLen; i++)  {
 			tempAllocator = tempAllocatorApi->Create();
 			nextLen = 0;
@@ -127,13 +128,18 @@ namespace UnitTest {
 
 				if (checkFails > 0) {
 					JC_LOG("Failed: {}", s8(lastStr.data, lastStr.len));
+					failedTests++;
 				} else {
 					JC_LOG("Passed: {}", s8(lastStr.data, lastStr.len));
+					passedTests++;
 				}
 			} while (nextLen > 0);
 			tempAllocatorApi->Destroy(tempAllocator);
-
 		}
+
+		JC_LOG("Total passed: {}", passedTests);
+		JC_LOG("Total failed: {}", failedTests);
+		return failedTests == 0;
 	}
 
 	TempAllocator* GetTempAllocator() {
