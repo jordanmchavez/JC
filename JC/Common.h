@@ -119,8 +119,11 @@ template <class T>            struct                RemoveVolatile<volatile T>  
 template <class T1, class T2> struct                IsSameTypeT                 { static constexpr bool Val = false; };
 template <class T>            struct                IsSameTypeT<T, T>           { static constexpr bool Val = true;  };
 template <class T1, class T2> inline constexpr bool IsSameType                  = IsSameTypeT<T1, T2>::Val;
-template <class...>           inline constexpr bool AlwaysFalse                 = false; 
+template <class T>            struct                IsPointerT                  { static constexpr bool Val = false; };
+template <class T>            struct                IsPointerT<T*>              { static constexpr bool Val = true; };
+template <class T>            inline constexpr bool IsPointer                   = IsPointerT<T>::Val;
 template <class T>            inline constexpr bool IsEnum                      = JC_IS_ENUM(T);
+template <class...>           inline constexpr bool AlwaysFalse                 = false; 
 
 //--------------------------------------------------------------------------------------------------
 
@@ -170,8 +173,7 @@ struct Arg {
 		else if constexpr (IsSameType<Underlying, unsigned long long>) { return { .type = ArgType::U64,  .u = val }; }
 		else if constexpr (IsSameType<Underlying, float>)              { return { .type = ArgType::F64,  .f = val }; }
 		else if constexpr (IsSameType<Underlying, double>)             { return { .type = ArgType::F64,  .f = val }; }
-		else if constexpr (IsSameType<Underlying, void*>)              { return { .type = ArgType::Ptr,  .p = val }; }
-		else if constexpr (IsSameType<Underlying, const void*>)        { return { .type = ArgType::Ptr,  .p = val }; }
+		else if constexpr (IsPointer<Underlying>)                      { return { .type = ArgType::Ptr,  .p = val }; }
 		else if constexpr (IsSameType<Underlying, decltype(nullptr)>)  { return { .type = ArgType::Ptr,  .p = nullptr }; }
 		else if constexpr (IsSameType<Underlying, s8>)                 { return { .type = ArgType::S8,   .s = { .data = val.data, .len = val.len } }; }
 		else if constexpr (IsSameType<Underlying, char*>)              { return { .type = ArgType::S8,   .s = { .data = val,      .len = StrLen8(val) } }; }

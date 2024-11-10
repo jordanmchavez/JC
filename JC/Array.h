@@ -10,10 +10,10 @@ struct Allocator;
 
 template <class T>
 struct Array {
-	Allocator* alloc;
-	T*         data;
-	u64        len;
-	u64        cap;
+	Allocator* alloc = nullptr;
+	T*         data  = nullptr;
+	u64        len   = 0;
+	u64        cap   = 0;
 
 	constexpr       T& operator[](u64 i)       { return data[i]; }
 	constexpr const T& operator[](u64 i) const { return data[i]; }

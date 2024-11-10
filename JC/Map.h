@@ -20,13 +20,13 @@ struct Map {
 		V val;
 	};
 
-	Allocator*  alloc;
-	Bucket*     buckets;
-	u64         bucketsLen;
-	Elem*       elems;
-	u64         elemsLen;
-	u64         elemsCap;
-	u8          mask;
+	Allocator*  alloc      = nullptr;
+	Bucket*     buckets    = nullptr;
+	u64         bucketsLen = 0;
+	Elem*       elems      = nullptr;
+	u64         elemsLen   = 0;
+	u64         elemsCap   = 0;
+	u8          mask       = 0;
 
 	void Init(Allocator* inAlloc, SrcLoc srcLoc = SrcLoc::Here()) {
 		alloc      = inAlloc;

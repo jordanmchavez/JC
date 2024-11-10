@@ -107,6 +107,7 @@
     <ClCompile Include="JC\Fmt.cpp" />
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Log.cpp" />
+    <ClCompile Include="JC\Map.cpp" />
     <ClCompile Include="JC\Math.cpp" />
     <ClCompile Include="JC\Panic.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />

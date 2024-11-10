@@ -25,6 +25,7 @@ namespace UnitTest {
 
 	static LogApi*           logApi;
 	static TempAllocatorApi* tempAllocatorApi;
+	static TempAllocator*    tempAllocator;
 	static TestObj           tests[MaxTests];
 	static u32               testsLen;
 	static Subtest::Sig      cur[MaxSubtests];
@@ -96,8 +97,6 @@ namespace UnitTest {
 		logApi = inLogApi;
 		tempAllocatorApi = inTempAllocatorApi;
 
-		TempAllocator* tempAllocator;
-
 		logApi->AddFn([](void* userData, s8, i32, LogCategory, s8 msg) {
 			TempAllocator* ta = *((TempAllocator**)userData);
 			fwrite(msg.data, 1, msg.len, stdout);
@@ -137,6 +136,10 @@ namespace UnitTest {
 		}
 	}
 
+	TempAllocator* GetTempAllocator() {
+		return tempAllocator;
+	}
+
 	bool CheckFail(s8 file, i32 line, s8 expr) {
 		JC_LOG("***CHECK FAILED***");
 		JC_LOG("{}({})", file, line);
@@ -145,7 +148,7 @@ namespace UnitTest {
 		return false;
 	}
 
-	bool CheckEqFail(s8 file, i32 line, s8 expr, Arg x, Arg y) {
+	bool CheckRelFail(s8 file, i32 line, s8 expr, Arg x, Arg y) {
 		JC_LOG("***CHECK FAILED***");
 		JC_LOG("{}({})", file, line);
 		JC_LOG("  {}", expr);

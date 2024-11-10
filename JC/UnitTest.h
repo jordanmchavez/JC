@@ -14,13 +14,19 @@ struct TempAllocatorApi;
 namespace UnitTest {
 	void Run(LogApi* logApi, TempAllocatorApi* tempAllocatorApi);
 
+	TempAllocator* GetTempAllocator();
+
 	bool CheckFail(s8 file, i32 line, s8 expr);
-	bool CheckEqFail(s8 file, i32 line, s8 expr, Arg x, Arg y);
+	bool CheckRelFail(s8 file, i32 line, s8 expr, Arg x, Arg y);
 	bool CheckSpanEqFail_Len(s8 file, i32 line, s8 expr, u64 xLen, u64 yLen);
 	bool CheckSpanEqFail_Elem(s8 file, i32 line, s8 expr, u64 i, Arg x, Arg y);
 
 	template <class X, class Y> bool CheckEq(s8 file, i32 line, s8 expr, X x, Y y) {
-		return (x == y) || CheckFail(file, line, expr, Arg::Make(x), Arg::Make(y));
+		return (x == y) || CheckRelFail(file, line, expr, Arg::Make(x), Arg::Make(y));
+	}
+
+	template <class X, class Y> bool CheckNeq(s8 file, i32 line, s8 expr, X x, Y y) {
+		return (x != y) || CheckRelFail(file, line, expr, Arg::Make(x), Arg::Make(y));
 	}
 
 	template <class X, class Y> bool CheckSpanEq(s8 file, i32 line, s8 expr, Span<X> x, Span<Y> y) {
@@ -70,14 +76,13 @@ namespace UnitTest {
 	
 #define SUBTEST(name) SUBTEST_IMPL(name, JC_MACRO_NAME(UnitSubtest_))
 
-#define CHECK_AT(file, line, x) \
-	((x) || JC::UnitTest::CheckFail(file, line, #x) || TEST_DEBUGGER_BREAK)
+#define CHECK_AT(file, line, x)        ((x) || JC::UnitTest::CheckFail(file, line, #x) || TEST_DEBUGGER_BREAK)
+#define CHECK_EQ_AT(file, line, x, y)  (JC::UnitTest::CheckEq(file, line, #x " == " #y, (x), (y)) || TEST_DEBUGGER_BREAK)
+#define CHECK_NEQ_AT(file, line, x, y) (JC::UnitTest::CheckNeq(file, line, #x " != " #y, (x), (y)) || TEST_DEBUGGER_BREAK)
 
-#define CHECK_EQ_AT(file, line, x, y) \
-	(JC::UnitTest::CheckEq(file, line, #x " == " #y, (x), (y)) || TEST_DEBUGGER_BREAK)
-
-#define CHECK_EQ(x, y) \
-	CHECK_EQ_AT(__FILE__, __LINE__, x, y)
+#define CHECK(x)        CHECK_AT(__FILE__, __LINE__, x)
+#define CHECK_EQ(x, y)  CHECK_EQ_AT(__FILE__, __LINE__, x, y)
+#define CHECK_NEQ(x, y) CHECK_NEQ_AT(__FILE__, __LINE__, x, y)
 
 #define CHECK_SPAN_EQ_AT(file, line, x, y) \
 	(JC::UnitTest::CheckSpanEq(file, line, #x " == " #y, (x), (y)) || TEST_DEBUGGER_BREAK)
