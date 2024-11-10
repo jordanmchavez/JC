@@ -84,8 +84,9 @@ struct s8 {
 
 	constexpr      s8() = default;
 	constexpr      s8(const s8& s) = default;
-	constexpr      s8(const char* s)        { data = s; len = StrLen8(s); }
-	constexpr      s8(const char* d, u64 l) { data = d; len = l; }
+	constexpr      s8(const char* s)                { data = s; len = StrLen8(s); }
+	constexpr      s8(const char* d, u64 l)         { data = d; len = l; }
+	constexpr      s8(const char* b, const char* e) { data = b; len = (u64)(e - b); }
 
 	constexpr s8&  operator=(const s8& s) = default;
 	constexpr s8&  operator=(const char* s) { data = s; len = StrLen8(s); return *this; }

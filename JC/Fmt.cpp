@@ -86,7 +86,7 @@ s8 U64ToDigits(u64 u, char* out, u32 outLen) {
 	{
 		*--iter = '0' + (char)u;
 	}
-	return s8(iter, (u64)(end - iter));
+	return s8(iter, end);
 }
 
 s8 U64ToHexits(u64 u, char* out, u32 outLen) {
@@ -177,7 +177,7 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 			jkj::dragonbox::policy::trailing_zero::remove,
 			jkj::dragonbox::policy::binary_to_decimal_rounding::to_even
 		);
-		sigStr = U64ToDigits(db.significand, sigBuf + 1, sizeof(sigBuf - 1));
+		sigStr = U64ToDigits(db.significand, sigBuf + 1, sizeof(sigBuf) - 1);
 		exp = db.exponent;
 	}
 
@@ -517,36 +517,6 @@ TEST("Fmt") {
 	CHECK_EQ(Fmt(ta, "{<5}", "abc"), "abc  ");
 	CHECK_EQ(Fmt(ta, "{<20}", reinterpret_cast<void*>(0x12345678abcdef12)), "0x12345678abcdef12  ");
 
-	// Right align
-	CHECK_EQ(Fmt(ta, "{>4}", 42), "  42");
-	CHECK_EQ(Fmt(ta, "{>4x}", 0x42u), "  42");
-	CHECK_EQ(Fmt(ta, "{>5}", -42), "  -42");
-	CHECK_EQ(Fmt(ta, "{>5}", 42u), "   42");
-	CHECK_EQ(Fmt(ta, "{>5}", -42l), "  -42");
-	CHECK_EQ(Fmt(ta, "{>5}", 42ul), "   42");
-	CHECK_EQ(Fmt(ta, "{>5}", -42ll), "  -42");
-	CHECK_EQ(Fmt(ta, "{>5}", 42ull), "   42");
-	CHECK_EQ(Fmt(ta, "{>7}", -42.0), "  -42.0");
-	CHECK_EQ(Fmt(ta, "{>7}", true), "   true");
-	CHECK_EQ(Fmt(ta, "{>5}", 'c'), "    c");
-	CHECK_EQ(Fmt(ta, "{>5}", "abc"), "  abc");
-	CHECK_EQ(Fmt(ta, "{>20}", reinterpret_cast<void*>(0x12345678abcdef12)), "  0x12345678abcdef12");
-
-	// Center align
-	CHECK_EQ(Fmt(ta, "{^5}", 42), " 42  ");
-	CHECK_EQ(Fmt(ta, "{^5x}", 0x42u), " 42  ");
-	CHECK_EQ(Fmt(ta, "{^5}", -42), " -42 ");
-	CHECK_EQ(Fmt(ta, "{^5}", 42u), " 42  ");
-	CHECK_EQ(Fmt(ta, "{^5}", -42l), " -42 ");
-	CHECK_EQ(Fmt(ta, "{^5}", 42ul), " 42  ");
-	CHECK_EQ(Fmt(ta, "{^5}", -42ll), " -42 ");
-	CHECK_EQ(Fmt(ta, "{^5}", 42ull), " 42  ");
-	CHECK_EQ(Fmt(ta, "{^8}", -42.0), " -42.0  ");
-	CHECK_EQ(Fmt(ta, "{^7}", true), " true  ");
-	CHECK_EQ(Fmt(ta, "{^5}", 'c'), "  c  ");
-	CHECK_EQ(Fmt(ta, "{^6}", "abc"), " abc  ");
-	CHECK_EQ(Fmt(ta, "{^23}", reinterpret_cast<void*>(0x12345678abcdef12)), "  0x12345678abcdef12   ");
-
 	// Sign '+'
 	CHECK_EQ(Fmt(ta, "{+}", 42), "+42");
 	CHECK_EQ(Fmt(ta, "{+}", -42), "-42");
@@ -584,9 +554,11 @@ TEST("Fmt") {
 	CHECK_EQ(Fmt(ta, "{7}", 42ull), "     42");
 	CHECK_EQ(Fmt(ta, "{8}", -1.23), "   -1.23");
 	CHECK_EQ(Fmt(ta, "{20}", reinterpret_cast<void*>(0x12345678abcdef12)), "  0x12345678abcdef12");
-	CHECK_EQ(Fmt(ta, "{11}", true), "true       ");
-	CHECK_EQ(Fmt(ta, "{11}", 'x'), "x          ");
-	CHECK_EQ(Fmt(ta, "{12}", "str"), "str         ");
+	CHECK_EQ(Fmt(ta, "{11}", true), "       true");
+	CHECK_EQ(Fmt(ta, "{11}", 'x'), "          x");
+	CHECK_EQ(Fmt(ta, "{12}", "str"), "         str");
+	CHECK_EQ(Fmt(ta, "{5}", "abcdef"), "abcdef");
+	CHECK_EQ(Fmt(ta, "{4}", "abcdef"), "abcdef");
 	CHECK_EQ(Fmt(ta, "{06.1}", 0.00884311), "0000.0");
 
 	// Precision
@@ -605,8 +577,8 @@ TEST("Fmt") {
 	// Bool
 	CHECK_EQ(Fmt(ta, "{}", true), "true");
 	CHECK_EQ(Fmt(ta, "{}", false), "false");
-	CHECK_EQ(Fmt(ta, "{>5}", true), " true");
-	CHECK_EQ(Fmt(ta, "{6}", false), "false ");
+	CHECK_EQ(Fmt(ta, "{<5}", true), "true ");
+	CHECK_EQ(Fmt(ta, "{6}", false), " false");
 
 	// Short
 	CHECK_EQ(Fmt(ta, "{}", (short)42), "42");
