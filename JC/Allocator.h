@@ -33,6 +33,7 @@ struct TempAllocatorApi {
 	virtual TempAllocator* Create() = 0;
 	virtual TempAllocator* Create(void* buf, u64 size) = 0;
 	virtual void           Destroy(TempAllocator* ta) = 0;
+	virtual void           Reset(TempAllocator* ta) = 0;
 	virtual void           Frame() = 0;
 };
 

@@ -40,6 +40,7 @@ namespace JC {
 #define JC_CONCAT2(x, y) x##y
 #define JC_CONCAT(x, y)  JC_CONCAT2(x, y)
 #define JC_MACRO_NAME(x) JC_CONCAT(x, __LINE__)
+#define JC_LEN(a) (sizeof(a) / sizeof(a[0]))
 
 //--------------------------------------------------------------------------------------------------
 
@@ -107,6 +108,10 @@ struct SrcLoc {
 		return SrcLoc { .file = file, .line = line };
 	}
 };
+
+//--------------------------------------------------------------------------------------------------
+
+template <class T> struct Array;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -366,6 +371,8 @@ struct [[nodiscard]] Err {
 		}
 		return VMake(ta, prev, file, line, ec, errArgs, ErrArgsLen);
 	}
+
+	void Str(Array<char>* arr);
 };
 
 #define JC_ERR(tempAllocator, ec, ...) Err::Make(tempAllocator, nullptr, __FILE__, __LINE__, ec, ##__VA_ARGS__)

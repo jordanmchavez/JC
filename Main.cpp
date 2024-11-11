@@ -3,7 +3,7 @@
 #include "JC/Fmt.h"
 #include "JC/Log.h"
 #include "JC/Panic.h"
-#include "JC/Render_Vk.h"
+#include "JC/Render.h"
 #include "JC/Sys.h"
 #include "JC/UnitTest.h"
 #include <stdio.h>
@@ -22,25 +22,10 @@ constexpr s8 FileNameOnly(s8 path) {
 	return path;
 }
 
-s8 MakeErrStr(TempAllocator* ta, Err* err) {
-	Array<char> buf;
-	buf.Init(ta);
-	for (Err* e = err; e; e = e->prev) {
-		Fmt(&buf, "{}-{}:", e->ec.ns, e->ec.code);
-	}
-	buf[buf.len - 1] = '\n';
-	for (Err* e = err; e; e = e->prev) {
-		Fmt(&buf, "  {}({}): {}-{}\n", e->file, e->line, e->ec.ns, e->ec.code);
-		for (u32 i = 0; i < e->argsLen; i++) {
-			Fmt(&buf, "    '{}' = {}\n", e->args[i].name, e->args[i].arg);
-		}
-	}
-	return s8(buf.data, buf.len);
-}
-
 int main(int argc, const char** argv) {
 	LogApi*           logApi           = LogApi::Get();
 	PanicApi*         panicApi         = PanicApi::Get();
+	RenderApi*        renderApi        = RenderApi::Get();
 	TempAllocatorApi* tempAllocatorApi = TempAllocatorApi::Get();
 	VirtualMemoryApi* virtualMemoryApi = VirtualMemoryApi::Get();
 
@@ -70,17 +55,12 @@ int main(int argc, const char** argv) {
 		}
 	});
 
-	Err* e1 = JC_ERR(tempAllocator, ErrCode { .ns = "foo", .code = 1 }, "arg1", "val1", "arg2", 123, "arg3", 4.56);
-	Err* e2 = JC_ERR(tempAllocator, ErrCode { .ns = "bar", .code = 2 });
-	Err* e3 = JC_ERR(tempAllocator, ErrCode { .ns = "baz", .code = 3 }, "arg4", "bar", "arg5", 80085);
-	e1->prev = e2;
-	e2->prev = e3;
-	JC_LOG_ERROR("{}", MakeErrStr(tempAllocator, e1));
-
-	if (Res<> r = RenderVk::LoadRootFns(tempAllocator); !r) {	
-		JC_LOG_ERROR("{}", MakeErrStr(tempAllocator, r.err));
+	if (Res<> r = renderApi->Init(logApi, tempAllocator); !r) {	
+		JC_LOG_ERR(r.err);
+		return 1;
 	}
-	RenderVk::FreeFns();
+
+	renderApi->Shutdown();
 
 	return 0;
 }

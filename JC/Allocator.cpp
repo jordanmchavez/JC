@@ -336,13 +336,28 @@ struct TempAllocatorApiImpl : TempAllocatorApi {
 	
 	void Destroy(TempAllocator* ta) override {
 		TempChunk* chunk = ((TempAllocatorImpl*)ta)->chunk;
-		while (chunk) {
+		while (chunk->next) {
 			TempChunk* next = chunk->next;
-			if (chunk != ((TempAllocatorImpl*)ta)->buf) {
-				FreeChunk(chunk);
-			}
+			FreeChunk(chunk);
 			chunk = next;
 		}
+		if (chunk != ((TempAllocatorImpl*)ta)->buf) {
+			FreeChunk(chunk);
+		}
+	}
+
+	//----------------------------------------------------------------------------------------------
+
+	void Reset(TempAllocator* ta) override {
+		TempChunk* chunk = ((TempAllocatorImpl*)ta)->chunk;
+		while (chunk->next) {
+			TempChunk* next = chunk->next;
+			FreeChunk(chunk);
+			chunk = next;
+		}
+		((TempAllocatorImpl*)ta)->chunk = chunk;
+		chunk->free = (u8*)chunk + sizeof(TempChunk) + sizeof(TempAllocatorImpl);
+		chunk->last = chunk->free;
 	}
 
 	//----------------------------------------------------------------------------------------------
@@ -456,6 +471,11 @@ TEST("TempAllocatorApi") {
 	api.Init(VirtualMemoryApi::Get());
 
 	SUBTEST("Allocs and reclaiming") {
+		TempAllocatorImpl* ta[5];
+		for (u32 i = 0; i < 5; i++) {
+			ta[i] = (TempAllocatorImpl*)api.Create();
+		}
+
 		api.maxUnusedFrames = 2;
 		TestFrame testFrames[] = {
 			{
@@ -507,12 +527,7 @@ TEST("TempAllocatorApi") {
 			},
 		};
 
-		TempAllocatorImpl* ta[5];
 		for (const TestFrame* tf = testFrames; tf < testFrames + (sizeof(testFrames) / sizeof(testFrames[0])); tf++) {
-			for (u32 i = 0; i < 5; i++) {
-				ta[i] = (TempAllocatorImpl*)api.Create();
-			}
-
 			for (u32 a = 0; a < 5; a++) {
 				for (u32 i = 0; i < tf->allocs[a].len; i++) {
 					ta[a]->Alloc(tf->allocs[a][i], SrcLoc::Here());
@@ -520,7 +535,7 @@ TEST("TempAllocatorApi") {
 			}
 
 			for (u32 i = 0; i < 5; i++) {
-				api.Destroy(ta[i]);
+				api.Reset(ta[i]);
 			}
 
 			for (u32 i = 0; i < TempMaxChunkSizes; i++) {
@@ -532,6 +547,10 @@ TEST("TempAllocatorApi") {
 			for (u32 i = 0; i < TempMaxChunkSizes; i++) {
 				CHECK_EQ(api.freeLists[i].count, tf->freeAfterFrame[i]);
 			}
+		}
+
+		for (u32 i = 0; i < 5; i++) {
+			api.Destroy(ta[i]);
 		}
 	}
 

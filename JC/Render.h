@@ -4,12 +4,15 @@
 
 namespace JC {
 
+struct LogApi;
+
 //--------------------------------------------------------------------------------------------------
 
 struct RenderApi {
 	static RenderApi* Get();
 
-	virtual void Init() = 0;
+	virtual Res<> Init(LogApi* logApi, TempAllocator* ta) = 0;
+	virtual void  Shutdown() = 0;
 };
 
 //--------------------------------------------------------------------------------------------------

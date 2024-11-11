@@ -19,17 +19,18 @@ struct LogApi {
 	static LogApi* Get();
 
 	virtual void Init(TempAllocatorApi* tempAllocatorApi) = 0;
-	virtual void VLog(s8 file, i32 line, LogCategory category, s8 fmt, Args args) = 0;
 	virtual void AddFn(LogFn* fn) = 0;
 	virtual void RemoveFn(LogFn* fn) = 0;
+	virtual void VLog(s8 file, i32 line, LogCategory category, s8 fmt, Args args) = 0;
+	virtual void LogErr(s8 file, i32 line, Err* err) = 0;
 
 	template <class... A> void Log(s8 file, i32 line, LogCategory category, FmtStr<A...> fmt, A... args) {
 		VLog(file, line, category, fmt, Args::Make(args...));
 	}
 };
 
-#define JC_LOG(fmt, ...)       logApi->Log(__FILE__, __LINE__, JC::LogCategory::Info,  (fmt), ##__VA_ARGS__)
-#define JC_LOG_ERROR(fmt, ...) logApi->Log(__FILE__, __LINE__, JC::LogCategory::Error, (fmt), ##__VA_ARGS__)
+#define JC_LOG(fmt, ...)  logApi->Log(__FILE__, __LINE__, JC::LogCategory::Info,  (fmt), ##__VA_ARGS__)
+#define JC_LOG_ERR(err)   logApi->LogErr(__FILE__, __LINE__, err)
 
 //--------------------------------------------------------------------------------------------------
 

@@ -1,21 +1,15 @@
 #pragma once
 
-#include "JC/Render.h"
+#include "JC/Common.h"
+#include "JC/Render_Vk.h"
 
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-struct RenderApiImpl : RenderApi {
-	void Init() override {
-	}
+namespace RenderVk {
+	s8 VkResultStr(VkResult vkResult);
 };
-
-RenderApiImpl renderApiImpl;
-
-RenderApi* RenderApi::Get() {
-	return &renderApiImpl;
-}
 
 //--------------------------------------------------------------------------------------------------
 

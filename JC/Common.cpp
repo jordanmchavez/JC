@@ -1,5 +1,7 @@
 #include "JC/Common.h"
 
+#include "JC/Array.h"
+#include "JC/Fmt.h"
 #include "JC/Panic.h"
 #include "JC/Sys.h"
 
@@ -45,6 +47,23 @@ Err* Err::VMake(TempAllocator* ta, Err* prev, s8 file, i32 line, ErrCode ec, con
 	JC_MEMCPY(err->args, errArgs, errArgsLen * sizeof(errArgs[0]));
 	return err;
 }
+
+//--------------------------------------------------------------------------------------------------
+
+void Err::Str(Array<char>* arr) {
+	for (Err* e = this; e; e = e->prev) {
+		Fmt(arr, "{}-{}:", e->ec.ns, e->ec.code);
+	}
+	(*arr)[arr->len - 1] = '\n';	// trailing ':'
+	for (Err* e = this; e; e = e->prev) {
+		Fmt(arr, "  {}({}): {}-{}\n", e->file, e->line, e->ec.ns, e->ec.code);
+		for (u32 i = 0; i < e->argsLen; i++) {
+			Fmt(arr, "    '{}' = {}\n", e->args[i].name, e->args[i].arg);
+		}
+	}
+	arr->len--;	// trailing '\n'
+}
+
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC
