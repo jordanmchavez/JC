@@ -132,10 +132,8 @@ struct Array {
 	}
 
 	void Grow(u64 newCap, SrcLoc srcLoc = SrcLoc::Here()) {
-		if (newCap < cap * 2) {
-			newCap = cap * 2;
-		}
-		newCap = Max(Max((u64)16, newCap), cap * 2u);
+		JC_ASSERT(newCap > cap);
+		newCap = Max(Max((u64)16, newCap), cap + (cap >> 1));
 		data = (T*)alloc->Realloc(data, cap * sizeof(T), newCap * sizeof(T), srcLoc);
 		cap = newCap;
 	}

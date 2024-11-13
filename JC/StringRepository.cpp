@@ -1,4 +1,4 @@
-/*#include "JC/StringRepository.h"
+#include "JC/StringRepository.h"
 
 #include "JC/Map.h"
 
@@ -6,21 +6,27 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-struct Entry {
-	s8  str;
-	u32 refCount = 0;
+static constexpr u32 MinChunkSize = 64 * 1024;
+
+struct Chunk {
+	u32    size = 0;
+	u32    used = 0;
+	Chunk* next = nullptr;
 };
 
 struct StringRepositoryImpl : StringRepository {
-	Map<u64, Entry> entries;
+	Chunk* chunks = nullptr;
 
 	u64 Add(s8 str) override {
 	}
+
 	void Ref(u64 hash) override {
 	}
+
 	void Remove(u64 hash) override {
 	}
-	s8 Find(u64 hash) override {
+
+	s8 Find(u64 hash) const override {
 	}
 };
 
@@ -43,4 +49,4 @@ StringRepositoryApi* StringRepositoryApi::Get() {
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC*/
+}	// namespace JC

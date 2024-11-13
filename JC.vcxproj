@@ -121,6 +121,7 @@
     <ClInclude Include="JC\Render.h" />
     <ClInclude Include="JC\Render_Vk.h" />
     <ClInclude Include="JC\Sys.h" />
+    <ClInclude Include="JC\Tlsf.h" />
     <ClInclude Include="JC\UnitTest.h" />
     <ClInclude Include="JC\Map.h" />
     <ClInclude Include="JC\Unicode.h" />
@@ -144,6 +145,7 @@
     <ClCompile Include="JC\Render_Vk.cpp" />
     <ClCompile Include="Scratch.h" />
     <ClCompile Include="JC\StringRepository.cpp" />
+    <ClCompile Include="JC\Tlsf.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Game Notes.md" />
