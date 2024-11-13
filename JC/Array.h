@@ -18,7 +18,10 @@ struct Array {
 	constexpr       T& operator[](u64 i)       { return data[i]; }
 	constexpr const T& operator[](u64 i) const { return data[i]; }
 
-	operator Span<T>() const { return Span { .data = data, .len = len }; }
+	operator Span<T>() const { return Span(data, len); }
+
+	constexpr const T* Begin() const { return data; }
+	constexpr const T* End()   const { return data + len; }
 
 	void Init(Allocator* inAlloc) {
 		alloc = inAlloc;
@@ -99,17 +102,33 @@ struct Array {
 		--len;
 	}
 
-	void Resize(u64 newLen, SrcLoc srcLoc = SrcLoc::Here()) {
+	void Remove(u64 n) {
+		--len -= n;
+	}
+
+	T* Extend(u64 n, SrcLoc srcLoc = SrcLoc::Here()) {
+		if (len + n > cap) {
+			Grow(len + n, srcLoc);
+		}
+		T* res = data + len;
+		len += n;
+		return res;
+	}
+
+	T* Resize(u64 newLen, SrcLoc srcLoc = SrcLoc::Here()) {
 		if (newLen > cap) {
 			Grow(newLen, srcLoc);
 		}
+		T* res = data + len;
 		len = newLen;
+		return res;
 	}
 
-	void Reserve(u64 newCap, SrcLoc srcLoc = SrcLoc::Here()) {
+	T* Reserve(u64 newCap, SrcLoc srcLoc = SrcLoc::Here()) {
 		if (newCap > cap) {
 			Grow(newCap, srcLoc);
 		}
+		return data + len;
 	}
 
 	void Grow(u64 newCap, SrcLoc srcLoc = SrcLoc::Here()) {
@@ -119,6 +138,10 @@ struct Array {
 		newCap = Max(Max((u64)16, newCap), cap * 2u);
 		data = (T*)alloc->Realloc(data, cap * sizeof(T), newCap * sizeof(T), srcLoc);
 		cap = newCap;
+	}
+
+	void Clear() {
+		len = 0;
 	}
 };
 

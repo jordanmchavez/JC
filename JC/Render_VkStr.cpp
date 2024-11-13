@@ -1,12 +1,12 @@
 #pragma once
 
-#include "JC/Render_VkStr.h"
+#include "JC/Render_Vk.h"
 
-namespace JC {
+namespace JC::RenderVk {
 
 //--------------------------------------------------------------------------------------------------
 
-s8 RenderVk::VkResultStr(VkResult vkResult) {
+s8 ResultStr(VkResult vkResult) {
 	switch (vkResult) {
 		case VK_SUCCESS: return "VK_SUCCESS";
 		case VK_NOT_READY: return "VK_NOT_READY";
@@ -64,4 +64,17 @@ s8 RenderVk::VkResultStr(VkResult vkResult) {
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC
+s8 PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
+	switch (v) {
+		case VK_PHYSICAL_DEVICE_TYPE_OTHER: return "VK_PHYSICAL_DEVICE_TYPE_OTHER";
+		case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: return "VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU";
+		case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU: return "VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU";
+		case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU: return "VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU";
+		case VK_PHYSICAL_DEVICE_TYPE_CPU: return "VK_PHYSICAL_DEVICE_TYPE_CPU";
+		default: return "<unknown VkPhysicalDeviceType>";
+	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::RenderVk

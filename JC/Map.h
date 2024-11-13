@@ -49,20 +49,20 @@ struct Map {
 		mask       = 0;
 	}
 
-	Opt<V*> Find(K k) {
+	Opt<V> Find(K k) {
 		u64 h = Hash(k);
 		u32 df = 0x100 | (h & 0xff);
 		u64 i = h & mask;
 		Bucket* bucket = &buckets[i];
 		if (df == bucket->df && elems[bucket->idx].key == k) {
-			return &elems[bucket->idx].val;
+			return elems[bucket->idx].val;
 		}
 
 		df += 0x100;
 		i = (i + 1 == bucketsLen) ? 0 : i + 1;
 		bucket = &buckets[i];
 		if (df == bucket->df && elems[bucket->idx].key == k) {
-			return &elems[bucket->idx].val;
+			return elems[bucket->idx].val;
 		}
 
 		df += 0x100;
@@ -71,7 +71,7 @@ struct Map {
 		while (true) {
 			if (df == bucket->df) {
 				if (elems[bucket->idx].key == k) {
-					return &elems[bucket->idx].val;
+					return elems[bucket->idx].val;
 				}
 			} else if (df > bucket->df) {
 				return nullOpt;

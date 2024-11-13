@@ -25,11 +25,11 @@ struct AllocatorImpl : Allocator {
 
 //--------------------------------------------------------------------------------------------------
 
-struct AllocTrace {
+struct Trace {
 	AllocatorImpl* allocator = nullptr;
 	SrcLoc         srcLoc;
-	u32            allocs    = 0;
-	u64            bytes     = 0;
+	u32            allocs = 0;
+	u64            bytes = 0;
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -40,48 +40,36 @@ struct AllocatorApiImpl : AllocatorApi {
 	MemLeakReporter*      memLeakReporter = nullptr;
 	AllocatorImpl         allocators[MaxAllocators];
 	AllocatorImpl*        freeAllocators = nullptr;	// parent is the "next" link field
-	Array<AllocTrace>     traces;
-	Map<u64, u64>         keyToTrace;
+	Array<Trace>          traces;
+	Map<u64, u64>         srcLocToTrace;
 	Map<const void*, u64> ptrToTrace;
 
 	//----------------------------------------------------------------------------------------------
 
-	u64 TraceKey(SrcLoc srcLoc, AllocatorImpl* a) const {
-		u64 key = Hash(srcLoc.file);
-		key = HashCombine(key, &srcLoc.line, sizeof(srcLoc.line));
-		const u32 index = (u32)(a - allocators);
-		key = HashCombine(key, &index, sizeof(index));
-		return key;
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	void Trace(AllocatorImpl* a, const void* ptr, u64 size, SrcLoc srcLoc) {
-		AllocTrace* trace = 0;
-		u64* idx = keyToTrace.Find(TraceKey(srcLoc, a)).Or(nullptr);
-		if (!idx) {
-			trace = traces.Add(AllocTrace {
+	void AddTrace(AllocatorImpl* a, const void* ptr, u64 size, SrcLoc srcLoc) {
+		const u64 key = HashCombine(Hash(srcLoc.file), &srcLoc.line, sizeof(srcLoc.line));
+		if (Opt<u64> idx = srcLocToTrace.Find(key)) {
+			Trace* const trace = &traces[idx.val];
+			trace->allocs++;
+			trace->bytes += size;
+			ptrToTrace.Put(ptr, idx.val);
+		} else {
+			traces.Add(Trace {
 				.allocator = a,
 				.srcLoc    = srcLoc,
 				.allocs    = 1,
 				.bytes     = size,
 			});
 			ptrToTrace.Put(ptr, traces.len - 1);
-		} else {
-			trace = &traces[*idx];
-			trace->allocs++;
-			trace->bytes += size;
 		}
 	}
 
 	//----------------------------------------------------------------------------------------------
 
-	void Untrace(const void* ptr, u64 size) {
-		u64* const idx = ptrToTrace.Find(ptr).Or(0);
-		if (idx) {
-			AllocTrace* trace = &traces[*idx];
+	void RemoveTrace(const void* ptr, u64 size) {
+		if (Opt<u64> idx = ptrToTrace.Find(ptr)) {
+			Trace* const trace = &traces[idx];
 			JC_ASSERT(trace->allocs > 0);
-			JC_ASSERT(trace->bytes >= size);
 			trace->allocs--;
 			trace->bytes -= size;
 			ptrToTrace.Remove(ptr);
@@ -96,27 +84,27 @@ struct AllocatorApiImpl : AllocatorApi {
 		if (a == &allocators[0]) {
 			return ptr;
 		}
-		Trace(a, ptr, size, srcLoc);
+		AddTrace(a, ptr, size, srcLoc);
 		return ptr;
 	}
 
 	//----------------------------------------------------------------------------------------------
 
-	void* Realloc(AllocatorImpl* a, const void* oldPtr, u64 oldSize, u64 newSize, SrcLoc srcLoc) {
-		Untrace(oldPtr, oldSize);
-		void* const newPtr = realloc((void*)oldPtr, newSize);
+	void* Realloc(AllocatorImpl* a, const void* ptr, u64 oldSize, u64 newSize, SrcLoc srcLoc) {
+		RemoveTrace(ptr, oldSize);
+		void* const newPtr = realloc((void*)ptr, newSize);
 		JC_ASSERT(newPtr != nullptr);
 		if (a == &allocators[0]) {
 			return newPtr;
 		}
-		Trace(a, newPtr, newSize, srcLoc);
+		AddTrace(a, newPtr, newSize, srcLoc);
 		return newPtr;
 	}
 
 	//----------------------------------------------------------------------------------------------
 
 	void Free(AllocatorImpl* a, const void* ptr, u64 size) {
-		Untrace(ptr, size);
+		RemoveTrace(ptr, size);
 		free((void*)ptr);
 		if (a == &allocators[0]) {
 			return;
@@ -133,7 +121,7 @@ struct AllocatorApiImpl : AllocatorApi {
 		allocators[MaxAllocators - 1].parent = nullptr;
 
 		traces.Init(&allocators[0]);
-		keyToTrace.Init(&allocators[0]);
+		srcLocToTrace.Init(&allocators[0]);
 		ptrToTrace.Init(&allocators[0]);
 	}
 

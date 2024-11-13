@@ -402,6 +402,8 @@ template <> struct [[nodiscard]] Res<void> {
 	constexpr Res(Err* e) { err = e; }
 
 	constexpr operator bool() const { return err == nullptr; }
+
+	constexpr void Ignore() const {}
 };
 
 constexpr Res<> Ok() { return Res<>(); }
@@ -444,7 +446,7 @@ template <class T> struct [[nodiscard]] Opt {
 template <class T>
 struct Span {
 	const T* data;
-	u64 len;
+	u64      len;
 
 	constexpr Span() { data = nullptr; len = 0; }
 	constexpr Span(T* d, u64 l) { data = d; len = l; }
@@ -455,6 +457,9 @@ struct Span {
 	constexpr Span& operator=(const Span&) = default;
 	
 	constexpr T operator[](u64 i) const { return data[i]; }
+
+	constexpr const T* Begin() const { return data; }
+	constexpr const T* End()   const { return data + len; }
 };
 
 //--------------------------------------------------------------------------------------------------

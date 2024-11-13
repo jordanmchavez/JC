@@ -4,6 +4,7 @@
 
 namespace JC {
 
+struct AllocatorApi;
 struct LogApi;
 
 //--------------------------------------------------------------------------------------------------
@@ -11,7 +12,10 @@ struct LogApi;
 struct RenderApi {
 	static RenderApi* Get();
 
-	virtual Res<> Init(LogApi* logApi, TempAllocator* ta) = 0;
+	static constexpr ErrCode Err_LayerNotFound     = { .ns = "ren", .code = 1 };
+	static constexpr ErrCode Err_ExtensionNotFound = { .ns = "ren", .code = 2 };
+
+	virtual Res<> Init(Allocator* allocator, LogApi* logApi, TempAllocator* tempAllocator) = 0;
 	virtual void  Shutdown() = 0;
 };
 

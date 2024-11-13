@@ -23,11 +23,14 @@ constexpr s8 FileNameOnly(s8 path) {
 }
 
 int main(int argc, const char** argv) {
+	AllocatorApi*     allocatorApi     = AllocatorApi::Get();
 	LogApi*           logApi           = LogApi::Get();
 	PanicApi*         panicApi         = PanicApi::Get();
 	RenderApi*        renderApi        = RenderApi::Get();
 	TempAllocatorApi* tempAllocatorApi = TempAllocatorApi::Get();
 	VirtualMemoryApi* virtualMemoryApi = VirtualMemoryApi::Get();
+
+	allocatorApi->Init();
 
 	tempAllocatorApi->Init(virtualMemoryApi);
 	logApi->Init(tempAllocatorApi);
@@ -55,7 +58,8 @@ int main(int argc, const char** argv) {
 		}
 	});
 
-	if (Res<> r = renderApi->Init(logApi, tempAllocator); !r) {	
+	Allocator* renderAllocator = allocatorApi->Create("render", nullptr);
+	if (Res<> r = renderApi->Init(renderAllocator, logApi, tempAllocator); !r) {	
 		JC_LOG_ERR(r.err);
 		return 1;
 	}

@@ -32,14 +32,8 @@ namespace RenderVk {
 	void  LoadDeviceFns(VkDevice vkDevice);
 	void  FreeFns();
 
-	s8 ResultStr(VkResult r);
-	s8 ObjectTypeStr(VkObjectType t);
-	s8 QueueFlagsStr(VkQueueFlags f);
-	s8 FormatStr(VkFormat f);
-	s8 ColorSpaceStr(VkColorSpaceKHR s);
-	s8 PresentModeStr(VkPresentModeKHR m);
-	s8 MemoryPropertyFlagsStr(VkMemoryPropertyFlags f);
-	s8 MemoryHeapFlagsStr(VkMemoryHeapFlags f);
+	s8 ResultStr(VkResult v);
+	s8 PhysicalDeviceTypeStr(VkPhysicalDeviceType v);
 }
 
 //--------------------------------------------------------------------------------------------------
