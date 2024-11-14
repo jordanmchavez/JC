@@ -52,10 +52,10 @@ namespace UnitTest {
 		};
 	};
 
-	Subtest::Subtest(s8 inName, s8 inFile, i32 inLine) {
-		sig.name = inName;
-		sig.file = inFile;
-		sig.line = inLine;
+	Subtest::Subtest(s8 nameIn, s8 fileIn, i32 lineIn) {
+		sig.name = nameIn;
+		sig.file = fileIn;
+		sig.line = lineIn;
 		switch (state) {
 			case State::Run:
 				if (nextLen <= curLen || next[curLen] == sig) {

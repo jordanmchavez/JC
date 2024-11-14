@@ -91,7 +91,9 @@ struct AllocatorApiImpl : AllocatorApi {
 	//----------------------------------------------------------------------------------------------
 
 	void* Realloc(AllocatorImpl* a, const void* ptr, u64 oldSize, u64 newSize, SrcLoc srcLoc) {
-		RemoveTrace(ptr, oldSize);
+		if (ptr) {
+			RemoveTrace(ptr, oldSize);
+		}
 		void* const newPtr = realloc((void*)ptr, newSize);
 		JC_ASSERT(newPtr != nullptr);
 		if (a == &allocators[0]) {
@@ -103,11 +105,10 @@ struct AllocatorApiImpl : AllocatorApi {
 
 	//----------------------------------------------------------------------------------------------
 
-	void Free(AllocatorImpl* a, const void* ptr, u64 size) {
-		RemoveTrace(ptr, size);
-		free((void*)ptr);
-		if (a == &allocators[0]) {
-			return;
+	void Free(const void* ptr, u64 size) {
+		if (ptr) {
+			RemoveTrace(ptr, size);
+			free((void*)ptr);
 		}
 	}
 
@@ -193,7 +194,7 @@ void* AllocatorImpl::Realloc(const void* ptr, u64 oldSize, u64 newSize, SrcLoc s
 }
 
 void AllocatorImpl::Free(const void* ptr, u64 size) {
-	allocatorApiImpl.Free(this, ptr, size);
+	allocatorApiImpl.Free(ptr, size);
 }
 //--------------------------------------------------------------------------------------------------
 
@@ -255,7 +256,7 @@ struct TempAllocatorApiImpl : TempAllocatorApi {
 			freeList->count--;
 			freeList->minCountThisFrame = Min(freeList->minCountThisFrame, freeList->count);
 		} else {
-			chunk = (TempChunk*)virtualMemoryApi->Map(size);
+			chunk = (TempChunk*)virtualMemoryApi->ReserveCommit(size);
 		}
 		chunk->end  = (u8*)chunk + size;
 		chunk->free = (u8*)(chunk + 1);
@@ -275,8 +276,8 @@ struct TempAllocatorApiImpl : TempAllocatorApi {
 
 	//----------------------------------------------------------------------------------------------
 
-	void Init(VirtualMemoryApi* inVirtualMemoryApi) override {
-		virtualMemoryApi = inVirtualMemoryApi;
+	void Init(VirtualMemoryApi* virtualMemoryApiIn) override {
+		virtualMemoryApi = virtualMemoryApiIn;
 		nextSizeToCheck = 0;
 	}
 
@@ -362,7 +363,7 @@ struct TempAllocatorApiImpl : TempAllocatorApi {
 			check->chunks = chunk->next;
 			check->count--;
 			check->minCountThisFrame = Min(check->minCountThisFrame, check->count);
-			virtualMemoryApi->Unmap(chunk, chunk->end - (u8*)chunk);
+			virtualMemoryApi->Free(chunk);
 		}
 		nextSizeToCheck++;
 	}

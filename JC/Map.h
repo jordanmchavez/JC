@@ -28,8 +28,8 @@ struct Map {
 	u64         elemsCap   = 0;
 	u8          mask       = 0;
 
-	void Init(Allocator* inAlloc, SrcLoc srcLoc = SrcLoc::Here()) {
-		alloc      = inAlloc;
+	void Init(Allocator* allocIn, SrcLoc srcLoc = SrcLoc::Here()) {
+		alloc      = allocIn;
 		buckets    = (Bucket*)alloc->Alloc(16u * sizeof(Bucket), srcLoc);
 		bucketsLen = 16;
 		elems      = nullptr;
@@ -49,7 +49,7 @@ struct Map {
 		mask       = 0;
 	}
 
-	Opt<V> Find(K k) {
+	Opt<V> Find(K k) const {
 		u64 h = Hash(k);
 		u32 df = 0x100 | (h & 0xff);
 		u64 i = h & mask;

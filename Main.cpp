@@ -58,7 +58,10 @@ int main(int argc, const char** argv) {
 		}
 	});
 
-	Allocator* renderAllocator = allocatorApi->Create("render", nullptr);
+	Allocator* stringsAllocator = allocatorApi->Create("Strings");
+	Str::Init(stringsAllocator, virtualMemoryApi);
+
+	Allocator* renderAllocator = allocatorApi->Create("Render");
 	if (Res<> r = renderApi->Init(renderAllocator, logApi, tempAllocator); !r) {	
 		JC_LOG_ERR(r.err);
 		return 1;

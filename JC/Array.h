@@ -10,10 +10,10 @@ struct Allocator;
 
 template <class T>
 struct Array {
-	Allocator* alloc = nullptr;
-	T*         data  = nullptr;
-	u64        len   = 0;
-	u64        cap   = 0;
+	Allocator* allocator = nullptr;
+	T*         data      = nullptr;
+	u64        len       = 0;
+	u64        cap       = 0;
 
 	constexpr       T& operator[](u64 i)       { return data[i]; }
 	constexpr const T& operator[](u64 i) const { return data[i]; }
@@ -23,21 +23,28 @@ struct Array {
 	constexpr const T* Begin() const { return data; }
 	constexpr const T* End()   const { return data + len; }
 
-	void Init(Allocator* inAlloc) {
-		alloc = inAlloc;
-		data  = 0;
-		len   = 0;
-		cap   = 0;
+	void Init(Allocator* allocatorIn) {
+		allocator = allocatorIn;
+		data      = 0;
+		len       = 0;
+		cap       = 0;
+	}
+
+	void Init(Allocator* allocatorIn, u64 n, SrcLoc srcLoc = SrcLoc::Here()) {
+		allocator = allocatorIn;
+		data      = (T*)allocator.Alloc(n * sizeof(T), srcLoc);
+		len       = n;
+		cap       = n;
 	}
 
 	void Shutdown() {
-		if (alloc) {
-			alloc->Free(data, len * sizeof(T));
+		if (allocator) {
+			allocator->Free(data, len * sizeof(T));
 		}
-		alloc = 0;
-		data  = 0;
-		len   = 0;
-		cap   = 0;
+		allocator = 0;
+		data      = 0;
+		len       = 0;
+		cap       = 0;
 	}
 
 	T* Add(SrcLoc srcLoc = SrcLoc::Here()) {
@@ -134,7 +141,7 @@ struct Array {
 	void Grow(u64 newCap, SrcLoc srcLoc = SrcLoc::Here()) {
 		JC_ASSERT(newCap > cap);
 		newCap = Max(Max((u64)16, newCap), cap + (cap >> 1));
-		data = (T*)alloc->Realloc(data, cap * sizeof(T), newCap * sizeof(T), srcLoc);
+		data = (T*)allocator->Realloc(data, cap * sizeof(T), newCap * sizeof(T), srcLoc);
 		cap = newCap;
 	}
 

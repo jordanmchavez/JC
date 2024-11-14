@@ -80,38 +80,35 @@ constexpr u64 MemCmp(const void* p1, const void* p2, u64 len) {
 //--------------------------------------------------------------------------------------------------
 
 struct s8 {
-	const char* data = nullptr;
+	const char* data = "";
 	u64         len  = 0;
 
 	constexpr      s8() = default;
 	constexpr      s8(const s8& s) = default;
-	constexpr      s8(const char* s)                { data = s; len = StrLen8(s); }
-	constexpr      s8(const char* d, u64 l)         { data = d; len = l; }
-	constexpr      s8(const char* b, const char* e) { data = b; len = (u64)(e - b); }
+	constexpr      s8(const char* s);
+	constexpr      s8(const char* d, u64 l);
+	constexpr      s8(const char* b, const char* e);
 
 	constexpr s8&  operator=(const s8& s) = default;
-	constexpr s8&  operator=(const char* s) { data = s; len = StrLen8(s); return *this; }
+	constexpr s8&  operator=(const char* s);
 
-	constexpr char operator[](u64 i) const  { return data[i]; }
-};
-
-constexpr bool operator==(s8 str1, s8 str2) { return str1.len == str2.len && MemCmp(str1.data, str2.data, str1.len) == 0; }
-constexpr bool operator!=(s8 str1, s8 str2) { return str1.len != str2.len && MemCmp(str1.data, str2.data, str1.len) != 0; }
-
-//--------------------------------------------------------------------------------------------------
-
-struct SrcLoc {
-	s8  file = 0;
-	i32 line = 0;
-
-	static consteval SrcLoc Here(s8 file = JC_FILE, i32 line = JC_LINE) {
-		return SrcLoc { .file = file, .line = line };
-	}
+	constexpr char operator[](u64 i) const;
 };
 
 //--------------------------------------------------------------------------------------------------
 
-template <class T> struct Array;
+struct VirtualMemoryApi;
+
+struct Str {
+	const char* data = "";
+
+	u64 Len() const;
+
+	static void Init(struct Allocator* allocator, VirtualMemoryApi* virtualMemoryApi);
+	static Str  Make(s8 s);
+};
+
+inline bool operator==(Str s1, Str s2) { return s1.data == s2.data; }
 
 //--------------------------------------------------------------------------------------------------
 
@@ -163,7 +160,7 @@ struct Arg {
 	};
 
 	template <class T>
-	static constexpr Arg Make(T val) {
+	static Arg Make(T val) {
 		using Underlying = typename RemoveConst<typename RemoveVolatile<typename RemoveRef<T>::Type>::Type>::Type;
 		     if constexpr (IsSameType<Underlying, bool>)               { return { .type = ArgType::Bool, .b = val }; }
 		else if constexpr (IsSameType<Underlying, char>)               { return { .type = ArgType::Char, .c = val }; }
@@ -180,6 +177,7 @@ struct Arg {
 		else if constexpr (IsSameType<Underlying, float>)              { return { .type = ArgType::F64,  .f = val }; }
 		else if constexpr (IsSameType<Underlying, double>)             { return { .type = ArgType::F64,  .f = val }; }
 		else if constexpr (IsSameType<Underlying, s8>)                 { return { .type = ArgType::S8,   .s = { .data = val.data, .len = val.len } }; }
+		else if constexpr (IsSameType<Underlying, Str>)                { return { .type = ArgType::S8,   .s = { .data = val.data, .len = val.Len() } }; }
 		else if constexpr (IsSameType<Underlying, char*>)              { return { .type = ArgType::S8,   .s = { .data = val,      .len = StrLen8(val) } }; }
 		else if constexpr (IsSameType<Underlying, const char*>)        { return { .type = ArgType::S8,   .s = { .data = val,      .len = StrLen8(val) } }; }
 		else if constexpr (IsPointer<Underlying>)                      { return { .type = ArgType::Ptr,  .p = val }; }
@@ -261,17 +259,16 @@ template <class... A> struct _FmtStr {
 		return i;
 	}
 
-	consteval void Init(s8 inFmt) {
+	consteval void Init(s8 fmtIn) {
 		constexpr size_t  argsLen = sizeof...(A);
-		constexpr ArgType argTypes[argsLen > 0 ? argsLen : 1] = { Arg::Make(A()).type... };
-		const char* i = inFmt.data;
-		const char* const end = i + inFmt.len;
+		const char* i = fmtIn.data;
+		const char* const end = i + fmtIn.len;
 		u32 nextArg = 0;
 
 		for (;;) {
 			if (i >= end) {
 				if (nextArg != argsLen) { TooManyArgs(); }
-				fmt = inFmt;
+				fmt = fmtIn;
 				return;
 			} else if (*i == '{') {
 				i++;
@@ -300,25 +297,13 @@ template <class... A> using FmtStr = _FmtStr<typename TypeIdentity<A>::Type...>;
 
 //--------------------------------------------------------------------------------------------------
 
-struct Allocator {
-	virtual void* Alloc(u64 size, SrcLoc srcLoc = SrcLoc::Here()) = 0;
-	virtual void* Realloc(const void* p, u64 oldSize, u64 newSize, SrcLoc srcLoc = SrcLoc::Here()) = 0;
-	virtual void  Free(const void* p, u64 size) = 0;
-};
-
-struct TempAllocator : Allocator {
-	void Free(const void*, u64) override {}
-};
-
-//--------------------------------------------------------------------------------------------------
-
 [[noreturn]] void VPanic(s8 file, i32 line, s8 expr, s8 fmt, Args args);
 
 [[noreturn]] inline void Panic(s8 file, i32 line, s8 expr) {
 	VPanic(file, line, expr, "", Args::Make());
 }
 	
-template <class... A> [[noreturn]] void Panic(s8 file, i32 line, s8 expr, s8 fmt, A... args) {
+template <class... A> [[noreturn]] void Panic(s8 file, i32 line, s8 expr, FmtStr<A...> fmt, A... args) {
 	VPanic(file, line, expr, fmt, Args::Make(args...));
 }
 
@@ -334,6 +319,60 @@ template <class... A> [[noreturn]] void Panic(s8 file, i32 line, s8 expr, s8 fmt
 
 //--------------------------------------------------------------------------------------------------
 
+constexpr s8::s8(const char* s) {
+	JC_ASSERT(s);
+	data = s;
+	len  = StrLen8(s);
+}
+
+constexpr s8::s8(const char* d, u64 l) {
+	data = d;
+	len  = l;
+}
+constexpr s8::s8(const char* b, const char* e) {
+	JC_ASSERT(e >= b);
+	data = b;
+	len  = (u64)(e - b);
+}
+constexpr s8& s8::operator=(const char* s) {
+	data = s;
+	len = StrLen8(s);
+	return *this;
+}
+
+constexpr char s8::operator[](u64 i) const {
+	JC_ASSERT(i <= len);
+	return data[i];
+}
+
+constexpr bool operator==(s8 str1, s8 str2) { return str1.len == str2.len && MemCmp(str1.data, str2.data, str1.len) == 0; }
+constexpr bool operator!=(s8 str1, s8 str2) { return str1.len != str2.len && MemCmp(str1.data, str2.data, str1.len) != 0; }
+
+//--------------------------------------------------------------------------------------------------
+
+struct SrcLoc {
+	s8  file = 0;
+	i32 line = 0;
+
+	static consteval SrcLoc Here(s8 file = JC_FILE, i32 line = JC_LINE) {
+		return SrcLoc { .file = file, .line = line };
+	}
+};
+
+//--------------------------------------------------------------------------------------------------
+
+struct Allocator {
+	virtual void* Alloc(u64 size, SrcLoc srcLoc = SrcLoc::Here()) = 0;
+	virtual void* Realloc(const void* p, u64 oldSize, u64 newSize, SrcLoc srcLoc = SrcLoc::Here()) = 0;
+	virtual void  Free(const void* p, u64 size) = 0;
+};
+
+struct TempAllocator : Allocator {
+	void Free(const void*, u64) override {}
+};
+
+//--------------------------------------------------------------------------------------------------
+
 struct [[nodiscard]] ErrCode {
 	s8  ns;
 	u64 code;
@@ -345,6 +384,8 @@ struct [[nodiscard]] ErrArg {
 	s8  name;
 	Arg arg;
 };
+
+template <class T> struct Array;
 
 struct [[nodiscard]] Err {
 	Err*    prev = nullptr;

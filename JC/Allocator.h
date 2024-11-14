@@ -22,6 +22,8 @@ struct AllocatorApi {
 	virtual Allocator* Create(s8 name, Allocator* parent) = 0;
 	virtual void       Destroy(Allocator* allocator) = 0;
 	virtual void       SetMemLeakReporter(MemLeakReporter* reporter) = 0;
+
+	inline Allocator* Create(s8 name) { return Create(name, nullptr); }
 };
 
 //--------------------------------------------------------------------------------------------------

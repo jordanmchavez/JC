@@ -23,8 +23,10 @@ namespace Sys {
 struct VirtualMemoryApi {
 	static VirtualMemoryApi* Get();
 
-	virtual void* Map(u64 size) = 0;
-	virtual void  Unmap(const void* ptr, u64 size) = 0;
+	virtual void* ReserveCommit(u64 size) = 0;
+	virtual void* Reserve(u64 size) = 0;
+	virtual void  Commit(const void* p, u64 size) = 0;
+	virtual void  Free(const void* p) = 0;
 };
 
 //--------------------------------------------------------------------------------------------------

@@ -26,12 +26,33 @@ void Sys::DebuggerPrint(TempAllocator* tempAllocator, s8 msg) {
 //--------------------------------------------------------------------------------------------------
 
 struct VirtualMemoryApiImpl : VirtualMemoryApi {
-	void* Map(u64 size) override {
-		return VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	void* ReserveCommit(u64 size) override {
+		void *p = VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+		if (!p) {
+			JC_PANIC("VirtualAlloc failed with  MEM_RESERVE | MEM_COMMIT for {}", size);
+		}
+		return p;
 	}
 
-	void Unmap(const void* ptr, u64 size) {
-		VirtualFree((void*)ptr, size, MEM_RELEASE);
+	void* Reserve(u64 size) override {
+		void* p = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
+		if (!p) {
+			JC_PANIC("VirtualAlloc failed with MEM_RESERVE for {}", size);
+		}
+		return p;
+	}
+
+	void Commit(const void* p, u64 size) override {
+		JC_ASSERT(p);
+		if (VirtualAlloc((void*)p, size, MEM_COMMIT, PAGE_READWRITE) == nullptr) {
+			JC_PANIC("VirtualAlloc failed with MEM_COMMIT for {} at {}", size, p);
+		}
+	}
+
+	void Free(const void* p) override {
+		if (p) {
+			VirtualFree((void*)p, 0, MEM_RELEASE);
+		}
 	}
 };
 

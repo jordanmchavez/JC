@@ -1,28 +1,8 @@
 #include "JC/Tlsf.h"
+
 #include "JC/Bit.h"
 
-#include <intrin.h>
-#pragma intrinsic(_BitScanReverse)
-#pragma intrinsic(_BitScanReverse64)
-#pragma intrinsic(_BitScanForward)
-
 namespace JC {
-
-//--------------------------------------------------------------------------------------------------
-
-u32 Tlsf_BitScanReverse64(u32 u)
-{
-	u32 idx;
-	_BitScanReverse64((unsigned long*)&idx, u);
-	return idx;
-}
-
-u32 Tlsf_BitScanForward64(u64 u)
-{
-	u32 idx;
-	_BitScanForward64((unsigned long*)&idx, u);
-	return idx;
-}
 
 //--------------------------------------------------------------------------------------------------
 

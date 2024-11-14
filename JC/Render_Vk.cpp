@@ -31,55 +31,76 @@ struct Buf {
 
 	Buf() = default;
 
-	Buf(Allocator* a, u64 n) {
-		allocator = a
-		data = (T*)a->Alloc(n * sizeof(T));
+	Buf(Allocator* a) {
+		allocator = a;
+	}
+
+	Buf(Allocator* a, u64 n, SrcLoc srcLoc = SrcLoc::Here()) {
+		allocator = a;
+		data = (T*)a->Alloc(n * sizeof(T), srcLoc);
 		len = n;
 	}
 
-	void Init(Allocator* a, u64 n) {
-		allocator = a
-		data = (T*)a->Alloc(n * sizeof(T));
+	void Init(Allocator* a) {
+		allocator = a;
+	}
+
+	void Init(Allocator* a, u64 n, SrcLoc srcLoc = SrcLoc::Here()) {
+		allocator = a;
+		data = (T*)a->Alloc(n * sizeof(T), srcLoc);
 		len = n;
 	}
 
-	T  operator[](u64 i) const { JC_ASSERT(i < n); return data[i]; }
-	T& operator[](u64 i)       { JC_ASSERT(i < n); return data[i]; }
+	void Shutdown() {
+		if (allocator) {
+			allocator->Free(data, len * sizeof(T));
+		}
+	}
+
+	void Resize(u64 n, SrcLoc srcLoc = SrcLoc::Here()) {
+		allocator->Realloc(data, len * sizeof(T), n * sizeof(T), srcLoc);
+		len = n;
+	}
+
+	T  operator[](u64 i) const { JC_ASSERT(i < len); return data[i]; }
+	T& operator[](u64 i)       { JC_ASSERT(i < len); return data[i]; }
 };
 
 struct Ext {
-	u64 name = 0;
+	Str name;
 	u32 specVer = 0;
 };
 
 struct Layer {
-	u64      name = 0;
+	Str      name;
 	u32      specVer = 0;
 	u32      implVer = 0;
-	u64      desc = 0;
+	Str      desc;
 	Buf<Ext> exts;
 };
 
 struct PhysicalDevice {
 	VkPhysicalDevice     vkPhysicalDevice = VK_NULL_HANDLE;
-	u64                  name = 0;
+
+	Str                  name;
     VkPhysicalDeviceType type;
 	u32                  id = 0;
 	u32                  vendorId = 0;
 	u32                  apiVer = 0;
 	u32                  driverVer = 0;
+
 	Buf<Ext>             exts;
 };
 
 struct RenderApiImpl : RenderApi {
-	LogApi*                  logApi = nullptr;
-	Allocator*               allocator = nullptr;
-	TempAllocator*           tempAllocator = nullptr;
-	Buf<Ext>                 globalExts;
+	LogApi*                  logApi                   = nullptr;
+	Allocator*               allocator                = nullptr;
+	TempAllocator*           tempAllocator            = nullptr;
+	Buf<Ext>                 globalInstanceExts;
 	Buf<Layer>               layers;
-	bool                     haveVkExtDebugUtils = false;
-	VkAllocationCallbacks*   vkAllocationCallbacks = nullptr;
-	VkInstance               vkInstance = VK_NULL_HANDLE;
+	bool                     haveVkExtDebugUtils      = false;
+	VkAllocationCallbacks*   vkAllocationCallbacks    = nullptr;
+	VkInstance               vkInstance               = VK_NULL_HANDLE;
 	VkDebugUtilsMessengerEXT vkDebugUtilsMessengerEXT = VK_NULL_HANDLE;
 	Buf<PhysicalDevice>      physicalDevices;
 
@@ -117,33 +138,12 @@ struct RenderApiImpl : RenderApi {
 		u64 newSize = n * sizeof(T);
 		scratch = tempAllocator->Realloc(scratch, scratchSize, newSize);
 		scratchSize = newSize;
-		return scratch;
+		return (T*)scratch;
 	}
 
-	Buf<Ext> EnumInstanceExts(u64 layerName) {
-		VkResult r = VK_SUCCESS;
-		u32 n = 0;
-		VkExtensionProperties* props = nullptr;
-		do {
-			if (r = vkEnumerateInstanceExtensionProperties(strings[layerName].data, &n, nullptr); r == VK_SUCCESS) {
-				props = Scratch<VkExtensionProperties>(n);
-				r = vkEnumerateInstanceExtensionProperties(strings[layerName].data, &n, props);
-			}
-		} while (r == VK_INCOMPLETE);
-		if (r) {
-			JC_LOG_VK_ERR(r);
-			return Buf<Ext>{};
-		}
-		Buf<Ext> exts(allocator, n);
-		for (u32 i = 0; i < n; i++) {
-			exts[i].name    = strings.Add(props[i].extensionName);
-			exts[i].specVer = props[i].specVersion;
-		}
-		return exts;
-	}
 	//----------------------------------------------------------------------------------------------
 
-	Buf<Layer> EnumerateLayers() {
+	void EnumerateLayers() {
 		VkResult r = VK_SUCCESS;
 		u32 n = 0;
 		VkLayerProperties* props = nullptr;
@@ -157,28 +157,69 @@ struct RenderApiImpl : RenderApi {
 			JC_LOG_VK_ERR(r);
 			return;
 		}
-		Buf<Layer> layers(allocator, n);
-		JC_LOG("{} layers", layers.len);
+		layers.Init(allocator, n);
 		for (u32 i = 0; i < layers.len; i++) {
-			Layer* const l = &layers[i];
-			l->name    = strings.Add(props[i].layerName),
-			l->specVer = props[i].specVersion,
-			l->implVer = props[i].implementationVersion,
-			l->desc    = strings.Add(props[i].description),
-			l->exts    = EnumInstanceExts(l->name),
-			JC_LOG("    {}: specVersion={}, implementationVersion={}, description={}", strings[l->name], l->specVer, l->implVer, strings[l->desc]);
-			for (u64 j = 0; j < l->exts.len; j++) {
-				JC_LOG("        {}: specVersion={}", l->exts[j].name, l->exts[j].specVer);
-			}
+			layers[i].name    = Str::Make(props[i].layerName);
+			layers[i].specVer = props[i].specVersion;
+			layers[i].implVer = props[i].implementationVersion;
+			layers[i].desc    = Str::Make(props[i].description);
+			layers[i].exts    = EnumInstanceExts(layers[i].name);
 		}
 	}
 
 	//----------------------------------------------------------------------------------------------
 
-	Res<> AddInstanceLayer(s8 name, Array<const char*>* out) {
+	Buf<Ext> EnumInstanceExts(Str layerName) {
+		VkResult r = VK_SUCCESS;
+		u32 n = 0;
+		VkExtensionProperties* props = nullptr;
+		do {
+			if (r = vkEnumerateInstanceExtensionProperties(layerName.data, &n, nullptr); r == VK_SUCCESS) {
+				props = Scratch<VkExtensionProperties>(n);
+				r = vkEnumerateInstanceExtensionProperties(layerName.data, &n, props);
+			}
+		} while (r == VK_INCOMPLETE);
+		if (r) {
+			JC_LOG_VK_ERR(r);
+			return Buf<Ext>{};
+		}
+		Buf<Ext> exts(allocator, n);
+		for (u32 i = 0; i < n; i++) {
+			JC_LOG("i: {}", i);
+			exts[i].name    = Str::Make(props[i].extensionName);
+			exts[i].specVer = props[i].specVersion;
+		}
+		return exts;
+	}
+	//----------------------------------------------------------------------------------------------
+
+	Buf<Ext> EnumDeviceExts(VkPhysicalDevice vkPhysicalDevice, Str layerName) {
+		VkResult r = VK_SUCCESS;
+		u32 n = 0;
+		VkExtensionProperties* props = nullptr;
+		do {
+			if (r = vkEnumerateDeviceExtensionProperties(vkPhysicalDevice, layerName.data, &n, nullptr); r == VK_SUCCESS) {
+				props = Scratch<VkExtensionProperties>(n);
+				r = vkEnumerateDeviceExtensionProperties(vkPhysicalDevice, layerName.data, &n, props);
+			}
+		} while (r == VK_INCOMPLETE);
+		if (r) {
+			JC_LOG_VK_ERR(r);
+			return Buf<Ext>{};
+		}
+		Buf<Ext> exts(allocator, n);
+		for (u32 i = 0; i < n; i++) {
+			exts[i].name    = Str::Make(props[i].extensionName);
+			exts[i].specVer = props[i].specVersion;
+		}
+		return exts;
+	}
+	//----------------------------------------------------------------------------------------------
+
+	Res<> AddInstanceLayer(Str name, Array<Str>* out) {
 		for (u64 i = 0; i < layers.len; i++) {
-			if (name == layers[i].vkLayerProperties.layerName) {
-				out->Add(layers[i].vkLayerProperties.layerName);
+			if (name == layers[i].name) {
+				out->Add(name);
 				return Ok();
 			}
 		}
@@ -187,23 +228,21 @@ struct RenderApiImpl : RenderApi {
 
 	//----------------------------------------------------------------------------------------------
 
-	Res<> AddInstanceExtension(s8 name, Span<const char*> layerNames, Array<const char*>* out) {
-		for (u64 i = 0; i < globalInstanceExtensions.len; i++) {
-			const VkExtensionProperties* const e = &vkExtensionProperties[globalInstanceExtensions.offset + i];
-			if (name == e->extensionName) {
+	Res<> AddInstanceExtension(Str name, Span<Str> layerNames, Array<Str>* out) {
+		for (u64 i = 0; i < globalInstanceExts.len; i++) {
+			if (name == globalInstanceExts[i].name) {
 				JC_LOG("Found requested instance extension {} in global instance extensions", name);
-				out->Add(e->extensionName);
+				out->Add(name);
 				return Ok();
 			}
 		}
 		for (u64 i = 0; i < layerNames.len; i++) {
 			for (u64 j = 0; j < layers.len; j++) {
-				if (layerNames[i] == layers[j].vkLayerProperties.layerName) {
-					for (u64 k = 0; k < layers[j].extensions.len; k++) {
-						const VkExtensionProperties* const e = &vkExtensionProperties[layers[j].extensions.offset + k];
-						if (name == e->extensionName) {
-							JC_LOG("Found requested instance extension {} in layer {} extensions", name, layerNames[i]);
-							out->Add(e->extensionName);
+				if (layerNames[i] == layers[j].name) {
+					for (u64 k = 0; k < layers[j].exts.len; k++) {
+						if (name == layers[j].exts[k].name) {
+							JC_LOG("Found requested instance extension {} in layer {}", name, layers[j].name);
+							out->Add(name);
 							return Ok();
 						}
 					}
@@ -215,12 +254,12 @@ struct RenderApiImpl : RenderApi {
 
 	//----------------------------------------------------------------------------------------------
 
-	Res<> Init(Allocator* inAllocator, LogApi* inLogApi, TempAllocator* inTempAllocator) override {
-		allocator     = inAllocator;
-		logApi        = inLogApi;
-		tempAllocator = inTempAllocator;
+	Res<> Init(Allocator* allocatorIn, LogApi* logApiIn, TempAllocator* tempAllocatorIn) override {
+		allocator     = allocatorIn;
+		logApi        = logApiIn;
+		tempAllocator = tempAllocatorIn;
 
-		vkExtensionProperties.Init(allocator);
+		globalInstanceExts.Init(allocator);
 		layers.Init(allocator);
 		physicalDevices.Init(allocator);
 
@@ -228,13 +267,19 @@ struct RenderApiImpl : RenderApi {
 			return r;
 		}
 
-		EnumerateLayers();
+		globalInstanceExts = EnumInstanceExts(Str());
+		JC_LOG("{} global instance extensions", globalInstanceExts.len);
+		for (u64 i = 0; i < globalInstanceExts.len; i++) {
+			JC_LOG("    {}: specVer={}", globalInstanceExts[i].name, globalInstanceExts[i].specVer);
+		}
 
-		globalInstanceExtensions = EnumerateInstanceExtensions(nullptr);
-		JC_LOG("{} global instance extensions", globalInstanceExtensions.len);
-		for (u64 i = 0; i < globalInstanceExtensions.len; i++) {
-			const VkExtensionProperties* const e = &vkExtensionProperties[globalInstanceExtensions.offset + i];
-			JC_LOG("    {}: specVersion={}", e->extensionName, e->specVersion);
+		EnumerateLayers();
+		JC_LOG("{} layers", layers.len);
+		for (u32 i = 0; i < layers.len; i++) {
+			JC_LOG("    {}: specVer={}, implVer={}, desc={}", layers[i].name, layers[i].specVer, layers[i].implVer, layers[i].desc);
+			for (u64 j = 0; j < layers[i].exts.len; j++) {
+				JC_LOG("        {}: specVer={}", layers[i].exts[j].name, layers[i].exts[j].specVer);
+			}
 		}
 
 		VkApplicationInfo vkApplicationInfo = {
@@ -247,27 +292,26 @@ struct RenderApiImpl : RenderApi {
 			.apiVersion         = VK_API_VERSION_1_3,
 		};
 
-		Array<const char*> layerNames;
-		layerNames.Init(tempAllocator);
-		if (Res<> r = AddInstanceLayer("VK_LAYER_KHRONOS_validation", &layerNames); !r) {
+		Array<Str> layerNames(tempAllocator);
+		if (Res<> r = AddInstanceLayer(Str::Make("VK_LAYER_KHRONOS_validation"), &layerNames); !r) {
 			JC_LOG("Couldn't find optional instance extension 'VK_LAYER_KHRONOS_validation'");
 		}
 
-		Array<const char*> instanceExtensionNames;
+		Array<Str> instanceExtensionNames;
 		instanceExtensionNames.Init(tempAllocator);
-		if (Res<> r = AddInstanceExtension(VK_KHR_SURFACE_EXTENSION_NAME, layerNames, &instanceExtensionNames); !r) {
+		if (Res<> r = AddInstanceExtension(Str::Make(VK_KHR_SURFACE_EXTENSION_NAME), layerNames, &instanceExtensionNames); !r) {
 			return r;
 		}
 		#if defined JC_OS_WINDOWS
-			constexpr const char* platformSurfaceExtension = VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
+			constexpr s8 platformSurfaceExtension = VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
 		#else	// JC_OS
 			#error("unsupported OS")
 		#endif // JC_OS
-		if (Res<> r = AddInstanceExtension(platformSurfaceExtension, layerNames, &instanceExtensionNames); !r) {
+		if (Res<> r = AddInstanceExtension(Str::Make(platformSurfaceExtension), layerNames, &instanceExtensionNames); !r) {
 			return r;
 		}
 
-		haveVkExtDebugUtils = (bool)AddInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, layerNames, &instanceExtensionNames);
+		haveVkExtDebugUtils = (bool)AddInstanceExtension(Str::Make(VK_EXT_DEBUG_UTILS_EXTENSION_NAME), layerNames, &instanceExtensionNames);
 
 		VkInstanceCreateInfo vkInstanceCreateInfo = {
 			.sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
@@ -275,9 +319,9 @@ struct RenderApiImpl : RenderApi {
 			.flags                   = 0,
 			.pApplicationInfo        = &vkApplicationInfo,
 			.enabledLayerCount       = (u32)layerNames.len,
-			.ppEnabledLayerNames     = layerNames.data,
+			.ppEnabledLayerNames     = (const char* const*)layerNames.data,
 			.enabledExtensionCount   = (u32)instanceExtensionNames.len,
-			.ppEnabledExtensionNames = instanceExtensionNames.data,
+			.ppEnabledExtensionNames = (const char* const*)instanceExtensionNames.data,
 		};
 
 		VkDebugUtilsMessengerCreateInfoEXT vkDebugUtilsMessengerCreateInfoEXT;
@@ -334,30 +378,45 @@ struct RenderApiImpl : RenderApi {
 
 		JC_LOG("{} physical devices", physicalDevices.len);
 		for (u32 i = 0; i < physicalDevices.len; i++) {
-			physicalDevices[i].vkPhysicalDevice = vkPhysicalDevices[i];
-			vkGetPhysicalDeviceProperties(vkPhysicalDevices[i], &physicalDevices[i].vkPhysicalDeviceProperties);
+			PhysicalDevice* const pd = &physicalDevices[i];
+			pd->vkPhysicalDevice = vkPhysicalDevices[i];
+
+			VkPhysicalDeviceProperties vkPhysicalDeviceProperties;
+			vkGetPhysicalDeviceProperties(vkPhysicalDevices[i], &vkPhysicalDeviceProperties);
+
+			pd->name      = Str::Make(vkPhysicalDeviceProperties.deviceName);
+			pd->type      = vkPhysicalDeviceProperties.deviceType;
+			pd->id        = vkPhysicalDeviceProperties.deviceID;
+			pd->vendorId  = vkPhysicalDeviceProperties.vendorID;
+			pd->apiVer    = vkPhysicalDeviceProperties.apiVersion;
+			pd->driverVer = vkPhysicalDeviceProperties.driverVersion;
+
 			JC_LOG(
-				"    [{}] {}: apiVersion={}, vendorId={}, deviceId={}, deviceType={}",
+				"    [{}] {}: type={}, id={}, vendorId={}, apiVer={}, driverVer={}",
 				i,
-				physicalDevices[i].vkPhysicalDeviceProperties.deviceName,
-				physicalDevices[i].vkPhysicalDeviceProperties.apiVersion,
-				physicalDevices[i].vkPhysicalDeviceProperties.vendorID,
-				physicalDevices[i].vkPhysicalDeviceProperties.deviceID,
-				RenderVk::PhysicalDeviceTypeStr(physicalDevices[i].vkPhysicalDeviceProperties.deviceType)
+				pd->name,
+				RenderVk::PhysicalDeviceTypeStr(pd->type),
+				pd->id,
+				pd->vendorId,
+				pd->apiVer,
+				pd->driverVer
 			);
 
-			//VkPhysicalDeviceFeatures2 vkPhysicalDeviceFeatures2;
-			//vkGetPhysicalDeviceFeatures2(vkPhysicalDevices[i], &vkPhysicalDeviceFeatures2);
+			pd->exts = EnumDeviceExts(pd->vkPhysicalDevice, Str());
+			JC_LOG("    {} extensions", pd->exts.len);
+			for (u32 j = 0; j < pd->exts.len; j++) {
+				JC_LOG("        {}: specVer={}", pd->exts[j].name, pd->exts[j].specVer);
+			}
 
-			const u64 offset = vkExtensionProperties.len;
-			n = 0;
-			do {
-				if (r = vkEnumerateDeviceExtensionProperties(physicalDevices[i].vkPhysicalDevice, nullptr, &n, nullptr); r == VK_SUCCESS) {
-					r = vkEnumerateDeviceExtensionProperties(physicalDevices[i].vkPhysicalDevice);
+			for (u32 j = 0; j < layers.len; j++) {
+				Buf<Ext> exts = EnumDeviceExts(pd->vkPhysicalDevice, layers[j].name);
+				JC_LOG("        {} layer {} extensions", exts.len, layers[j].name);
+				for (u32 k = 0; k < exts.len; k++) {
+					JC_LOG("            {}: specVer={}", exts[k].name, exts[k].specVer);
 				}
-			} while (r == VK_INCOMPLETE);
-
-
+				exts.Shutdown();
+			}
+			/*
 			typedef struct VkFormatProperties {
 				VkFormatFeatureFlags    linearTilingFeatures;
 				VkFormatFeatureFlags    optimalTilingFeatures;
@@ -439,6 +498,7 @@ struct RenderApiImpl : RenderApi {
 
 			if (props->deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
 			}
+			*/
 		}
 
 		return Ok();

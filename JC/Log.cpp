@@ -17,8 +17,8 @@ struct LogApiImpl : LogApi {
 	LogFn*            logFns[MaxLogFns];
 	u32               logFnsLen = 0;
 
-	void Init(TempAllocatorApi* inTempAllocatorApi) {
-		tempAllocatorApi = inTempAllocatorApi;
+	void Init(TempAllocatorApi* tempAllocatorApiIn) {
+		tempAllocatorApi = tempAllocatorApiIn;
 		ta = tempAllocatorApi->Create(taBuf, sizeof(taBuf));
 	}
 
