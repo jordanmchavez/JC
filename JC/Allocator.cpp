@@ -61,14 +61,15 @@ struct AllocatorApiImpl : AllocatorApi {
 				.bytes     = size,
 			});
 			ptrToTrace.Put(ptr, traces.len - 1);
+			srcLocToTrace.Put(key, traces.len - 1);
 		}
 	}
 
 	//----------------------------------------------------------------------------------------------
 
 	void RemoveTrace(const void* ptr, u64 size) {
-		if (Opt<u64> idx = ptrToTrace.Find(ptr)) {
-			Trace* const trace = &traces[idx];
+		if (Opt<u64> idx = ptrToTrace.Find(ptr); idx.hasVal) {
+			Trace* const trace = &traces[idx.val];
 			JC_ASSERT(trace->allocs > 0);
 			trace->allocs--;
 			trace->bytes -= size;

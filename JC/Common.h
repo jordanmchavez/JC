@@ -433,6 +433,7 @@ template <class T = void> struct [[nodiscard]] Res {
 
 	constexpr operator bool() const { return hasVal; }
 
+	constexpr Err* To(T& out) { if (hasVal) { out = val; return nullptr; } else { return err; } }
 	constexpr T Or(T def) const { return hasVal ? val : def; }
 };
 

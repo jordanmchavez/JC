@@ -57,9 +57,10 @@ struct Buf {
 		}
 	}
 
-	void Resize(u64 n, SrcLoc srcLoc = SrcLoc::Here()) {
-		allocator->Realloc(data, len * sizeof(T), n * sizeof(T), srcLoc);
+	T* Resize(u64 n, SrcLoc srcLoc = SrcLoc::Here()) {
+		data = (T*)allocator->Realloc(data, len * sizeof(T), n * sizeof(T), srcLoc);
 		len = n;
+		return data;
 	}
 
 	T  operator[](u64 i) const { JC_ASSERT(i < len); return data[i]; }
@@ -79,17 +80,18 @@ struct Layer {
 	Buf<Ext> exts;
 };
 
+namespace QueueType {
+	static constexpr u32 Graphics = 0;
+	static constexpr u32 Compute  = 1;
+	static constexpr u32 Transfer = 2;
+	static constexpr u32 Max      = 3;
+}
+
 struct PhysicalDevice {
-	VkPhysicalDevice     vkPhysicalDevice = VK_NULL_HANDLE;
-
-	Str                  name;
-    VkPhysicalDeviceType type;
-	u32                  id = 0;
-	u32                  vendorId = 0;
-	u32                  apiVer = 0;
-	u32                  driverVer = 0;
-
-	Buf<Ext>             exts;
+	VkPhysicalDevice           vkPhysicalDevice;
+	VkPhysicalDeviceProperties vkPhysicalDeviceProperties;
+	Buf<VkLayerProperties>     vkLayerProperties;
+	Buf<VkExtensionProperties> vkExtensionProperties;
 };
 
 struct RenderApiImpl : RenderApi {
@@ -106,11 +108,11 @@ struct RenderApiImpl : RenderApi {
 
 	//----------------------------------------------------------------------------------------------
 
-	#define JC_MAKE_VK_ERR(r) \
-		Err::Make(tempAllocator, nullptr, __FILE__, __LINE__, ErrCode { .ns = "vk", .code = (u64)r }, "desc", RenderVk::ResultStr(r))
+	#define JC_MAKE_VK_ERR(Fn, vkResult) \
+		Err::Make(tempAllocator, nullptr, __FILE__, __LINE__, ErrCode { .ns = "vk", .code = (u64)vkResult }, "fn", #Fn, "desc", RenderVk::ResultStr(vkResult))
 
-	#define JC_LOG_VK_ERR(r) \
-		JC_LOG_ERR(JC_MAKE_VK_ERR(r))
+	#define JC_LOG_VK_ERR(Fn, vkResult) \
+		JC_LOG_ERR(JC_MAKE_VK_ERR(Fn, vkResult))
 
 	//----------------------------------------------------------------------------------------------
 
@@ -154,7 +156,7 @@ struct RenderApiImpl : RenderApi {
 			}
 		} while (r == VK_INCOMPLETE);
 		if (r) {
-			JC_LOG_VK_ERR(r);
+			JC_LOG_VK_ERR(vkEnumerateInstanceLayerProperties, r);
 			return;
 		}
 		layers.Init(allocator, n);
@@ -180,31 +182,7 @@ struct RenderApiImpl : RenderApi {
 			}
 		} while (r == VK_INCOMPLETE);
 		if (r) {
-			JC_LOG_VK_ERR(r);
-			return Buf<Ext>{};
-		}
-		Buf<Ext> exts(allocator, n);
-		for (u32 i = 0; i < n; i++) {
-			JC_LOG("i: {}", i);
-			exts[i].name    = Str::Make(props[i].extensionName);
-			exts[i].specVer = props[i].specVersion;
-		}
-		return exts;
-	}
-	//----------------------------------------------------------------------------------------------
-
-	Buf<Ext> EnumDeviceExts(VkPhysicalDevice vkPhysicalDevice, Str layerName) {
-		VkResult r = VK_SUCCESS;
-		u32 n = 0;
-		VkExtensionProperties* props = nullptr;
-		do {
-			if (r = vkEnumerateDeviceExtensionProperties(vkPhysicalDevice, layerName.data, &n, nullptr); r == VK_SUCCESS) {
-				props = Scratch<VkExtensionProperties>(n);
-				r = vkEnumerateDeviceExtensionProperties(vkPhysicalDevice, layerName.data, &n, props);
-			}
-		} while (r == VK_INCOMPLETE);
-		if (r) {
-			JC_LOG_VK_ERR(r);
+			JC_LOG_VK_ERR(vkEnumerateInstanceExtensionProperties, r);
 			return Buf<Ext>{};
 		}
 		Buf<Ext> exts(allocator, n);
@@ -250,6 +228,68 @@ struct RenderApiImpl : RenderApi {
 			}
 		}
 		return JC_ERR(tempAllocator, Err_ExtensionNotFound, "name", name);
+	}
+
+	//----------------------------------------------------------------------------------------------
+
+	Res<Buf<VkLayerProperties>> EnumerateDeviceLayers(VkPhysicalDevice vkPhysicalDevice) {
+		VkResult vkResult = VK_SUCCESS;
+		u32 n = 0;
+		Buf<VkLayerProperties> vkLayerProperties(allocator);
+		do {
+			if (vkResult = vkEnumerateDeviceLayerProperties(vkPhysicalDevice, &n, nullptr); vkResult == VK_SUCCESS) {
+				vkResult = vkEnumerateDeviceLayerProperties(vkPhysicalDevice, &n, vkLayerProperties.Resize(n));
+			}
+		} while (vkResult == VK_INCOMPLETE);
+		if (vkResult) {
+			return JC_MAKE_VK_ERR(vkEnumerateDeviceLayerProperties, vkResult);
+		}
+		return vkLayerProperties;
+	}
+
+	Res<Buf<VkExtensionProperties>> EnumerateDeviceExtensions(VkPhysicalDevice vkPhysicalDevice) {
+		VkResult vkResult = VK_SUCCESS;
+		u32 n = 0;
+		Buf<VkExtensionProperties> vkExtensionProperties(allocator);
+		do {
+			if (vkResult = vkEnumerateDeviceExtensionProperties(vkPhysicalDevice, nullptr, &n, nullptr); vkResult == VK_SUCCESS) {
+				vkResult = vkEnumerateDeviceExtensionProperties(vkPhysicalDevice, nullptr, &n, vkExtensionProperties.Resize(n));
+			}
+		} while (vkResult == VK_INCOMPLETE);
+		if (vkResult) {
+			return JC_MAKE_VK_ERR(vkEnumerateDeviceExtensionProperties, vkResult);
+		}
+		return vkExtensionProperties;
+	}
+
+	Res<Buf<PhysicalDevice>> EnumeratePhysicalDevices() {
+		VkResult vkResult = VK_SUCCESS;
+		u32 n = 0;
+		VkPhysicalDevice* vkPhysicalDevices = nullptr;
+		do {
+			if (vkResult = vkEnumeratePhysicalDevices(vkInstance, &n, nullptr); vkResult == VK_SUCCESS) {
+				vkPhysicalDevices = Scratch<VkPhysicalDevice>(n);
+				vkResult = vkEnumeratePhysicalDevices(vkInstance, &n, vkPhysicalDevices);
+			}
+		} while (vkResult == VK_INCOMPLETE);
+		if (vkResult) {
+			return JC_MAKE_VK_ERR(vkEnumeratePhysicalDevices, vkResult);
+		}
+		physicalDevices.Resize(n);
+		
+		for (u32 i = 0; i < physicalDevices.len; i++) {
+			PhysicalDevice* const pd = &physicalDevices[i];
+
+			pd->vkPhysicalDevice = vkPhysicalDevices[i];
+
+			if (Err* err = EnumerateDeviceLayers(pd->vkPhysicalDevice).To(pd->vkLayerProperties)) {
+				return err;
+			}
+
+			if (Err* err = EnumerateDeviceExtensions(pd->vkPhysicalDevice).To(pd->vkExtensionProperties)) {
+				return err;
+			}
+		}
 	}
 
 	//----------------------------------------------------------------------------------------------
@@ -361,20 +401,6 @@ struct RenderApiImpl : RenderApi {
 			}
 		}
 
-		VkResult r = VK_SUCCESS;
-		u32 n = 0;
-		VkPhysicalDevice* vkPhysicalDevices = nullptr;
-		do {
-			const u32 oldN = n;
-			if (r = vkEnumeratePhysicalDevices(vkInstance, &n, nullptr); r == VK_SUCCESS) {
-				vkPhysicalDevices = (VkPhysicalDevice*)tempAllocator->Realloc(vkPhysicalDevices, oldN * sizeof(VkPhysicalDevice), n * sizeof(VkPhysicalDevice));
-				r = vkEnumeratePhysicalDevices(vkInstance, &n, vkPhysicalDevices);
-			}
-		} while (r == VK_INCOMPLETE);
-		if (r) {
-			return JC_MAKE_VK_ERR(r);
-		}
-		physicalDevices.Resize(n);
 
 		JC_LOG("{} physical devices", physicalDevices.len);
 		for (u32 i = 0; i < physicalDevices.len; i++) {
@@ -407,7 +433,6 @@ struct RenderApiImpl : RenderApi {
 			for (u32 j = 0; j < pd->exts.len; j++) {
 				JC_LOG("        {}: specVer={}", pd->exts[j].name, pd->exts[j].specVer);
 			}
-
 			for (u32 j = 0; j < layers.len; j++) {
 				Buf<Ext> exts = EnumDeviceExts(pd->vkPhysicalDevice, layers[j].name);
 				JC_LOG("        {} layer {} extensions", exts.len, layers[j].name);
@@ -416,25 +441,18 @@ struct RenderApiImpl : RenderApi {
 				}
 				exts.Shutdown();
 			}
-			/*
-			typedef struct VkFormatProperties {
-				VkFormatFeatureFlags    linearTilingFeatures;
-				VkFormatFeatureFlags    optimalTilingFeatures;
-				VkFormatFeatureFlags    bufferFeatures;
-			} VkFormatProperties;
-			typedef struct VkFormatProperties2 {
-				VkStructureType       sType;
-				void*                 pNext;
-				VkFormatProperties    formatProperties;
-			} VkFormatProperties2;
-			vkGetPhysicalDeviceFormatProperties2(vkPhysicalDevices[i], VkFormat format, VkFormatProperties2* pFormatProperties);
 
-			typedef struct VkPhysicalDeviceMemoryProperties2 {
-				VkStructureType                     sType;
-				void*                               pNext;
-				VkPhysicalDeviceMemoryProperties    memoryProperties;
-			} VkPhysicalDeviceMemoryProperties2;
-			vkGetPhysicalDeviceMemoryProperties2(vkPhysicalDevices[i], VkPhysicalDeviceMemoryProperties2* pMemoryProperties);
+			//typedef struct VkFormatProperties {
+			//	VkFormatFeatureFlags    linearTilingFeatures;
+			//	VkFormatFeatureFlags    optimalTilingFeatures;
+			//	VkFormatFeatureFlags    bufferFeatures;
+			//} VkFormatProperties;
+			//typedef struct VkFormatProperties2 {
+			//	VkStructureType       sType;
+			//	void*                 pNext;
+			//	VkFormatProperties    formatProperties;
+			//} VkFormatProperties2;
+			//vkGetPhysicalDeviceFormatProperties2(vkPhysicalDevices[i], VkFormat format, VkFormatProperties2* pFormatProperties);
 
 			typedef enum VkQueueFlagBits {
 				VK_QUEUE_GRAPHICS_BIT = 0x00000001,
@@ -453,52 +471,49 @@ struct RenderApiImpl : RenderApi {
 				uint32_t        timestampValidBits;
 				VkExtent3D      minImageTransferGranularity;
 			} VkQueueFamilyProperties;
-			typedef struct VkQueueFamilyProperties2 {
-				VkStructureType            sType;
-				void*                      pNext;
-				VkQueueFamilyProperties    queueFamilyProperties;
-			} VkQueueFamilyProperties2;
-			vkGetPhysicalDeviceQueueFamilyProperties2KHR(vkPhysicalDevices[i], uint32_t* pQueueFamilyPropertyCount, VkQueueFamilyProperties2* pQueueFamilyProperties);
+			vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, uint32_t* pQueueFamilyPropertyCount, VkQueueFamilyProperties2* pQueueFamilyProperties);
 
-			typedef struct VkSurfaceCapabilitiesKHR {
-				uint32_t                         minImageCount;
-				uint32_t                         maxImageCount;
-				VkExtent2D                       currentExtent;
-				VkExtent2D                       minImageExtent;
-				VkExtent2D                       maxImageExtent;
-				uint32_t                         maxImageArrayLayers;
-				VkSurfaceTransformFlagsKHR       supportedTransforms;
-				VkSurfaceTransformFlagBitsKHR    currentTransform;
-				VkCompositeAlphaFlagsKHR         supportedCompositeAlpha;
-				VkImageUsageFlags                supportedUsageFlags;
-			} VkSurfaceCapabilitiesKHR;
-			VkResult vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkPhysicalDevices[i], VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR* pSurfaceCapabilities);
+			//typedef struct VkPhysicalDeviceMemoryProperties2 {
+			//	VkStructureType                     sType;
+			//	void*                               pNext;
+			//	VkPhysicalDeviceMemoryProperties    memoryProperties;
+			//} VkPhysicalDeviceMemoryProperties2;
+			//vkGetPhysicalDeviceMemoryProperties2(vkPhysicalDevices[i], VkPhysicalDeviceMemoryProperties2* pMemoryProperties);
 
-			typedef struct VkSurfaceFormatKHR {
-				VkFormat           format;
-				VkColorSpaceKHR    colorSpace;
-			} VkSurfaceFormatKHR;
-			VkResult vkGetPhysicalDeviceSurfaceFormatsKHR(vkPhysicalDevices[i], VkSurfaceKHR surface, uint32_t* pSurfaceFormatCount, VkSurfaceFormatKHR* pSurfaceFormats);
+			//typedef struct VkSurfaceCapabilitiesKHR {
+			//	uint32_t                         minImageCount;
+			//	uint32_t                         maxImageCount;
+			//	VkExtent2D                       currentExtent;
+			//	VkExtent2D                       minImageExtent;
+			//	VkExtent2D                       maxImageExtent;
+			//	uint32_t                         maxImageArrayLayers;
+			//	VkSurfaceTransformFlagsKHR       supportedTransforms;
+			//	VkSurfaceTransformFlagBitsKHR    currentTransform;
+			//	VkCompositeAlphaFlagsKHR         supportedCompositeAlpha;
+			//	VkImageUsageFlags                supportedUsageFlags;
+			//} VkSurfaceCapabilitiesKHR;
+			//VkResult vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkPhysicalDevices[i], VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR* pSurfaceCapabilities);
 
-			typedef enum VkPresentModeKHR {
-				VK_PRESENT_MODE_IMMEDIATE_KHR = 0,
-				VK_PRESENT_MODE_MAILBOX_KHR = 1,
-				VK_PRESENT_MODE_FIFO_KHR = 2,
-				VK_PRESENT_MODE_FIFO_RELAXED_KHR = 3,
-				VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR = 1000111000,
-				VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR = 1000111001,
-				VK_PRESENT_MODE_MAX_ENUM_KHR = 0x7FFFFFFF
-			} VkPresentModeKHR;
-			VkResult vkGetPhysicalDeviceSurfacePresentModesKHR(vkPhysicalDevices[i], VkSurfaceKHR surface, uint32_t* pPresentModeCount, VkPresentModeKHR* pPresentModes);
+			//typedef struct VkSurfaceFormatKHR {
+			//	VkFormat           format;
+			//	VkColorSpaceKHR    colorSpace;
+			//} VkSurfaceFormatKHR;
+			//VkResult vkGetPhysicalDeviceSurfaceFormatsKHR(vkPhysicalDevices[i], VkSurfaceKHR surface, uint32_t* pSurfaceFormatCount, VkSurfaceFormatKHR* pSurfaceFormats);
 
-			VkResult vkGetPhysicalDeviceSurfaceSupportKHR(vkPhysicalDevices[i], uint32_t queueFamilyIndex, VkSurfaceKHR surface, VkBool32* pSupported);
+			//typedef enum VkPresentModeKHR {
+			//	VK_PRESENT_MODE_IMMEDIATE_KHR = 0,
+			//	VK_PRESENT_MODE_MAILBOX_KHR = 1,
+			//	VK_PRESENT_MODE_FIFO_KHR = 2,
+			//	VK_PRESENT_MODE_FIFO_RELAXED_KHR = 3,
+			//	VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR = 1000111000,
+			//	VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR = 1000111001,
+			//	VK_PRESENT_MODE_MAX_ENUM_KHR = 0x7FFFFFFF
+			//} VkPresentModeKHR;
+			//VkResult vkGetPhysicalDeviceSurfacePresentModesKHR(vkPhysicalDevices[i], VkSurfaceKHR surface, uint32_t* pPresentModeCount, VkPresentModeKHR* pPresentModes);
 
-			VkBool32 vkGetPhysicalDeviceWin32PresentationSupportKHR(vkPhysicalDevices[i], uint32_t queueFamilyIndex);
+			//VkResult vkGetPhysicalDeviceSurfaceSupportKHR(vkPhysicalDevices[i], uint32_t queueFamilyIndex, VkSurfaceKHR surface, VkBool32* pSupported);
 
-
-			if (props->deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-			}
-			*/
+			//VkBool32 vkGetPhysicalDeviceWin32PresentationSupportKHR(vkPhysicalDevices[i], uint32_t queueFamilyIndex);
 		}
 
 		return Ok();
