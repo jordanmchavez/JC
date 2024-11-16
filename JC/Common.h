@@ -297,30 +297,30 @@ template <class... A> using FmtStr = _FmtStr<typename TypeIdentity<A>::Type...>;
 
 //--------------------------------------------------------------------------------------------------
 
-[[noreturn]] void VPanic(s8 file, i32 line, s8 expr, s8 fmt, Args args);
+[[noreturn]] void VPanic_(s8 file, i32 line, s8 expr, s8 fmt, Args args);
 
-[[noreturn]] inline void Panic(s8 file, i32 line, s8 expr) {
-	VPanic(file, line, expr, "", Args::Make());
+[[noreturn]] inline void Panic_(s8 file, i32 line, s8 expr) {
+	VPanic_(file, line, expr, "", Args::Make());
 }
 	
-template <class... A> [[noreturn]] void Panic(s8 file, i32 line, s8 expr, FmtStr<A...> fmt, A... args) {
-	VPanic(file, line, expr, fmt, Args::Make(args...));
+template <class... A> [[noreturn]] void Panic_(s8 file, i32 line, s8 expr, FmtStr<A...> fmt, A... args) {
+	VPanic_(file, line, expr, fmt, Args::Make(args...));
 }
 
-#define JC_ASSERT(expr, ...) \
+#define Assert(expr, ...) \
 	do { \
 		if (!(expr)) { \
-			Panic(__FILE__, __LINE__, #expr, ##__VA_ARGS__); \
+			Panic_(__FILE__, __LINE__, #expr, ##__VA_ARGS__); \
 		} \
 	} while (false)
 
-#define JC_PANIC(fmt, ...) \
-	Panic(__FILE__, __LINE__, nullptr, (fmt), __VA_ARGS__)
+#define Panic(fmt, ...) \
+	Panic_(__FILE__, __LINE__, nullptr, (fmt), __VA_ARGS__)
 
 //--------------------------------------------------------------------------------------------------
 
 constexpr s8::s8(const char* s) {
-	JC_ASSERT(s);
+	Assert(s);
 	data = s;
 	len  = StrLen8(s);
 }
@@ -330,7 +330,7 @@ constexpr s8::s8(const char* d, u64 l) {
 	len  = l;
 }
 constexpr s8::s8(const char* b, const char* e) {
-	JC_ASSERT(e >= b);
+	Assert(e >= b);
 	data = b;
 	len  = (u64)(e - b);
 }
@@ -341,7 +341,7 @@ constexpr s8& s8::operator=(const char* s) {
 }
 
 constexpr char s8::operator[](u64 i) const {
-	JC_ASSERT(i <= len);
+	Assert(i <= len);
 	return data[i];
 }
 
