@@ -80,18 +80,36 @@ struct Layer {
 	Buf<Ext> exts;
 };
 
-namespace QueueType {
-	static constexpr u32 Graphics = 0;
-	static constexpr u32 Compute  = 1;
-	static constexpr u32 Transfer = 2;
-	static constexpr u32 Max      = 3;
-}
+static constexpr u32 InvalidQueueFamily = 0xffffffff;
 
 struct PhysicalDevice {
-	VkPhysicalDevice           vkPhysicalDevice;
-	VkPhysicalDeviceProperties vkPhysicalDeviceProperties;
-	Buf<VkLayerProperties>     vkLayerProperties;
-	Buf<VkExtensionProperties> vkExtensionProperties;
+	VkPhysicalDevice                                   vkPhysicalDevice;
+
+	Buf<VkLayerProperties>                             vkLayerProperties;
+
+	Buf<VkExtensionProperties>                         vkExtensionProperties;
+
+	VkPhysicalDeviceProperties                         vkPhysicalDeviceProperties;
+	VkPhysicalDeviceDescriptorIndexingProperties       vkPhysicalDeviceDescriptorIndexingProperties;
+	VkPhysicalDeviceSubgroupProperties                 vkPhysicalDeviceSubgroupProperties;
+	VkPhysicalDeviceAccelerationStructurePropertiesKHR vkPhysicalDeviceAccelerationStructurePropertiesKHR;
+	VkPhysicalDeviceRayTracingPipelinePropertiesKHR    vkPhysicalDeviceRayTracingPipelinePropertiesKHR;
+	VkPhysicalDeviceMeshShaderPropertiesNV             vkPhysicalDeviceMeshShaderPropertiesNV;
+
+	VkPhysicalDeviceFeatures                           vkPhysicalDeviceFeatures;
+	VkPhysicalDeviceVulkan12Features                   vkPhysicalDeviceVulkan12Features;
+	VkPhysicalDeviceVulkan13Features                   vkPhysicalDeviceVulkan13Features;
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR   vkPhysicalDeviceAccelerationStructureFeaturesKHR;
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR      vkPhysicalDeviceRayTracingPipelineFeaturesKHR;
+	VkPhysicalDeviceMeshShaderFeaturesNV               vkPhysicalDeviceMeshShaderFeaturesNV;
+
+	VkPhysicalDeviceMemoryProperties                   vkPhysicalDeviceMemoryProperties;
+
+	Buf<VkQueueFamilyProperties>                       vkQueueFamilyProperties;
+	u32                                                graphicsQueueFamily;
+	u32                                                computeQueueFamily;
+	u32                                                transferQueueFamily;
+	u32                                                presentQueueFamily;
 };
 
 struct RenderApiImpl : RenderApi {
@@ -232,7 +250,7 @@ struct RenderApiImpl : RenderApi {
 
 	//----------------------------------------------------------------------------------------------
 
-	Res<Buf<VkLayerProperties>> EnumerateDeviceLayers(VkPhysicalDevice vkPhysicalDevice) {
+	static Res<Buf<VkLayerProperties>> EnumerateDeviceLayers(VkPhysicalDevice vkPhysicalDevice, Allocator* allocator) {
 		VkResult vkResult = VK_SUCCESS;
 		u32 n = 0;
 		Buf<VkLayerProperties> vkLayerProperties(allocator);
@@ -262,7 +280,29 @@ struct RenderApiImpl : RenderApi {
 		return vkExtensionProperties;
 	}
 
-	Res<Buf<PhysicalDevice>> EnumeratePhysicalDevices() {
+	bool HasExtension(Buf<VkExtensionProperties> vkExtensionProperties, s8 extensionName) {
+		for (u64 i = 0; i < vkExtensionProperties.len; i++) {
+			if (extensionName == vkExtensionProperties[i].extensionName) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	VkBaseInStructure* Link(VkBaseInStructure* base, void* next) {
+		base->pNext = (VkBaseInStructure*)next;
+		return (VkBaseInStructure*)next;
+	}
+
+	VkBaseInStructure* LinkIfHasExtension(VkBaseInStructure* base, void* next, Buf<VkExtensionProperties> vkExtensionProperties, s8 extensionName) {
+		if (HasExtension(vkExtensionProperties, extensionName)) {
+			base->pNext = (VkBaseInStructure*)next;
+			return (VkBaseInStructure*)next;
+		}
+		return base;
+	}
+
+	static Res<Buf<PhysicalDevice>> EnumeratePhysicalDevices(VkInstance vkInstance, Allocator* allocator, TempAllocator* tempAllocator) {
 		VkResult vkResult = VK_SUCCESS;
 		u32 n = 0;
 		VkPhysicalDevice* vkPhysicalDevices = nullptr;
@@ -275,8 +315,8 @@ struct RenderApiImpl : RenderApi {
 		if (vkResult) {
 			return JC_MAKE_VK_ERR(vkEnumeratePhysicalDevices, vkResult);
 		}
-		physicalDevices.Resize(n);
-		
+
+		Buf<PhysicalDevice> physicalDevices(allocator, n);
 		for (u32 i = 0; i < physicalDevices.len; i++) {
 			PhysicalDevice* const pd = &physicalDevices[i];
 
@@ -289,7 +329,77 @@ struct RenderApiImpl : RenderApi {
 			if (Err* err = EnumerateDeviceExtensions(pd->vkPhysicalDevice).To(pd->vkExtensionProperties)) {
 				return err;
 			}
+
+			VkPhysicalDeviceProperties2 vkPhysicalDeviceProperties2 = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+			pd->vkPhysicalDeviceDescriptorIndexingProperties        = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES };
+			pd->vkPhysicalDeviceSubgroupProperties                  = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES };
+			pd->vkPhysicalDeviceAccelerationStructurePropertiesKHR  = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR };
+			pd->vkPhysicalDeviceRayTracingPipelinePropertiesKHR     = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };
+			pd->vkPhysicalDeviceMeshShaderPropertiesNV              = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_NV };
+			VkBaseInStructure* next = (VkBaseInStructure*)&vkPhysicalDeviceProperties2;
+			next = Link              (next, &pd->vkPhysicalDeviceSubgroupProperties);
+			next = Link              (next, &pd->vkPhysicalDeviceDescriptorIndexingProperties);
+			next = LinkIfHasExtension(next, &pd->vkPhysicalDeviceAccelerationStructurePropertiesKHR, pd->vkExtensionProperties, VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+			next = LinkIfHasExtension(next, &pd->vkPhysicalDeviceRayTracingPipelinePropertiesKHR,    pd->vkExtensionProperties, VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
+			next = LinkIfHasExtension(next, &pd->vkPhysicalDeviceMeshShaderPropertiesNV,             pd->vkExtensionProperties, VK_NV_MESH_SHADER_EXTENSION_NAME);
+			vkGetPhysicalDeviceProperties2(pd->vkPhysicalDevice, &vkPhysicalDeviceProperties2);
+			pd->vkPhysicalDeviceProperties = vkPhysicalDeviceProperties2.properties;
+
+			VkPhysicalDeviceFeatures2 vkPhysicalDeviceFeatures2  = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+			pd->vkPhysicalDeviceVulkan12Features                 = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
+			pd->vkPhysicalDeviceVulkan13Features                 = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
+			pd->vkPhysicalDeviceAccelerationStructureFeaturesKHR = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
+			pd->vkPhysicalDeviceRayTracingPipelineFeaturesKHR    = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };
+			pd->vkPhysicalDeviceMeshShaderFeaturesNV             = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_NV };
+			next = (VkBaseInStructure*)&vkPhysicalDeviceFeatures2;
+			next = Link              (next, &pd->vkPhysicalDeviceVulkan12Features);
+			next = Link              (next, &pd->vkPhysicalDeviceVulkan13Features);
+			next = LinkIfHasExtension(next, &pd->vkPhysicalDeviceAccelerationStructureFeaturesKHR, pd->vkExtensionProperties, VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
+			next = LinkIfHasExtension(next, &pd->vkPhysicalDeviceRayTracingPipelineFeaturesKHR,    pd->vkExtensionProperties, VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME);
+			next = LinkIfHasExtension(next, &pd->vkPhysicalDeviceMeshShaderFeaturesNV,             pd->vkExtensionProperties, VK_NV_MESH_SHADER_EXTENSION_NAME);
+			vkGetPhysicalDeviceFeatures2(pd->vkPhysicalDevice, &vkPhysicalDeviceFeatures2);
+			pd->vkPhysicalDeviceFeatures = vkPhysicalDeviceFeatures2.features;
+
+			// TODO: if no validation, then device->enabled_features.features.robustBufferAccess = false;
+
+			vkGetPhysicalDeviceMemoryProperties(pd->vkPhysicalDevice, &pd->vkPhysicalDeviceMemoryProperties);
+
+			n = 0;
+			vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, &n, nullptr);
+			vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, &n, pd->vkQueueFamilyProperties.Resize(n));
+
+			pd->graphicsQueueFamily = InvalidQueueFamily;
+			pd->presentQueueFamily  = InvalidQueueFamily;
+			pd->computeQueueFamily  = InvalidQueueFamily;
+			pd->transferQueueFamily = InvalidQueueFamily;
+			for (u32 qf = 0; qf < pd->vkQueueFamilyProperties.len; qf++) {
+				bool supportsPresent = false;
+				#if defined JC_OS_WINDOWS
+					vkGetPhysicalDeviceWin32PresentationSupportKHR(pd->vkPhysicalDevice, qf);
+				#else	// JC_OS
+					#error("Unsupported OS");
+				#endif	// JC_OS
+
+				VkQueueFamilyProperties* const q = &pd->vkQueueFamilyProperties[qf];
+				if (
+					(q->queueFlags & VK_QUEUE_GRAPHICS_BIT) && supportsPresent &&
+					(
+						(pd->graphicsQueueFamily == InvalidQueueFamily && pd->presentQueueFamily == InvalidQueueFamily) ||
+						(pd->graphicsQueueFamily != pd->presentQueueFamily)
+					)
+				) {
+					pd->graphicsQueueFamily = qf;
+					pd->presentQueueFamily  = qf;
+
+				}
+				else if ((q->queueFlags & VK_QUEUE_GRAPHICS_BIT) && pd->graphicsQueueFamily == InvalidQueueFamily) { pd->graphicsQueueFamily = qf; }
+				else if ((q->queueFlags & VK_QUEUE_COMPUTE_BIT)  && pd->computeQueueFamily  == InvalidQueueFamily) { pd->presentQueueFamily  = qf; }
+				else if ((q->queueFlags & VK_QUEUE_TRANSFER_BIT) && pd->transferQueueFamily == InvalidQueueFamily) { pd->presentQueueFamily  = qf; }
+				else if (supportsPresent                         && pd->presentQueueFamily  == InvalidQueueFamily) { pd->presentQueueFamily  = qf; }
+			}
 		}
+
+		return physicalDevices;
 	}
 
 	//----------------------------------------------------------------------------------------------
@@ -340,7 +450,7 @@ struct RenderApiImpl : RenderApi {
 		Array<Str> instanceExtensionNames;
 		instanceExtensionNames.Init(tempAllocator);
 		if (Res<> r = AddInstanceExtension(Str::Make(VK_KHR_SURFACE_EXTENSION_NAME), layerNames, &instanceExtensionNames); !r) {
-			return r;
+			return r.err;
 		}
 		#if defined JC_OS_WINDOWS
 			constexpr s8 platformSurfaceExtension = VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
@@ -348,7 +458,7 @@ struct RenderApiImpl : RenderApi {
 			#error("unsupported OS")
 		#endif // JC_OS
 		if (Res<> r = AddInstanceExtension(Str::Make(platformSurfaceExtension), layerNames, &instanceExtensionNames); !r) {
-			return r;
+			return r.err;
 		}
 
 		haveVkExtDebugUtils = (bool)AddInstanceExtension(Str::Make(VK_EXT_DEBUG_UTILS_EXTENSION_NAME), layerNames, &instanceExtensionNames);
@@ -390,131 +500,75 @@ struct RenderApiImpl : RenderApi {
 		*/
 
 		if (VkResult r = vkCreateInstance(&vkInstanceCreateInfo, vkAllocationCallbacks, &vkInstance)) {
-			return JC_MAKE_VK_ERR(r);
+			return JC_MAKE_VK_ERR(vkCreateInstance, r);
 		}
 
 		RenderVk::LoadInstanceFns(vkInstance);
 
 		if (haveVkExtDebugUtils) {
 			if (VkResult r = vkCreateDebugUtilsMessengerEXT(vkInstance, &vkDebugUtilsMessengerCreateInfoEXT, vkAllocationCallbacks, &vkDebugUtilsMessengerEXT)) {
-				JC_LOG_VK_ERR(r);
+				JC_LOG_VK_ERR(vkCreateDebugUtilsMessengerEXT, r);
 			}
 		}
 
-
-		JC_LOG("{} physical devices", physicalDevices.len);
-		for (u32 i = 0; i < physicalDevices.len; i++) {
-			PhysicalDevice* const pd = &physicalDevices[i];
-			pd->vkPhysicalDevice = vkPhysicalDevices[i];
-
-			VkPhysicalDeviceProperties vkPhysicalDeviceProperties;
-			vkGetPhysicalDeviceProperties(vkPhysicalDevices[i], &vkPhysicalDeviceProperties);
-
-			pd->name      = Str::Make(vkPhysicalDeviceProperties.deviceName);
-			pd->type      = vkPhysicalDeviceProperties.deviceType;
-			pd->id        = vkPhysicalDeviceProperties.deviceID;
-			pd->vendorId  = vkPhysicalDeviceProperties.vendorID;
-			pd->apiVer    = vkPhysicalDeviceProperties.apiVersion;
-			pd->driverVer = vkPhysicalDeviceProperties.driverVersion;
-
-			JC_LOG(
-				"    [{}] {}: type={}, id={}, vendorId={}, apiVer={}, driverVer={}",
-				i,
-				pd->name,
-				RenderVk::PhysicalDeviceTypeStr(pd->type),
-				pd->id,
-				pd->vendorId,
-				pd->apiVer,
-				pd->driverVer
-			);
-
-			pd->exts = EnumDeviceExts(pd->vkPhysicalDevice, Str());
-			JC_LOG("    {} extensions", pd->exts.len);
-			for (u32 j = 0; j < pd->exts.len; j++) {
-				JC_LOG("        {}: specVer={}", pd->exts[j].name, pd->exts[j].specVer);
-			}
-			for (u32 j = 0; j < layers.len; j++) {
-				Buf<Ext> exts = EnumDeviceExts(pd->vkPhysicalDevice, layers[j].name);
-				JC_LOG("        {} layer {} extensions", exts.len, layers[j].name);
-				for (u32 k = 0; k < exts.len; k++) {
-					JC_LOG("            {}: specVer={}", exts[k].name, exts[k].specVer);
-				}
-				exts.Shutdown();
-			}
-
-			//typedef struct VkFormatProperties {
-			//	VkFormatFeatureFlags    linearTilingFeatures;
-			//	VkFormatFeatureFlags    optimalTilingFeatures;
-			//	VkFormatFeatureFlags    bufferFeatures;
-			//} VkFormatProperties;
-			//typedef struct VkFormatProperties2 {
-			//	VkStructureType       sType;
-			//	void*                 pNext;
-			//	VkFormatProperties    formatProperties;
-			//} VkFormatProperties2;
-			//vkGetPhysicalDeviceFormatProperties2(vkPhysicalDevices[i], VkFormat format, VkFormatProperties2* pFormatProperties);
-
-			typedef enum VkQueueFlagBits {
-				VK_QUEUE_GRAPHICS_BIT = 0x00000001,
-				VK_QUEUE_COMPUTE_BIT = 0x00000002,
-				VK_QUEUE_TRANSFER_BIT = 0x00000004,
-				VK_QUEUE_SPARSE_BINDING_BIT = 0x00000008,
-				VK_QUEUE_PROTECTED_BIT = 0x00000010,
-				VK_QUEUE_VIDEO_DECODE_BIT_KHR = 0x00000020,
-				VK_QUEUE_VIDEO_ENCODE_BIT_KHR = 0x00000040,
-				VK_QUEUE_OPTICAL_FLOW_BIT_NV = 0x00000100,
-				VK_QUEUE_FLAG_BITS_MAX_ENUM = 0x7FFFFFFF
-			} VkQueueFlagBits;
-			typedef struct VkQueueFamilyProperties {
-				VkQueueFlags    queueFlags;
-				uint32_t        queueCount;
-				uint32_t        timestampValidBits;
-				VkExtent3D      minImageTransferGranularity;
-			} VkQueueFamilyProperties;
-			vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, uint32_t* pQueueFamilyPropertyCount, VkQueueFamilyProperties2* pQueueFamilyProperties);
-
-			//typedef struct VkPhysicalDeviceMemoryProperties2 {
-			//	VkStructureType                     sType;
-			//	void*                               pNext;
-			//	VkPhysicalDeviceMemoryProperties    memoryProperties;
-			//} VkPhysicalDeviceMemoryProperties2;
-			//vkGetPhysicalDeviceMemoryProperties2(vkPhysicalDevices[i], VkPhysicalDeviceMemoryProperties2* pMemoryProperties);
-
-			//typedef struct VkSurfaceCapabilitiesKHR {
-			//	uint32_t                         minImageCount;
-			//	uint32_t                         maxImageCount;
-			//	VkExtent2D                       currentExtent;
-			//	VkExtent2D                       minImageExtent;
-			//	VkExtent2D                       maxImageExtent;
-			//	uint32_t                         maxImageArrayLayers;
-			//	VkSurfaceTransformFlagsKHR       supportedTransforms;
-			//	VkSurfaceTransformFlagBitsKHR    currentTransform;
-			//	VkCompositeAlphaFlagsKHR         supportedCompositeAlpha;
-			//	VkImageUsageFlags                supportedUsageFlags;
-			//} VkSurfaceCapabilitiesKHR;
-			//VkResult vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkPhysicalDevices[i], VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR* pSurfaceCapabilities);
-
-			//typedef struct VkSurfaceFormatKHR {
-			//	VkFormat           format;
-			//	VkColorSpaceKHR    colorSpace;
-			//} VkSurfaceFormatKHR;
-			//VkResult vkGetPhysicalDeviceSurfaceFormatsKHR(vkPhysicalDevices[i], VkSurfaceKHR surface, uint32_t* pSurfaceFormatCount, VkSurfaceFormatKHR* pSurfaceFormats);
-
-			//typedef enum VkPresentModeKHR {
-			//	VK_PRESENT_MODE_IMMEDIATE_KHR = 0,
-			//	VK_PRESENT_MODE_MAILBOX_KHR = 1,
-			//	VK_PRESENT_MODE_FIFO_KHR = 2,
-			//	VK_PRESENT_MODE_FIFO_RELAXED_KHR = 3,
-			//	VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR = 1000111000,
-			//	VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR = 1000111001,
-			//	VK_PRESENT_MODE_MAX_ENUM_KHR = 0x7FFFFFFF
-			//} VkPresentModeKHR;
-			//VkResult vkGetPhysicalDeviceSurfacePresentModesKHR(vkPhysicalDevices[i], VkSurfaceKHR surface, uint32_t* pPresentModeCount, VkPresentModeKHR* pPresentModes);
-
-			//VkResult vkGetPhysicalDeviceSurfaceSupportKHR(vkPhysicalDevices[i], uint32_t queueFamilyIndex, VkSurfaceKHR surface, VkBool32* pSupported);
-
-			//VkBool32 vkGetPhysicalDeviceWin32PresentationSupportKHR(vkPhysicalDevices[i], uint32_t queueFamilyIndex);
+		if (Err* err = EnumeratePhysicalDevices().To(physicalDevices)) {
+			return err;
 		}
+
+		//typedef struct VkFormatProperties {
+		//	VkFormatFeatureFlags    linearTilingFeatures;
+		//	VkFormatFeatureFlags    optimalTilingFeatures;
+		//	VkFormatFeatureFlags    bufferFeatures;
+		//} VkFormatProperties;
+		//typedef struct VkFormatProperties2 {
+		//	VkStructureType       sType;
+		//	void*                 pNext;
+		//	VkFormatProperties    formatProperties;
+		//} VkFormatProperties2;
+		//vkGetPhysicalDeviceFormatProperties2(vkPhysicalDevices[i], VkFormat format, VkFormatProperties2* pFormatProperties);
+
+
+		//typedef struct VkPhysicalDeviceMemoryProperties2 {
+		//	VkStructureType                     sType;
+		//	void*                               pNext;
+		//	VkPhysicalDeviceMemoryProperties    memoryProperties;
+		//} VkPhysicalDeviceMemoryProperties2;
+		//vkGetPhysicalDeviceMemoryProperties2(vkPhysicalDevices[i], VkPhysicalDeviceMemoryProperties2* pMemoryProperties);
+
+		//typedef struct VkSurfaceCapabilitiesKHR {
+		//	uint32_t                         minImageCount;
+		//	uint32_t                         maxImageCount;
+		//	VkExtent2D                       currentExtent;
+		//	VkExtent2D                       minImageExtent;
+		//	VkExtent2D                       maxImageExtent;
+		//	uint32_t                         maxImageArrayLayers;
+		//	VkSurfaceTransformFlagsKHR       supportedTransforms;
+		//	VkSurfaceTransformFlagBitsKHR    currentTransform;
+		//	VkCompositeAlphaFlagsKHR         supportedCompositeAlpha;
+		//	VkImageUsageFlags                supportedUsageFlags;
+		//} VkSurfaceCapabilitiesKHR;
+		//VkResult vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkPhysicalDevices[i], VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR* pSurfaceCapabilities);
+
+		//typedef struct VkSurfaceFormatKHR {
+		//	VkFormat           format;
+		//	VkColorSpaceKHR    colorSpace;
+		//} VkSurfaceFormatKHR;
+		//VkResult vkGetPhysicalDeviceSurfaceFormatsKHR(vkPhysicalDevices[i], VkSurfaceKHR surface, uint32_t* pSurfaceFormatCount, VkSurfaceFormatKHR* pSurfaceFormats);
+
+		//typedef enum VkPresentModeKHR {
+		//	VK_PRESENT_MODE_IMMEDIATE_KHR = 0,
+		//	VK_PRESENT_MODE_MAILBOX_KHR = 1,
+		//	VK_PRESENT_MODE_FIFO_KHR = 2,
+		//	VK_PRESENT_MODE_FIFO_RELAXED_KHR = 3,
+		//	VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR = 1000111000,
+		//	VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR = 1000111001,
+		//	VK_PRESENT_MODE_MAX_ENUM_KHR = 0x7FFFFFFF
+		//} VkPresentModeKHR;
+		//VkResult vkGetPhysicalDeviceSurfacePresentModesKHR(vkPhysicalDevices[i], VkSurfaceKHR surface, uint32_t* pPresentModeCount, VkPresentModeKHR* pPresentModes);
+
+		//VkResult vkGetPhysicalDeviceSurfaceSupportKHR(vkPhysicalDevices[i], uint32_t queueFamilyIndex, VkSurfaceKHR surface, VkBool32* pSupported);
+
+		//VkBool32 vkGetPhysicalDeviceWin32PresentationSupportKHR(vkPhysicalDevices[i], uint32_t queueFamilyIndex);
 
 		return Ok();
 	}
@@ -544,6 +598,7 @@ VkBool32 VKAPI_PTR VkDebugUtilsCallback(
 ) {
 	return ((RenderApiImpl*)userData)->VkDebugUtilsCallback(severity, types, data);
 }
+
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC

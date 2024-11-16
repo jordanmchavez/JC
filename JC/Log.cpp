@@ -37,8 +37,8 @@ struct LogApiImpl : LogApi {
 	}
 
 	void VLog(s8 file, i32 line, LogCategory category, s8 fmt, Args args) override {
-		tempAllocatorApi->Reset(ta);
-		Array<char> arr;
+		char buf[256];
+		Array<char> arr = { scratch, buf, 0, sizeof(buf) };
 		arr.Init(ta);
 		VFmt(&arr, fmt, args);
 		arr.Add('\n');
@@ -46,7 +46,6 @@ struct LogApiImpl : LogApi {
 		for (u32 i = 0; i < logFnsLen; i++) {
 			(*logFns[i])(file, line, category, msg);
 		}
-		tempAllocatorApi->Destroy(ta);
 	}
 
 	void LogErr(s8 file, i32 line, Err* err) override {

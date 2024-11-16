@@ -8,6 +8,11 @@ struct VirtualMemoryApi;
 
 //--------------------------------------------------------------------------------------------------
 
+struct Mem {
+	u8* data;
+	u64 len;
+};
+
 struct MemLeakReporter {
 	virtual void Begin(s8 name, u64 bytes, u32 allocs, u32 children) = 0;
 	virtual void Alloc(s8 file, i32 line, u64 bytes, u64 allocs) = 0;

@@ -109,7 +109,7 @@
     <ClInclude Include="3rd\vulkan\vk_platform.h" />
     <ClInclude Include="3rd\vulkan\vulkan_core.h" />
     <ClInclude Include="3rd\vulkan\vulkan_win32.h" />
-    <ClInclude Include="JC\Allocator.h" />
+    <ClInclude Include="JC\Mem.h" />
     <ClInclude Include="JC\Array.h" />
     <ClInclude Include="JC\Bit.h" />
     <ClInclude Include="JC\Common.h" />
@@ -127,9 +127,9 @@
     <ClInclude Include="JC\Unicode.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="JC\Allocator.cpp" />
+    <ClCompile Include="JC\Mem.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
-    <ClCompile Include="JC\Common.cpp" />
+    <ClCompile Include="JC\Common_Err.cpp" />
     <ClCompile Include="JC\Fmt.cpp" />
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Log.cpp" />
