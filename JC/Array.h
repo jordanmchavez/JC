@@ -4,16 +4,14 @@
 
 namespace JC {
 
-struct Allocator;
-
 //--------------------------------------------------------------------------------------------------
 
 template <class T>
 struct Array {
-	Allocator* allocator = nullptr;
-	T*         data      = nullptr;
-	u64        len       = 0;
-	u64        cap       = 0;
+	Mem* mem;
+	T*   data;
+	u64  len;
+	u64  cap;
 
 	constexpr       T& operator[](u64 i)       { return data[i]; }
 	constexpr const T& operator[](u64 i) const { return data[i]; }

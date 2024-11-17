@@ -13,9 +13,7 @@ struct Mem {
 	void* Alloc(u64 size);
 	void* Realloc(void* p, u64 oldSize, u64 newSize);
 
-	static void Init();
-	static Mem  Perm();
-	static Mem  Scratch();
+	static Mem Create(u64 reserve, u64 commit);
 };
 
 //--------------------------------------------------------------------------------------------------

@@ -109,6 +109,7 @@
     <ClInclude Include="3rd\vulkan\vk_platform.h" />
     <ClInclude Include="3rd\vulkan\vulkan_core.h" />
     <ClInclude Include="3rd\vulkan\vulkan_win32.h" />
+    <ClInclude Include="JC\Array.h" />
     <ClInclude Include="JC\Common.h" />
     <ClInclude Include="JC\Mem.h" />
   </ItemGroup>

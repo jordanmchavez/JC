@@ -8,40 +8,40 @@ namespace JC {
 
 struct VMem {
 	u8* beg;
-	u8* end;
+	u8* endCommit;
 	u8* endReserve;
 };
 
-//--------------------------------------------------------------------------------------------------
+static constexpr u32 MaxVMems = 128;
 
-static VMem perm;
-static VMem scratch;
+static VMem vmems[MaxVMems];
+static u32  vmemsLen;
 
 //--------------------------------------------------------------------------------------------------
 
 VMem* FindVMem(u8* p) {
-	if (p >= perm.beg && p <= perm.endReserve) {
-		return &perm;
-	} else if (p >= scratch.beg && p <= scratch.endReserve) {
-		return &scratch;
+	for (u32 i = 0; i < vmemsLen; i++) {
+		if (p >= vmems[i].beg && p <= vmems[i].endReserve) {
+			return &vmems[i];
+		}
 	}
-	Panic("Pointer {} is not in either the perm ({}-{}) or scratch arenas ({}-{})", p, perm.beg, perm.end, scratch.beg, scratch.end);
+	Panic("No VMem for pointer {}", p);
 }
 
 //--------------------------------------------------------------------------------------------------
 
 static u8* Grow(u8* newEnd) {
 	VMem* m = FindVMem(newEnd);
-	if (m->end >= newEnd) {
-		u8* nextEnd = m->beg + Max((u64)4096, (u64)(m->end - m->beg) * 2);
+	if (m->endCommit >= newEnd) {
+		u8* nextEnd = m->beg + Max((u64)4096, (u64)(m->endCommit - m->beg) * 2);
 		while (nextEnd < newEnd) {
 			nextEnd = m->beg + (nextEnd - m->beg) * 2;
 		}
 		Assert(nextEnd <= m->endReserve);
-		VirtualMemoryApi::Get()->Commit(m->end, nextEnd - m->end);
-		m->end = nextEnd;
+		VirtualMemoryApi::Get()->Commit(m->endCommit, nextEnd - m->endCommit);
+		m->endCommit = nextEnd;
 	}
-	return m->end;
+	return m->endCommit;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -53,6 +53,7 @@ void* Mem::Alloc(u64 size) {
 	}
 	void* p = beg;
 	beg += size;
+	JC_MEMSET(p, 0, size);
 	return p;
 }
 
@@ -67,24 +68,33 @@ void* Mem::Realloc(void* p, u64 oldSize, u64 newSize) {
 		end = Grow(beg + newSize);
 	}
 	if (!inPlace) {
-		memcpy(beg, p, Min(oldSize, newSize));
+		JC_MEMCPY(beg, p, Min(oldSize, newSize));
 		p = beg;
 		beg += newSize;
+	}
+	if (newSize > oldSize) {
+		JC_MEMSET((u8*)p + oldSize, 0, newSize - oldSize);
 	}
 	return p;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void Mem::Init() {
-	VirtualMemoryApi* v = VirtualMemoryApi::Get();
-
+Mem Mem::Create(u64 reserve, u64 commit) {
+	Assert(vmemsLen < MaxVMems);
+	Assert(reserve % (64 * 1024) == 0);
+	Assert(commit % 4096 == 0);
+	u8* p = (u8*)VirtualMemoryApi::Get()->Reserve(reserve);
+	if (commit > 0) {
+		VirtualMemoryApi::Get()->Commit(p, commit);
+	}
+	vmems[vmemsLen++] = {
+		.beg        = p,
+		.endCommit  = p + commit,
+		.endReserve = p + reserve,
+	};
+	return Mem { .beg = p, .end = p + commit };
 }
-
-//--------------------------------------------------------------------------------------------------
-
-Mem Mem::Perm()    { return Mem { .beg = perm.beg,    .end = perm.end    }; }
-Mem Mem::Scratch() { return Mem { .beg = scratch.beg, .end = scratch.end }; }
 
 //--------------------------------------------------------------------------------------------------
 
