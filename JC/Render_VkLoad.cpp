@@ -1,6 +1,6 @@
 #include "JC/Render_Vk.h"
 
-#if defined JC_OS_WINDOWS
+#if defined Os_Windows
 	typedef __int64 (__stdcall *FARPROC)();
 
 	extern "C" __declspec(dllimport) void*   __stdcall LoadLibraryW(const wchar_t*);
@@ -8,32 +8,32 @@
 	extern "C" __declspec(dllimport) int     __stdcall FreeLibrary(void*);
 
 	static void* vulkanDll = nullptr;
-#endif	// JC_OS_WINDOWS
+#endif	// Os_Windows
 
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> RenderVk::LoadRootFns(TempAllocator* ta) {
-	#if defined JC_OS_WINDOWS
+Res<> Render::LoadRootFns(Mem* scratch) {
+	#if defined Os_Windows
 		vulkanDll = LoadLibraryW(L"vulkan-1.dll");
 		if (!vulkanDll) {
-			return JC_ERR(ta, Err_Dll);
+			return MakeErr(scratch, Err_Dll);
 		}
 		vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)GetProcAddress(vulkanDll, "vkGetInstanceProcAddr");
 		vkCreateInstance = (PFN_vkCreateInstance)vkGetInstanceProcAddr(nullptr, "vkCreateInstance");
 		vkEnumerateInstanceExtensionProperties = (PFN_vkEnumerateInstanceExtensionProperties)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceExtensionProperties");
 		vkEnumerateInstanceLayerProperties = (PFN_vkEnumerateInstanceLayerProperties)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceLayerProperties");
 		vkEnumerateInstanceVersion = (PFN_vkEnumerateInstanceVersion)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion");
-	#else	// JC_OS
+	#else	// Os_
 		#error("Unsupported OS")
-	#endif	// JC_OS
+	#endif	// Os_
 	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void RenderVk::LoadInstanceFns(VkInstance vkInstance) {
+void Render::LoadInstanceFns(VkInstance vkInstance) {
 	vkCreateDevice = (PFN_vkCreateDevice)vkGetInstanceProcAddr(vkInstance, "vkCreateDevice");
 	vkDestroyInstance = (PFN_vkDestroyInstance)vkGetInstanceProcAddr(vkInstance, "vkDestroyInstance");
 	vkEnumerateDeviceExtensionProperties = (PFN_vkEnumerateDeviceExtensionProperties)vkGetInstanceProcAddr(vkInstance, "vkEnumerateDeviceExtensionProperties");
@@ -87,7 +87,7 @@ void RenderVk::LoadInstanceFns(VkInstance vkInstance) {
 
 //--------------------------------------------------------------------------------------------------
 
-void RenderVk::LoadDeviceFns(VkDevice vkDevice) {
+void Render::LoadDeviceFns(VkDevice vkDevice) {
 	vkAllocateCommandBuffers = (PFN_vkAllocateCommandBuffers)vkGetDeviceProcAddr(vkDevice, "vkAllocateCommandBuffers");
 	vkAllocateDescriptorSets = (PFN_vkAllocateDescriptorSets)vkGetDeviceProcAddr(vkDevice, "vkAllocateDescriptorSets");
 	vkAllocateMemory = (PFN_vkAllocateMemory)vkGetDeviceProcAddr(vkDevice, "vkAllocateMemory");
@@ -284,10 +284,10 @@ void RenderVk::LoadDeviceFns(VkDevice vkDevice) {
 
 //--------------------------------------------------------------------------------------------------
 
-void RenderVk::FreeFns() {
-	#if defined JC_OS_WINDOWS
+void Render::FreeFns() {
+	#if defined Os_Windows
 		FreeLibrary(vulkanDll);
-	#endif	// JC_OS_WINDOWS
+	#endif	// Os_Windows
 }
 
 //--------------------------------------------------------------------------------------------------

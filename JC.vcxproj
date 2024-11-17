@@ -112,11 +112,12 @@
     <ClInclude Include="JC\Array.h" />
     <ClInclude Include="JC\Common.h" />
     <ClInclude Include="JC\Mem.h" />
+    <ClInclude Include="Scratch.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="JC\Mem.cpp" />
+    <ClCompile Include="JC\Render_Vk.cpp" />
     <ClCompile Include="Main.cpp" />
-    <ClCompile Include="Scratch.h" />
+    <ClCompile Include="JC\Mem.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Game Notes.md" />

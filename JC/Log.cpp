@@ -1,6 +1,5 @@
 #include "JC/Log.h"
 
-#include "JC/Allocator.h"
 #include "JC/Array.h"
 #include "JC/Fmt.h"
 
@@ -8,64 +7,47 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-struct LogApiImpl : LogApi {
+namespace Log {
 	static constexpr u32 MaxLogFns = 32;
 
-	TempAllocatorApi* tempAllocatorApi;
-	char              taBuf[1024];
-	TempAllocator*    ta = nullptr;
-	LogFn*            logFns[MaxLogFns];
-	u32               logFnsLen = 0;
+	LogFn* logFns[MaxLogFns];
+	u32    logFnsLen = 0;
+}
 
-	void Init(TempAllocatorApi* tempAllocatorApiIn) {
-		tempAllocatorApi = tempAllocatorApiIn;
-		ta = tempAllocatorApi->Create(taBuf, sizeof(taBuf));
-	}
+void Log::AddFn(LogFn* fn) {
+	Assert(logFnsLen < MaxLogFns);
+	logFns[logFnsLen++] = fn;
+}
 
-	void AddFn(LogFn* fn) override {
-		JC_ASSERT(logFnsLen < MaxLogFns);
-		logFns[logFnsLen++] = fn;
-	}
-
-	void RemoveFn(LogFn* fn) override {
-		for (u32 i = 0; i < logFnsLen; i++) {
-			if (logFns[i] == fn) {
-				logFns[i] = logFns[logFnsLen - 1];
-				logFnsLen--;
-			}
+void Log::RemoveFn(LogFn* fn) {
+	for (u32 i = 0; i < logFnsLen; i++) {
+		if (logFns[i] == fn) {
+			logFns[i] = logFns[logFnsLen - 1];
+			logFnsLen--;
 		}
 	}
+}
 
-	void VLog(s8 file, i32 line, LogCategory category, s8 fmt, Args args) override {
-		char buf[256];
-		Array<char> arr = { scratch, buf, 0, sizeof(buf) };
-		arr.Init(ta);
-		VFmt(&arr, fmt, args);
-		arr.Add('\n');
-		const s8 msg = s8(arr.data, arr.len);
-		for (u32 i = 0; i < logFnsLen; i++) {
-			(*logFns[i])(file, line, category, msg);
-		}
+void Log::VPrint(Mem scratch, s8 file, i32 line, LogCategory category, s8 fmt, Args args) {
+	char buf[1024];
+	Array<char> arr = { .mem = &scratch, .data = buf, .cap = sizeof(buf) };
+	VFmt(&arr, fmt, args);
+	arr.Add('\n');
+	arr.Add(0);
+	for (u32 i = 0; i < logFnsLen; i++) {
+		(*logFns[i])(scratch, file, line, category, arr.data, arr.len);
 	}
+}
 
-	void LogErr(s8 file, i32 line, Err* err) override {
-		tempAllocatorApi->Reset(ta);
-		Array<char> arr;
-		arr.Init(ta);
-		err->Str(&arr);
-		arr.Add('\n');
-		const s8 msg(arr.data, arr.len);
-		for (u32 i = 0; i < logFnsLen; i++) {
-			(*logFns[i])(file, line, LogCategory::Error, msg);
-		}
-		tempAllocatorApi->Destroy(ta);
+void Log::PrintErr(Mem scratch, s8 file, i32 line, Err* err) {
+	char buf[1024];
+	Array<char> arr = { .mem = &scratch, .data = buf, .cap = sizeof(buf) };
+	err->Str(&arr);
+	arr.Add('\n');
+	arr.Add(0);
+	for (u32 i = 0; i < logFnsLen; i++) {
+		(*logFns[i])(scratch, file, line, LogCategory::Error, arr.data, arr.len);
 	}
-};
-
-static LogApiImpl logApiImpl;
-
-LogApi* LogApi::Get() {
-	return &logApiImpl;
 }
 
 //--------------------------------------------------------------------------------------------------

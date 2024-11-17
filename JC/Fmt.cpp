@@ -391,7 +391,7 @@ void VFmtImpl(Out out, s8 fmt, Args args) {
 		for (;;) {
 			if (i >= end) {
 				out->Add(text, i);
-				JC_ASSERT(nextArg == args.len, "Too many args");
+				Assert(nextArg == args.len, "Too many args");
 				return;
 			} else if (*i == '{') {
 				out->Add(text, i);
@@ -402,7 +402,7 @@ void VFmtImpl(Out out, s8 fmt, Args args) {
 			} else {
 				i++;
 				out->Add(text, i);
-				JC_ASSERT(i < end && *i == '}');
+				Assert(i < end && *i == '}');
 				i++;
 				text = i;
 			}
@@ -431,7 +431,7 @@ void VFmtImpl(Out out, s8 fmt, Args args) {
 				i++;
 			}
 		}
-		JC_ASSERT(i < end);
+		Assert(i < end);
 		switch (*i) {
 			case 'x': flags |= Flag_Hex; i++; break;
 			case 'X': flags |= Flag_Hex; i++; break;
@@ -440,12 +440,12 @@ void VFmtImpl(Out out, s8 fmt, Args args) {
 			case 'e': flags |= Flag_Sci; i++; break;
 			default:                          break;
 		}
-		JC_ASSERT(i < end);
-		JC_ASSERT(*i == '}');
+		Assert(i < end);
+		Assert(*i == '}');
 		i++;
 
 		DoArg:
-		JC_ASSERT(nextArg < args.len);
+		Assert(nextArg < args.len);
 		const Arg* arg = &args.args[nextArg++];
 		switch (arg->type)
 		{
@@ -456,7 +456,7 @@ void VFmtImpl(Out out, s8 fmt, Args args) {
 			case ArgType::F64:  WriteF64(out, arg->f,                      flags, width, prec); break;
 			case ArgType::S8:   WriteStr(out, s8(arg->s.data, arg->s.len), flags, width, prec); break;
 			case ArgType::Ptr:  WritePtr(out, arg->p,                      flags, width);       break;
-			default: JC_PANIC("Unhandled arg type {}", arg->type);
+			default: Panic("Unhandled arg type {}", arg->type);
 		}
 	}
 }
@@ -473,259 +473,258 @@ void VFmt(Array<char>* out, s8 fmt, Args args) {
 	VFmtImpl(out, fmt, args);
 }
 	
-s8 VFmt(Allocator* allocator, s8 fmt, Args args) {
-	Array<char> out;
-	out.Init(allocator);
+s8 VFmt(Mem* mem, s8 fmt, Args args) {
+	Array<char> out(mem);
 	VFmtImpl(&out, fmt, args);
 	return s8(out.data, out.len);
 }
 	
 //--------------------------------------------------------------------------------------------------
 
-TEST("Fmt") {
-	Allocator* ta = UnitTest::GetTempAllocator();
+UnitTest("Fmt") {
+	#define CheckFmt(expect, fmt, ...) { Mem scratchCopy = scratch; CheckEq(expect, Fmt(&scratchCopy, fmt, ##__VA_ARGS__)); }
 
 	// Escape sequences
-	CHECK_EQ(Fmt(ta, "{{"), "{");
-	CHECK_EQ(Fmt(ta, "{{"), "{");
-	CHECK_EQ(Fmt(ta, "before {{"), "before {");
-	CHECK_EQ(Fmt(ta, "{{ after"), "{ after");
-	CHECK_EQ(Fmt(ta, "before {{ after"), "before { after");
-	CHECK_EQ(Fmt(ta, "}}"), "}");
-	CHECK_EQ(Fmt(ta, "before }}"), "before }");
-	CHECK_EQ(Fmt(ta, "}} after"), "} after");
-	CHECK_EQ(Fmt(ta, "before }} after"), "before } after");
-	CHECK_EQ(Fmt(ta, "{{}}"), "{}");
-	CHECK_EQ(Fmt(ta, "{{{}}}", 42), "{42}");
+	CheckFmt("{", "{{");
+	CheckFmt("{", "{{");
+	CheckFmt("before {", "before {{");
+	CheckFmt("{ after", "{{ after");
+	CheckFmt("before { after", "before {{ after");
+	CheckFmt("}", "}}");
+	CheckFmt("before }", "before }}");
+	CheckFmt("} after", "}} after");
+	CheckFmt("before } after", "before }} after");
+	CheckFmt("{}", "{{}}");
+	CheckFmt("{42}", "{{{}}}", 42);
 
 	// Basic args
-	CHECK_EQ(Fmt(ta, "{}{}{}", 'a', 'b', 'c'), "abc");
-	CHECK_EQ(Fmt(ta, "a {} b {} c {}", 1, -5, "xyz"), "a 1 b -5 c xyz");
+	CheckFmt("abc", "{}{}{}", 'a', 'b', 'c');
+	CheckFmt("a 1 b -5 c xyz", "a {} b {} c {}", 1, -5, "xyz");
 
 	// Left align
-	CHECK_EQ(Fmt(ta, "{<4}", 42), "42  ");
-	CHECK_EQ(Fmt(ta, "{<4x}", 0x42u), "42  ");
-	CHECK_EQ(Fmt(ta, "{<5}", -42), "-42  ");
-	CHECK_EQ(Fmt(ta, "{<5}", 42u), "42   ");
-	CHECK_EQ(Fmt(ta, "{<5}", -42l), "-42  ");
-	CHECK_EQ(Fmt(ta, "{<5}", 42ul), "42   ");
-	CHECK_EQ(Fmt(ta, "{<5}", -42ll), "-42  ");
-	CHECK_EQ(Fmt(ta, "{<5}", 42ull), "42   ");
-	CHECK_EQ(Fmt(ta, "{<7}", -42.0), "-42.0  ");
-	CHECK_EQ(Fmt(ta, "{<7}", true), "true   ");
-	CHECK_EQ(Fmt(ta, "{<5}", 'c'), "c    ");
-	CHECK_EQ(Fmt(ta, "{<5}", "123456789"), "123456789");
-	CHECK_EQ(Fmt(ta, "{<5}", "abc"), "abc  ");
-	CHECK_EQ(Fmt(ta, "{<20}", reinterpret_cast<void*>(0x12345678abcdef12)), "0x12345678abcdef12  ");
+	CheckFmt("42  ", "{<4}", 42);
+	CheckFmt("42  ", "{<4x}", 0x42u);
+	CheckFmt("-42  ", "{<5}", -42);
+	CheckFmt("42   ", "{<5}", 42u);
+	CheckFmt("-42  ", "{<5}", -42l);
+	CheckFmt("42   ", "{<5}", 42ul);
+	CheckFmt("-42  ", "{<5}", -42ll);
+	CheckFmt("42   ", "{<5}", 42ull);
+	CheckFmt("-42.0  ", "{<7}", -42.0);
+	CheckFmt("true   ", "{<7}", true);
+	CheckFmt("c    ", "{<5}", 'c');
+	CheckFmt("123456789", "{<5}", "123456789");
+	CheckFmt("abc  ", "{<5}", "abc");
+	CheckFmt("0x12345678abcdef12  ", "{<20}", reinterpret_cast<void*>(0x12345678abcdef12));
 
 	// Sign '+'
-	CHECK_EQ(Fmt(ta, "{+}", 42), "+42");
-	CHECK_EQ(Fmt(ta, "{+}", -42), "-42");
-	CHECK_EQ(Fmt(ta, "{+}", 42), "+42");
-	CHECK_EQ(Fmt(ta, "{+}", 42l), "+42");
-	CHECK_EQ(Fmt(ta, "{+}", 42ll), "+42");
-	CHECK_EQ(Fmt(ta, "{+}", 42.0), "+42.0");
+	CheckFmt("+42", "{+}", 42);
+	CheckFmt("-42", "{+}", -42);
+	CheckFmt("+42", "{+}", 42);
+	CheckFmt("+42", "{+}", 42l);
+	CheckFmt("+42", "{+}", 42ll);
+	CheckFmt("+42.0", "{+}", 42.0);
 
 	// Sign ' '
-	CHECK_EQ(Fmt(ta, "{ }", 42), " 42");
-	CHECK_EQ(Fmt(ta, "{ }", -42), "-42");
-	CHECK_EQ(Fmt(ta, "{ }", 42), " 42");
-	CHECK_EQ(Fmt(ta, "{ }", 42l), " 42");
-	CHECK_EQ(Fmt(ta, "{ }", 42ll), " 42");
-	CHECK_EQ(Fmt(ta, "{ }", 42.0), " 42.0");
-	CHECK_EQ(Fmt(ta, "{ }", -42.0), "-42.0");
+	CheckFmt(" 42", "{ }", 42);
+	CheckFmt("-42", "{ }", -42);
+	CheckFmt(" 42", "{ }", 42);
+	CheckFmt(" 42", "{ }", 42l);
+	CheckFmt(" 42", "{ }", 42ll);
+	CheckFmt(" 42.0", "{ }", 42.0);
+	CheckFmt("-42.0", "{ }", -42.0);
 
 	// Zero-padding '0'
-	CHECK_EQ(Fmt(ta, "{0}", 42), "42");
-	CHECK_EQ(Fmt(ta, "{05}", -42), "-0042");
-	CHECK_EQ(Fmt(ta, "{05}", 42u), "00042");
-	CHECK_EQ(Fmt(ta, "{05}", -42l), "-0042");
-	CHECK_EQ(Fmt(ta, "{05}", 42ul), "00042");
-	CHECK_EQ(Fmt(ta, "{05}", -42ll), "-0042");
-	CHECK_EQ(Fmt(ta, "{05}", 42ull), "00042");
-	CHECK_EQ(Fmt(ta, "{09}",  42.0), "0000042.0");
-	CHECK_EQ(Fmt(ta, "{09}", -42.0), "-000042.0");
+	CheckFmt("42", "{0}", 42);
+	CheckFmt("-0042", "{05}", -42);
+	CheckFmt("00042", "{05}", 42u);
+	CheckFmt("-0042", "{05}", -42l);
+	CheckFmt("00042", "{05}", 42ul);
+	CheckFmt("-0042", "{05}", -42ll);
+	CheckFmt("00042", "{05}", 42ull);
+	CheckFmt("0000042.0", "{09}",  42.0);
+	CheckFmt("-000042.0", "{09}", -42.0);
 
 	// Width
-	CHECK_EQ(Fmt(ta, "{4}", -42), " -42");
-	CHECK_EQ(Fmt(ta, "{5}", 42u), "   42");
-	CHECK_EQ(Fmt(ta, "{6}", -42l), "   -42");
-	CHECK_EQ(Fmt(ta, "{7}", 42ul), "     42");
-	CHECK_EQ(Fmt(ta, "{6}", -42ll), "   -42");
-	CHECK_EQ(Fmt(ta, "{7}", 42ull), "     42");
-	CHECK_EQ(Fmt(ta, "{8}", -1.23), "   -1.23");
-	CHECK_EQ(Fmt(ta, "{20}", reinterpret_cast<void*>(0x12345678abcdef12)), "  0x12345678abcdef12");
-	CHECK_EQ(Fmt(ta, "{11}", true), "       true");
-	CHECK_EQ(Fmt(ta, "{11}", 'x'), "          x");
-	CHECK_EQ(Fmt(ta, "{12}", "str"), "         str");
-	CHECK_EQ(Fmt(ta, "{5}", "abcdef"), "abcdef");
-	CHECK_EQ(Fmt(ta, "{4}", "abcdef"), "abcdef");
-	CHECK_EQ(Fmt(ta, "{06.1}", 0.00884311), "0000.0");
+	CheckFmt(" -42", "{4}", -42);
+	CheckFmt("   42", "{5}", 42u);
+	CheckFmt("   -42", "{6}", -42l);
+	CheckFmt("     42", "{7}", 42ul);
+	CheckFmt("   -42", "{6}", -42ll);
+	CheckFmt("     42", "{7}", 42ull);
+	CheckFmt("   -1.23", "{8}", -1.23);
+	CheckFmt("  0x12345678abcdef12", "{20}", reinterpret_cast<void*>(0x12345678abcdef12));
+	CheckFmt("       true", "{11}", true);
+	CheckFmt("          x", "{11}", 'x');
+	CheckFmt("         str", "{12}", "str");
+	CheckFmt("abcdef", "{5}", "abcdef");
+	CheckFmt("abcdef", "{4}", "abcdef");
+	CheckFmt("0000.0", "{06.1}", 0.00884311);
 
 	// Precision
-	CHECK_EQ(Fmt(ta, "{.2}", 1.2345), "1.23");
-	CHECK_EQ(Fmt(ta, "{.2}", 1.234e56), "1.23e56");
-	CHECK_EQ(Fmt(ta, "{.3}", 1.1), "1.100");
-	CHECK_EQ(Fmt(ta, "{.2e}", 1.0), "1.00e0");
-	CHECK_EQ(Fmt(ta, "{012.3e}", 0.0), "000000.000e0");
-	CHECK_EQ(Fmt(ta, "{.1}", 123.456), "123.5");
-	CHECK_EQ(Fmt(ta, "{.2}", 123.456), "123.46");
-	CHECK_EQ(Fmt(ta, "{.000002}", 1.234), "1.23");
-	CHECK_EQ(Fmt(ta, "{}", 1019666432.0f), "1019666432.0");
-	CHECK_EQ(Fmt(ta, "{.1e}", 9.57), "9.6e0");
-	CHECK_EQ(Fmt(ta, "{.2e}", 1e-34), "1.00e-34");
+	CheckFmt("1.23", "{.2}", 1.2345);
+	CheckFmt("1.23e56", "{.2}", 1.234e56);
+	CheckFmt("1.100", "{.3}", 1.1);
+	CheckFmt("1.00e0", "{.2e}", 1.0);
+	CheckFmt("000000.000e0", "{012.3e}", 0.0);
+	CheckFmt("123.5", "{.1}", 123.456);
+	CheckFmt("123.46", "{.2}", 123.456);
+	CheckFmt("1.23", "{.000002}", 1.234);
+	CheckFmt("1019666432.0", "{}", 1019666432.0f);
+	CheckFmt("9.6e0", "{.1e}", 9.57);
+	CheckFmt("1.00e-34", "{.2e}", 1e-34);
 
 	// Bool
-	CHECK_EQ(Fmt(ta, "{}", true), "true");
-	CHECK_EQ(Fmt(ta, "{}", false), "false");
-	CHECK_EQ(Fmt(ta, "{<5}", true), "true ");
-	CHECK_EQ(Fmt(ta, "{6}", false), " false");
+	CheckFmt("true", "{}", true);
+	CheckFmt("false", "{}", false);
+	CheckFmt("true ", "{<5}", true);
+	CheckFmt(" false", "{6}", false);
 
 	// Short
-	CHECK_EQ(Fmt(ta, "{}", (short)42), "42");
-	CHECK_EQ(Fmt(ta, "{}", (unsigned short)42), "42");
+	CheckFmt("42", "{}", (short)42);
+	CheckFmt("42", "{}", (unsigned short)42);
 
 	// Binary
-	CHECK_EQ(Fmt(ta, "{b}", 0u), "0");
-	CHECK_EQ(Fmt(ta, "{b}", 42u), "101010");
-	CHECK_EQ(Fmt(ta, "{b}", 12345u), "11000000111001");
-	CHECK_EQ(Fmt(ta, "{b}", 0x12345678u), "10010001101000101011001111000");
-	CHECK_EQ(Fmt(ta, "{b}", 0x90abcdefu), "10010000101010111100110111101111");
-	CHECK_EQ(Fmt(ta, "{b}", 0xffffffffu), "11111111111111111111111111111111");
+	CheckFmt("0", "{b}", 0u);
+	CheckFmt("101010", "{b}", 42u);
+	CheckFmt("11000000111001", "{b}", 12345u);
+	CheckFmt("10010001101000101011001111000", "{b}", 0x12345678u);
+	CheckFmt("10010000101010111100110111101111", "{b}", 0x90abcdefu);
+	CheckFmt("11111111111111111111111111111111", "{b}", 0xffffffffu);
 
 	// Decimal
-	CHECK_EQ(Fmt(ta, "{}", 0), "0");
-	CHECK_EQ(Fmt(ta, "{}", 42), "42");
-	CHECK_EQ(Fmt(ta, "{}", 42u), "42");
-	CHECK_EQ(Fmt(ta, "{}", -42), "-42");
-	CHECK_EQ(Fmt(ta, "{}", 12345), "12345");
-	CHECK_EQ(Fmt(ta, "{}", 67890), "67890");
+	CheckFmt("0", "{}", 0);
+	CheckFmt("42", "{}", 42);
+	CheckFmt("42", "{}", 42u);
+	CheckFmt("-42", "{}", -42);
+	CheckFmt("12345", "{}", 12345);
+	CheckFmt("67890", "{}", 67890);
 
 	// TODO: INT_MIN, ULONG_MAX, etc for hex/bin/dec
 	// TODO: check unknown types
 	// TODO: test with maxint as the precision literal
 
 	// Hex
-	CHECK_EQ(Fmt(ta, "{x}", 0u), "0");
-	CHECK_EQ(Fmt(ta, "{x}", 0x42u), "42");
-	CHECK_EQ(Fmt(ta, "{x}", 0x12345678u), "12345678");
-	CHECK_EQ(Fmt(ta, "{x}", 0x90abcdefu), "90abcdef");
+	CheckFmt("0", "{x}", 0u);
+	CheckFmt("42", "{x}", 0x42u);
+	CheckFmt("12345678", "{x}", 0x12345678u);
+	CheckFmt("90abcdef", "{x}", 0x90abcdefu);
 	
 	// Float
-	CHECK_EQ(Fmt(ta, "{}", 0.0f), "0.0");
-	CHECK_EQ(Fmt(ta, "{}", 392.5f), "392.5");
+	CheckFmt("0.0", "{}", 0.0f);
+	CheckFmt("392.5", "{}", 392.5f);
 
 	// Double
-	CHECK_EQ(Fmt(ta, "{}", 0.0), "0.0");
-	CHECK_EQ(Fmt(ta, "{}", 392.65), "392.65");
-	CHECK_EQ(Fmt(ta, "{e}", 392.65), "3.9265e2");
-	CHECK_EQ(Fmt(ta, "{}", 4.9014e6), "4901400.0");
-	CHECK_EQ(Fmt(ta, "{+011.4}", 392.65), "+00392.6500");
-	CHECK_EQ(Fmt(ta, "{}", 9223372036854775807.0), "9223372036854776000.0");
+	CheckFmt("0.0", "{}", 0.0);
+	CheckFmt("392.65", "{}", 392.65);
+	CheckFmt("3.9265e2", "{e}", 392.65);
+	CheckFmt("4901400.0", "{}", 4.9014e6);
+	CheckFmt("+00392.6500", "{+011.4}", 392.65);
+	CheckFmt("9223372036854776000.0", "{}", 9223372036854775807.0);
 
 	// Precision rounding
-	CHECK_EQ(Fmt(ta, "{.3f}", 0.00049), "0.000");
-	CHECK_EQ(Fmt(ta, "{.3f}", 0.0005), "0.000");
-	CHECK_EQ(Fmt(ta, "{.3f}", 0.0015), "0.002");
-	CHECK_EQ(Fmt(ta, "{.3f}", 0.00149), "0.001");
-	CHECK_EQ(Fmt(ta, "{.3f}", 0.0015), "0.002");
-	CHECK_EQ(Fmt(ta, "{.3f}", 0.9999), "1.000");
-	CHECK_EQ(Fmt(ta, "{.3}", 0.00123), "0.001");
-	CHECK_EQ(Fmt(ta, "{.16}", 0.1), "0.1000000000000000");
-	CHECK_EQ(Fmt(ta, "{.17f}", 225.51575035152064), "225.51575035152064000");
-	CHECK_EQ(Fmt(ta, "{.1f}", -761519619559038.2), "-761519619559038.2");
-	CHECK_EQ(Fmt(ta, "{}", 1.9156918820264798e-56), "1.9156918820264798e-56");
-	CHECK_EQ(Fmt(ta, "{.4f}", 7.2809479766055470e-15), "0.0000");
-	CHECK_EQ(Fmt(ta, "{f}", 3788512123356.985352), "3788512123356.9854");
+	CheckFmt("0.000", "{.3f}", 0.00049);
+	CheckFmt("0.000", "{.3f}", 0.0005);
+	CheckFmt("0.002", "{.3f}", 0.0015);
+	CheckFmt("0.001", "{.3f}", 0.00149);
+	CheckFmt("0.002", "{.3f}", 0.0015);
+	CheckFmt("1.000", "{.3f}", 0.9999);
+	CheckFmt("0.001", "{.3}", 0.00123);
+	CheckFmt("0.1000000000000000", "{.16}", 0.1);
+	CheckFmt("225.51575035152064000", "{.17f}", 225.51575035152064);
+	CheckFmt("-761519619559038.2", "{.1f}", -761519619559038.2);
+	CheckFmt("1.9156918820264798e-56", "{}", 1.9156918820264798e-56);
+	CheckFmt("0.0000", "{.4f}", 7.2809479766055470e-15);
+	CheckFmt("3788512123356.9854", "{f}", 3788512123356.985352);
 
 	// Float formatting
-	CHECK_EQ(Fmt(ta, "{}", 1e-3), "0.001");
-	CHECK_EQ(Fmt(ta, "{}", 1e-4), "0.0001");
-	CHECK_EQ(Fmt(ta, "{}", 1e-5), "1.0e-5");
-	CHECK_EQ(Fmt(ta, "{}", 1e-6), "1.0e-6");
-	CHECK_EQ(Fmt(ta, "{}", 1e-7), "1.0e-7");
-	CHECK_EQ(Fmt(ta, "{}", 1e-8), "1.0e-8");
-	CHECK_EQ(Fmt(ta, "{}", 1e15), "1.0e15");
-	CHECK_EQ(Fmt(ta, "{}", 1e16), "1.0e16");
-	CHECK_EQ(Fmt(ta, "{}", 9.999e-5), "9.999e-5");
-	CHECK_EQ(Fmt(ta, "{}", 1234e7), "1.234e10");
-	CHECK_EQ(Fmt(ta, "{}", 1234e-2), "12.34");
-	CHECK_EQ(Fmt(ta, "{}", 1234e-6), "0.001234");
-	CHECK_EQ(Fmt(ta, "{}", 0.1f), "0.10000000149011612");
-	CHECK_EQ(Fmt(ta, "{}", (double)0.1f), "0.10000000149011612");
-	CHECK_EQ(Fmt(ta, "{}", 1.35631564e-19f), "1.3563156426940112e-19");
+	CheckFmt("0.001", "{}", 1e-3);
+	CheckFmt("0.0001", "{}", 1e-4);
+	CheckFmt("1.0e-5", "{}", 1e-5);
+	CheckFmt("1.0e-6", "{}", 1e-6);
+	CheckFmt("1.0e-7", "{}", 1e-7);
+	CheckFmt("1.0e-8", "{}", 1e-8);
+	CheckFmt("1.0e15", "{}", 1e15);
+	CheckFmt("1.0e16", "{}", 1e16);
+	CheckFmt("9.999e-5", "{}", 9.999e-5);
+	CheckFmt("1.234e10", "{}", 1234e7);
+	CheckFmt("12.34", "{}", 1234e-2);
+	CheckFmt("0.001234", "{}", 1234e-6);
+	CheckFmt("0.10000000149011612", "{}", 0.1f);
+	CheckFmt("0.10000000149011612", "{}", (double)0.1f);
+	CheckFmt("1.3563156426940112e-19", "{}", 1.35631564e-19f);
 
 	// NaN
 	// The standard allows implementation-specific suffixes following nan, for example as -nan formats as nan(ind) in MSVC.
 	// These tests may need to be changed when porting to different platforms.
 	constexpr double nan = std::numeric_limits<double>::quiet_NaN();
-	CHECK_EQ(Fmt(ta, "{}", nan), "nan");
-	CHECK_EQ(Fmt(ta, "{+}", nan), "+nan");
-	CHECK_EQ(Fmt(ta, "{+6}", nan), "  +nan");
-	CHECK_EQ(Fmt(ta, "{+06}", nan), "  +nan");
-	CHECK_EQ(Fmt(ta, "{<+6}", nan), "+nan  ");
-	CHECK_EQ(Fmt(ta, "{}", -nan), "-nan");
-	CHECK_EQ(Fmt(ta, "{+011}", -nan), "       -nan");
-	CHECK_EQ(Fmt(ta, "{ }", nan), " nan");
-	CHECK_EQ(Fmt(ta, "{<7}", nan), "nan    ");
-	CHECK_EQ(Fmt(ta, "{7}", nan), "    nan");
+	CheckFmt("nan", "{}", nan);
+	CheckFmt("+nan", "{+}", nan);
+	CheckFmt("  +nan", "{+6}", nan);
+	CheckFmt("  +nan", "{+06}", nan);
+	CheckFmt("+nan  ", "{<+6}", nan);
+	CheckFmt("-nan", "{}", -nan);
+	CheckFmt("       -nan", "{+011}", -nan);
+	CheckFmt(" nan", "{ }", nan);
+	CheckFmt("nan    ", "{<7}", nan);
+	CheckFmt("    nan", "{7}", nan);
 
 	// Inf
 	constexpr double inf = std::numeric_limits<double>::infinity();
-	CHECK_EQ(Fmt(ta, "{}", inf), "inf");
-	CHECK_EQ(Fmt(ta, "{+}", inf), "+inf");
-	CHECK_EQ(Fmt(ta, "{}", -inf), "-inf");
-	CHECK_EQ(Fmt(ta, "{+06}", inf), "  +inf");
-	CHECK_EQ(Fmt(ta, "{+06}", -inf), "  -inf");
-	CHECK_EQ(Fmt(ta, "{<+6}", inf), "+inf  ");
-	CHECK_EQ(Fmt(ta, "{+6}", inf), "  +inf");
-	CHECK_EQ(Fmt(ta, "{ }", inf), " inf");
-	CHECK_EQ(Fmt(ta, "{<7}", inf), "inf    ");
-	CHECK_EQ(Fmt(ta, "{7}", inf), "    inf");
+	CheckFmt("inf", "{}", inf);
+	CheckFmt("+inf", "{+}", inf);
+	CheckFmt("-inf", "{}", -inf);
+	CheckFmt("  +inf", "{+06}", inf);
+	CheckFmt("  -inf", "{+06}", -inf);
+	CheckFmt("+inf  ", "{<+6}", inf);
+	CheckFmt("  +inf", "{+6}", inf);
+	CheckFmt(" inf", "{ }", inf);
+	CheckFmt("inf    ", "{<7}", inf);
+	CheckFmt("    inf", "{7}", inf);
 
 	// Char
-	CHECK_EQ(Fmt(ta, "{}", 'a'), "a");
-	CHECK_EQ(Fmt(ta, "{1}", 'x'), "x");
-	CHECK_EQ(Fmt(ta, "{3}", 'x'), "  x");
-	CHECK_EQ(Fmt(ta, "{}", '\n'), "\n");
+	CheckFmt("a", "{}", 'a');
+	CheckFmt("x", "{1}", 'x');
+	CheckFmt("  x", "{3}", 'x');
+	CheckFmt("\n", "{}", '\n');
 	volatile char x = 'x';
-	CHECK_EQ(Fmt(ta, "{}", x), "x");
+	CheckFmt("x", "{}", x);
 
 	// Unsigned char
-	CHECK_EQ(Fmt(ta, "{}", static_cast<unsigned char>(42)), "42");
-	CHECK_EQ(Fmt(ta, "{}", static_cast<uint8_t>(42)), "42");
+	CheckFmt("42", "{}", static_cast<unsigned char>(42));
+	CheckFmt("42", "{}", static_cast<uint8_t>(42));
 
 	// C string
-	CHECK_EQ(Fmt(ta, "{}", "test"), "test");
+	CheckFmt("test", "{}", "test");
 	char nonconst[] = "nonconst";
-	CHECK_EQ(Fmt(ta, "{}", nonconst), "nonconst");
+	CheckFmt("nonconst", "{}", nonconst);
 
 	// Pointer
-	CHECK_EQ(Fmt(ta, "{}", static_cast<void*>(nullptr)), "0x0000000000000000");
-	CHECK_EQ(Fmt(ta, "{}", reinterpret_cast<void*>(0x1234)), "0x0000000000001234");
-	CHECK_EQ(Fmt(ta, "{}", reinterpret_cast<void*>(~uintptr_t())), "0xffffffffffffffff");
-	CHECK_EQ(Fmt(ta, "{}", nullptr), "0x0000000000000000");
+	CheckFmt("0x0000000000000000", "{}", static_cast<void*>(nullptr));
+	CheckFmt("0x0000000000001234", "{}", reinterpret_cast<void*>(0x1234));
+	CheckFmt("0xffffffffffffffff", "{}", reinterpret_cast<void*>(~uintptr_t()));
+	CheckFmt("0x0000000000000000", "{}", nullptr);
 	
-	CHECK_EQ(Fmt(ta, "{0.6}:{04}:{+}:{}:{}:{}%", 1.234, 42, 3.13, "str", reinterpret_cast<void*>(1000), 'X'), "1.234000:0042:+3.13:str:0x00000000000003e8:X%");
+	CheckFmt("1.234000:0042:+3.13:str:0x00000000000003e8:X%", "{0.6}:{04}:{+}:{}:{}:{}%", 1.234, 42, 3.13, "str", reinterpret_cast<void*>(1000), 'X');
 
 	// Multibyte codepoint params
 	// Note we support multibyte UTF-8 in the args, not in the actual format string
-	CHECK_EQ(Fmt(ta, "hello {}, nice to meet you", "abcʦϧ턖릇块𒃶𒅋🀅🚉🤸"), "hello abcʦϧ턖릇块𒃶𒅋🀅🚉🤸, nice to meet you");
+	CheckFmt("hello abcʦϧ턖릇块𒃶𒅋🀅🚉🤸, nice to meet you", "hello {}, nice to meet you", "abcʦϧ턖릇块𒃶𒅋🀅🚉🤸");
 
 	// Misc tests from examples and such
-	CHECK_EQ(Fmt(ta, "First, thou shalt count to {}", "three"), "First, thou shalt count to three");
-	CHECK_EQ(Fmt(ta, "Bring me a {}", "shrubbery"), "Bring me a shrubbery");
-	CHECK_EQ(Fmt(ta, "From {} to {}", 1, 3), "From 1 to 3");
-	CHECK_EQ(Fmt(ta, "{03.2f}", -1.2), "-1.20");
-	CHECK_EQ(Fmt(ta, "{}, {}, {}", 'a', 'b', 'c'), "a, b, c");
-	CHECK_EQ(Fmt(ta, "{}{}", "abra", "cadabra"), "abracadabra");
-	CHECK_EQ(Fmt(ta, "{<30}", "left aligned"), "left aligned                  ");
-	CHECK_EQ(Fmt(ta, "{30}", "right aligned"), "                 right aligned");
-	CHECK_EQ(Fmt(ta, "{+f}; {+f}", 3.14, -3.14), "+3.14; -3.14");
-	CHECK_EQ(Fmt(ta, "{ f}; { f}", 3.14, -3.14), " 3.14; -3.14");
-	CHECK_EQ(Fmt(ta, "bin: {b}; dec: {}; hex: {x}", 42u, 42, 42u), "bin: 101010; dec: 42; hex: 2a");
-	CHECK_EQ(Fmt(ta, "The answer is {}", 42), "The answer is 42");
-	CHECK_EQ(Fmt(ta, "{}^{}<{}>", 1, 2, 3), "1^2<3>");	// ParseSpec not called on empty placeholders
+	CheckFmt("First, thou shalt count to three", "First, thou shalt count to {}", "three");
+	CheckFmt("Bring me a shrubbery", "Bring me a {}", "shrubbery");
+	CheckFmt("From 1 to 3", "From {} to {}", 1, 3);
+	CheckFmt("-1.20", "{03.2f}", -1.2);
+	CheckFmt("a, b, c", "{}, {}, {}", 'a', 'b', 'c');
+	CheckFmt("abracadabra", "{}{}", "abra", "cadabra");
+	CheckFmt("left aligned                  ", "{<30}", "left aligned");
+	CheckFmt("                 right aligned", "{30}", "right aligned");
+	CheckFmt("+3.14; -3.14", "{+f}; {+f}", 3.14, -3.14);
+	CheckFmt(" 3.14; -3.14", "{ f}; { f}", 3.14, -3.14);
+	CheckFmt("bin: 101010; dec: 42; hex: 2a", "bin: {b}; dec: {}; hex: {x}", 42u, 42, 42u);
+	CheckFmt("The answer is 42", "The answer is {}", 42);
+	CheckFmt("1^2<3>", "{}^{}<{}>", 1, 2, 3);	// ParseSpec not called on empty placeholders
 }
 
 //--------------------------------------------------------------------------------------------------

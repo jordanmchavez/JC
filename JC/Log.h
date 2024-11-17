@@ -4,8 +4,6 @@
 
 namespace JC {
 
-struct TempAllocatorApi;
-
 //--------------------------------------------------------------------------------------------------
 
 enum struct LogCategory {
@@ -13,25 +11,24 @@ enum struct LogCategory {
 	Error,
 };
 
-using LogFn = void(s8 file, i32 line, LogCategory, s8 msg);
+using LogFn = void(Mem mem, s8 file, i32 line, LogCategory category, const char* msg, u64 len);
 
-struct LogApi {
-	static LogApi* Get();
+namespace Log {
+	void AddFn(LogFn* fn);
+	void RemoveFn(LogFn* fn);
 
-	virtual void Init(TempAllocatorApi* tempAllocatorApi) = 0;
-	virtual void AddFn(LogFn* fn) = 0;
-	virtual void RemoveFn(LogFn* fn) = 0;
-	virtual void VLog(s8 file, i32 line, LogCategory category, s8 fmt, Args args) = 0;
-	virtual void LogErr(s8 file, i32 line, Err* err) = 0;
+	void VPrint(Mem scratch, s8 file, i32 line, LogCategory category, s8 fmt, Args args);
+	void PrintErr(Mem scratch, s8 file, i32 line, Err* err);
 
-	template <class... A> void Log(s8 file, i32 line, LogCategory category, FmtStr<A...> fmt, A... args) {
-		VLog(file, line, category, fmt, Args::Make(args...));
+	template <class... A> void Print(Mem scratch, s8 file, i32 line, LogCategory category, FmtStr<A...> fmt, A... args) {
+		VPrint(scratch, file, line, category, fmt, Args::Make(args...));
 	}
 };
 
-#define JC_LOG(fmt, ...)  logApi->Log(__FILE__, __LINE__, JC::LogCategory::Info,  (fmt), ##__VA_ARGS__)
-#define JC_LOG_ERR(err)   logApi->LogErr(__FILE__, __LINE__, err)
+#define Log(scratch, fmt, ...) Log::Print(scratch, __FILE__, __LINE__, LogCategory::Info,  (fmt), ##__VA_ARGS__)
+#define LogErr(scratch, err)   Log::PrintErr(scratch, __FILE__, __LINE__, err)
 
+                                              
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC

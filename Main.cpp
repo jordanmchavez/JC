@@ -1,17 +1,11 @@
-#include "JC/Allocator.h"
-#include "JC/Array.h"
 #include "JC/Fmt.h"
 #include "JC/Log.h"
-#include "JC/Panic.h"
 #include "JC/Render.h"
-#include "JC/Sys.h"
 #include "JC/UnitTest.h"
 #include <stdio.h>
 #include "JC/MinimalWindows.h"
 
 using namespace JC;
-
-static TempAllocator* tempAllocator = nullptr;
 
 constexpr s8 FileNameOnly(s8 path) {
 	for (const char* i = path.data + path.len - 1; i >= path.data; i--) {
@@ -22,30 +16,37 @@ constexpr s8 FileNameOnly(s8 path) {
 	return path;
 }
 
+[[noreturn]] void MyPanicFn(s8 file, i32 line, s8 expr, s8 fmt, Args args) {
+	char msg[1024];
+	char* end = msg + sizeof(msg) - 1;
+	end = Fmt(msg, end, "***PANIC***\n");
+	end = Fmt(msg, end, "{}({})\n", file, line);
+	end = Fmt(msg, end, "expr: {}\n", expr);
+	end = Fmt(msg, end, "msg:  ");
+	end = VFmt(msg, end, fmt, args);
+	end = Fmt(msg, end, "\n");
+	*end = '\0';
+	fwrite(msg, 1, end - msg, stdout);
+	if (Sys::IsDebuggerPresent()) {
+		Sys::DebuggerPrint(msg);
+		Sys_DebuggerBreak();
+	}
+	Sys::Abort();
+}
+
 int main(int argc, const char** argv) {
-	AllocatorApi*     allocatorApi     = AllocatorApi::Get();
-	LogApi*           logApi           = LogApi::Get();
-	PanicApi*         panicApi         = PanicApi::Get();
-	RenderApi*        renderApi        = RenderApi::Get();
-	TempAllocatorApi* tempAllocatorApi = TempAllocatorApi::Get();
-	VirtualMemoryApi* virtualMemoryApi = VirtualMemoryApi::Get();
+	//RenderApi*        renderApi        = RenderApi::Get();
 
-	allocatorApi->Init();
+	SetPanicFn(MyPanicFn);
 
-	tempAllocatorApi->Init(virtualMemoryApi);
-	logApi->Init(tempAllocatorApi);
-	panicApi->Init(logApi);
-	SetPanicApi(panicApi);
-
+	Mem scratch = Mem::Create(0, (u64)1024 * 1024 * 1024);
 	if (argc == 2 && argv[1] == s8("test")) {
-		return UnitTest::Run(logApi, tempAllocatorApi) ? 0 : 1;
+		return UnitTest::Run(scratch) ? 0 : 1;
 	}
 
-	tempAllocator = tempAllocatorApi->Create();
-
-	logApi->AddFn([](s8 file, i32 line, LogCategory category, s8 msg) {
+	Log::AddFn([](Mem scratch, s8 file, i32 line, LogCategory category, const char* msg, u64) {
 		s8 fullMsg = Fmt(
-			tempAllocator,
+			&scratch,
 			"{}{}({}): {}",
 			category == LogCategory::Error ? "!!! " : "",
 			file,
@@ -54,20 +55,16 @@ int main(int argc, const char** argv) {
 		);
 		fwrite(fullMsg.data, 1, fullMsg.len, stdout);
 		if (Sys::IsDebuggerPresent()) {
-			Sys::DebuggerPrint(tempAllocator, fullMsg);
+			Sys::DebuggerPrint(msg);
 		}
 	});
 
-	Allocator* stringsAllocator = allocatorApi->Create("Strings");
-	Str::Init(stringsAllocator, virtualMemoryApi);
-
-	Allocator* renderAllocator = allocatorApi->Create("Render");
-	if (Res<> r = renderApi->Init(renderAllocator, logApi, tempAllocator); !r) {	
-		JC_LOG_ERR(r.err);
+	if (Res<> r = Render::Init(&scratch); !r) {	
+		LogErr(scratch, r.err);
 		return 1;
 	}
 
-	renderApi->Shutdown();
+	Render::Shutdown();
 
 	return 0;
 }

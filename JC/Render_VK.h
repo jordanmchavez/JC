@@ -5,7 +5,7 @@
 #define VK_NO_PROTOTYPES
 #include "vulkan/vulkan_core.h"
 
-#if defined JC_OS_WINDOWS
+#if defined Os_Windows
 	typedef unsigned long DWORD;
 	typedef const wchar_t* LPCWSTR;
 	typedef void* HANDLE;
@@ -14,20 +14,20 @@
 	typedef struct HMONITOR__* HMONITOR;
 	typedef struct _SECURITY_ATTRIBUTES SECURITY_ATTRIBUTES;
 	#include "vulkan/vulkan_win32.h"
-#else	// JC_OS
+#else	// Os_
 	#error("Unsupported OS")
-#endif	// JC_OS
+#endif	// Os_
 
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-namespace RenderVk {
-	#if defined JC_OS_WINDOWS
+namespace Render {
+	#if defined Os_Windows
 		constexpr ErrCode Err_Dll = { .ns = "vk", .code = 1 };
-	#endif	// JC_OS_WINDOWS
+	#endif	// Os_Windows
 
-	Res<> LoadRootFns(TempAllocator* ta);
+	Res<> LoadRootFns(Mem* perm);
 	void  LoadInstanceFns(VkInstance vkInstance);
 	void  LoadDeviceFns(VkDevice vkDevice);
 	void  FreeFns();
@@ -280,12 +280,12 @@ extern PFN_vkDestroySwapchainKHR vkDestroySwapchainKHR;
 extern PFN_vkGetSwapchainImagesKHR vkGetSwapchainImagesKHR;
 extern PFN_vkQueuePresentKHR vkQueuePresentKHR;
 #endif // VK_KHR_swapchain
-#if defined JC_OS_WINDOWS
+#if defined Os_Windows
 	#if defined VK_KHR_win32_surface
 	extern PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR;
 	extern PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR vkGetPhysicalDeviceWin32PresentationSupportKHR;
 	#endif // VK_KHR_win32_surface
-#endif	// JC_OS_WINDOWS
+#endif	// Os_Windows
 
 //--------------------------------------------------------------------------------------------------
 

@@ -2,11 +2,11 @@
 
 #include "JC/Render_Vk.h"
 
-namespace JC::RenderVk {
+namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-s8 ResultStr(VkResult vkResult) {
+s8 Render::ResultStr(VkResult vkResult) {
 	switch (vkResult) {
 		case VK_SUCCESS: return "VK_SUCCESS";
 		case VK_NOT_READY: return "VK_NOT_READY";
@@ -64,7 +64,7 @@ s8 ResultStr(VkResult vkResult) {
 
 //--------------------------------------------------------------------------------------------------
 
-s8 PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
+s8 Render::PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
 	switch (v) {
 		case VK_PHYSICAL_DEVICE_TYPE_OTHER: return "VK_PHYSICAL_DEVICE_TYPE_OTHER";
 		case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: return "VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU";
@@ -77,4 +77,4 @@ s8 PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::RenderVk
+}	// namespace JC

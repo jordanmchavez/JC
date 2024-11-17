@@ -9,26 +9,18 @@ namespace JC {
 namespace Sys {
 	void Abort();
 	bool IsDebuggerPresent();
-	void DebuggerPrint(TempAllocator* tempAllocator, s8 msg);
+	void DebuggerPrint(const char* msg);
+
+	void* VirtualReserve(u64 size);
+	void  VirtualCommit(const void* p, u64 size);
+	void  VirtualFree(const void* p);
 };
 
-#if defined JC_COMPILER_MSVC
-	#define JC_DEBUGGER_BREAK __debugbreak()
-#else // JC_COMPILER
+#if defined Compiler_Msvc
+	#define Sys_DebuggerBreak() __debugbreak()
+#else // Compiler_
 	#error("unsupported compiler")
-#endif	// JC_COMPILER
+#endif	// Compiler_
 
 //--------------------------------------------------------------------------------------------------
-
-struct VirtualMemoryApi {
-	static VirtualMemoryApi* Get();
-
-	virtual void* ReserveCommit(u64 size) = 0;
-	virtual void* Reserve(u64 size) = 0;
-	virtual void  Commit(const void* p, u64 size) = 0;
-	virtual void  Free(const void* p) = 0;
-};
-
-//--------------------------------------------------------------------------------------------------
-
 }	// namespace JC

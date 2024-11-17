@@ -9,8 +9,8 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 #if defined _MSC_VER
-	#define JC_COMPILER_MSVC
-	#define JC_OS_WINDOWS
+	#define Compiler_Msvc
+	#define Os_Windows
 
 	using  i8 = signed char;
 	using  u8 = unsigned char;
@@ -23,24 +23,24 @@ namespace JC {
 	using f32 = float;
 	using f64 = double;
 
-	#define JC_STRLEN       __builtin_strlen
-	#define JC_MEMCMP       __builtin_memcmp
-	#define JC_MEMSET       memset
-	#define JC_MEMCPY       memcpy
-	#define JC_MEMMOVE      memmove
-	#define JC_FILE         __builtin_FILE()
-	#define JC_LINE         __builtin_LINE()
-	#define JC_IF_CONSTEVAL if (__builtin_is_constant_evaluated())
-	#define JC_IS_ENUM(T)   __is_enum(T)
+	#define StrLen              __builtin_strlen
+	#define MemCmp              __builtin_memcmp
+	#define MemSet              memset
+	#define MemCpy              memcpy
+	#define MemMove             memmove
+	#define BuiltinFile         __builtin_FILE()
+	#define BuiltinLine         __builtin_LINE()
+	#define IfConsteval if (__builtin_is_constant_evaluated())
+	#define BuiltinIsEnum(T)   __is_enum(T)
 
 #else
 	#error("Unsupported compiler")
 #endif
 
-#define JC_CONCAT2(x, y) x##y
-#define JC_CONCAT(x, y)  JC_CONCAT2(x, y)
-#define JC_MACRO_NAME(x) JC_CONCAT(x, __LINE__)
-#define JC_LEN(a) (sizeof(a) / sizeof(a[0]))
+#define MacroConcat2(x, y) x##y
+#define MacroConcat(x, y)  MacroConcat2(x, y)
+#define MacroName(x) MacroConcat(x, __LINE__)
+#define countof(a) (u64)(sizeof(a) / sizeof(a[0]))
 
 //--------------------------------------------------------------------------------------------------
 
@@ -48,21 +48,21 @@ constexpr u64 StrLen8(const char* s) {
 	if (s == nullptr) {
 		return 0;
 	}
-	JC_IF_CONSTEVAL {
+	IfConsteval {
 		const char* i = s;
 		while (*i) {
 			i++;
 		}
 		return (u64)(i - s);
 	} else {
-		return JC_STRLEN(s);
+		return StrLen(s);
 	}
 }
 
 //--------------------------------------------------------------------------------------------------
 
 constexpr u64 MemCmp(const void* p1, const void* p2, u64 len) {
-	JC_IF_CONSTEVAL {
+	IfConsteval {
 		const u8* i1 = (const u8*)p1;
 		const u8* i2 = (const u8*)p2;
 		while (len > 0) {
@@ -73,7 +73,7 @@ constexpr u64 MemCmp(const void* p1, const void* p2, u64 len) {
 		}
 		return 0;
 	} else {
-		return JC_MEMCMP(p1, p2, len);
+		return MemCmp(p1, p2, len);
 	}
 }
 
@@ -97,14 +97,12 @@ struct s8 {
 
 //--------------------------------------------------------------------------------------------------
 
-struct VirtualMemoryApi;
-
 struct Str {
 	const char* data = "";
 
 	u64 Len() const;
 
-	static void Init(struct Allocator* allocator, VirtualMemoryApi* virtualMemoryApi);
+	static void Init();
 	static Str  Make(s8 s);
 };
 
@@ -125,7 +123,7 @@ template <class T1, class T2> inline constexpr bool IsSameType                  
 template <class T>            struct                IsPointerT                  { static constexpr bool Val = false; };
 template <class T>            struct                IsPointerT<T*>              { static constexpr bool Val = true; };
 template <class T>            inline constexpr bool IsPointer                   = IsPointerT<T>::Val;
-template <class T>            inline constexpr bool IsEnum                      = JC_IS_ENUM(T);
+template <class T>            inline constexpr bool IsEnum                      = BuiltinIsEnum(T);
 template <class...>           inline constexpr bool AlwaysFalse                 = false; 
 
 //--------------------------------------------------------------------------------------------------
@@ -297,25 +295,33 @@ template <class... A> using FmtStr = _FmtStr<typename TypeIdentity<A>::Type...>;
 
 //--------------------------------------------------------------------------------------------------
 
-[[noreturn]] void VPanic_(s8 file, i32 line, s8 expr, s8 fmt, Args args);
+struct SrcLoc {
+	s8  file = 0;
+	i32 line = 0;
 
-[[noreturn]] inline void Panic_(s8 file, i32 line, s8 expr) {
-	VPanic_(file, line, expr, "", Args::Make());
-}
-	
-template <class... A> [[noreturn]] void Panic_(s8 file, i32 line, s8 expr, FmtStr<A...> fmt, A... args) {
-	VPanic_(file, line, expr, fmt, Args::Make(args...));
-}
+	static consteval SrcLoc Here(s8 file = BuiltinFile, i32 line = BuiltinLine) {
+		return SrcLoc { .file = file, .line = line };
+	}
+};
+
+//--------------------------------------------------------------------------------------------------
+
+                      [[noreturn]]        void _VPanic(s8 file, i32 line, s8 expr, s8 fmt, Args args);
+                      [[noreturn]] inline void _Panic (s8 file, i32 line, s8 expr) { _VPanic(file, line, expr, "", Args::Make()); }
+template <class... A> [[noreturn]]        void _Panic (s8 file, i32 line, s8 expr, FmtStr<A...> fmt, A... args) { _VPanic(file, line, expr, fmt, Args::Make(args...)); }
+
+using PanicFn = void (s8 file, i32 line, s8 expr, s8 fmt, Args args);
+PanicFn* SetPanicFn(PanicFn* panicFn);
 
 #define Assert(expr, ...) \
 	do { \
 		if (!(expr)) { \
-			Panic_(__FILE__, __LINE__, #expr, ##__VA_ARGS__); \
+			_Panic(__FILE__, __LINE__, #expr, ##__VA_ARGS__); \
 		} \
 	} while (false)
 
 #define Panic(fmt, ...) \
-	Panic_(__FILE__, __LINE__, nullptr, (fmt), __VA_ARGS__)
+	_Panic(__FILE__, __LINE__, 0, (fmt), ##__VA_ARGS__)
 
 //--------------------------------------------------------------------------------------------------
 
@@ -350,25 +356,17 @@ constexpr bool operator!=(s8 str1, s8 str2) { return str1.len != str2.len && Mem
 
 //--------------------------------------------------------------------------------------------------
 
-struct SrcLoc {
-	s8  file = 0;
-	i32 line = 0;
+struct Mem {
+	u8* beg;
+	u8* end;
 
-	static consteval SrcLoc Here(s8 file = JC_FILE, i32 line = JC_LINE) {
-		return SrcLoc { .file = file, .line = line };
-	}
-};
+	void* Alloc(u64 size, SrcLoc sl = SrcLoc::Here());
+	void* Realloc(void* p, u64 oldSize, u64 newSize, SrcLoc sl = SrcLoc::Here());
 
-//--------------------------------------------------------------------------------------------------
+	template <class T> T* Alloc(u64 n, SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(n * sizeof(T), sl); }
+	template <class T> T* Realloc(T* p, u64 oldN, u64 newN, SrcLoc sl = SrcLoc::Here()) { return (T*)Realloc((void*)p, oldN * sizeof(T), newN * sizeof(T), sl); }
 
-struct Allocator {
-	virtual void* Alloc(u64 size, SrcLoc srcLoc = SrcLoc::Here()) = 0;
-	virtual void* Realloc(const void* p, u64 oldSize, u64 newSize, SrcLoc srcLoc = SrcLoc::Here()) = 0;
-	virtual void  Free(const void* p, u64 size) = 0;
-};
-
-struct TempAllocator : Allocator {
-	void Free(const void*, u64) override {}
+	static Mem Create(u64 commit, u64 reserve);
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -395,7 +393,7 @@ struct [[nodiscard]] Err {
 	u32     argsLen = 0;
 	ErrArg  args[1];	// variable length
 
-	static Err* VMake(TempAllocator* ta, Err* prev, s8 file, i32 line, ErrCode ec, const ErrArg* errArgs, u32 errArgsLen);
+	static Err* VMake(Mem* mem, Err* prev, s8 file, i32 line, ErrCode ec, const ErrArg* errArgs, u32 errArgsLen);
 
 	template <class T, class... A> static void FillErrArgs(ErrArg* errArgs, s8 name, T arg, A... args) {
 		errArgs[0] = { .name = name, .arg = Arg::Make(arg) };
@@ -403,20 +401,20 @@ struct [[nodiscard]] Err {
 			Err::FillErrArgs(&errArgs[1], args...);
 		}
 	}
-	template <class... A> static Err* Make(TempAllocator* ta, Err* prev, s8 file, i32 line, ErrCode ec, A... args) {
+	template <class... A> static Err* Make(Mem* mem, Err* prev, s8 file, i32 line, ErrCode ec, A... args) {
 		static_assert(sizeof...(A) % 2 == 0);
 		constexpr u32 ErrArgsLen = sizeof...(A) / 2;
 		ErrArg errArgs[ErrArgsLen > 0 ? ErrArgsLen : 1];
 		if constexpr (ErrArgsLen > 0) {
 			FillErrArgs(errArgs, args...);
 		}
-		return VMake(ta, prev, file, line, ec, errArgs, ErrArgsLen);
+		return VMake(mem, prev, file, line, ec, errArgs, ErrArgsLen);
 	}
 
 	void Str(Array<char>* arr);
 };
 
-#define JC_ERR(tempAllocator, ec, ...) Err::Make(tempAllocator, nullptr, __FILE__, __LINE__, ec, ##__VA_ARGS__)
+#define MakeErr(mem, ec, ...) Err::Make(mem, nullptr, __FILE__, __LINE__, ec, ##__VA_ARGS__)
 
 //--------------------------------------------------------------------------------------------------
 

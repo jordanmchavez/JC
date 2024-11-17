@@ -1,6 +1,5 @@
 #include "JC/UnitTest.h"
 
-#include "JC/Allocator.h"
 #include "JC/Array.h"
 #include "JC/Fmt.h"
 #include "JC/Log.h"
@@ -23,9 +22,6 @@ namespace UnitTest {
 
 	enum struct State { Run, Pop, Done };
 
-	static LogApi*           logApi;
-	static TempAllocatorApi* tempAllocatorApi;
-	static TempAllocator*    tempAllocator;
 	static TestObj           tests[MaxTests];
 	static u32               testsLen;
 	static Subtest::Sig      cur[MaxSubtests];
@@ -43,7 +39,7 @@ namespace UnitTest {
 	}
 
 	TestRegistrar::TestRegistrar(s8 name, s8 file, i32 line, TestFn* fn) {
-		JC_ASSERT(testsLen < MaxTests);
+		Assert(testsLen < MaxTests);
 		tests[testsLen++] = {
 			.name         = name,
 			.file         = file,
@@ -59,7 +55,7 @@ namespace UnitTest {
 		switch (state) {
 			case State::Run:
 				if (nextLen <= curLen || next[curLen] == sig) {
-					JC_ASSERT(curLen < MaxSubtests);
+					Assert(curLen < MaxSubtests);
 					cur[curLen++] = sig;
 					shouldRun = true;
 				}
@@ -77,7 +73,7 @@ namespace UnitTest {
 
 	Subtest::~Subtest() {
 		if (shouldRun) {
-			JC_ASSERT(lastLen < MaxSubtests);
+			Assert(lastLen < MaxSubtests);
 			last[lastLen++] = sig;
 			switch (state) {
 				case State::Run:
@@ -93,21 +89,17 @@ namespace UnitTest {
 		}
 	}
 
-	bool Run(LogApi* inLogApi, TempAllocatorApi* inTempAllocatorApi) {
-		logApi = inLogApi;
-		tempAllocatorApi = inTempAllocatorApi;
-
-		logApi->AddFn([](s8, i32, LogCategory, s8 msg) {
-			fwrite(msg.data, 1, msg.len, stdout);
+	bool Run(Mem scratch) {
+		Log::AddFn([](Mem, s8, i32, LogCategory, const char* msg, u64 len) {
+			fwrite(msg, 1, len, stdout);
 			if (Sys::IsDebuggerPresent()) {
-				Sys::DebuggerPrint(tempAllocator, msg);
+				Sys::DebuggerPrint(msg);
 			}
 		});
 
 		u32 passedTests = 0;
 		u32 failedTests = 0;
 		for (u32 i = 0; i < testsLen; i++)  {
-			tempAllocator = tempAllocatorApi->Create();
 			nextLen = 0;
 			do {
 				state      = State::Run;
@@ -116,10 +108,9 @@ namespace UnitTest {
 				lastLen    = 1;
 				checkFails = 0;
 
-				tests[i].fn();
+				tests[i].fn(Mem(scratch));
 
-				Array<char> lastStr;
-				lastStr.Init(tempAllocator);
+				Array<char> lastStr = { .mem = &scratch};
 				for (u32 j = 0; j < lastLen; j++) {
 					lastStr.Add(last[j].name.data, last[j].name.len);
 					lastStr.Add(':');
@@ -127,59 +118,54 @@ namespace UnitTest {
 				lastStr.len--;
 
 				if (checkFails > 0) {
-					JC_LOG("Failed: {}", s8(lastStr.data, lastStr.len));
+					Log(scratch, "Failed: {}", s8(lastStr.data, lastStr.len));
 					failedTests++;
 				} else {
-					JC_LOG("Passed: {}", s8(lastStr.data, lastStr.len));
+					Log(scratch, "Passed: {}", s8(lastStr.data, lastStr.len));
 					passedTests++;
 				}
 			} while (nextLen > 0);
-			tempAllocatorApi->Destroy(tempAllocator);
 		}
 
-		JC_LOG("Total passed: {}", passedTests);
-		JC_LOG("Total failed: {}", failedTests);
+		Log(scratch, "Total passed: {}", passedTests);
+		Log(scratch, "Total failed: {}", failedTests);
 		return failedTests == 0;
 	}
 
-	TempAllocator* GetTempAllocator() {
-		return tempAllocator;
-	}
-
-	bool CheckFail(s8 file, i32 line, s8 expr) {
-		JC_LOG("***CHECK FAILED***");
-		JC_LOG("{}({})", file, line);
-		JC_LOG("  {}\n", expr);
+	bool CheckFail(Mem scratch, s8 file, i32 line, s8 expr) {
+		Log(scratch, "***CHECK FAILED***");
+		Log(scratch, "{}({})", file, line);
+		Log(scratch, "  {}\n", expr);
 		checkFails++;
 		return false;
 	}
 
-	bool CheckRelFail(s8 file, i32 line, s8 expr, Arg x, Arg y) {
-		JC_LOG("***CHECK FAILED***");
-		JC_LOG("{}({})", file, line);
-		JC_LOG("  {}", expr);
-		JC_LOG("  l: {}", x);
-		JC_LOG("  r: {}\n", y);
+	bool CheckRelFail(Mem scratch, s8 file, i32 line, s8 expr, Arg x, Arg y) {
+		Log(scratch, "***CHECK FAILED***");
+		Log(scratch, "{}({})", file, line);
+		Log(scratch, "  {}", expr);
+		Log(scratch, "  l: {}", x);
+		Log(scratch, "  r: {}\n", y);
 		checkFails++;
 		return false;
 	}
 
-	bool CheckSpanEqFail_Len(s8 file, i32 line, s8 expr, u64 xLen, u64 yLen) {
-		JC_LOG("***CHECK FAILED***");
-		JC_LOG("{}({})", file, line);
-		JC_LOG("  {}", expr);
-		JC_LOG("  l len: {}", xLen);
-		JC_LOG("  r len: {}\n", yLen);
+	bool CheckSpanEqFail_Len(Mem scratch, s8 file, i32 line, s8 expr, u64 xLen, u64 yLen) {
+		Log(scratch, "***CHECK FAILED***");
+		Log(scratch, "{}({})", file, line);
+		Log(scratch, "  {}", expr);
+		Log(scratch, "  l len: {}", xLen);
+		Log(scratch, "  r len: {}\n", yLen);
 		checkFails++;
 		return false;
 	}
 
-	bool CheckSpanEqFail_Elem(s8 file, i32 line, s8 expr, u64 i, Arg x, Arg y) {
-		JC_LOG("***CHECK FAILED***");
-		JC_LOG("{}({})", file, line);
-		JC_LOG("  {}", expr);
-		JC_LOG("  l[{}]: {}", i, x);
-		JC_LOG("  r[{}]: {}\n", i, y);
+	bool CheckSpanEqFail_Elem(Mem scratch, s8 file, i32 line, s8 expr, u64 i, Arg x, Arg y) {
+		Log(scratch, "***CHECK FAILED***");
+		Log(scratch, "{}({})", file, line);
+		Log(scratch, "  {}", expr);
+		Log(scratch, "  l[{}]: {}", i, x);
+		Log(scratch, "  r[{}]: {}\n", i, y);
 		checkFails++;
 		return false;
 	}
@@ -191,33 +177,33 @@ static u32 records[128];
 static u32 recordsLen;
 
 void Record(u32 u) {
-	JC_ASSERT(recordsLen < (sizeof(records) / sizeof(records[0])));
+	Assert(recordsLen < (sizeof(records) / sizeof(records[0])));
 	records[recordsLen++] = u;
 }
 
-TEST("UnitTest") {
+UnitTest("UnitTest") {
 	Record(0);
-	SUBTEST("1") {
+	SubTest("1") {
 		Record(1);
-		SUBTEST("2") {
+		SubTest("2") {
 			Record(2);
-			SUBTEST("3") { Record(3); }
-			SUBTEST("4") { Record(4); }
-			SUBTEST("5") { Record(5); }
-			SUBTEST("6") { Record(6); }
+			SubTest("3") { Record(3); }
+			SubTest("4") { Record(4); }
+			SubTest("5") { Record(5); }
+			SubTest("6") { Record(6); }
 		}
-		SUBTEST("7") {
+		SubTest("7") {
 			Record(7);
-			SUBTEST("8") { Record(8); }
-			SUBTEST("9") { Record(9); }
+			SubTest("8") { Record(8); }
+			SubTest("9") { Record(9); }
 		}
 	}
-	SUBTEST("10") { Record(10); }
+	SubTest("10") { Record(10); }
 }
 
-TEST("Test.Verify subtest recording")
+UnitTest("Test.Verify subtest recording")
 {
-	CHECK_SPAN_EQ(Span(records, recordsLen), Span<u32>({
+	CheckSpanEq(Span(records, recordsLen), Span<u32>({
 		0, 1, 2, 3,
 		0, 1, 2, 4,
 		0, 1, 2, 5,

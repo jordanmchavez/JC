@@ -13,78 +13,54 @@ struct Array {
 	u64  len;
 	u64  cap;
 
-	constexpr       T& operator[](u64 i)       { return data[i]; }
-	constexpr const T& operator[](u64 i) const { return data[i]; }
+	constexpr T& operator[](u64 i)       { return data[i]; }
+	constexpr T  operator[](u64 i) const { return data[i]; }
 
 	operator Span<T>() const { return Span(data, len); }
 
 	constexpr const T* Begin() const { return data; }
 	constexpr const T* End()   const { return data + len; }
 
-	void Init(Allocator* allocatorIn) {
-		allocator = allocatorIn;
-		data      = 0;
-		len       = 0;
-		cap       = 0;
-	}
-
-	void Init(Allocator* allocatorIn, u64 n, SrcLoc srcLoc = SrcLoc::Here()) {
-		allocator = allocatorIn;
-		data      = (T*)allocator.Alloc(n * sizeof(T), srcLoc);
-		len       = n;
-		cap       = n;
-	}
-
-	void Shutdown() {
-		if (allocator) {
-			allocator->Free(data, len * sizeof(T));
-		}
-		allocator = 0;
-		data      = 0;
-		len       = 0;
-		cap       = 0;
-	}
-
-	T* Add(SrcLoc srcLoc = SrcLoc::Here()) {
+	T* Add(SrcLoc sl = SrcLoc::Here()) {
 		if (len + 1 > cap) {
-			Grow(len + 1, srcLoc);
+			Grow(len + 1, sl);
 		}
-		JC_MEMSET(&data[len], 0, sizeof(data[len]));
+		MemSet(&data[len], 0, sizeof(data[len]));
 		len++;
 		return &data[len - 1];
 	}
 
-	T* Add(T val, SrcLoc srcLoc = SrcLoc::Here()) {
+	T* Add(T val, SrcLoc sl = SrcLoc::Here()) {
 		if (len + 1 > cap) {
-			Grow(len + 1, srcLoc);
+			Grow(len + 1, sl);
 		}
 		data[len++] = val;
 		return &data[len - 1];
 	}
 
-	void Add(const T* vals, u64 valsLen, SrcLoc srcLoc = SrcLoc::Here()) {
+	void Add(const T* vals, u64 valsLen, SrcLoc sl = SrcLoc::Here()) {
 		if (len + valsLen > cap) {
-			Grow(len + valsLen, srcLoc);
+			Grow(len + valsLen, sl);
 		}
-		JC_MEMCPY(data + len, vals, valsLen * sizeof(T));
+		MemCpy(data + len, vals, valsLen * sizeof(T));
 		len += valsLen;
 	}
 
-	void Add(const T* begin, const T* end, SrcLoc srcLoc = SrcLoc::Here()) {
-		const u64 valsLen = (u64)(end - begin);
+	void Add(const T* begin, const T* end, SrcLoc sl = SrcLoc::Here()) {
+		u64 valsLen = (u64)(end - begin);
 		if (len + valsLen > cap) {
-			Grow(len + valsLen, srcLoc);
+			Grow(len + valsLen, sl);
 		}
-		JC_MEMCPY(data + len, begin, valsLen * sizeof(T));
+		MemCpy(data + len, begin, valsLen * sizeof(T));
 		len += valsLen;
 	}
 
-	void Fill(T val, u64 n, SrcLoc srcLoc = SrcLoc::Here()) {
+	void Fill(T val, u64 n, SrcLoc sl = SrcLoc::Here()) {
 		if (len + n > cap) {
-			Grow(len + n, srcLoc);
+			Grow(len + n, sl);
 		}
 		if constexpr (sizeof(T) == 1) {
-			JC_MEMSET(data + len, (int)val, n);
+			MemSet(data + len, (int)val, n);
 		} else {
 			T* const end = data + n;
 			for (T* iter = data + len; iter <= end; ++iter) {
@@ -94,11 +70,11 @@ struct Array {
 		len += n;
 	}
 
-	void Insert(u32 i, T val, SrcLoc srcLoc = SrcLoc::Here()) {
+	void Insert(u32 i, T val, SrcLoc sl = SrcLoc::Here()) {
 		if (len + 1 > cap) {
-			Grow(len + 1, srcLoc);
+			Grow(len + 1, sl);
 		}
-		JC_MEMMOVE(data + i + 1, data + i, (len - i) * sizeof(T));
+		MemMove(data + i + 1, data + i, (len - i) * sizeof(T));
 		data[i] = val;
 		++len;
 	}
@@ -111,39 +87,44 @@ struct Array {
 		--len -= n;
 	}
 
-	T* Extend(u64 n, SrcLoc srcLoc = SrcLoc::Here()) {
+	T* Extend(u64 n, SrcLoc sl = SrcLoc::Here()) {
 		if (len + n > cap) {
-			Grow(len + n, srcLoc);
+			Grow(len + n, sl);
 		}
 		T* res = data + len;
 		len += n;
 		return res;
 	}
 
-	T* Resize(u64 newLen, SrcLoc srcLoc = SrcLoc::Here()) {
+	T* Resize(u64 newLen, SrcLoc sl = SrcLoc::Here()) {
 		if (newLen > cap) {
-			Grow(newLen, srcLoc);
+			Grow(newLen, sl);
 		}
 		T* res = data + len;
 		len = newLen;
 		return res;
 	}
 
-	T* Reserve(u64 newCap, SrcLoc srcLoc = SrcLoc::Here()) {
+	T* Reserve(u64 newCap, SrcLoc sl = SrcLoc::Here()) {
 		if (newCap > cap) {
-			Grow(newCap, srcLoc);
+			Grow(newCap, sl);
 		}
 		return data + len;
 	}
 
-	void Grow(u64 newCap, SrcLoc srcLoc = SrcLoc::Here()) {
-		JC_ASSERT(newCap > cap);
+	void Grow(u64 newCap, SrcLoc sl = SrcLoc::Here()) {
+		Assert(newCap > cap);
 		newCap = Max(Max((u64)16, newCap), cap + (cap >> 1));
-		data = (T*)allocator->Realloc(data, cap * sizeof(T), newCap * sizeof(T), srcLoc);
+		data = mem->Realloc<T>(data, cap, newCap, sl);
 		cap = newCap;
 	}
 
 	void Clear() {
+		len = 0;
+	}
+
+	void Free() {
+		
 		len = 0;
 	}
 };

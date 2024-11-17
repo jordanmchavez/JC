@@ -2,34 +2,32 @@
 
 #include "JC/Array.h"
 #include "JC/Fmt.h"
-#include "JC/Panic.h"
 #include "JC/Sys.h"
 
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-static PanicApi* panicApi = nullptr;
+static PanicFn* panicFn;
 
-// Implemented here rather than Panic.cpp
-PanicApi* SetPanicApi(PanicApi* newPanicApi) {
-	PanicApi* oldPanicApi = panicApi;
-	panicApi = newPanicApi;
-	return oldPanicApi;
+PanicFn* SetPanicFn(PanicFn* newPanicFn) {
+	PanicFn* oldPanicFn = panicFn;
+	panicFn = newPanicFn;
+	return oldPanicFn;
 }
 
-void VPanic(s8 file, i32 line, s8 expr, s8 fmt, Args args) {
+void _VPanic(s8 file, i32 line, s8 expr, s8 fmt, Args args) {
 	static bool recursive = false;
 	if (recursive) {
 		Sys::Abort();
 	}
 	recursive = true;
 
-	if (panicApi) {
-		panicApi->VPanic(file, line, expr, fmt, args);
+	if (panicFn) {
+		panicFn(file, line, expr, fmt, args);
 	} else {
 		if (Sys::IsDebuggerPresent()) {
-			JC_DEBUGGER_BREAK;
+			Sys_DebuggerBreak();
 		}
 		Sys::Abort();
 	}
@@ -37,14 +35,14 @@ void VPanic(s8 file, i32 line, s8 expr, s8 fmt, Args args) {
 
 //--------------------------------------------------------------------------------------------------
 
-Err* Err::VMake(TempAllocator* ta, Err* prev, s8 file, i32 line, ErrCode ec, const ErrArg* errArgs, u32 errArgsLen) {
-	Err* err  = (Err*)ta->Alloc(sizeof(Err) + (errArgsLen > 0 ? errArgsLen - 1 : 0) * sizeof(ErrArg));
+Err* Err::VMake(Mem* mem, Err* prev, s8 file, i32 line, ErrCode ec, const ErrArg* errArgs, u32 errArgsLen) {
+	Err* err     = (Err*)mem->Alloc(sizeof(Err) + (errArgsLen > 0 ? errArgsLen - 1 : 0) * sizeof(ErrArg));
 	err->prev    = (Err*)prev;
 	err->file    = file;
 	err->line    = line;
 	err->ec      = ec;
 	err->argsLen = errArgsLen;
-	JC_MEMCPY(err->args, errArgs, errArgsLen * sizeof(errArgs[0]));
+	MemCpy(err->args, errArgs, errArgsLen * sizeof(errArgs[0]));
 	return err;
 }
 
