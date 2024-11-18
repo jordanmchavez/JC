@@ -39,6 +39,11 @@ struct Block {
     Block* prevFree = 0;
 };
 
+struct Index {
+	u32 f;
+	u32 s;
+};
+
 static constexpr u32 AlignSizeLog2       = 3;
 static constexpr u32 AlignSize           = 1 << AlignSizeLog2;
 static constexpr u32 SecondCountLog2     = 4;
@@ -101,10 +106,38 @@ struct MemApiObj : MemApi {
 
 	//----------------------------------------------------------------------------------------------
 
-	struct Index {
-		u32 f;
-		u32 s;
-	};
+	void AddTrace(MemObj* mem, void* ptr, u64 size, SrcLoc sl) {
+		u64 key = HashCombine(Hash(sl.file), &sl.line, sizeof(sl.line));
+		if (Opt<u64> idx = srcLocToTrace.Find(key)) {
+			Trace* trace = &traces[idx.val];
+			trace->allocs++;
+			trace->bytes += size;
+			ptrToTrace.Put(ptr, idx.val);
+		} else {
+			traces.Add(Trace {
+				.mem    = mem,
+				.sl     = sl,
+				.allocs = 1,
+				.bytes  = size,
+			});
+			ptrToTrace.Put(ptr, traces.len - 1);
+			srcLocToTrace.Put(key, traces.len - 1);
+		}
+	}
+
+	//----------------------------------------------------------------------------------------------
+
+	void RemoveTrace(void* ptr, u64 size) {
+		if (Opt<u64> idx = ptrToTrace.Find(ptr); idx.hasVal) {
+			Trace* trace = &traces[idx.val];
+			Assert(trace->allocs > 0);
+			trace->allocs--;
+			trace->bytes -= size;
+			ptrToTrace.Remove(ptr);
+		}
+	}
+
+	//----------------------------------------------------------------------------------------------
 
 	Index CalcIndex(u64 size) {
 		if (size < SmallBlockSize) {
@@ -150,8 +183,7 @@ struct MemApiObj : MemApi {
 		}
 
 		const u64 poolSize = AlignDown(permReserveSize - 2 * BlockOverhead, AlignSize);
-		Block* const block = (Block*)(permBegin - sizeof(Block*));
-		block->prevPhys = nullptr;
+		Block* const block = (Block*)(permBegin - BlockOverhead);
 		block->size = poolSize | BlockFreeBit;
 		Index idx = CalcIndex(poolSize);
 		InsertFreeBlock(block, idx);
@@ -196,39 +228,6 @@ struct MemApiObj : MemApi {
 
 	//----------------------------------------------------------------------------------------------
 
-	void AddTrace(MemObj* mem, void* ptr, u64 size, SrcLoc sl) {
-		u64 key = HashCombine(Hash(sl.file), &sl.line, sizeof(sl.line));
-		if (Opt<u64> idx = srcLocToTrace.Find(key)) {
-			Trace* trace = &traces[idx.val];
-			trace->allocs++;
-			trace->bytes += size;
-			ptrToTrace.Put(ptr, idx.val);
-		} else {
-			traces.Add(Trace {
-				.mem    = mem,
-				.sl     = sl,
-				.allocs = 1,
-				.bytes  = size,
-			});
-			ptrToTrace.Put(ptr, traces.len - 1);
-			srcLocToTrace.Put(key, traces.len - 1);
-		}
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	void RemoveTrace(void* ptr, u64 size) {
-		if (Opt<u64> idx = ptrToTrace.Find(ptr); idx.hasVal) {
-			Trace* trace = &traces[idx.val];
-			Assert(trace->allocs > 0);
-			trace->allocs--;
-			trace->bytes -= size;
-			ptrToTrace.Remove(ptr);
-		}
-	}
-
-	//----------------------------------------------------------------------------------------------
-
 	void* Alloc(MemObj* mem, u64 size, SrcLoc sl) {
 		if (size == 0) {
 			return 0;
@@ -259,7 +258,11 @@ struct MemApiObj : MemApi {
 				Assert(commitSize + commitExtend <= BlockSizeMax);
 			}
 			Sys::VirtualCommit(permCommit, commitExtend);
+
+			Block* const lastBlock = (Block*)(permCommit - sizeof(Block*));
+
 			permCommit += commitExtend;
+
 		}
 
 		idx.s = Bsf64(secondMap);
