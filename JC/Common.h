@@ -129,6 +129,7 @@ template <class...>           inline constexpr bool AlwaysFalse                 
 //--------------------------------------------------------------------------------------------------
 
 enum struct ArgType {
+	Invalid = 0,
 	Bool,
 	Char,
 	I64,
@@ -139,14 +140,14 @@ enum struct ArgType {
 };
 
 struct ArgStr {
-	const char* data;
-	u64         len;
+	const char* data = 0;
+	u64         len  = 0;
 };
 
 struct Args;
 
 struct Arg {
-	ArgType type;
+	ArgType type = ArgType::Invalid;
 	union {
 		bool        b;
 		char        c;
@@ -190,12 +191,12 @@ struct Arg {
 };
 
 template <u32 N> struct ArgStore {
-	Arg args[N > 0 ? N : 1];
+	Arg args[N > 0 ? N : 1] = {};
 };
 
 struct Args {
-	const Arg* args;
-	u32        len;
+	const Arg* args = 0;
+	u32        len  = 0;
 
 	template <u32 N> constexpr Args(ArgStore<N> argStore) {
 		args = argStore.args;
@@ -210,7 +211,7 @@ struct Args {
 //--------------------------------------------------------------------------------------------------
 
 template <class... A> struct _FmtStr {
-	s8 fmt;
+	s8 fmt = {};
 
 	static inline void UnmatchedOpenBrace() {}
 	static inline void NotEnoughArgs() {}
@@ -296,13 +297,15 @@ template <class... A> using FmtStr = _FmtStr<typename TypeIdentity<A>::Type...>;
 //--------------------------------------------------------------------------------------------------
 
 struct SrcLoc {
-	s8  file = 0;
+	s8  file = {};
 	i32 line = 0;
 
-	static consteval SrcLoc Here(s8 file = BuiltinFile, i32 line = BuiltinLine) {
+	static consteval SrcLoc DefArg(s8 file = BuiltinFile, i32 line = BuiltinLine) {
 		return SrcLoc { .file = file, .line = line };
 	}
 };
+
+#define SrcHere SrcLoc { .file = __FILE__, .line = __LINE__ }
 
 //--------------------------------------------------------------------------------------------------
 
@@ -357,8 +360,8 @@ constexpr bool operator!=(s8 str1, s8 str2) { return str1.len != str2.len && Mem
 //--------------------------------------------------------------------------------------------------
 
 struct [[nodiscard]] ErrCode {
-	s8  ns;
-	u64 code;
+	s8  ns   = {};
+	u64 code = 0;
 };
 constexpr bool operator==(ErrCode ec1, ErrCode ec2) { return ec1.code == ec2.code && ec1.ns == ec2.ns; }
 constexpr bool operator!=(ErrCode ec1, ErrCode ec2) { return ec1.code != ec2.code || ec1.ns != ec2.ns; }
@@ -372,7 +375,7 @@ template <class T = void> struct [[nodiscard]] Res {
 		T    val;
 		Err* err;
 	};
-	bool hasVal;
+	bool hasVal = false;
 
 	constexpr Res()       {          hasVal = false; }
 	constexpr Res(T v)    { val = v; hasVal = true;  }
@@ -380,17 +383,17 @@ template <class T = void> struct [[nodiscard]] Res {
 
 	constexpr operator bool() const { return hasVal; }
 
-	constexpr Err* To(T& out) { if (hasVal) { out = val; return nullptr; } else { return err; } }
-	constexpr T Or(T def) const { return hasVal ? val : def; }
+	constexpr Err* To(T& out) { if (hasVal) { out = val; return 0; } else { return err; } }
+	constexpr T    Or(T def) { return hasVal ? val : def; }
 };
 
 template <> struct [[nodiscard]] Res<void> {
-	Err* err;
+	Err* err = 0;
 
 	constexpr Res() = default;
-	constexpr Res(Err* e) { err = e; }
+	constexpr Res(Err* e) { err = e; }	// implicit
 
-	constexpr operator bool() const { return err == nullptr; }
+	constexpr operator bool() const { return err != 0; }
 
 	constexpr void Ignore() const {}
 };
@@ -403,10 +406,10 @@ struct NullOpt {};
 inline NullOpt nullOpt;
 
 template <class T> struct [[nodiscard]] Opt {
-	T val;
-	bool hasVal;
+	T    val    = {};
+	bool hasVal = false;
 
-	constexpr Opt()        {          hasVal = false; }
+	constexpr Opt() = default;
 	constexpr Opt(T v)     { val = v; hasVal = true;  }
 	constexpr Opt(NullOpt) {          hasVal = false; }
 
@@ -434,8 +437,8 @@ template <class T> struct [[nodiscard]] Opt {
 
 template <class T>
 struct Span {
-	const T* data;
-	u64      len;
+	const T* data = 0;
+	u64      len  = 0;
 
 	constexpr Span() { data = nullptr; len = 0; }
 	constexpr Span(T* d, u64 l) { data = d; len = l; }

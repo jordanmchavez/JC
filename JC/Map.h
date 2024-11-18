@@ -1,8 +1,8 @@
 #pragma once
 
 #include "JC/Common.h"
-#include "JC/Allocator.h"
 #include "JC/Hash.h"
+#include "JC/Mem.h"
 
 namespace JC {
 
@@ -11,39 +11,39 @@ namespace JC {
 template <class K, class V>
 struct Map {
 	struct Bucket {
-		u32 df;	// top 3 bytes are distance, bottom byte is fingerprint
-		u64 idx;
+		u32 df  = 0;	// top 3 bytes are distance, bottom byte is fingerprint
+		u64 idx = 0;
 	};
 
 	struct Elem {
-		K key;
-		V val;
+		K key = {};
+		V val = {};
 	};
 
-	Allocator*  alloc      = nullptr;
-	Bucket*     buckets    = nullptr;
-	u64         bucketsLen = 0;
-	Elem*       elems      = nullptr;
-	u64         elemsLen   = 0;
-	u64         elemsCap   = 0;
-	u8          mask       = 0;
+	Mem*    mem        = 0;
+	Bucket* buckets    = 0;
+	u64     bucketsLen = 0;
+	Elem*   elems      = 0;
+	u64     elemsLen   = 0;
+	u64     elemsCap   = 0;
+	u8      mask       = 0;
 
-	void Init(Allocator* allocIn, SrcLoc srcLoc = SrcLoc::Here()) {
-		alloc      = allocIn;
-		buckets    = (Bucket*)alloc->Alloc(16u * sizeof(Bucket), srcLoc);
+	void Init(Mem* memIn, SrcLoc srcLoc = SrcLoc::DefArg()) {
+		mem        = memIn;
+		buckets    = mem->Alloc<Bucket>(16, srcLoc);
 		bucketsLen = 16;
-		elems      = nullptr;
+		elems      = 0;
 		elemsLen   = 0;
 		elemsCap   = 0;
 		mask       = 0xf;
-		memset(buckets, 0, 16u * sizeof(Bucket));
+		MemSet(buckets, 0, 16 * sizeof(Bucket));
 	}
-	void Shutdown() {
-		alloc->Free(buckets, bucketsLen * sizeof(Bucket));
-		alloc->Free(elems, elemsCap * sizeof(Elem));
-		buckets    = nullptr;
+	void Free() {
+		mem->Free<Bucket>(buckets, bucketsLen);
+		mem->Free<Elem>(elems, elemsCap);
+		buckets    = 0;
 		bucketsLen = 0;
-		elems      = nullptr;
+		elems      = 0;
 		elemsLen   = 0;
 		elemsCap   = 0;
 		mask       = 0;
@@ -82,7 +82,7 @@ struct Map {
 		}
 	}
 
-	V* Put(K k, V v, SrcLoc srcLoc = SrcLoc::Here()) {
+	V* Put(K k, V v, SrcLoc srcLoc = SrcLoc::DefArg()) {
 		u64 h = Hash(k);
 		u32 df = 0x100 | (h & 0xff);
 		u64 i = h & mask;
@@ -96,13 +96,13 @@ struct Map {
 			} else if (df > bucket->df) {
 				if (elemsLen >= elemsCap) {
 					u64 newCap = Max(16ull, elemsCap * 2u);
-					elems = (Elem*)alloc->Realloc(elems, elemsCap * sizeof(Elem), newCap * sizeof(Elem), srcLoc);
+					elems = (Elem*)mem->Realloc(elems, elemsCap * sizeof(Elem), newCap * sizeof(Elem), srcLoc);
 					elemsCap = newCap;
 				}
 				elems[elemsLen++] = Elem { .key = k, .val = v };
 				if (elemsLen > (7 * (bucketsLen >> 3))) {	// max load factor = 7/8 = 87.5%
 					u64 newBucketsLen = bucketsLen << 1;
-					buckets = (Bucket*)alloc->Realloc(buckets, bucketsLen * sizeof(Bucket), newBucketsLen * sizeof(Bucket), srcLoc);
+					buckets = (Bucket*)mem->Realloc(buckets, bucketsLen * sizeof(Bucket), newBucketsLen * sizeof(Bucket), srcLoc);
 					memset(buckets, 0, newBucketsLen * sizeof(Bucket));
 					bucketsLen = newBucketsLen;
 					mask = (1u << newBucketsLen) - 1u;
@@ -182,7 +182,7 @@ struct Map {
 	}
 	void Clear() {
 		if (buckets != nullptr) {
-			memset(buckets, 0, sizeof(Bucket * bucketsLen));
+			MemSet(buckets, 0, bucketsLen * sizeof(Bucket));
 		}
 		elemsLen = 0;
 	}

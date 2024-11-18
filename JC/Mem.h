@@ -7,14 +7,16 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 struct Mem {
-	virtual void* Alloc(u64 size, SrcLoc sl = SrcLoc::Here()) = 0;
-	virtual void* Realloc(void* p, u64 oldSize, u64 newSize, SrcLoc sl = SrcLoc::Here()) = 0;
+	virtual void* Alloc(u64 size, SrcLoc sl = SrcLoc::DefArg()) = 0;
+	virtual void* Realloc(void* p, u64 oldSize, u64 newSize, SrcLoc sl = SrcLoc::DefArg()) = 0;
 	virtual void  Free(void* p, u64 size) = 0;
 
-	template <class T> T*   Alloc(u64 n, SrcLoc sl = SrcLoc::Here())                      { return (T*)Alloc(n * sizeof(T), sl); }
-	template <class T> T*   Realloc(T* p, u64 oldN, u64 newN, SrcLoc sl = SrcLoc::Here()) { return (T*)Realloc(p, oldN * sizeof(T), newN * sizeof(T), sl); }
+	template <class T> T*   Alloc(u64 n, SrcLoc sl = SrcLoc::DefArg())                      { return (T*)Alloc(n * sizeof(T), sl); }
+	template <class T> T*   Realloc(T* p, u64 oldN, u64 newN, SrcLoc sl = SrcLoc::DefArg()) { return (T*)Realloc(p, oldN * sizeof(T), newN * sizeof(T), sl); }
 	template <class T> void Free(T* p, u64 n)                                             { Free((void*)p, n * sizeof(T)); }
 };
+
+//--------------------------------------------------------------------------------------------------
 
 struct TempMem : Mem {
 	virtual u64  Mark() = 0;
@@ -35,12 +37,12 @@ struct MemLeakReporter {
 struct MemApi {
 	static MemApi* Get();
 
-	virtual void Init() = 0;
-	virtual void SetLeakReporter(MemLeakReporter* r) = 0;
-	virtual Mem* Create(s8 name) = 0;
-	virtual void Destroy(Mem* mem) = 0;
-	virtual Mem* Temp() = 0;
-	virtual void Frame() = 0;
+	virtual void     Init() = 0;
+	virtual void     SetLeakReporter(MemLeakReporter* r) = 0;
+	virtual Mem*     Create(u64 size) = 0;
+	virtual Mem*     CreateScope(s8 name, Mem* parent) = 0;
+	virtual Mem*     DestroyScope(Mem* mem) = 0;
+	virtual TempMem* CreateTemp(u64 size) = 0;
 };
 
 //--------------------------------------------------------------------------------------------------

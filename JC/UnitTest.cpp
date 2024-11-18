@@ -3,6 +3,7 @@
 #include "JC/Array.h"
 #include "JC/Fmt.h"
 #include "JC/Log.h"
+#include "JC/Mem.h"
 #include <stdio.h>
 
 namespace JC {
@@ -14,44 +15,42 @@ namespace UnitTest {
 	static constexpr u32 MaxSubtests = 1024;
 
 	struct TestObj {
-		s8      name;
-		s8      file;
-		i32     line = 0;
-		TestFn* fn = nullptr;
+		s8      name = {};
+		SrcLoc  sl   = {};
+		TestFn* fn   = nullptr;
 	};
 
 	enum struct State { Run, Pop, Done };
 
-	static TestObj           tests[MaxTests];
-	static u32               testsLen;
-	static Subtest::Sig      cur[MaxSubtests];
-	static u32               curLen;
-	static Subtest::Sig      next[MaxSubtests];
-	static u32               nextLen;
-	static Subtest::Sig      last[MaxSubtests];
-	static u32               lastLen;
-	static State             state;
-	static u32               checkFails;
+	static LogApi*           logApi            = 0;
+	static TestObj           tests[MaxTests]   = {};
+	static u32               testsLen          = 0;
+	static Subtest::Sig      cur[MaxSubtests]  = {};
+	static u32               curLen            = 0;
+	static Subtest::Sig      next[MaxSubtests] = {};
+	static u32               nextLen           = 0;
+	static Subtest::Sig      last[MaxSubtests] = {};
+	static u32               lastLen           = 0;
+	static State             state             = State::Done;
+	static u32               checkFails        = 0;
 
 	bool operator==(Subtest::Sig s1, Subtest::Sig s2) {
 		// order by most likely fast fail
-		return s1.line == s2.line && s1.name == s2.name && s1.file == s2.file;
+		return s1.sl.line == s2.sl.line && s1.name == s2.name && s1.sl.file == s2.sl.file;
 	}
 
-	TestRegistrar::TestRegistrar(s8 name, s8 file, i32 line, TestFn* fn) {
+	TestRegistrar::TestRegistrar(s8 name, SrcLoc sl, TestFn* fn) {
 		Assert(testsLen < MaxTests);
 		tests[testsLen++] = {
-			.name         = name,
-			.file         = file,
-			.line         = line,
-			.fn           = fn,
+			.name = name,
+			.sl   = sl,
+			.fn   = fn,
 		};
 	};
 
-	Subtest::Subtest(s8 nameIn, s8 fileIn, i32 lineIn) {
+	Subtest::Subtest(s8 nameIn, SrcLoc slIn) {
 		sig.name = nameIn;
-		sig.file = fileIn;
-		sig.line = lineIn;
+		sig.sl   = slIn;
 		switch (state) {
 			case State::Run:
 				if (nextLen <= curLen || next[curLen] == sig) {
@@ -89,8 +88,10 @@ namespace UnitTest {
 		}
 	}
 
-	bool Run(Mem* mem, Mem* scratch) {
-		Log::AddFn([](Mem*, s8, i32, LogCategory, const char* msg, u64 len) {
+	bool Run(TempMem* tempMem, LogApi* logApiIn) {
+		logApi = logApiIn;
+
+		logApi->AddFn([](TempMem*, SrcLoc, LogCategory, const char* msg, u64 len) {
 			fwrite(msg, 1, len, stdout);
 			if (Sys::IsDebuggerPresent()) {
 				Sys::DebuggerPrint(msg);
@@ -102,16 +103,17 @@ namespace UnitTest {
 		for (u32 i = 0; i < testsLen; i++)  {
 			nextLen = 0;
 			do {
-				u64 mark = scratch->Mark();
+				u64 mark = tempMem->Mark();
+
 				state      = State::Run;
 				curLen     = 0;
-				last[0]    = Subtest::Sig { .name = tests[i].name, .file = tests[i].file, .line = tests[i].line };
+				last[0]    = Subtest::Sig { .name = tests[i].name, .sl = tests[i].sl };
 				lastLen    = 1;
 				checkFails = 0;
 
-				tests[i].fn(Mem(scratch));
+				tests[i].fn(tempMem);
 
-				Array<char> lastStr = { .mem = &scratch};
+				Array<char> lastStr = { .mem = tempMem };
 				for (u32 j = 0; j < lastLen; j++) {
 					lastStr.Add(last[j].name.data, last[j].name.len);
 					lastStr.Add(':');
@@ -119,54 +121,56 @@ namespace UnitTest {
 				lastStr.len--;
 
 				if (checkFails > 0) {
-					Log(scratch, "Failed: {}", s8(lastStr.data, lastStr.len));
+					Log(tempMem, "Failed: {}", s8(lastStr.data, lastStr.len));
 					failedTests++;
 				} else {
-					Log(scratch, "Passed: {}", s8(lastStr.data, lastStr.len));
+					Log(tempMem, "Passed: {}", s8(lastStr.data, lastStr.len));
 					passedTests++;
 				}
+
+				tempMem->Reset(mark);
 			} while (nextLen > 0);
 		}
 
-		Log(scratch, "Total passed: {}", passedTests);
-		Log(scratch, "Total failed: {}", failedTests);
+		Log(tempMem, "Total passed: {}", passedTests);
+		Log(tempMem, "Total failed: {}", failedTests);
 		return failedTests == 0;
 	}
 
-	bool CheckFail(Mem scratch, s8 file, i32 line, s8 expr) {
-		Log(scratch, "***CHECK FAILED***");
-		Log(scratch, "{}({})", file, line);
-		Log(scratch, "  {}\n", expr);
+	bool CheckFail(TempMem* tempMem, SrcLoc sl, s8 expr) {
+		Log(tempMem, "***CHECK FAILED***");
+		Log(tempMem, "{}({})", sl.file, sl.line);
+		Log(tempMem, "  {}\n", expr);
 		checkFails++;
 		return false;
 	}
 
-	bool CheckRelFail(Mem scratch, s8 file, i32 line, s8 expr, Arg x, Arg y) {
-		Log(scratch, "***CHECK FAILED***");
-		Log(scratch, "{}({})", file, line);
-		Log(scratch, "  {}", expr);
-		Log(scratch, "  l: {}", x);
-		Log(scratch, "  r: {}\n", y);
+	bool CheckRelFail(TempMem* tempMem, SrcLoc sl, s8 expr, Arg x, Arg y) {
+		Log(tempMem, "***CHECK FAILED***");
+		Log(tempMem, "{}({})", sl.file, sl.line);
+		Log(tempMem, "  {}", expr);
+		Log(tempMem, "  l: {}", x);
+		Log(tempMem, "  r: {}\n", y);
 		checkFails++;
 		return false;
 	}
 
-	bool CheckSpanEqFail_Len(Mem scratch, s8 file, i32 line, s8 expr, u64 xLen, u64 yLen) {
-		Log(scratch, "***CHECK FAILED***");
-		Log(scratch, "{}({})", file, line);
-		Log(scratch, "  {}", expr);
-		Log(scratch, "  l len: {}", xLen);
-		Log(scratch, "  r len: {}\n", yLen);
+	bool CheckSpanEqFail_Len(TempMem* tempMem, SrcLoc sl, s8 expr, u64 xLen, u64 yLen) {
+		Log(tempMem, "***CHECK FAILED***");
+		Log(tempMem, "{}({})", sl.file, sl.line);
+		Log(tempMem, "  {}", expr);
+		Log(tempMem, "  l len: {}", xLen);
+		Log(tempMem, "  r len: {}\n", yLen);
 		checkFails++;
 		return false;
 	}
 
-	bool CheckSpanEqFail_Elem(Mem scratch, s8 file, i32 line, s8 expr, u64 i, Arg x, Arg y) {
-		Log(scratch, "***CHECK FAILED***");
-		Log(scratch, "{}({})", file, line);
-		Log(scratch, "  {}", expr);
-		Log(scratch, "  l[{}]: {}", i, x);
-		Log(scratch, "  r[{}]: {}\n", i, y);
+	bool CheckSpanEqFail_Elem(TempMem* tempMem, SrcLoc sl, s8 expr, u64 i, Arg x, Arg y) {
+		Log(tempMem, "***CHECK FAILED***");
+		Log(tempMem, "{}({})", sl.file, sl.line);
+		Log(tempMem, "  {}", expr);
+		Log(tempMem, "  l[{}]: {}", i, x);
+		Log(tempMem, "  r[{}]: {}\n", i, y);
 		checkFails++;
 		return false;
 	}

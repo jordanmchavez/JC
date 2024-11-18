@@ -97,13 +97,13 @@ static u64 Rapid_Mix(u64 a, u64 b) {
 
 static u64 Rapid_Read64(const u8* p) {
 	u64 v;
-	JC_MEMCPY(&v, p, 8);
+	MemCpy(&v, p, 8);
 	return v;
 }
 
 static u64 Rapid_Read32(const u8* p) {
 	u32 v;
-	JC_MEMCPY(&v, p, 4);
+	MemCpy(&v, p, 4);
 	return v;
 }
 

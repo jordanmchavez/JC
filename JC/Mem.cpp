@@ -1,23 +1,20 @@
 #include "JC/Mem.h"
 
 #include "JC/Array.h"
-#include "JC/Log.h"
+#include "JC/Bit.h"
 #include "JC/Map.h"
-#include "JC/Math.h"
 #include "JC/Sys.h"
-#include "JC/UnitTest.h"
-#include <malloc.h>
 
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
 struct MemObj : Mem {
-	s8      name;
+	s8      name     = {};
 	u64     bytes    = 0;
 	u32     allocs   = 0;
 	u32     children = 0;
-	MemObj* parent   = nullptr;
+	MemObj* parent   = 0;
 
 	void* Alloc(u64 size, SrcLoc sl) override;
 	void* Realloc(void* ptr, u64 oldSize, u64 newSize, SrcLoc sl) override;
@@ -26,38 +23,154 @@ struct MemObj : Mem {
 
 //--------------------------------------------------------------------------------------------------
 
-struct TempMemObj : Mem {
+struct TempMemObj : TempMem {
 	void* Alloc(u64 size, SrcLoc sl) override;
 	void* Realloc(void* ptr, u64 oldSize, u64 newSize, SrcLoc sl) override;
-	void  Free(void* ptr, u64 size) override;
+	u64   Mark() override;
+	void  Reset(u64 mark) override;
 };
+
+//--------------------------------------------------------------------------------------------------
+
+struct Block {
+    Block* prevPhys = 0;
+    u64    size     = 0;
+    Block* nextFree = 0;
+    Block* prevFree = 0;
+};
+
+static constexpr u64 PermReserveSize     = (u64)16 * 1024 * 1024 * 1024;
+static constexpr u32 AlignSizeLog2       = 3;
+static constexpr u32 AlignSize           = 1 << AlignSizeLog2;
+static constexpr u32 SlCountLog2         = 4;
+static constexpr u32 SlCount             = 1 << SlCountLog2;    // 16
+static constexpr u32 FlShift             = SlCountLog2 + AlignSizeLog2; // 8
+static constexpr u32 FlMax               = 32;
+static constexpr u32 FlCount             = FlMax - FlShift + 1;  // 32 - 8 + 1 = 25
+static constexpr u32 SmallBlockSize      = 1 << FlShift; // 256
+static constexpr u32 BlockHeaderOverhead = sizeof(u64);	// 8
+static constexpr u64 BlockSizeMin        = sizeof(Block) - sizeof(Block*);	// 24
+static constexpr u64 BlockSizeMax        = (u64)1 << FlMax;	// 4 gb
+static constexpr u64 BlockFreeBit        = 1 << 0;
+static constexpr u64 BlockPrevFreeBit    = 1 << 1;
+static constexpr u64 BlockSizeMask       = ~(BlockFreeBit | BlockPrevFreeBit);
+static constexpr u64 BlockOverhead       = sizeof(Block*);
+static constexpr u64 BlockStartOffset    = 16;	// right after size
+
+static_assert(AlignSize == SmallBlockSize / SlCount);
 
 //--------------------------------------------------------------------------------------------------
 
 struct Trace {
-	MemObj* mem    = nullptr;
-	SrcLoc  sl;
+	MemObj* mem    = 0;
+	SrcLoc  sl     = {};
 	u32     allocs = 0;
 	u64     bytes  = 0;
 };
 
 //--------------------------------------------------------------------------------------------------
 
-struct MemApiObj : MemApi {
-	static constexpr u32 MaxMemsObjs      = 1024;
+static constexpr u64   AlignUp   (u64   u, u64 align) { return (u + (align - 1)) & ~(align - 1); }
+static constexpr u64   AlignDown (u64   u, u64 align) { return u & ~(align - 1); }
+static constexpr void* AlignPtrUp(void* p, u64 align) {	return (void*)AlignUp((u64)p, align); }
 
-	MemLeakReporter* memLeakReporter      = nullptr;
+//--------------------------------------------------------------------------------------------------
+
+struct MemApiObj : MemApi {
+	static constexpr u32 MaxMemsObjs          = 1024;
+
+	u8*              permBegin                = 0;
+	u8*              permCommit               = 0;
+	u8*              permEnd                  = 0;
+    Block            nullBlock;
+    u32              fl                       = 0;
+    u32              sl[FlCount]              = {};
+    Block*           blocks[FlCount][SlCount] = {};
 
 	MemObj           memObjs[MaxMemsObjs];
-	MemObj*          freeMemObjs          = nullptr;	// parent is the "next" link field
+	MemObj*          freeMemObjs              = 0;	// parent is the "next" link field
 
-	Array<Trace>     traces;
-	Map<u64, u64>    srcLocToTrace;
-	Map<void*, u64>  ptrToTrace;
+	Array<Trace>     traces                   = {};
+	Map<u64, u64>    srcLocToTrace            = {};
+	Map<void*, u64>  ptrToTrace               = {};
+	MemLeakReporter* memLeakReporter          = 0;
 
-	u8*              tempBegin            = nullptr;
-	u8*              tempCommit           = nullptr;
-	u8*              tempEnd              = nullptr;
+	u8*              tempBegin                = 0;
+	u8*              tempCommit               = 0;
+	u8*              tempEnd                  = 0;
+	u8*              tempMark                 = 0;
+
+	//----------------------------------------------------------------------------------------------
+
+	struct Index {
+		u32 fl;
+		u32 sl;
+	};
+
+	Index CalcIndex(u64 size) {
+		if (size < SmallBlockSize) {
+			return Index {
+				.fl = 0,
+				.sl = (u32)size / (SmallBlockSize / SlCount),
+			};
+		} else {
+			u32 f = Bsr64(size);
+			return Index {
+				.fl = f - FlShift + 1,
+				.sl = (u32)(size >> (f - SlCountLog2)) & ~(SlCount - 1),
+			};
+		}
+	}
+
+	//----------------------------------------------------------------------------------------------
+
+	void InsertFreeBlock(Block* block, Index idx) {
+		Assert((u64)block % AlignSize  == 0);
+		block->nextFree                  = blocks[idx.fl][idx.sl];
+		block->prevFree                  = &nullBlock;
+		blocks[idx.fl][idx.sl]->prevFree = block;
+		blocks[idx.fl][idx.sl]           = block;
+		fl     |= 1 << idx.fl;
+		sl[fl] |= 1 << idx.sl;
+	}
+
+	//----------------------------------------------------------------------------------------------
+
+	void Init() {
+		permBegin  = (u8*)Sys::VirtualReserve(PermReserveSize);
+		permCommit = permBegin;
+		permEnd    = permBegin + PermReserveSize;
+
+		nullBlock.nextFree = &nullBlock;
+		nullBlock.prevFree = &nullBlock;
+		for (u32 i = 0; i < FlCount; i++) {
+			for (u32 j = 0; j < SlCount; j++) {
+				blocks[i][j] = &nullBlock;
+			}
+		}
+
+		const u64 poolSize = AlignDown(PermReserveSize - 2 * BlockOverhead, AlignSize);
+		Block* const block = (Block*)(permBegin - sizeof(Block*));
+		block->prevPhys = nullptr;
+		block->size = poolSize | BlockFreeBit;
+
+		Index idx = CalcIndex(poolSize);
+		InsertFreeBlock(block, idx);
+
+		Block* const next = (Block*)((u8*)block + poolSize - sizeof(Block*));
+		next->prevPhys = block;
+		next->size = 0 | BlockPrevFreeBit;
+
+		freeMemObjs = &memObjs[1];	// allocators[0] is reserved for internal allocations
+		for (u32 i = 1; i < MaxMemObjs - 1; i++) {
+			memObjs[i].parent = &memObjs[i + 1];
+		}
+		memObjs[MaxMemObjs - 1].parent = nullptr;
+
+		traces.mem = &memObjs[0];
+		srcLocToTrace.Init(&memObjs[0]);
+		ptrToTrace.Init(&memObjs[0]);
+	}
 
 	//----------------------------------------------------------------------------------------------
 
@@ -130,22 +243,8 @@ struct MemApiObj : MemApi {
 
 	//----------------------------------------------------------------------------------------------
 
-	void Init() {
-		freeAllocators = &allocators[1];	// allocators[0] is reserved for internal allocations
-		for (u32 i = 1; i < MaxAllocators - 1; i++) {
-			allocators[i].parent = &allocators[i + 1];
-		}
-		allocators[MaxAllocators - 1].parent = nullptr;
-
-		traces.Init(&allocators[0]);
-		srcLocToTrace.Init(&allocators[0]);
-		ptrToTrace.Init(&allocators[0]);
-	}
-
-	//----------------------------------------------------------------------------------------------
-
 	Allocator* Create(s8 name, Allocator* parent) override {
-		JC_ASSERT(!parent || ((AllocatorImpl*)parent >= &allocators[1] && (AllocatorImpl*)parent <= &allocators[MaxAllocators]));
+		JC_ASSERT(!parent || ((AllocatorImpl*)parent >= &allocators[1] && (AllocatorImpl*)parent <= &allocators[MaxMemObjs]));
 		JC_ASSERT(freeAllocators);
 		AllocatorImpl* const a = freeAllocators;
 		freeAllocators = freeAllocators->parent;
@@ -174,7 +273,7 @@ struct MemApiObj : MemApi {
 				}
 			}
 			if (a->children > 0) {
-				for (u32 i = 0; i < MaxAllocators; i++) {
+				for (u32 i = 0; i < MaxMemObjs; i++) {
 					if (allocators[i].parent == a) {
 						memLeakReporter->Child(allocators[i].name, allocators[i].bytes, allocators[i].allocs);
 					}

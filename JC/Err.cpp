@@ -9,17 +9,17 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 struct [[nodiscard]] ErrArg {
-	s8  name;
-	Arg arg;
+	s8  name = {};
+	Arg arg  = {};
 };
 
 struct [[nodiscard]] Err {
-	Err*    prev = nullptr;
-	s8      file;
-	i32     line = 0;
-	ErrCode ec;
+	Err*    prev    = 0;
+	s8      file    = 0;
+	i32     line    = 0;
+	ErrCode ec      = {};
 	u32     argsLen = 0;
-	ErrArg  args[1];	// variable length
+	ErrArg  args[1] = {};	// variable length
 };
 
 //--------------------------------------------------------------------------------------------------

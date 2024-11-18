@@ -4,14 +4,16 @@
 
 namespace JC {
 
+struct Mem;
+
 //--------------------------------------------------------------------------------------------------
 
 template <class T>
 struct Array {
-	Mem* mem;
-	T*   data;
-	u64  len;
-	u64  cap;
+	Mem* mem  = 0;
+	T*   data = 0;
+	u64  len  = 0;
+	u64  cap  = 0;
 
 	constexpr T& operator[](u64 i)       { return data[i]; }
 	constexpr T  operator[](u64 i) const { return data[i]; }
@@ -21,7 +23,7 @@ struct Array {
 	constexpr const T* Begin() const { return data; }
 	constexpr const T* End()   const { return data + len; }
 
-	T* Add(SrcLoc sl = SrcLoc::Here()) {
+	T* Add(SrcLoc sl = SrcLoc::DefArg()) {
 		if (len + 1 > cap) {
 			Grow(len + 1, sl);
 		}
@@ -30,7 +32,7 @@ struct Array {
 		return &data[len - 1];
 	}
 
-	T* Add(T val, SrcLoc sl = SrcLoc::Here()) {
+	T* Add(T val, SrcLoc sl = SrcLoc::DefArg()) {
 		if (len + 1 > cap) {
 			Grow(len + 1, sl);
 		}
@@ -38,7 +40,7 @@ struct Array {
 		return &data[len - 1];
 	}
 
-	void Add(const T* vals, u64 valsLen, SrcLoc sl = SrcLoc::Here()) {
+	void Add(const T* vals, u64 valsLen, SrcLoc sl = SrcLoc::DefArg()) {
 		if (len + valsLen > cap) {
 			Grow(len + valsLen, sl);
 		}
@@ -46,7 +48,7 @@ struct Array {
 		len += valsLen;
 	}
 
-	void Add(const T* begin, const T* end, SrcLoc sl = SrcLoc::Here()) {
+	void Add(const T* begin, const T* end, SrcLoc sl = SrcLoc::DefArg()) {
 		const u64 valsLen = (u64)(end - begin);
 		if (len + valsLen > cap) {
 			Grow(len + valsLen, sl);
@@ -55,7 +57,7 @@ struct Array {
 		len += valsLen;
 	}
 
-	void Fill(T val, u64 n, SrcLoc sl = SrcLoc::Here()) {
+	void Fill(T val, u64 n, SrcLoc sl = SrcLoc::DefArg()) {
 		if (len + n > cap) {
 			Grow(len + n, sl);
 		}
@@ -70,7 +72,7 @@ struct Array {
 		len += n;
 	}
 
-	void Insert(u32 i, T val, SrcLoc sl = SrcLoc::Here()) {
+	void Insert(u32 i, T val, SrcLoc sl = SrcLoc::DefArg()) {
 		if (len + 1 > cap) {
 			Grow(len + 1, sl);
 		}
@@ -87,7 +89,7 @@ struct Array {
 		--len -= n;
 	}
 
-	T* Extend(u64 n, SrcLoc sl = SrcLoc::Here()) {
+	T* Extend(u64 n, SrcLoc sl = SrcLoc::DefArg()) {
 		if (len + n > cap) {
 			Grow(len + n, sl);
 		}
@@ -96,7 +98,7 @@ struct Array {
 		return res;
 	}
 
-	T* Resize(u64 newLen, SrcLoc sl = SrcLoc::Here()) {
+	T* Resize(u64 newLen, SrcLoc sl = SrcLoc::DefArg()) {
 		if (newLen > cap) {
 			Grow(newLen, sl);
 		}
@@ -105,17 +107,17 @@ struct Array {
 		return res;
 	}
 
-	T* Reserve(u64 newCap, SrcLoc sl = SrcLoc::Here()) {
+	T* Reserve(u64 newCap, SrcLoc sl = SrcLoc::DefArg()) {
 		if (newCap > cap) {
 			Grow(newCap, sl);
 		}
 		return data + len;
 	}
 
-	void Grow(u64 newCap, SrcLoc sl = SrcLoc::Here()) {
+	void Grow(u64 newCap, SrcLoc sl = SrcLoc::DefArg()) {
 		Assert(newCap > cap);
 		newCap = Max(Max((u64)16, newCap), cap + (cap >> 1));
-		data = mem->Realloc<T>(data, cap, newCap, sl);
+		data = mem->Realloc(data, cap, newCap, sl);
 		cap = newCap;
 	}
 
