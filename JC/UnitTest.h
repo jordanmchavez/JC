@@ -9,22 +9,22 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 namespace UnitTest {
-	bool Run(Mem mem);
+	bool Run(Mem* mem, Mem* scratch);
 
-	bool CheckFail(Mem scratch, s8 file, i32 line, s8 expr);
-	bool CheckRelFail(Mem scratch, s8 file, i32 line, s8 expr, Arg x, Arg y);
-	bool CheckSpanEqFail_Len(Mem scratch, s8 file, i32 line, s8 expr, u64 xLen, u64 yLen);
-	bool CheckSpanEqFail_Elem(Mem scratch, s8 file, i32 line, s8 expr, u64 i, Arg x, Arg y);
+	bool CheckFail(Mem* scratch, s8 file, i32 line, s8 expr);
+	bool CheckRelFail(Mem* scratch, s8 file, i32 line, s8 expr, Arg x, Arg y);
+	bool CheckSpanEqFail_Len(Mem* scratch, s8 file, i32 line, s8 expr, u64 xLen, u64 yLen);
+	bool CheckSpanEqFail_Elem(Mem* scratch, s8 file, i32 line, s8 expr, u64 i, Arg x, Arg y);
 
-	template <class X, class Y> bool CheckEq(Mem scratch, s8 file, i32 line, s8 expr, X x, Y y) {
+	template <class X, class Y> bool CheckEq(Mem* scratch, s8 file, i32 line, s8 expr, X x, Y y) {
 		return (x == y) || CheckRelFail(scratch, file, line, expr, Arg::Make(x), Arg::Make(y));
 	}
 
-	template <class X, class Y> bool CheckNeq(Mem scratch, s8 file, i32 line, s8 expr, X x, Y y) {
+	template <class X, class Y> bool CheckNeq(Mem* scratch, s8 file, i32 line, s8 expr, X x, Y y) {
 		return (x != y) || CheckRelFail(scratch, file, line, expr, Arg::Make(x), Arg::Make(y));
 	}
 
-	template <class X, class Y> bool CheckSpanEq(Mem scratch, s8 file, i32 line, s8 expr, Span<X> x, Span<Y> y) {
+	template <class X, class Y> bool CheckSpanEq(Mem* scratch, s8 file, i32 line, s8 expr, Span<X> x, Span<Y> y) {
 		if (x.len != y.len) {
 			return CheckSpanEqFail_Len(scratch, file, line, expr, x.len, y.len);
 		}
@@ -36,7 +36,7 @@ namespace UnitTest {
 		return true;
 	}
 
-	using TestFn = void (Mem scratch);
+	using TestFn = void (Mem* scratch);
 
 	struct TestRegistrar {
 		TestRegistrar(s8 name, s8 file, i32 line, TestFn* fn);
@@ -59,9 +59,9 @@ namespace UnitTest {
 #define TestDebuggerBreak ([]() { Sys_DebuggerBreak(); return false; }())
 
 #define UnitTestImpl(name, fn, registrarVar) \
-	static void fn([[maybe_unused]] Mem scratch); \
+	static void fn([[maybe_unused]] Mem* scratch); \
 	static UnitTest::TestRegistrar registrarVar = UnitTest::TestRegistrar(name, __FILE__, __LINE__, fn); \
-	static void fn([[maybe_unused]] Mem scratch)
+	static void fn([[maybe_unused]] Mem* scratch)
 
 #define UnitTest(name) \
 	UnitTestImpl(name, MacroName(UnitTestFn_), MacroName(UnitTestRegistrar_))

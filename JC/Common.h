@@ -356,21 +356,6 @@ constexpr bool operator!=(s8 str1, s8 str2) { return str1.len != str2.len && Mem
 
 //--------------------------------------------------------------------------------------------------
 
-struct Mem {
-	u8* beg;
-	u8* end;
-
-	void* Alloc(u64 size, SrcLoc sl = SrcLoc::Here());
-	void* Realloc(void* p, u64 oldSize, u64 newSize, SrcLoc sl = SrcLoc::Here());
-
-	template <class T> T* Alloc(u64 n, SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(n * sizeof(T), sl); }
-	template <class T> T* Realloc(T* p, u64 oldN, u64 newN, SrcLoc sl = SrcLoc::Here()) { return (T*)Realloc((void*)p, oldN * sizeof(T), newN * sizeof(T), sl); }
-
-	static Mem Create(u64 commit, u64 reserve);
-};
-
-//--------------------------------------------------------------------------------------------------
-
 struct [[nodiscard]] ErrCode {
 	s8  ns;
 	u64 code;
@@ -378,43 +363,7 @@ struct [[nodiscard]] ErrCode {
 constexpr bool operator==(ErrCode ec1, ErrCode ec2) { return ec1.code == ec2.code && ec1.ns == ec2.ns; }
 constexpr bool operator!=(ErrCode ec1, ErrCode ec2) { return ec1.code != ec2.code || ec1.ns != ec2.ns; }
 
-struct [[nodiscard]] ErrArg {
-	s8  name;
-	Arg arg;
-};
-
-template <class T> struct Array;
-
-struct [[nodiscard]] Err {
-	Err*    prev = nullptr;
-	s8      file;
-	i32     line = 0;
-	ErrCode ec;
-	u32     argsLen = 0;
-	ErrArg  args[1];	// variable length
-
-	static Err* VMake(Mem* mem, Err* prev, s8 file, i32 line, ErrCode ec, const ErrArg* errArgs, u32 errArgsLen);
-
-	template <class T, class... A> static void FillErrArgs(ErrArg* errArgs, s8 name, T arg, A... args) {
-		errArgs[0] = { .name = name, .arg = Arg::Make(arg) };
-		if constexpr (sizeof...(A) > 0) {
-			Err::FillErrArgs(&errArgs[1], args...);
-		}
-	}
-	template <class... A> static Err* Make(Mem* mem, Err* prev, s8 file, i32 line, ErrCode ec, A... args) {
-		static_assert(sizeof...(A) % 2 == 0);
-		constexpr u32 ErrArgsLen = sizeof...(A) / 2;
-		ErrArg errArgs[ErrArgsLen > 0 ? ErrArgsLen : 1];
-		if constexpr (ErrArgsLen > 0) {
-			FillErrArgs(errArgs, args...);
-		}
-		return VMake(mem, prev, file, line, ec, errArgs, ErrArgsLen);
-	}
-
-	void Str(Array<char>* arr);
-};
-
-#define MakeErr(mem, ec, ...) Err::Make(mem, nullptr, __FILE__, __LINE__, ec, ##__VA_ARGS__)
+struct [[nodiscard]] Err;
 
 //--------------------------------------------------------------------------------------------------
 

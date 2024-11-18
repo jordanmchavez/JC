@@ -89,8 +89,8 @@ namespace UnitTest {
 		}
 	}
 
-	bool Run(Mem scratch) {
-		Log::AddFn([](Mem, s8, i32, LogCategory, const char* msg, u64 len) {
+	bool Run(Mem* mem, Mem* scratch) {
+		Log::AddFn([](Mem*, s8, i32, LogCategory, const char* msg, u64 len) {
 			fwrite(msg, 1, len, stdout);
 			if (Sys::IsDebuggerPresent()) {
 				Sys::DebuggerPrint(msg);
@@ -102,6 +102,7 @@ namespace UnitTest {
 		for (u32 i = 0; i < testsLen; i++)  {
 			nextLen = 0;
 			do {
+				u64 mark = scratch->Mark();
 				state      = State::Run;
 				curLen     = 0;
 				last[0]    = Subtest::Sig { .name = tests[i].name, .file = tests[i].file, .line = tests[i].line };

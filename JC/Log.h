@@ -11,16 +11,18 @@ enum struct LogCategory {
 	Error,
 };
 
-using LogFn = void(Mem mem, s8 file, i32 line, LogCategory category, const char* msg, u64 len);
+using LogFn = void(Mem* scratch, s8 file, i32 line, LogCategory category, const char* msg, u64 len);
 
-namespace Log {
-	void AddFn(LogFn* fn);
-	void RemoveFn(LogFn* fn);
+struct LogApi {
+	static LogApi* Get();
 
-	void VPrint(Mem scratch, s8 file, i32 line, LogCategory category, s8 fmt, Args args);
-	void PrintErr(Mem scratch, s8 file, i32 line, Err* err);
+	virtual void AddFn(LogFn* fn) = 0;
+	virtual void RemoveFn(LogFn* fn) = 0;
 
-	template <class... A> void Print(Mem scratch, s8 file, i32 line, LogCategory category, FmtStr<A...> fmt, A... args) {
+	virtual void VPrint(Mem* scratch, s8 file, i32 line, LogCategory category, s8 fmt, Args args) = 0;
+	virtual void PrintErr(Mem* scratch, s8 file, i32 line, Err* err) = 0;
+
+	template <class... A> void Print(Mem* scratch, s8 file, i32 line, LogCategory category, FmtStr<A...> fmt, A... args) {
 		VPrint(scratch, file, line, category, fmt, Args::Make(args...));
 	}
 };

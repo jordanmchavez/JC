@@ -28,9 +28,9 @@ void Log::RemoveFn(LogFn* fn) {
 	}
 }
 
-void Log::VPrint(Mem scratch, s8 file, i32 line, LogCategory category, s8 fmt, Args args) {
+void Log::VPrint(Mem* scratch, s8 file, i32 line, LogCategory category, s8 fmt, Args args) {
 	char buf[1024];
-	Array<char> arr = { .mem = &scratch, .data = buf, .cap = sizeof(buf) };
+	Array<char> arr = { .mem = scratch, .data = buf, .cap = sizeof(buf) };
 	VFmt(&arr, fmt, args);
 	arr.Add('\n');
 	arr.Add(0);
@@ -39,9 +39,9 @@ void Log::VPrint(Mem scratch, s8 file, i32 line, LogCategory category, s8 fmt, A
 	}
 }
 
-void Log::PrintErr(Mem scratch, s8 file, i32 line, Err* err) {
+void Log::PrintErr(Mem* scratch, s8 file, i32 line, Err* err) {
 	char buf[1024];
-	Array<char> arr = { .mem = &scratch, .data = buf, .cap = sizeof(buf) };
+	Array<char> arr = { .mem = scratch, .data = buf, .cap = sizeof(buf) };
 	err->Str(&arr);
 	arr.Add('\n');
 	arr.Add(0);

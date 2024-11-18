@@ -14,10 +14,10 @@ namespace JC {
 
 struct MemObj : Mem {
 	s8      name;
-	u64     bytes;
-	u32     allocs;
-	u32     children;
-	MemObj* parent;
+	u64     bytes    = 0;
+	u32     allocs   = 0;
+	u32     children = 0;
+	MemObj* parent   = nullptr;
 
 	void* Alloc(u64 size, SrcLoc sl) override;
 	void* Realloc(void* ptr, u64 oldSize, u64 newSize, SrcLoc sl) override;
@@ -26,28 +26,42 @@ struct MemObj : Mem {
 
 //--------------------------------------------------------------------------------------------------
 
-struct Trace {
-	MemObj* mem;
-	SrcLoc  sl;
-	u32     allocs;
-	u64     bytes;
+struct TempMemObj : Mem {
+	void* Alloc(u64 size, SrcLoc sl) override;
+	void* Realloc(void* ptr, u64 oldSize, u64 newSize, SrcLoc sl) override;
+	void  Free(void* ptr, u64 size) override;
 };
 
 //--------------------------------------------------------------------------------------------------
 
-namespace Mem {
-	static constexpr u32 MaxMemsObjs = 1024;
+struct Trace {
+	MemObj* mem    = nullptr;
+	SrcLoc  sl;
+	u32     allocs = 0;
+	u64     bytes  = 0;
+};
 
-	MemLeakReporter* memLeakReporter;
+//--------------------------------------------------------------------------------------------------
+
+struct MemApiObj : MemApi {
+	static constexpr u32 MaxMemsObjs      = 1024;
+
+	MemLeakReporter* memLeakReporter      = nullptr;
+
 	MemObj           memObjs[MaxMemsObjs];
-	MemObj*          freeMemObjs;	// parent is the "next" link field
+	MemObj*          freeMemObjs          = nullptr;	// parent is the "next" link field
+
 	Array<Trace>     traces;
 	Map<u64, u64>    srcLocToTrace;
 	Map<void*, u64>  ptrToTrace;
 
+	u8*              tempBegin            = nullptr;
+	u8*              tempCommit           = nullptr;
+	u8*              tempEnd              = nullptr;
+
 	//----------------------------------------------------------------------------------------------
 
-	void AddTrace(MemObj* m, void* ptr, u64 size, SrcLoc sl) {
+	void AddTrace(MemObj* mem, void* ptr, u64 size, SrcLoc sl) {
 		u64 key = HashCombine(Hash(sl.file), &sl.line, sizeof(sl.line));
 		if (Opt<u64> idx = srcLocToTrace.Find(key)) {
 			Trace* trace = &traces[idx.val];
@@ -56,7 +70,7 @@ namespace Mem {
 			ptrToTrace.Put(ptr, idx.val);
 		} else {
 			traces.Add(Trace {
-				.mem    = a,
+				.mem    = mem,
 				.sl     = sl,
 				.allocs = 1,
 				.bytes  = size,
@@ -80,13 +94,13 @@ namespace Mem {
 
 	//----------------------------------------------------------------------------------------------
 
-	void* Alloc(MemObj* m, u64 size, SrcLoc sl) {
+	void* Alloc(MemObj* mem, u64 size, SrcLoc sl) {
 		void* ptr = malloc(size);
 		Assert(ptr);
-		if (m == &memObjs[0]) {
+		if (mem == &memObjs[0]) {
 			return ptr;
 		}
-		AddTrace(a, ptr, size, sl);
+		AddTrace(mem, ptr, size, sl);
 		return ptr;
 	}
 

@@ -47,7 +47,7 @@ struct Array {
 	}
 
 	void Add(const T* begin, const T* end, SrcLoc sl = SrcLoc::Here()) {
-		u64 valsLen = (u64)(end - begin);
+		const u64 valsLen = (u64)(end - begin);
 		if (len + valsLen > cap) {
 			Grow(len + valsLen, sl);
 		}

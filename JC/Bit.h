@@ -2,31 +2,20 @@
 
 #include "JC/Common.h"
 
-#if defined JC_COMPILER_MSVC
+#if defined Compiler_Msvc
 	#include <intrin.h>
 	#pragma intrinsic(_BitScanReverse64)
 	#pragma intrinsic(_BitScanForward64)
-#else
+#else	// Compiler_
 	#error("Unsupported compiler")
-#endif	// JC_COMPILER
+#endif	// Compiler_
 
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-inline u32 Bsr64(u64 u)
-{
-	u32 idx;
-	_BitScanReverse64((unsigned long*)&idx, u);
-	return idx;
-}
-
-inline u32 Bsf64(u64 u)
-{
-	u32 idx;
-	_BitScanForward64((unsigned long*)&idx, u);
-	return idx;
-}
+u32 Bsr64(u64 u);
+u32 Bsf64(u64 u);
 
 //--------------------------------------------------------------------------------------------------
 
