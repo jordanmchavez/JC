@@ -17,15 +17,15 @@ struct MemObj : Mem {
 	MemObj* parent   = 0;
 
 	void* Alloc(u64 size, SrcLoc sl) override;
-	void* Realloc(void* ptr, u64 oldSize, u64 newSize, SrcLoc sl) override;
-	void  Free(void* ptr, u64 size) override;
+	void* Realloc(void* ptr, u64 newSize, SrcLoc sl) override;
+	void  Free(void* ptr) override;
 };
 
 //--------------------------------------------------------------------------------------------------
 
 struct TempMemObj : TempMem {
 	void* Alloc(u64 size, SrcLoc sl) override;
-	void* Realloc(void* ptr, u64 oldSize, u64 newSize, SrcLoc sl) override;
+	void* Realloc(void* ptr, u64 newSize, SrcLoc sl) override;
 	u64   Mark() override;
 	void  Reset(u64 mark) override;
 };
@@ -52,10 +52,8 @@ static constexpr u32 FirstShift          = SecondCountLog2 + AlignSizeLog2; // 8
 static constexpr u32 FirstMax            = 64;
 static constexpr u32 FirstCount          = FirstMax - FirstShift + 1;  // 64 - 8 + 1 = 57
 static constexpr u32 SmallBlockSize      = 1 << FirstShift; // 256
-static constexpr u32 BlockHeaderOverhead = sizeof(u64);	// 8
-static constexpr u64 BlockOverhead       = sizeof(Block*);
-static constexpr u64 BlockSizeMin        = sizeof(Block) - BlockOverhead;	// 24
-static constexpr u64 BlockSizeMax        = ((u64)1 << FirstMax) - BlockOverhead;	// 128 extabytes
+static constexpr u64 BlockSizeMin        = sizeof(Block) - 8;	// 24
+static constexpr u64 BlockSizeMax        = ((u64)1 << FirstMax) - 8;
 static constexpr u64 BlockFreeBit        = 1 << 0;
 static constexpr u64 BlockPrevFreeBit    = 1 << 1;
 static constexpr u64 BlockSizeMask       = ~(BlockFreeBit | BlockPrevFreeBit);
@@ -182,14 +180,6 @@ struct MemApiObj : MemApi {
 			}
 		}
 
-		const u64 poolSize = AlignDown(permReserveSize - 2 * BlockOverhead, AlignSize);
-		Block* const block = (Block*)(permBegin - BlockOverhead);
-		block->size = poolSize | BlockFreeBit;
-		Index idx = CalcIndex(poolSize);
-		InsertFreeBlock(block, idx);
-		Block* const next = (Block*)((u8*)block + poolSize - sizeof(Block*));
-		next->prevPhys = block;
-		next->size = 0 | BlockPrevFreeBit;
 
 		freeMemObjs = &memObjs[1];	// allocators[0] is reserved for internal allocations
 		for (u32 i = 1; i < MaxMemObjs - 1; i++) {
@@ -252,23 +242,34 @@ struct MemApiObj : MemApi {
 			Assert(permCommit < permEnd);
 			Assert(size <= BlockSizeMax);
 			const u64 commitSize = permCommit - permBegin;
-			u64 commitExtend = Max((u64)4096, commitSize);
-			while (commitExtend < size + BlockOverhead) {
+			u64 commitExtend = Max((u64)4096, commitSize * 2);
+			while (commitExtend < size + 8) {
 				commitExtend *= 2;
 				Assert(commitSize + commitExtend <= BlockSizeMax);
 			}
 			Sys::VirtualCommit(permCommit, commitExtend);
 
-			Block* const lastBlock = (Block*)(permCommit - sizeof(Block*));
 
+			u64 blockSize = 0;
+			if (permCommit == permBegin) {
+				block = (Block*)(permCommit - 8);
+				blockSize = commitExtend - 16;	// block.size and next.size
+			} else {
+				block = (Block*)(permCommit - 16);
+				blockSize = commitExtend - 8;	// only next.size: block.size already in previous block
+			}
+			block->size = blockSize | BlockFreeBit;
+			Block* const next = (Block*)((u8*)block + blockSize + 8);
+			next->prevPhys = block;
+			next->size = 0 | BlockPrevFreeBit;
 			permCommit += commitExtend;
 
+		} else {
+			idx.s = Bsf64(secondMap);
+			block = blocks[idx.f][idx.s];
+			Assert((block->size & BlockSizeMask) >= size);
+			RemoveFreeBlock(block, idx);
 		}
-
-		idx.s = Bsf64(secondMap);
-		block = blocks[idx.f][idx.s];
-		Assert((block->size & BlockSizeMask) >= size);
-		RemoveFreeBlock(block, idx);
 
 		if ((block->size & BlockSizeMask) - size >= sizeof(Block)) {
 			Block* const rem = (Block*)((u8*)block + size + 8);
@@ -276,8 +277,7 @@ struct MemApiObj : MemApi {
 			rem->size = remSize | BlockFreeBit;
 			block->size = size;
 			rem->prevPhys = block;
-			idx = CalcIndex(remSize);
-			InsertFreeBlock(rem, idx);
+			InsertFreeBlock(rem, CalcIndex(remSize));
 		} else {
 			block->size &= ~(BlockFreeBit | BlockPrevFreeBit);
 			((Block*)((u8*)block + block->size + 8))->size |= BlockPrevFreeBit;
@@ -292,22 +292,48 @@ struct MemApiObj : MemApi {
 
 	//----------------------------------------------------------------------------------------------
 
-	void* Realloc(AllocatorImpl* a, void* ptr, u64 oldSize, u64 newSize, SrcLoc sl) {
-		if (ptr) {
-			RemoveTrace(ptr, oldSize);
+	void* Realloc(MemObj* mem, void* ptr, u64 newSize, SrcLoc sl) {
+		if (!ptr) {
+			return Alloc(mem, newSize, sl);
 		}
-		void* const newPtr = realloc((void*)ptr, newSize);
-		Assert(newPtr != nullptr);
-		if (a == &allocators[0]) {
+
+		Block* const block     = (Block*)((u8*)ptr - 16);
+		const u64    blockSize = block->size & BlockSizeMask;
+		Assert(!(block->size & BlockFreeBit));
+		RemoveTrace(ptr, blockSize);
+
+		newSize = AlignUp(newSize, AlignSize);
+
+		Block*    next         = (Block*)((u8*)block + blockSize + 8);
+		const u64 nextSize     = next->size & BlockSizeMask;
+		const u64 combinedSize = blockSize + nextSize + 8;
+
+		void* newPtr = 0;
+		if (!(next->size & BlockFreeBit) || combinedSize < newSize) {
+			newPtr = Alloc(mem, newSize, sl);
+			MemCpy(newPtr, ptr, Min(blockSize, newSize));
+			Free(ptr);
+		} else {
+			RemoveFreeBlock(next, CalcIndex(nextSize));
+			block->size += nextSize + 8;	// doesn't affect flags
+			next = (Block*)((u8*)block + (block->size & BlockSizeMask));
+			next->prevPhys = block;
+			next->size &= ~(BlockFreeBit & BlockPrevFreeBit);
+		}
+
+		block_trim_used(block, adjust);
+
+
+		if (mem == &memObjs[0]) {
 			return newPtr;
 		}
-		AddTrace(a, newPtr, newSize, sl);
+		AddTrace(mem, newPtr, newSize, sl);
 		return newPtr;
 	}
 
 	//----------------------------------------------------------------------------------------------
 
-	void Free(void* ptr, u64 size) {
+	void Free(void* ptr) {
 		if (!ptr) {
 			return;
 		}
@@ -401,8 +427,8 @@ void* AllocatorImpl::Alloc(u64 size, SrcLoc sl) {
 	return allocatorApiImpl.Alloc(this, size, sl);
 }
 
-void* AllocatorImpl::Realloc(const void* ptr, u64 oldSize, u64 newSize, SrcLoc sl) {
-	return allocatorApiImpl.Realloc(this, ptr, oldSize, newSize, sl);
+void* AllocatorImpl::Realloc(const void* ptr, u64 curSize, u64 newSize, SrcLoc sl) {
+	return allocatorApiImpl.Realloc(this, ptr, curSize, newSize, sl);
 }
 
 void AllocatorImpl::Free(const void* ptr, u64 size) {
@@ -431,7 +457,7 @@ struct TempAllocatorImpl : TempAllocator {
 	void*      buf   = nullptr;
 
 	void* Alloc(u64 size, SrcLoc sl) override;
-	void* Realloc(const void* ptr, u64 oldSize, u64 newSize, SrcLoc sl) override;
+	void* Realloc(const void* ptr, u64 curSize, u64 newSize, SrcLoc sl) override;
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -615,7 +641,7 @@ void* TempAllocatorImpl::Alloc(u64 size, SrcLoc) {
 
 //--------------------------------------------------------------------------------------------------
 
-void* TempAllocatorImpl::Realloc(const void* ptr, u64 oldSize, u64 newSize, SrcLoc) {
+void* TempAllocatorImpl::Realloc(const void* ptr, u64 curSize, u64 newSize, SrcLoc) {
 	newSize = Align(newSize, TempAllocAlign);
 	JC_ASSERT(newSize <= TempMaxAllocSize);
 	if (chunk && chunk->last == ptr) {
@@ -634,7 +660,7 @@ void* TempAllocatorImpl::Realloc(const void* ptr, u64 oldSize, u64 newSize, SrcL
 	chunk->last = chunk->free;
 	chunk->free += newSize;
 	if (ptr && ptr != chunk->last) {
-		memcpy(chunk->last, ptr, Min(oldSize, newSize));
+		memcpy(chunk->last, ptr, Min(curSize, newSize));
 	}
 	return chunk->last;
 }
