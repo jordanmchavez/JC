@@ -85,16 +85,16 @@ Herring         | Ocean                        |                   | S--W |     
 Flounder        | Ocean, G.Oceans              | 6am-8pm           | SU-- |           | 17  | 50 sinker | Any Season on Ginger Island
 
 Dorado          | F.River                      | 6am-7pm           | -U-- |           | 33  | 78 mixed  |
+Pike            | F.River,F.Pond,Town          |                   | -U-W |           | 61  | 60 dart   |
+Rainbow Trout   | F.River,M.Lake,Town          | 6am-7pm           | -U-- | Sun       | 26  | 45 mixed  |
 Sturgeon        | M.Lake                       | 6am-7pm           | -U-W |           | 61  | 78 mixed  |
 Red Mullet      | Ocean                        | 6am-7pm           | -U-W |           | 23  | 55 smooth |
 Red Snapper     | Ocean                        | 6am-7pm           | -UFW | Rain      | 26  | 40 mixed  |
-Octopus         | Ocean, G.Oceans              | 6am-1pm           | -U-- |           | 49  | 95 sinker | Any Season on Ginger Island
-Tuna            | Ocean, G.Oceans              | 6am-7pm           | -U-W |           | 61  | 70 smooth | Any Season on Ginger Island
-Super Cucumber  | Ocean, G.Oceans              | 6pm-2am           | -UF- |           | 37  | 80 sinker | Any Season on Ginger Island
-Pufferfish      | Ocean, G.Oceans              | 12pm-4pm          | -U-- | Sun       | 37  | 80 floate | Any Season on Ginger Island
+Octopus         | Ocean,G.Oceans               | 6am-1pm           | -U-- |           | 49  | 95 sinker | Any Season on Ginger Island
+Tuna            | Ocean,G.Oceans               | 6am-7pm           | -U-W |           | 61  | 70 smooth | Any Season on Ginger Island
+Super Cucumber  | Ocean,G.Oceans               | 6pm-2am           | -UF- |           | 37  | 80 sinker | Any Season on Ginger Island
+Pufferfish      | Ocean,G.Oceans               | 12pm-4pm          | -U-- | Sun       | 37  | 80 floate | Any Season on Ginger Island
 Tilapia         | Ocean,G.River                | 6am-2pm           | -UF- |           | 31  | 50 mixed  | Any Season on Ginger Island
-Pike            | F.River,F.Pond,Town          |                   | -U-W |           | 61  | 60 dart   |
-Rainbow Trout   | F.River,M.Lake,Town          | 6am-7pm           | -U-- | Sun       | 26  | 45 mixed  |
 
 Midnight Carp   | M.Lake,F.Pond,G.Pond,G.River | 10pm-2am          | --FW |           | 53  | 55 mixed  |
 Sea Cucumber    | Ocean                        | 6am-7pm           | --FW |           | 21  | 40 sinker |

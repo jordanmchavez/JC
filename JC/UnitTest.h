@@ -6,33 +6,34 @@
 
 namespace JC {
 
+struct LogApi;
 struct TempMem;
 
 //--------------------------------------------------------------------------------------------------
 
 namespace UnitTest {
-	bool Run(TempMem* tempMem);
+	bool Run(TempMem* tempMem, LogApi* logApi);
 
-	bool CheckFail(TempMem* tempMem, s8 file, i32 line, s8 expr);
-	bool CheckRelFail(TempMem* tempMem, s8 file, i32 line, s8 expr, Arg x, Arg y);
-	bool CheckSpanEqFail_Len(TempMem* tempMem, s8 file, i32 line, s8 expr, u64 xLen, u64 yLen);
-	bool CheckSpanEqFail_Elem(TempMem* tempMem, s8 file, i32 line, s8 expr, u64 i, Arg x, Arg y);
+	bool CheckFail(SrcLoc sl, s8 expr);
+	bool CheckRelFail(SrcLoc sl, s8 expr, Arg x, Arg y);
+	bool CheckSpanEqFail_Len(SrcLoc sl, s8 expr, u64 xLen, u64 yLen);
+	bool CheckSpanEqFail_Elem(SrcLoc sl, s8 expr, u64 i, Arg x, Arg y);
 
-	template <class X, class Y> bool CheckEq(TempMem* tempMem, s8 file, i32 line, s8 expr, X x, Y y) {
-		return (x == y) || CheckRelFail(tempMem, file, line, expr, Arg::Make(x), Arg::Make(y));
+	template <class X, class Y> bool CheckEq(SrcLoc sl, s8 expr, X x, Y y) {
+		return (x == y) || CheckRelFail(sl, expr, Arg::Make(x), Arg::Make(y));
 	}
 
-	template <class X, class Y> bool CheckNeq(TempMem* tempMem, s8 file, i32 line, s8 expr, X x, Y y) {
-		return (x != y) || CheckRelFail(tempMem, file, line, expr, Arg::Make(x), Arg::Make(y));
+	template <class X, class Y> bool CheckNeq(SrcLoc sl, s8 expr, X x, Y y) {
+		return (x != y) || CheckRelFail(sl, expr, Arg::Make(x), Arg::Make(y));
 	}
 
-	template <class X, class Y> bool CheckSpanEq(TempMem* tempMem, s8 file, i32 line, s8 expr, Span<X> x, Span<Y> y) {
+	template <class X, class Y> bool CheckSpanEq(SrcLoc sl, s8 expr, Span<X> x, Span<Y> y) {
 		if (x.len != y.len) {
-			return CheckSpanEqFail_Len(tempMem, file, line, expr, x.len, y.len);
+			return CheckSpanEqFail_Len(sl, expr, x.len, y.len);
 		}
 		for (u64 i = 0; i < x.len; i++) {
 			if (x[i] != y[i]) {
-				return CheckSpanEqFail_Elem(tempMem, file, line, expr, i, Arg::Make(x[i]), Arg::Make(y[i]));
+				return CheckSpanEqFail_Elem(sl, expr, i, Arg::Make(x[i]), Arg::Make(y[i]));
 			}
 		}
 		return true;
@@ -72,14 +73,14 @@ namespace UnitTest {
 
 #define SubTest(name) SubTestImpl(name, MacroName(UnitSubtest_))
 
-#define CheckAt(file, line, x)          ((x) || UnitTest::CheckFail(tempMem, file, line, #x) || TestDebuggerBreak)
-#define CheckEqAt(file, line, x, y)     (UnitTest::CheckEq(tempMem, file, line, #x " == " #y, (x), (y)) || TestDebuggerBreak)
-#define CheckNeqAt(file, line, x, y)    (UnitTest::CheckNeq(tempMem, file, line, #x " != " #y, (x), (y)) || TestDebuggerBreak)
-#define Check(x)                        CheckAt(__FILE__, __LINE__, x)
-#define CheckEq(x, y)                   CheckEqAt(__FILE__, __LINE__, x, y)
-#define CheckNeq(x, y)                  CheckNeqAt(__FILE__, __LINE__, x, y)
-#define CheckSpanEqAt(file, line, x, y) (UnitTest::CheckSpanEq(tempMem, file, line, #x " == " #y, (x), (y)) || TestDebuggerBreak)
-#define CheckSpanEq(x, y)               CheckSpanEqAt(__FILE__, __LINE__, x, y)
+#define CheckAt(sl, x)          ((x) || UnitTest::CheckFail(sl, #x) || TestDebuggerBreak)
+#define CheckEqAt(sl, x, y)     (UnitTest::CheckEq(sl, #x " == " #y, (x), (y)) || TestDebuggerBreak)
+#define CheckNeqAt(sl, x, y)    (UnitTest::CheckNeq(sl, #x " != " #y, (x), (y)) || TestDebuggerBreak)
+#define Check(x)                CheckAt(SrcHere, x)
+#define CheckEq(x, y)           CheckEqAt(SrcHere, x, y)
+#define CheckNeq(x, y)          CheckNeqAt(SrcHere, x, y)
+#define CheckSpanEqAt(sl, x, y) (UnitTest::CheckSpanEq(sl, #x " == " #y, (x), (y)) || TestDebuggerBreak)
+#define CheckSpanEq(x, y)       CheckSpanEqAt(SrcHere, x, y)
 
 //--------------------------------------------------------------------------------------------------
 

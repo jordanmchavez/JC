@@ -12,15 +12,16 @@ namespace JC {
 struct LogApiObj : LogApi {
 	static constexpr u32 MaxLogFns = 32;
 
-	LogFn* logFns[MaxLogFns];
-	u32    logFnsLen = 0;
+	TempMem* tempMem           = 0;
+	LogFn*   logFns[MaxLogFns] = {};
+	u32      logFnsLen         = 0;
 
-	void AddFn(LogFn* fn) {
+	void AddFn(LogFn* fn) override {
 		Assert(logFnsLen < MaxLogFns);
 		logFns[logFnsLen++] = fn;
 	}
 
-	void RemoveFn(LogFn* fn) {
+	void RemoveFn(LogFn* fn) override {
 		for (u32 i = 0; i < logFnsLen; i++) {
 			if (logFns[i] == fn) {
 				logFns[i] = logFns[logFnsLen - 1];
@@ -29,25 +30,25 @@ struct LogApiObj : LogApi {
 		}
 	}
 
-	void VPrint(TempMem* mem, SrcLoc sl, LogCategory category, s8 fmt, Args args) {
+	void VPrint(SrcLoc sl, LogCategory category, s8 fmt, Args args) override {
 		char buf[1024];
-		Array<char> arr = { .mem = mem, .data = buf, .cap = sizeof(buf) };
+		Array<char> arr = { .mem = tempMem, .data = buf, .cap = sizeof(buf) };
 		VFmt(&arr, fmt, args);
 		arr.Add('\n');
 		arr.Add(0);
 		for (u32 i = 0; i < logFnsLen; i++) {
-			(*logFns[i])(mem, sl, category, arr.data, arr.len);
+			(*logFns[i])(sl, category, arr.data, arr.len);
 		}
 	}
 
-	void PrintErr(TempMem* mem, SrcLoc sl, Err* err) {
+	void PrintErr(SrcLoc sl, Err* err) override {
 		char buf[1024];
-		Array<char> arr = { .mem = mem, .data = buf, .cap = sizeof(buf) };
+		Array<char> arr = { .mem = tempMem, .data = buf, .cap = sizeof(buf) };
 		AddErrStr(err, &arr);
 		arr.Add('\n');
 		arr.Add(0);
 		for (u32 i = 0; i < logFnsLen; i++) {
-			(*logFns[i])(mem, sl, LogCategory::Error, arr.data, arr.len);
+			(*logFns[i])(sl, LogCategory::Error, arr.data, arr.len);
 		}
 	}
 };

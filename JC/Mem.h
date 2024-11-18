@@ -37,12 +37,11 @@ struct MemLeakReporter {
 struct MemApi {
 	static MemApi* Get();
 
-	virtual void     Init() = 0;
-	virtual void     SetLeakReporter(MemLeakReporter* r) = 0;
-	virtual Mem*     Create(u64 size) = 0;
+	virtual void     Init(u64 permReserveSize, u64 tempReserveSize, MemLeakReporter* reporter) = 0;
+	virtual Mem*     Perm() = 0;
+	virtual TempMem* Temp() = 0;
 	virtual Mem*     CreateScope(s8 name, Mem* parent) = 0;
 	virtual Mem*     DestroyScope(Mem* mem) = 0;
-	virtual TempMem* CreateTemp(u64 size) = 0;
 };
 
 //--------------------------------------------------------------------------------------------------

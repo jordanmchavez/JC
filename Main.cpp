@@ -1,11 +1,14 @@
 #include "JC/Fmt.h"
 #include "JC/Log.h"
+#include "JC/Mem.h"
 #include "JC/Render.h"
 #include "JC/UnitTest.h"
 #include <stdio.h>
 #include "JC/MinimalWindows.h"
 
 using namespace JC;
+
+static TempMem* tempMem = 0;
 
 constexpr s8 FileNameOnly(s8 path) {
 	for (const char* i = path.data + path.len - 1; i >= path.data; i--) {
@@ -39,18 +42,23 @@ int main(int argc, const char** argv) {
 
 	SetPanicFn(MyPanicFn);
 
-	Mem scratch = Mem::Create(0, (u64)1024 * 1024 * 1024);
+	MemApi* memApi = MemApi::Get();
+	tempMem = memApi->CreateTemp((u64)4 * 1024 * 1024);
+
+	LogApi* logApi = LogApi::Get();
+	logApi->Init(tempMem);
+
 	if (argc == 2 && argv[1] == s8("test")) {
-		return UnitTest::Run(scratch) ? 0 : 1;
+		return UnitTest::Run(tempMem, logApi) ? 0 : 1;
 	}
 
-	Log::AddFn([](Mem scratch, s8 file, i32 line, LogCategory category, const char* msg, u64) {
+	logApi->AddFn([](SrcLoc sl, LogCategory category, const char* msg, u64) {
 		s8 fullMsg = Fmt(
-			&scratch,
+			tempMem,
 			"{}{}({}): {}",
 			category == LogCategory::Error ? "!!! " : "",
-			file,
-			line,
+			sl.file,
+			sl.line,
 			msg
 		);
 		fwrite(fullMsg.data, 1, fullMsg.len, stdout);
@@ -59,12 +67,12 @@ int main(int argc, const char** argv) {
 		}
 	});
 
-	if (Res<> r = Render::Init(&scratch); !r) {	
-		LogErr(scratch, r.err);
-		return 1;
-	}
+	//if (Res<> r = Render::Init(&scratch); !r) {	
+	//	LogErr(scratch, r.err);
+	//	return 1;
+	//}
 
-	Render::Shutdown();
+	//Render::Shutdown();
 
 	return 0;
 }

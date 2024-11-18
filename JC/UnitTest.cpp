@@ -91,7 +91,7 @@ namespace UnitTest {
 	bool Run(TempMem* tempMem, LogApi* logApiIn) {
 		logApi = logApiIn;
 
-		logApi->AddFn([](TempMem*, SrcLoc, LogCategory, const char* msg, u64 len) {
+		logApi->AddFn([](SrcLoc, LogCategory, const char* msg, u64 len) {
 			fwrite(msg, 1, len, stdout);
 			if (Sys::IsDebuggerPresent()) {
 				Sys::DebuggerPrint(msg);
@@ -121,10 +121,10 @@ namespace UnitTest {
 				lastStr.len--;
 
 				if (checkFails > 0) {
-					Log(tempMem, "Failed: {}", s8(lastStr.data, lastStr.len));
+					Log("Failed: {}", s8(lastStr.data, lastStr.len));
 					failedTests++;
 				} else {
-					Log(tempMem, "Passed: {}", s8(lastStr.data, lastStr.len));
+					Log("Passed: {}", s8(lastStr.data, lastStr.len));
 					passedTests++;
 				}
 
@@ -132,45 +132,45 @@ namespace UnitTest {
 			} while (nextLen > 0);
 		}
 
-		Log(tempMem, "Total passed: {}", passedTests);
-		Log(tempMem, "Total failed: {}", failedTests);
+		Log("Total passed: {}", passedTests);
+		Log("Total failed: {}", failedTests);
 		return failedTests == 0;
 	}
 
-	bool CheckFail(TempMem* tempMem, SrcLoc sl, s8 expr) {
-		Log(tempMem, "***CHECK FAILED***");
-		Log(tempMem, "{}({})", sl.file, sl.line);
-		Log(tempMem, "  {}\n", expr);
+	bool CheckFail(SrcLoc sl, s8 expr) {
+		Log("***CHECK FAILED***");
+		Log("{}({})", sl.file, sl.line);
+		Log("  {}\n", expr);
 		checkFails++;
 		return false;
 	}
 
-	bool CheckRelFail(TempMem* tempMem, SrcLoc sl, s8 expr, Arg x, Arg y) {
-		Log(tempMem, "***CHECK FAILED***");
-		Log(tempMem, "{}({})", sl.file, sl.line);
-		Log(tempMem, "  {}", expr);
-		Log(tempMem, "  l: {}", x);
-		Log(tempMem, "  r: {}\n", y);
+	bool CheckRelFail(SrcLoc sl, s8 expr, Arg x, Arg y) {
+		Log("***CHECK FAILED***");
+		Log("{}({})", sl.file, sl.line);
+		Log("  {}", expr);
+		Log("  l: {}", x);
+		Log("  r: {}\n", y);
 		checkFails++;
 		return false;
 	}
 
-	bool CheckSpanEqFail_Len(TempMem* tempMem, SrcLoc sl, s8 expr, u64 xLen, u64 yLen) {
-		Log(tempMem, "***CHECK FAILED***");
-		Log(tempMem, "{}({})", sl.file, sl.line);
-		Log(tempMem, "  {}", expr);
-		Log(tempMem, "  l len: {}", xLen);
-		Log(tempMem, "  r len: {}\n", yLen);
+	bool CheckSpanEqFail_Len(SrcLoc sl, s8 expr, u64 xLen, u64 yLen) {
+		Log("***CHECK FAILED***");
+		Log("{}({})", sl.file, sl.line);
+		Log("  {}", expr);
+		Log("  l len: {}", xLen);
+		Log("  r len: {}\n", yLen);
 		checkFails++;
 		return false;
 	}
 
-	bool CheckSpanEqFail_Elem(TempMem* tempMem, SrcLoc sl, s8 expr, u64 i, Arg x, Arg y) {
-		Log(tempMem, "***CHECK FAILED***");
-		Log(tempMem, "{}({})", sl.file, sl.line);
-		Log(tempMem, "  {}", expr);
-		Log(tempMem, "  l[{}]: {}", i, x);
-		Log(tempMem, "  r[{}]: {}\n", i, y);
+	bool CheckSpanEqFail_Elem(SrcLoc sl, s8 expr, u64 i, Arg x, Arg y) {
+		Log("***CHECK FAILED***");
+		Log("{}({})", sl.file, sl.line);
+		Log("  {}", expr);
+		Log("  l[{}]: {}", i, x);
+		Log("  r[{}]: {}\n", i, y);
 		checkFails++;
 		return false;
 	}
