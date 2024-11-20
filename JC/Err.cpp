@@ -37,7 +37,7 @@ Err* _VMakeErr(Mem* mem, Err* prev, s8 file, i32 line, ErrCode ec, const ErrArg*
 
 //--------------------------------------------------------------------------------------------------
 
-void ErrStr(Err* err, Array<char>* out) {
+void AddErrStr(Err* err, Array<char>* out) {
 	for (Err* e = err; e; e = e->prev) {
 		Fmt(out, "{}-{}:", e->ec.ns, e->ec.code);
 	}

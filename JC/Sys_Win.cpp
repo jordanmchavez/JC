@@ -19,6 +19,7 @@ void Sys::DebuggerPrint(const char* msg) {
 }
 
 void* Sys::VirtualReserve(u64 size) {
+	Assert(size % 65536 == 0);
 	void* p = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
 	if (!p) {
 		Panic("VirtualAlloc failed with MEM_RESERVE for {}", size);
@@ -28,6 +29,8 @@ void* Sys::VirtualReserve(u64 size) {
 
 void Sys::VirtualCommit(const void* p, u64 size) {
 	Assert(p);
+	Assert((u64)p % 4096 == 0);
+	Assert(size % 4096 == 0);
 	if (VirtualAlloc((void*)p, size, MEM_COMMIT, PAGE_READWRITE) == nullptr) {
 		Panic("VirtualAlloc failed with MEM_COMMIT for {} at {}", size, p);
 	}

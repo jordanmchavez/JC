@@ -8,12 +8,11 @@ namespace JC {
 
 struct Mem {
 	virtual void* Alloc(u64 size, SrcLoc sl = SrcLoc::DefArg()) = 0;
-	virtual void* Realloc(void* p, u64 newSize, SrcLoc sl = SrcLoc::DefArg()) = 0;
+	virtual bool  Extend(void* p, u64 size, SrcLoc sl = SrcLoc::DefArg()) = 0;
 	virtual void  Free(void* p) = 0;
 
-	template <class T> T*   Alloc(u64 n, SrcLoc sl = SrcLoc::DefArg())                      { return (T*)Alloc(n * sizeof(T), sl); }
-	template <class T> T*   Realloc(T* p, u64 newN, SrcLoc sl = SrcLoc::DefArg()) { return (T*)Realloc(p, oldN * sizeof(T), newN * sizeof(T), sl); }
-	template <class T> void Free(T* p)                                             { Free((void*)p, n * sizeof(T)); }
+	template <class T> T*   AllocT(u64 n, SrcLoc sl = SrcLoc::DefArg())        { return (T*)Alloc(n * sizeof(T), sl); }
+	template <class T> bool ExtendT(T* p, u64 n, SrcLoc sl = SrcLoc::DefArg()) { return Extend(p, n * sizeof(T), sl); }
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -41,7 +40,7 @@ struct MemApi {
 	virtual Mem*     Perm() = 0;
 	virtual TempMem* Temp() = 0;
 	virtual Mem*     CreateScope(s8 name, Mem* parent) = 0;
-	virtual Mem*     DestroyScope(Mem* mem) = 0;
+	virtual void     DestroyScope(Mem* mem) = 0;
 };
 
 //--------------------------------------------------------------------------------------------------

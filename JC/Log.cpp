@@ -16,6 +16,10 @@ struct LogApiObj : LogApi {
 	LogFn*   logFns[MaxLogFns] = {};
 	u32      logFnsLen         = 0;
 
+	void Init(TempMem* tempMemIn) override {
+		tempMem = tempMemIn;
+	}
+
 	void AddFn(LogFn* fn) override {
 		Assert(logFnsLen < MaxLogFns);
 		logFns[logFnsLen++] = fn;
@@ -52,6 +56,13 @@ struct LogApiObj : LogApi {
 		}
 	}
 };
+
+LogApiObj logApiObj;
+
+LogApi* LogApi::Get() {
+	return &logApiObj;
+}
+
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC

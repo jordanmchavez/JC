@@ -28,9 +28,9 @@ struct Map {
 	u64     elemsCap   = 0;
 	u8      mask       = 0;
 
-	void Init(Mem* memIn, SrcLoc srcLoc = SrcLoc::DefArg()) {
+	void Init(Mem* memIn, SrcLoc sl = SrcLoc::DefArg()) {
 		mem        = memIn;
-		buckets    = mem->Alloc<Bucket>(16, srcLoc);
+		buckets    = mem->AllocT<Bucket>(16, sl);
 		bucketsLen = 16;
 		elems      = 0;
 		elemsLen   = 0;
@@ -38,9 +38,10 @@ struct Map {
 		mask       = 0xf;
 		MemSet(buckets, 0, 16 * sizeof(Bucket));
 	}
+
 	void Free() {
-		mem->Free<Bucket>(buckets, bucketsLen);
-		mem->Free<Elem>(elems, elemsCap);
+		mem->Free(buckets);
+		mem->Free(elems);
 		buckets    = 0;
 		bucketsLen = 0;
 		elems      = 0;
@@ -82,7 +83,7 @@ struct Map {
 		}
 	}
 
-	V* Put(K k, V v, SrcLoc srcLoc = SrcLoc::DefArg()) {
+	V* Put(K k, V v, SrcLoc sl = SrcLoc::DefArg()) {
 		u64 h = Hash(k);
 		u32 df = 0x100 | (h & 0xff);
 		u64 i = h & mask;
@@ -96,14 +97,22 @@ struct Map {
 			} else if (df > bucket->df) {
 				if (elemsLen >= elemsCap) {
 					u64 newCap = Max(16ull, elemsCap * 2u);
-					elems = (Elem*)mem->Realloc(elems, elemsCap * sizeof(Elem), newCap * sizeof(Elem), srcLoc);
+					if (!mem->ExtendT<Elem>(elems, newCap, sl)) {
+						Elem* newElems = mem->AllocT<Elem>(newCap, sl);
+						MemCpy(newElems, elems, elemsLen);
+						mem->Free(elems);
+						elems = newElems;
+					}
 					elemsCap = newCap;
 				}
 				elems[elemsLen++] = Elem { .key = k, .val = v };
 				if (elemsLen > (7 * (bucketsLen >> 3))) {	// max load factor = 7/8 = 87.5%
 					u64 newBucketsLen = bucketsLen << 1;
-					buckets = (Bucket*)mem->Realloc(buckets, bucketsLen * sizeof(Bucket), newBucketsLen * sizeof(Bucket), srcLoc);
-					memset(buckets, 0, newBucketsLen * sizeof(Bucket));
+					if (!mem->ExtendT<Bucket>(buckets, newBucketsLen, sl)) {
+						mem->Free(buckets);
+						buckets = mem->AllocT<Bucket>(newBucketsLen, sl);
+					}
+					MemSet(buckets, 0, newBucketsLen * sizeof(Bucket));
 					bucketsLen = newBucketsLen;
 					mask = (1u << newBucketsLen) - 1u;
 					for (u64 j = 0; j < elemsLen; ++j) {

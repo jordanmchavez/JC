@@ -1,6 +1,7 @@
 ﻿#include "JC/Fmt.h"
 
 #include "JC/Array.h"
+#include "JC/Mem.h"
 #include "JC/UnitTest.h"
 #include "dragonbox/dragonbox.h"
 #include <math.h>
@@ -482,7 +483,7 @@ s8 VFmt(Mem* mem, s8 fmt, Args args) {
 //--------------------------------------------------------------------------------------------------
 
 UnitTest("Fmt") {
-	#define CheckFmt(expect, fmt, ...) { Mem scratchCopy = scratch; CheckEq(expect, Fmt(&scratchCopy, fmt, ##__VA_ARGS__)); }
+	#define CheckFmt(expect, fmt, ...) { CheckEq(expect, Fmt(tempMem, fmt, ##__VA_ARGS__)); }
 
 	// Escape sequences
 	CheckFmt("{", "{{");
