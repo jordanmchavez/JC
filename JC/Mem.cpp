@@ -183,7 +183,7 @@ struct Tlsf {
 
 	//----------------------------------------------------------------------------------------------
 
-	void Extend(void* ptr, u64 size) {
+	bool Extend(void* ptr, u64 size) {
 		Assert(ptr);
 		Assert(size && size % AlignSize == 0);
 		Assert(size <= BlockSizeMax);
@@ -310,10 +310,11 @@ struct MemApiObj : MemApi {
 
 	void Init(u64 permReserveSize, u64 tempReserveSize, MemLeakReporter* reporterIn) override {
 		permBegin  = (u8*)Sys::VirtualReserve(permReserveSize);
-		permCommit = permBegin;
+		Sys::VirtualCommit(permBegin, 4096);
+		permCommit = permBegin + 4096;
 		permEnd    = permBegin + permReserveSize;
 
-		tlsf.Init();
+		tlsf.Init(permBegin, permCommit);
 
 		freeMemObjs = &memObjs[1];	// memObjs[0] is reserved for internal allocations
 		for (u32 i = 1; i < MaxMemObjs - 1; i++) {
@@ -379,7 +380,9 @@ struct MemApiObj : MemApi {
 		size = AlignUp(size, AlignSize);
 
 		if (tlsf.Extend(ptr, size)) {
-			RemoveTrace(ptr, blockSize);
+			RemoveTrace(mem, ptr);
+			AddTrace(mem, ptr, size);
+			return true;
 		}
 		Block* const block     = (Block*)((u8*)ptr - 16);
 		const u64    blockSize = block->Size();

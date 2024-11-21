@@ -138,6 +138,7 @@
   <ItemGroup>
     <None Include="Game Notes.md" />
     <None Include="Guidebook.md" />
+    <None Include="Tech Notes.md" />
     <None Include="Todo.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
