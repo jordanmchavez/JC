@@ -15,9 +15,10 @@ struct Block {
     Block* nextFree = 0;
     Block* prevFree = 0;
 
-	u64    Size()   const { return size & BlockSizeMask; }
-	bool   IsFree() const { return size & BlockFreeBit; }
-	Block* Next()         { return (Block*)((u8*)this + (size & BlockSizeMask) + 8); }
+	u64    Size()       const { return size & BlockSizeMask; }
+	bool   IsFree()     const { return size & BlockFreeBit; }
+	bool   IsPrevFree() const { return size & BlockPrevFreeBit; }
+	Block* Next()             { return (Block*)((u8*)this + (size & BlockSizeMask) + 8); }
 };
 
 struct Index {
@@ -123,10 +124,6 @@ struct Tlsf {
 		}
 	}
 
-	void RemoveFreeBlock(Block* block) {
-		RemoveFreeBlock(block, CalcIndex(block->Size()));
-	}
-
 	//----------------------------------------------------------------------------------------------
 
 	Block* AllocFreeBlock(u64 size) {
@@ -150,11 +147,17 @@ struct Tlsf {
 
 	//----------------------------------------------------------------------------------------------
 
-	void* Alloc(Block* block, u64 size) {
-		Assert(size % AlignSize == 0);
+	void* Alloc(u64 size) {
+		Assert(size);
+		Assert(size <= BlockSizeMax);
+		size = Max(AlignUp(size, AlignSize), BlockSizeMin);
+		Block* block = AllocFreeBlock(size);
+		if (!block) {
+			return 0;
+		}
 		const u64 blockSize = block->Size();
 		if (blockSize - size >= sizeof(Block)) {
-			Block* const rem = (Block*)((u8*)block + size + 8);
+			Block* const rem = block->Next();
 			const u64 remSize = blockSize - size - 8;
 			rem->size = remSize | BlockFreeBit;
 			block->size = size;
@@ -162,32 +165,73 @@ struct Tlsf {
 			InsertFreeBlock(rem);
 		} else {
 			block->size &= ~(BlockFreeBit | BlockPrevFreeBit);
-			((Block*)((u8*)block + blockSize + 8))->size |= BlockPrevFreeBit;
+			block->Next()->size |= BlockPrevFreeBit;
 		}
 		return (u8*)block + 16;
 	}
 
 	//----------------------------------------------------------------------------------------------
 
-	void* Alloc(u64 size) {
-		Assert(size && size % AlignSize == 0);
+	bool Extend(void* ptr, u64 size) {
+		Assert(ptr);
+		size = Max(AlignUp(size, AlignSize), BlockSizeMin);
 		Assert(size <= BlockSizeMax);
-		if (size < BlockSizeMin) { size = BlockSizeMin; }
-		Block* block = AllocFreeBlock(size);
-		if (!block) {
-			return 0;
-
+		Block* const block = (Block*)((u8*)ptr - 16);
+		const u64 blockSize = block->Size();
+		if (blockSize - 8 >= size) {
+			return true;
 		}
-		return Alloc(block, size);
+
+		Block* next = block->Next();
+		if (!next->IsFree()) {
+			return false;
+		}
+		const u64 nextSize = next->Size();
+		const u64 combinedSize = blockSize + nextSize + 8;
+		if (combinedSize < size) {
+			return false;
+		}
+		RemoveFreeBlock(next, CalcIndex(nextSize));
+		block->size += nextSize + 8;	// doesn't affect flags
+		next = block->Next();
+		Assert(!next->IsFree());
+		next->prevPhys = block;
+		next->size &= ~(BlockFreeBit & BlockPrevFreeBit);
+
+		if (block->Size()- size >= sizeof(Block)) {
+			Block* const rem = block->Next();
+			const u64 remSize = block->Size() - size - 8;
+			rem->size = remSize | BlockFreeBit;
+			block->size = size;
+			rem->prevPhys = block;
+			InsertFreeBlock(rem);
+		}
 	}
 
 	//----------------------------------------------------------------------------------------------
 
-	bool Extend(void* ptr, u64 size) {
-		Assert(ptr);
-		Assert(size && size % AlignSize == 0);
-		Assert(size <= BlockSizeMax);
-		if (size < BlockSizeMin) { size = BlockSizeMin; }
+	void Free(void* ptr) {
+		Block* block = (Block*)((u8*)ptr - 8);
+		Assert(!block->IsFree());
+		block->size |= BlockFreeBit;
+		Block* const next = block->Next();
+		next->size |= BlockPrevFreeBit;
+
+		if (block->IsPrevFree()) {
+			Block* const prev = block->prevPhys;
+			RemoveFreeBlock(prev);
+			prev->size += block->Size() + 8;
+			block = prev;
+		}
+		next->prevPhys = block;
+
+		if (next->size & BlockFreeBit) {
+			RemoveFreeBlock(next);
+			block->size += next->Size() + 8;
+			block->Next()->prevPhys = block;
+		}
+
+		InsertFreeBlock(block);
 	}
 
 	//----------------------------------------------------------------------------------------------
@@ -296,7 +340,7 @@ struct MemApiObj : MemApi {
 
 	//----------------------------------------------------------------------------------------------
 
-	void RemoveTrace(void* ptr, u64 size) {
+	void RemoveTrace(void* ptr) {
 		if (Opt<u64> idx = ptrToTrace.Find(ptr); idx.hasVal) {
 			Trace* trace = &traces[idx.val];
 			Assert(trace->allocs > 0);
@@ -345,9 +389,6 @@ struct MemApiObj : MemApi {
 		if (size == 0) {
 			return 0;
 		}
-
-		size = Max(AlignUp(size, AlignSize), BlockSizeMin);
-
 		void* ptr = tlsf.Alloc(size);
 		if (!ptr) {
 			// For simplicity, we deliberately don't check if the last block is free and include its size in the calc
@@ -364,59 +405,18 @@ struct MemApiObj : MemApi {
 			ptr = tlsf.Alloc(size);
 			Assert(ptr);
 		}
-
 		AddTrace(mem, ptr, size, sl);
-
 		return ptr;
 	}
 
 	//----------------------------------------------------------------------------------------------
 
 	bool Extend(MemObj* mem, void* ptr, u64 size, SrcLoc sl) {
-		if (!ptr) {
-			false;
-		}
-
-		size = AlignUp(size, AlignSize);
-
-		if (tlsf.Extend(ptr, size)) {
-			RemoveTrace(mem, ptr);
-			AddTrace(mem, ptr, size);
-			return true;
-		}
-		Block* const block     = (Block*)((u8*)ptr - 16);
-		const u64    blockSize = block->Size();
-
-		Block* next = (Block*)((u8*)block + blockSize + 8);
-		if (!(next->size & BlockFreeBit)) {
+		if (!ptr || !tlsf.Extend(ptr, size)) {
 			return false;
 		}
-
-		const u64 nextSize     = next->size & BlockSizeMask;
-		const u64 combinedSize = blockSize + nextSize + 8;
-		if (combinedSize < size) {
-			return false;
-		}
-
-
-		RemoveFreeBlock(next);
-		block->size += nextSize + 8;	// doesn't affect flags
-		next = (Block*)((u8*)block + (block->size & BlockSizeMask));
-		Assert(!(next->size & BlockFreeBit));
-		next->prevPhys = block;
-		next->size &= ~(BlockFreeBit & BlockPrevFreeBit);
-
-		if ((block->size & BlockSizeMask) - size >= sizeof(Block)) {
-			Block* const rem = (Block*)((u8*)block + size + 8);
-			const u64 remSize = (block->size & BlockSizeMask) - size - 8;
-			rem->size = remSize | BlockFreeBit;
-			block->size = size;
-			rem->prevPhys = block;
-			InsertFreeBlock(rem);
-		}
-
+		RemoveTrace(ptr);
 		AddTrace(mem, ptr, size, sl);
-
 		return true;
 	}
 
@@ -427,30 +427,9 @@ struct MemApiObj : MemApi {
 			return;
 		}
 
-		Block* block = (Block*)((u8*)ptr + 8);
-		Assert(!(block->size & BlockFreeBit));
-		block->size |= BlockFreeBit;
+		tlsf.Free(ptr);
+		RemoveTrace(ptr);
 
-		RemoveTrace(ptr, block->size & BlockSizeMask);
-
-		Block* const next = (Block*)((u8*)block + (block->size & BlockSizeMask) + 8);
-		next->size |= BlockPrevFreeBit;
-
-		if (block->size & BlockPrevFreeBit) {
-			Block* const prev = block->prevPhys;
-			RemoveFreeBlock(prev);
-			prev->size += (block->size & BlockSizeMask) + 8;
-			block = prev;
-		}
-		next->prevPhys = block;
-
-		if (next->size & BlockFreeBit) {
-			RemoveFreeBlock(next);
-			block->size += (next->size & BlockSizeMask) + 8;
-			((Block*)((u8*)block + block->size + 8))->prevPhys = block;
-		}
-
-		InsertFreeBlock(block);
 	}
 
 	//----------------------------------------------------------------------------------------------
