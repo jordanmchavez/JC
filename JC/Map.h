@@ -28,6 +28,12 @@ struct Map {
 	u64     elemsCap   = 0;
 	u8      mask       = 0;
 
+	Map() = default;
+
+	Map(Mem* memIn, SrcLoc sl = SrcLoc::DefArg()) {
+		Init(memIn, sl);
+	}
+
 	void Init(Mem* memIn, SrcLoc sl = SrcLoc::DefArg()) {
 		mem        = memIn;
 		buckets    = mem->AllocT<Bucket>(16, sl);

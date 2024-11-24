@@ -14,6 +14,7 @@ struct Tlsf {
 	void* Alloc(u64 size);
 	bool  Extend(void* ptr, u64 size);
 	void  Free(void* ptr);
+	bool  CheckIntegrity();
 };
 
 //--------------------------------------------------------------------------------------------------
