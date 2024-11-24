@@ -1,6 +1,7 @@
 #include "JC/Tlsf.h"
 
 #include "JC/Bit.h"
+#include "JC/Err.h"
 #include "JC/UnitTest.h"
 
 namespace JC {
@@ -294,10 +295,38 @@ void Tlsf::Free(void* ptr) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Tlsf::CheckIntegrity() {
-	for each size class, check there exists a free block
-	for each block
-	
+Res<> Tlsf::CheckIntegrity() {
+	TlsfObj* const tlsf = (TlsfObj*)opaque;
+	for (u32 f = 0; f < FirstCount; f++) {
+		const u32 fBit = tlsf->first & (1 << f);
+		if (
+			( fBit && !tlsf->second[f]) ||
+			(!fBit &&  tlsf->second[f])
+		) {
+			return MakeErr(Err_BitMapsMismatch, "f", f, "first", tlsf->first, "second", tlsf->second[f]);
+		}
+		for (u32 s = 0; s < SecondCount; s++) {
+			const u32 sBit = tlsf->second[f] & (1 << s);
+			if (
+				( sBit && tlsf->blocks[f][s] == &tlsf->nullBlock) ||
+				(!sBit && tlsf->blocks[f][s] != &tlsf->nullBlock)
+			) {
+				return MakeErr(Err_FreeBlocksMismatch, "f", f, "s", s);
+			}
+
+			#define TlsfCheck(cond, ec, ...) if (!(cond)) { return MakeErr(ec, ##__VA_ARGS__); }
+
+			for (Block* block = tlsf->blocks[f][s]; block != &tlsf->nullBlock; block = block->Next()) {
+				TlsfCheck(block->IsFree(),               Err_NotMarkedFree, "f", f, "s", s);
+				TlsfCheck(block->IsPrevFree(),           Err_NotCoalesced,  "f", f, "s", s);
+				TlsfCheck(!block->Next()->IsFree(),      Err_NotCoalesced,  "f", f, "s", s);
+				TlsfCheck(block->Next()->IsPrevFree(),   Err_NotMarkedFree, "f", f, "s", s);
+				TlsfCheck(block->Size() >= BlockSizeMin, Err_BlockTooSmall, "f", f, "s", s);
+				const Index idx = CalcIndex(block->Size());
+				TlsfCheck(idx.f == f && idx.s == s,      Err_BlockIndex,    "f", f, "s", s, "size", block->Size());
+			}
+		}
+	}
 }
 
 //--------------------------------------------------------------------------------------------------
