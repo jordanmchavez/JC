@@ -1,6 +1,7 @@
 #include "JC/Fmt.h"
 #include "JC/Log.h"
 #include "JC/Mem.h"
+#include "JC/MemTrace.h"
 #include "JC/Render.h"
 #include "JC/UnitTest.h"
 #include <stdio.h>
@@ -37,22 +38,14 @@ constexpr s8 FileNameOnly(s8 path) {
 	Sys::Abort();
 }
 
-struct MemLeakReporterObj : MemLeakReporter {
-	void Begin(s8 name, u64 bytes, u32 allocs, u32 children) override {name;bytes;allocs;children;}
-	void Alloc(SrcLoc sl, u64 bytes, u64 allocs) override {sl;bytes;allocs;}
-	void Child(s8 name, u64 bytes, u32 allocs) override {name;bytes;allocs;}
-	void End() override {}
-};
-
 int main(int argc, const char** argv) {
 	//RenderApi*        renderApi        = RenderApi::Get();
 
 	SetPanicFn(MyPanicFn);
 
-	MemLeakReporterObj memLeakReporterObj;
-
+	MemTraceApi* memTraceApi = MemTraceApi::Get();
 	MemApi* memApi = MemApi::Get();
-	memApi->Init((u64)16 * 1024 * 1024 * 1024, (u64)4 * 1024 * 1024 * 1024, &memLeakReporterObj);
+	memApi->Init(memTraceApi);
 	tempMem = memApi->Temp();
 
 	LogApi* logApi = LogApi::Get();

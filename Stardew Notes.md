@@ -28,7 +28,7 @@ Sandfish        | Desert                       | 6am-8pm           | SUFW |     
 Scorpion Carp   | Desert                       | 6am-8pm           | SUFW |           | 33  | 90 dart   | Requires Fishing Lv.4+
 Stonefish       | Mine20                       |                   | SUFW |           | 16  | 65 sinker |
 Ghostfish       | Mine20,Mine60                |                   | SUFW |           | 36  | 50 mixed  | Ghost drops
-Ice Pip         | Mine60                       |                   | SUFW |           |  9  | 85 dart    |
+Ice Pip         | Mine60                       |                   | SUFW |           |  9  | 85 dart   |
 Lava Eel        | Mine100,Volcano              |                   | SUFW |           | 33  | 90 mixed  |
 Void Salmon     | Witch                        |                   | SUFW |           | 66  | 80 mixed  |
 Stingray        | Pirate                       |                   | SUFW |           | 61  | 80 sinker |

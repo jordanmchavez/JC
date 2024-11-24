@@ -1,268 +1,16 @@
 #include "JC/Mem.h"
 
-#include "JC/Array.h"
-#include "JC/Bit.h"
-#include "JC/Map.h"
+#include "JC/MemTrace.h"
 #include "JC/Sys.h"
+#include "JC/Tlsf.h"
 
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-struct Block {
-    Block* prevPhys = 0;
-    u64    size     = 0;
-    Block* nextFree = 0;
-    Block* prevFree = 0;
-
-	u64    Size()       const { return size & BlockSizeMask; }
-	bool   IsFree()     const { return size & BlockFreeBit; }
-	bool   IsPrevFree() const { return size & BlockPrevFreeBit; }
-	Block* Next()             { return (Block*)((u8*)this + (size & BlockSizeMask) + 8); }
-};
-
-struct Index {
-	u32 f;
-	u32 s;
-};
-
-static constexpr u32 AlignSizeLog2       = 3;
-static constexpr u32 AlignSize           = 1 << AlignSizeLog2;
-static constexpr u32 SecondCountLog2     = 4;
-static constexpr u32 SecondCount         = 1 << SecondCountLog2;    // 16
-static constexpr u32 FirstShift          = SecondCountLog2 + AlignSizeLog2; // 8
-static constexpr u32 FirstMax            = 40;
-static constexpr u32 FirstCount          = FirstMax - FirstShift + 1;  // 64 - 8 + 1 = 57
-static constexpr u32 SmallBlockSize      = 1 << FirstShift; // 256
-static constexpr u64 BlockSizeMin        = sizeof(Block) - 8;	// 24
-static constexpr u64 BlockSizeMax        = ((u64)1 << FirstMax) - 8;
-static constexpr u64 BlockFreeBit        = 1 << 0;
-static constexpr u64 BlockPrevFreeBit    = 1 << 1;
-static constexpr u64 BlockSizeMask       = ~(BlockFreeBit | BlockPrevFreeBit);
-static constexpr u64 BlockStartOffset    = 16;	// right after Block.size
-
-static_assert(AlignSize == SmallBlockSize / SecondCount);
-
-struct Tlsf {
-	u8*    begin                           = 0;
-	u8*    end                             = 0;
-    Block  nullBlock                       = {};
-    u64    first                           = 0;
-    u64    second[FirstCount]              = {};
-    Block* blocks[FirstCount][SecondCount] = {};
-
-	//----------------------------------------------------------------------------------------------
-
-	void Init(void* beginIn, void* endIn) {
-		Assert((u64)beginIn % AlignSize == 0);
-		Assert((u64)endIn % AlignSize == 0);
-		begin              = (u8*)beginIn;
-		end                = (u8*)endIn;
-		nullBlock.nextFree = &nullBlock;
-		nullBlock.prevFree = &nullBlock;
-		first              = 0;
-		MemSet(second, 0, sizeof(second));
-		for (u32 i = 0; i < FirstCount; i++) {
-			for (u32 j = 0; j < SecondCount; j++) {
-				blocks[i][j] = &nullBlock;
-			}
-		}
-		Block* const block = (Block*)(begin - 8);
-		block->size        = (u64)(end - begin) | BlockFreeBit;
-		Block* const next  = block->Next();
-		next->prevPhys     = block;
-		next->size         = 0 | BlockPrevFreeBit;
-		InsertFreeBlock(block);
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	Index CalcIndex(u64 size) {
-		if (size < SmallBlockSize) {
-			return Index {
-				.f = 0,
-				.s = (u32)size / (SmallBlockSize / SecondCount),
-			};
-		} else {
-			const u64 roundedSize = size + ((u64)1 << (Bsr64(size) - SecondCountLog2)) - 1;
-			const u32 bit = Bsr64(roundedSize);
-			return Index {
-				.f = bit - FirstShift + 1,
-				.s = (u32)(roundedSize >> (bit - SecondCountLog2)) & ~(SecondCount - 1),
-			};
-		}
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	void InsertFreeBlock(Block* block) {
-		const Index idx = CalcIndex(block->Size());
-		Assert((u64)block % AlignSize  == 0);
-		block->nextFree                  = blocks[idx.f][idx.s];
-		block->prevFree                  = &nullBlock;
-		blocks[idx.f][idx.s]->prevFree = block;
-		blocks[idx.f][idx.s]           = block;
-		first         |= (u64)1 << idx.f;
-		second[idx.f] |= (u64)1 << idx.s;
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	void RemoveFreeBlock(Block* block, Index idx) {
-		Block* const n = block->nextFree;
-		Block* const p = block->prevFree;
-		n->prevFree = p;
-		p->nextFree = n;
-		if (blocks[idx.f][idx.s] == block) {
-			blocks[idx.f][idx.s] = n;
-			if (n == &nullBlock) {
-				second[idx.f] &= ~((u64)1 << idx.s);
-				if (!second[idx.f]) {
-					first &= ((u64)1 << idx.f);
-				}
-			}
-		}
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	Block* AllocFreeBlock(u64 size) {
-		Index idx = CalcIndex(size);
-		u64 secondMap = second[idx.f] & ((u64)(-1) << idx.s);
-		if (!secondMap) {
-			const u32 firstMap = first & ((u64)(-1) << (idx.f + 1));
-			if (!firstMap) {
-				return nullptr;
-			}
-			idx.f = Bsf64(firstMap);
-			secondMap = second[idx.f];
-			Assert(secondMap);
-		}
-		idx.s = Bsf64(secondMap);
-		Block* block = blocks[idx.f][idx.s];
-		Assert((block->size & BlockSizeMask) >= size);
-		RemoveFreeBlock(block, idx);
-		return block;
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	void* Alloc(u64 size) {
-		Assert(size);
-		Assert(size <= BlockSizeMax);
-		size = Max(AlignUp(size, AlignSize), BlockSizeMin);
-		Block* block = AllocFreeBlock(size);
-		if (!block) {
-			return 0;
-		}
-		const u64 blockSize = block->Size();
-		if (blockSize - size >= sizeof(Block)) {
-			Block* const rem = block->Next();
-			const u64 remSize = blockSize - size - 8;
-			rem->size = remSize | BlockFreeBit;
-			block->size = size;
-			rem->prevPhys = block;
-			InsertFreeBlock(rem);
-		} else {
-			block->size &= ~(BlockFreeBit | BlockPrevFreeBit);
-			block->Next()->size |= BlockPrevFreeBit;
-		}
-		return (u8*)block + 16;
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	bool Extend(void* ptr, u64 size) {
-		Assert(ptr);
-		size = Max(AlignUp(size, AlignSize), BlockSizeMin);
-		Assert(size <= BlockSizeMax);
-		Block* const block = (Block*)((u8*)ptr - 16);
-		const u64 blockSize = block->Size();
-		if (blockSize - 8 >= size) {
-			return true;
-		}
-
-		Block* next = block->Next();
-		if (!next->IsFree()) {
-			return false;
-		}
-		const u64 nextSize = next->Size();
-		const u64 combinedSize = blockSize + nextSize + 8;
-		if (combinedSize < size) {
-			return false;
-		}
-		RemoveFreeBlock(next, CalcIndex(nextSize));
-		block->size += nextSize + 8;	// doesn't affect flags
-		next = block->Next();
-		Assert(!next->IsFree());
-		next->prevPhys = block;
-		next->size &= ~(BlockFreeBit & BlockPrevFreeBit);
-
-		if (block->Size()- size >= sizeof(Block)) {
-			Block* const rem = block->Next();
-			const u64 remSize = block->Size() - size - 8;
-			rem->size = remSize | BlockFreeBit;
-			block->size = size;
-			rem->prevPhys = block;
-			InsertFreeBlock(rem);
-		}
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	void Free(void* ptr) {
-		Block* block = (Block*)((u8*)ptr - 8);
-		Assert(!block->IsFree());
-		block->size |= BlockFreeBit;
-		Block* const next = block->Next();
-		next->size |= BlockPrevFreeBit;
-
-		if (block->IsPrevFree()) {
-			Block* const prev = block->prevPhys;
-			RemoveFreeBlock(prev);
-			prev->size += block->Size() + 8;
-			block = prev;
-		}
-		next->prevPhys = block;
-
-		if (next->size & BlockFreeBit) {
-			RemoveFreeBlock(next);
-			block->size += next->Size() + 8;
-			block->Next()->prevPhys = block;
-		}
-
-		InsertFreeBlock(block);
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	void ExtendPool(u64 extend) {
-		Assert(extend % AlignSize == 0);
-		Block* last = (Block*)(end - 16);
-		if (last->IsFree()) {
-			RemoveFreeBlock(last);
-			last->size += extend;
-		} else {
-			last = last->Next();
-			last->size = (extend - 8) | BlockFreeBit;
-		}
-		Block* const next = last->Next();
-		next->size = 0;
-		next->prevPhys = last;
-		InsertFreeBlock(last);
-		end += extend;
-	}
-
-};
-
-//--------------------------------------------------------------------------------------------------
-
 struct MemObj : Mem {
-	s8      name     = {};
-	u64     bytes    = 0;
-	u32     allocs   = 0;
-	u32     children = 0;
-	MemObj* parent   = 0;
+	MemScope scope  = {};
+	MemObj*  parent = 0;	// doubles as next link in free list
 
 	void* Alloc(u64 size, SrcLoc sl) override;
 	bool  Extend(void* ptr, u64 size, SrcLoc sl) override;
@@ -280,101 +28,45 @@ struct TempMemObj : TempMem {
 
 //--------------------------------------------------------------------------------------------------
 
-struct Trace {
-	MemObj* mem    = 0;
-	SrcLoc  sl     = {};
-	u32     allocs = 0;
-	u64     bytes  = 0;
-};
-
-//--------------------------------------------------------------------------------------------------
-
-static constexpr u64   AlignUp   (u64   u, u64 align) { return (u + (align - 1)) & ~(align - 1); }
-static constexpr u64   AlignDown (u64   u, u64 align) { return u & ~(align - 1); }
-static constexpr void* AlignPtrUp(void* p, u64 align) {	return (void*)AlignUp((u64)p, align); }
-
-//--------------------------------------------------------------------------------------------------
-
 struct MemApiObj : MemApi {
-	static constexpr u32 MaxMemObjs      = 1024;
+	static constexpr u32 MaxMemObjs    = 1024;
+	static constexpr u64 TempAlignSize = 8;
 
-	u8*              permBegin           = 0;
-	u8*              permCommit          = 0;
-	u8*              permEnd             = 0;
-	Tlsf             tlsf                = {};
-	MemObj           memObjs[MaxMemObjs] = {};
-	MemObj*          freeMemObjs         = 0;	// parent is the "next" link field
+	MemTraceApi* memTraceApi         = 0;
 
-	Array<Trace>     traces              = {};
-	Map<u64, u64>    srcLocToTrace       = {};
-	Map<void*, u64>  ptrToTrace          = {};
-	MemLeakReporter* memLeakReporter     = 0;
+	Tlsf         tlsf                = {};
+	u64          permSize            = 0;
+	MemObj       memObjs[MaxMemObjs] = {};
+	MemObj*      freeMemObjs         = 0;
 
-	u8*              tempBegin           = 0;
-	u8*              tempUsed            = 0;
-	u8*              tempCommit          = 0;
-	u8*              tempReserve         = 0;
-	u8*              tempLastAlloc       = 0;
-	TempMemObj       tempMemObj          = {};
+	u8*          tempBegin           = 0;
+	u8*          tempUsed            = 0;
+	u8*          tempCommit          = 0;
+	u8*          tempReserve         = 0;
+	u8*          tempLastAlloc       = 0;
+	TempMemObj   tempMemObj          = {};
 
 	//----------------------------------------------------------------------------------------------
 
-	void AddTrace(MemObj* mem, void* ptr, u64 size, SrcLoc sl) {
-		u64 key = HashCombine(Hash(sl.file), &sl.line, sizeof(sl.line));
-		if (Opt<u64> idx = srcLocToTrace.Find(key)) {
-			Trace* trace = &traces[idx.val];
-			trace->allocs++;
-			trace->bytes += size;
-			ptrToTrace.Put(ptr, idx.val);
-		} else {
-			traces.Add(Trace {
-				.mem    = mem,
-				.sl     = sl,
-				.allocs = 1,
-				.bytes  = size,
-			});
-			ptrToTrace.Put(ptr, traces.len - 1);
-			srcLocToTrace.Put(key, traces.len - 1);
-		}
-	}
+	void Init(MemTraceApi* memTraceApiIn) override {
+		memTraceApi = memTraceApiIn;
 
-	//----------------------------------------------------------------------------------------------
+		permSize = 4 * 1024 * 1024;
+		void* const permChunk = Sys::VirtualAlloc(permSize);
+		memTraceApi->PermAlloc(permSize);
+		tlsf.Init(permChunk, permSize);
 
-	void RemoveTrace(void* ptr) {
-		if (Opt<u64> idx = ptrToTrace.Find(ptr); idx.hasVal) {
-			Trace* trace = &traces[idx.val];
-			Assert(trace->allocs > 0);
-			trace->allocs--;
-			trace->bytes -= size;
-			ptrToTrace.Remove(ptr);
-		}
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	void Init(u64 permReserveSize, u64 tempReserveSize, MemLeakReporter* reporterIn) override {
-		permBegin  = (u8*)Sys::VirtualReserve(permReserveSize);
-		Sys::VirtualCommit(permBegin, 4096);
-		permCommit = permBegin + 4096;
-		permEnd    = permBegin + permReserveSize;
-
-		tlsf.Init(permBegin, permCommit);
-
-		freeMemObjs = &memObjs[1];	// memObjs[0] is reserved for internal allocations
+		freeMemObjs = &memObjs[1];	// memObjs[0] is reserved for the perm allocator
 		for (u32 i = 1; i < MaxMemObjs - 1; i++) {
 			memObjs[i].parent = &memObjs[i + 1];
 		}
 		memObjs[MaxMemObjs - 1].parent = nullptr;
 
-		traces.mem = &memObjs[0];
-		srcLocToTrace.Init(&memObjs[0]);
-		ptrToTrace.Init(&memObjs[0]);
-		memLeakReporter = reporterIn;
-
-		tempBegin     = (u8*)Sys::VirtualReserve(tempReserveSize);
+		constexpr u64 TempReserveSize = (u64)4 * 1024 * 1024 * 1024;
+		tempBegin     = (u8*)Sys::VirtualReserve(TempReserveSize);
 		tempUsed      = tempBegin;
 		tempCommit    = tempBegin;
-		tempReserve   = tempBegin + tempReserveSize;
+		tempReserve   = tempBegin + TempReserveSize;
 		tempLastAlloc = 0;
 	}
 
@@ -391,62 +83,52 @@ struct MemApiObj : MemApi {
 		}
 		void* ptr = tlsf.Alloc(size);
 		if (!ptr) {
-			// For simplicity, we deliberately don't check if the last block is free and include its size in the calc
-			const u64 commitSize = permCommit - permBegin;
-			u64 extend = Max((u64)4096, commitSize * 2);
-			while (extend - 8 < size) {
-				extend *= 2;
-				Assert(commitSize + extend <= BlockSizeMax);
+			u64 chunkSize = permSize;
+			while (chunkSize - 8 < size) {
+				chunkSize *= 2;
 			}
-			Sys::VirtualCommit(permCommit, extend);
-			permCommit += extend;
+			void* const chunk = Sys::VirtualAlloc(chunkSize);
+			memTraceApi->PermAlloc(chunkSize);
+			permSize += chunkSize;
 
-			tlsf.ExtendPool(extend);
+			tlsf.AddChunk(chunk, chunkSize);
 			ptr = tlsf.Alloc(size);
 			Assert(ptr);
 		}
-		AddTrace(mem, ptr, size, sl);
+		memTraceApi->AddTrace(mem->scope, ptr, size, sl);
 		return ptr;
 	}
 
 	//----------------------------------------------------------------------------------------------
 
 	bool Extend(MemObj* mem, void* ptr, u64 size, SrcLoc sl) {
-		if (!ptr || !tlsf.Extend(ptr, size)) {
-			return false;
+		if (ptr && tlsf.Extend(ptr, size)) {
+			memTraceApi->RemoveTrace(mem->scope, ptr);
+			memTraceApi->AddTrace(mem->scope, ptr, size, sl);
+			return true;
 		}
-		RemoveTrace(ptr);
-		AddTrace(mem, ptr, size, sl);
-		return true;
+		return false;
 	}
 
 	//----------------------------------------------------------------------------------------------
 
-	void Free(void* ptr) {
-		if (!ptr) {
-			return;
+	void Free(MemObj* mem, void* ptr) {
+		if (ptr) {
+			tlsf.Free(ptr);
+			memTraceApi->RemoveTrace(mem->scope, ptr);
 		}
-
-		tlsf.Free(ptr);
-		RemoveTrace(ptr);
-
 	}
 
 	//----------------------------------------------------------------------------------------------
 
 	Mem* CreateScope(s8 name, Mem* parent) override {
-		Assert(!parent || ((MemObj*)parent >= &memObjs[1] && (MemObj*)parent <= &memObjs[MaxMemObjs]));
+		MemObj* const p = (MemObj*)parent;
+		Assert(!parent || (p >= &memObjs[1] && p<= &memObjs[MaxMemObjs]));
 		Assert(freeMemObjs);
 		MemObj* const m = freeMemObjs;
 		freeMemObjs = freeMemObjs->parent;
-		m->name     = name;
-		m->bytes    = 0;
-		m->allocs   = 0;
-		m->children = 0;
-		m->parent   = (MemObj*)parent;
-		if (m->parent) {
-			m->parent->children++;
-		}
+		m->scope  = memTraceApi->CreateScope(name, p ? p->scope : MemScope{});
+		m->parent = p;
 		return m;
 	}
 
@@ -454,40 +136,20 @@ struct MemApiObj : MemApi {
 
 	void DestroyScope(Mem* mem) override {
 		MemObj* m = (MemObj*)mem;
-		if (
-			memLeakReporter && 
-			(
-				(m->bytes > 0 || m->allocs > 0) ||
-				(m->children > 0)
-			)
-		) {
-			memLeakReporter->Begin(m->name, m->bytes, m->allocs, m->children);
-			for (u64 i = 0; i < traces.len; i++) {
-				if (traces[i].mem == m) {
-					memLeakReporter->Alloc(traces[i].sl, traces[i].bytes, traces[i].allocs);
-				}
-			}
-			if (m->children > 0) {
-				for (u32 i = 0; i < MaxMemObjs; i++) {
-					if (memObjs[i].parent == m) {
-						memLeakReporter->Child(memObjs[i].name, memObjs[i].bytes, memObjs[i].allocs);
-					}
-				}
-			}
-		}
-		MemSet(m, 0, sizeof(MemObj));
+		memTraceApi->DestroyScope(m->scope);
+		MemSet(m, 0, sizeof(*m));
 		m->parent = freeMemObjs;
 		freeMemObjs = m;
 	}
 
 	//----------------------------------------------------------------------------------------------
 
-	void* TempAlloc(u64 size, SrcLoc) {
-		size = AlignUp(size, AlignSize);
+	void* TempAlloc(u64 size) {
+		size = AlignUp(size, TempAlignSize);
 		Assert(tempCommit >= tempUsed);
 		const u64 tempAvail = (u64)(tempCommit - tempUsed);
 		if (tempAvail < size) {
-			u64 extend = Max((u64)4096, (u64)(tempCommit - tempReserve) * 2);
+			u64 extend = Max((u64)4096, (u64)(tempCommit - tempBegin) * 2);
 			while (tempAvail + extend < size) {
 				extend *= 2;
 				Assert(tempCommit + extend < tempReserve);
@@ -503,12 +165,12 @@ struct MemApiObj : MemApi {
 
 	//----------------------------------------------------------------------------------------------
 
-	bool TempExtend(void* ptr, u64 size, SrcLoc) {
-		if (ptr != tempLastAlloc) {
+	bool TempExtend(void* ptr, u64 size) {
+		if (!ptr || ptr != tempLastAlloc) {
 			return false;
 		}
 
-		size = AlignUp(size, AlignSize);
+		size = AlignUp(size, TempAlignSize);
 		tempUsed = tempLastAlloc;
 
 		Assert(tempCommit >= tempUsed);
@@ -543,6 +205,8 @@ struct MemApiObj : MemApi {
 	}
 };
 
+//--------------------------------------------------------------------------------------------------
+
 static MemApiObj memApiObj;
 
 MemApi* MemApi::Get() {
@@ -551,14 +215,14 @@ MemApi* MemApi::Get() {
 
 //--------------------------------------------------------------------------------------------------
 
-void* MemObj::Alloc(u64 size, SrcLoc sl)                 { return memApiObj.Alloc(this, size, sl); }
-bool  MemObj::Extend(void* ptr, u64 size, SrcLoc sl)     { return memApiObj.Extend(this, ptr, size, sl); }
-void  MemObj::Free(void* ptr)                            { memApiObj.Free(ptr); }
+void* MemObj::Alloc(u64 size, SrcLoc sl)              { return memApiObj.Alloc(this, size, sl); }
+bool  MemObj::Extend(void* ptr, u64 size, SrcLoc sl)  { return memApiObj.Extend(this, ptr, size, sl); }
+void  MemObj::Free(void* ptr)                         { memApiObj.Free(this, ptr); }
 
-void* TempMemObj::Alloc(u64 size, SrcLoc sl)             { return memApiObj.TempAlloc(size, sl); }
-bool  TempMemObj::Extend(void* ptr, u64 size, SrcLoc sl) { return memApiObj.TempExtend(ptr, size, sl); }
-u64   TempMemObj::Mark()                                 { return memApiObj.TempMark(); }
-void  TempMemObj::Reset(u64 mark)                        { memApiObj.TempReset(mark); }
+void* TempMemObj::Alloc(u64 size, SrcLoc)             { return memApiObj.TempAlloc(size); }
+bool  TempMemObj::Extend(void* ptr, u64 size, SrcLoc) { return memApiObj.TempExtend(ptr, size); }
+u64   TempMemObj::Mark()                              { return memApiObj.TempMark(); }
+void  TempMemObj::Reset(u64 mark)                     { memApiObj.TempReset(mark); }
 
 //--------------------------------------------------------------------------------------------------
 

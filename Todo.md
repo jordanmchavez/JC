@@ -169,3 +169,4 @@ temp mem doubling chunk size up to some limit...also consider just reserving and
 test tracing
 see if we can get hash table sizing to not double: but may require power of two
 track "want to extend last block but failed" frequency. it may make sense to specialize this path in the allocator
+add temp memory high water mark tracking and freeing up

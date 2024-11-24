@@ -4,6 +4,8 @@
 
 namespace JC {
 
+struct MemTraceApi;
+
 //--------------------------------------------------------------------------------------------------
 
 struct Mem {
@@ -26,17 +28,10 @@ struct TempMem : Mem {
 
 //--------------------------------------------------------------------------------------------------
 
-struct MemLeakReporter {
-	virtual void Begin(s8 name, u64 bytes, u32 allocs, u32 children) = 0;
-	virtual void Alloc(SrcLoc sl, u64 bytes, u64 allocs) = 0;
-	virtual void Child(s8 name, u64 bytes, u32 allocs) = 0;
-	virtual void End() = 0;
-};
-
 struct MemApi {
 	static MemApi* Get();
 
-	virtual void     Init(u64 permReserveSize, u64 tempReserveSize, MemLeakReporter* reporter) = 0;
+	virtual void     Init(MemTraceApi* memTraceApi) = 0;
 	virtual Mem*     Perm() = 0;
 	virtual TempMem* Temp() = 0;
 	virtual Mem*     CreateScope(s8 name, Mem* parent) = 0;

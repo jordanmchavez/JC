@@ -11,6 +11,7 @@ namespace Sys {
 	bool IsDebuggerPresent();
 	void DebuggerPrint(const char* msg);
 
+	void* VirtualAlloc(u64 size);
 	void* VirtualReserve(u64 size);
 	void  VirtualCommit(const void* p, u64 size);
 	void  VirtualFree(const void* p);
