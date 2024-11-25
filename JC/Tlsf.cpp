@@ -123,27 +123,6 @@ static void RemoveFreeBlock(Ctx* ctx, Block* block) { RemoveFreeBlock(ctx, block
 
 //--------------------------------------------------------------------------------------------------
 
-static Block* AllocFreeBlock(Ctx* ctx, u64 size) {
-	Index idx = CalcIndex(size);
-	u64 secondMap = ctx->second[idx.f] & ((u64)(-1) << idx.s);
-	if (!secondMap) {
-		const u32 firstMap = ctx->first & ((u64)(-1) << (idx.f + 1));
-		if (!firstMap) {
-			return nullptr;
-		}
-		idx.f = Bsf64(firstMap);
-		secondMap = ctx->second[idx.f];
-		Assert(secondMap);
-	}
-	idx.s = Bsf64(secondMap);
-	Block* const block = ctx->blocks[idx.f][idx.s];
-	Assert(block->Size() >= size);
-	RemoveFreeBlock(ctx, block, idx);
-	return block;
-}
-
-//--------------------------------------------------------------------------------------------------
-
 static void Split(Ctx* ctx, Block* block, u64 size)
 {
 	Assert(block->Size() >= size + 8);
@@ -210,18 +189,33 @@ void* Tlsf::Alloc(u64 size) {
 	Ctx* const ctx = (Ctx*)opaque;
 
 	Assert(size);
-	Assert(size <= BlockSizeMax);
+	Assert(size < BlockSizeMax);
 
-	if (size < 16) {
-		size = 16;
-	} else {
-		size = AlignUp(size, AlignSize);
+	size = Max(AlignUp(size, AlignSize), BlockSizeMin);
+	if (size >= SmallBlockSize) {
+		size += ((u64)1 << (Bsr64(size) - SecondCountLog2)) - 1;
 	}
-	Block* block = AllocFreeBlock(ctx, size);
+	Index idx = CalcIndex(size);
+	u64 sMap = ctx->second[idx.f] & ((u64)(-1) << idx.s);
+	if (!sMap) {
+		const u32 fMap = ctx->first & ((u64)(-1) << (idx.f + 1));
+		if (!fMap) {
+			return nullptr;
+		}
+		idx.f = Bsf64(fMap);
+		sMap = ctx->second[idx.f];
+	}
+	Assert(sMap);
+	idx.s = Bsf64(sMap);
+	Block* const block = ctx->blocks[idx.f][idx.s];
+	Assert(block->Size() >= size);
+
 	if (!block) {
 		return 0;
 	}
+	Assert(block->Size() >= size);
 	Assert(!block->IsPrevFree());
+	RemoveFreeBlock(ctx, block, idx);
 
 	if (block->Size() - size >= sizeof(Block)) {
 		const u64 remSize = block->Size() - size - 8;
@@ -289,18 +283,21 @@ void Tlsf::Free(void* ptr) {
 	Block* block = (Block*)((u8*)ptr - 16);
 	Assert(!block->IsFree());
 	block->size |= BlockFreeBit;
+
 	Block* const next = block->Next();
 	next->size |= BlockPrevFreeBit;
 
 	if (block->IsPrevFree()) {
 		Block* const prev = block->prevPhys;
+		Assert(prev);
+		Assert(prev->IsFree());
 		RemoveFreeBlock(ctx, prev);
 		prev->size += block->Size() + 8;
+		next->prevPhys = prev;
 		block = prev;
 	}
-	next->prevPhys = block;
-
-	if (next->size & BlockFreeBit) {
+	if (next->IsFree()) {
+		Assert(next->Size() > 0);
 		RemoveFreeBlock(ctx, next);
 		block->size += next->Size() + 8;
 		block->Next()->prevPhys = block;
