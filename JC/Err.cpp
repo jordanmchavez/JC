@@ -9,29 +9,31 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 struct [[nodiscard]] ErrArg {
-	s8  name = {};
-	Arg arg  = {};
+	s8  name;
+	Arg arg;
 };
 
 struct [[nodiscard]] Err {
-	Err*    prev    = 0;
-	s8      file    = 0;
-	i32     line    = 0;
-	ErrCode ec      = {};
-	u32     argsLen = 0;
-	ErrArg  args[1] = {};	// variable length
+	Err*    prev;
+	SrcLoc  sl;
+	i32     line;
+	ErrCode ec;
+	u32     argsLen;
+	ErrArg  args[1];	// variable length
 };
 
 //--------------------------------------------------------------------------------------------------
 
-Err* _VMakeErr(Mem* mem, Err* prev, s8 file, i32 line, ErrCode ec, const ErrArg* errArgs, u32 errArgsLen) {
-	Err* err     = (Err*)mem->Alloc(sizeof(Err) + (errArgsLen > 0 ? errArgsLen - 1 : 0) * sizeof(ErrArg));
+Err* _VMakeErr(Err* prev, SrcLoc sl, ErrCode ec, const s8* argNames, const Arg* args, u32 argsLen) {
+	Err* err     = (Err*)MemApi::Get()->Temp()->Alloc(sizeof(Err) + (argsLen > 0 ? argsLen - 1 : 0) * sizeof(ErrArg));
 	err->prev    = (Err*)prev;
-	err->file    = file;
-	err->line    = line;
+	err->sl      = sl;
 	err->ec      = ec;
-	err->argsLen = errArgsLen;
-	MemCpy(err->args, errArgs, errArgsLen * sizeof(errArgs[0]));
+	err->argsLen = argsLen;
+	for (u32 i = 0; i < argsLen; i++) {
+		err->args[i].name = argNames[i];
+		err->args[i].arg  = args[i];
+	}
 	return err;
 }
 
@@ -43,7 +45,7 @@ void AddErrStr(Err* err, Array<char>* out) {
 	}
 	out->data[out->len - 1] = '\n';	// overwrite trailing ':'
 	for (Err* e = err; e; e = e->prev) {
-		Fmt(out, "  {}({}): {}-{}\n", e->file, e->line, e->ec.ns, e->ec.code);
+		Fmt(out, "  {}({}): {}-{}\n", e->sl.file, e->sl.line, e->ec.ns, e->ec.code);
 		for (u32 i = 0; i < e->argsLen; i++) {
 			Fmt(out, "    '{}' = {}\n", e->args[i].name, e->args[i].arg);
 		}

@@ -137,7 +137,7 @@ namespace UnitTest {
 		return failedTests == 0;
 	}
 
-	bool CheckFail(SrcLoc sl, s8 expr) {
+	bool CheckTrueFail(SrcLoc sl, s8 expr) {
 		Log("***CHECK FAILED***");
 		Log("{}({})", sl.file, sl.line);
 		Log("  {}\n", expr);

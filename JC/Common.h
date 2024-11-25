@@ -129,7 +129,6 @@ template <class...>           inline constexpr bool AlwaysFalse                 
 //--------------------------------------------------------------------------------------------------
 
 enum struct ArgType {
-	Invalid = 0,
 	Bool,
 	Char,
 	I64,
@@ -140,14 +139,14 @@ enum struct ArgType {
 };
 
 struct ArgStr {
-	const char* data = 0;
-	u64         len  = 0;
+	const char* data;
+	u64         len;
 };
 
 struct Args;
 
 struct Arg {
-	ArgType type = ArgType::Invalid;
+	ArgType type;
 	union {
 		bool        b;
 		char        c;

@@ -9,28 +9,29 @@ struct Mem;
 
 //--------------------------------------------------------------------------------------------------
 
-Err* _VMakeErr(Err* prev, SrcLoc sl, ErrCode ec, const s8* argNames, const Arg* argVals, u32 argsLen);
+Err* _VMakeErr(Err* prev, SrcLoc sl, ErrCode ec, const s8* argNames, const Arg* args, u32 argsLen);
 
-template <class T, class... A> static void _FillErrArgs(s8* argNames, Arg* argVals, s8 name, T val, A... args) {
+template <class T, class... A> static void _FillErrArgs(s8* argNames, Arg* args, s8 name, T val, A... a) {
 	argNames[0] = name;
-	argVals[0]  = Arg::Make(val);
+	args[0]  = Arg::Make(val);
 	if constexpr (sizeof...(A) > 0) {
-		_FillErrArgs(argNames + 1, argVals + 1, args...);
+		_FillErrArgs(argNames + 1, args + 1, a...);
 	}
 }
-template <class... A> Err* _MakeErr(Err* prev, s8 file, i32 line, ErrCode ec, A... args) {
+
+template <class... A> Err* _MakeErr(Err* prev, SrcLoc sl, ErrCode ec, A... a) {
 	static_assert(sizeof...(A) % 2 == 0);
 	constexpr u32 ArgsLen = sizeof...(A) / 2;
 	s8  argNames[ArgsLen > 0 ? ArgsLen : 1];
-	Arg argVals[ArgsLen > 0 ? ArgsLen : 1];
+	Arg args[ArgsLen > 0 ? ArgsLen : 1];
 	if constexpr (ArgsLen > 0) {
-		_FillErrArgs(argNames, argVals, args...);
+		_FillErrArgs(argNames, args, a...);
 	}
-	return _VMakeErr(prev, file, line, ec, argNames, argVals, ArgsLen);
+	return _VMakeErr(prev, sl, ec, argNames, args, ArgsLen);
 }
 
 #define MakeErr(ec, ...) \
-	_MakeErr(0, __FILE__, __LINE__, ec, ##__VA_ARGS__)
+	_MakeErr(0, SrcLoc::DefArg(), ec, ##__VA_ARGS__)
 
 s8 MakeErrStr(Err* err);
 void AddErrStr(Err* err, Array<char>* arr);

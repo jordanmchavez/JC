@@ -10,7 +10,6 @@ namespace JC {
 
 static constexpr u64 BlockFreeBit     = 1 << 0;
 static constexpr u64 BlockPrevFreeBit = 1 << 1;
-static constexpr u64 BlockSizeMask    = ~(BlockFreeBit | BlockPrevFreeBit);
 
 struct Block {
 	Block* prevPhys = 0;
@@ -18,12 +17,19 @@ struct Block {
 	Block* nextFree = 0;
 	Block* prevFree = 0;
 
-	u64          Size()       const { return size & BlockSizeMask; }
+	u64          Size()       const { return size & ~(BlockFreeBit | BlockPrevFreeBit); }
 	bool         IsFree()     const { return size & BlockFreeBit; }
 	bool         IsPrevFree() const { return size & BlockPrevFreeBit; }
-	Block*       Next()             { return (Block*)((u8*)this + (size & BlockSizeMask) + 8); }
-	const Block* Next()       const { return (const Block*)((u8*)this + (size & BlockSizeMask) + 8); }
+	Block*       Next()             { return (Block*)((u8*)this + Size() + 8); }
+	const Block* Next()       const { return (const Block*)((u8*)this + Size() + 8); }
 };
+
+struct Chunk {
+	u64    size = 0;
+	Chunk* next = 0;
+};
+static_assert(sizeof(Chunk) % 8 == 0);
+static_assert(alignof(Chunk) == 8);
 
 static constexpr u32 AlignSizeLog2    = 3;
 static constexpr u32 AlignSize        = 1 << AlignSizeLog2;
@@ -43,12 +49,15 @@ struct Index {
 	u32 s;
 };
 
-struct TlsfObj {
+struct Ctx {
     Block  nullBlock                       = {};
     u64    first                           = 0;
     u64    second[FirstCount]              = {};
     Block* blocks[FirstCount][SecondCount] = {};
+	Chunk* chunks                          = 0;
 };
+static_assert(sizeof(Ctx) % 8 == 0);
+static_assert(alignof(Ctx) == 8);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -81,61 +90,61 @@ static Index CalcIndex(u64 size) {
 
 //--------------------------------------------------------------------------------------------------
 
-static void InsertFreeBlock(TlsfObj* tlsf, Block* block) {
+static void InsertFreeBlock(Ctx* ctx, Block* block) {
 	const Index idx = CalcIndex(block->Size());
 	Assert((u64)block % AlignSize  == 0);
-	block->nextFree = tlsf->blocks[idx.f][idx.s];
-	block->prevFree = &tlsf->nullBlock;
-	tlsf->blocks[idx.f][idx.s]->prevFree = block;
-	tlsf->blocks[idx.f][idx.s]           = block;
-	tlsf->first         |= (u64)1 << idx.f;
-	tlsf->second[idx.f] |= (u64)1 << idx.s;
+	block->nextFree = ctx->blocks[idx.f][idx.s];
+	block->prevFree = &ctx->nullBlock;
+	ctx->blocks[idx.f][idx.s]->prevFree = block;
+	ctx->blocks[idx.f][idx.s]           = block;
+	ctx->first         |= (u64)1 << idx.f;
+	ctx->second[idx.f] |= (u64)1 << idx.s;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static void RemoveFreeBlock(TlsfObj* tlsf, Block* block, Index idx) {
+static void RemoveFreeBlock(Ctx* ctx, Block* block, Index idx) {
 	Block* const n = block->nextFree;
 	Block* const p = block->prevFree;
 	n->prevFree = p;
 	p->nextFree = n;
-	if (tlsf->blocks[idx.f][idx.s] == block) {
-		tlsf->blocks[idx.f][idx.s] = n;
-		if (n == &tlsf->nullBlock) {
-			tlsf->second[idx.f] &= ~((u64)1 << idx.s);
-			if (!tlsf->second[idx.f]) {
-				tlsf->first &= ~((u64)1 << idx.f);
+	if (ctx->blocks[idx.f][idx.s] == block) {
+		ctx->blocks[idx.f][idx.s] = n;
+		if (n == &ctx->nullBlock) {
+			ctx->second[idx.f] &= ~((u64)1 << idx.s);
+			if (!ctx->second[idx.f]) {
+				ctx->first &= ~((u64)1 << idx.f);
 			}
 		}
 	}
 }
 
-static void RemoveFreeBlock(TlsfObj* tlsf, Block* block) { RemoveFreeBlock(tlsf, block, CalcIndex(block->Size()));  }
+static void RemoveFreeBlock(Ctx* ctx, Block* block) { RemoveFreeBlock(ctx, block, CalcIndex(block->Size()));  }
 
 //--------------------------------------------------------------------------------------------------
 
-static Block* AllocFreeBlock(TlsfObj* tlsf, u64 size) {
+static Block* AllocFreeBlock(Ctx* ctx, u64 size) {
 	Index idx = CalcIndex(size);
-	u64 secondMap = tlsf->second[idx.f] & ((u64)(-1) << idx.s);
+	u64 secondMap = ctx->second[idx.f] & ((u64)(-1) << idx.s);
 	if (!secondMap) {
-		const u32 firstMap = tlsf->first & ((u64)(-1) << (idx.f + 1));
+		const u32 firstMap = ctx->first & ((u64)(-1) << (idx.f + 1));
 		if (!firstMap) {
 			return nullptr;
 		}
 		idx.f = Bsf64(firstMap);
-		secondMap = tlsf->second[idx.f];
+		secondMap = ctx->second[idx.f];
 		Assert(secondMap);
 	}
 	idx.s = Bsf64(secondMap);
-	Block* const block = tlsf->blocks[idx.f][idx.s];
+	Block* const block = ctx->blocks[idx.f][idx.s];
 	Assert(block->Size() >= size);
-	RemoveFreeBlock(tlsf, block, idx);
+	RemoveFreeBlock(ctx, block, idx);
 	return block;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static void Split(TlsfObj* tlsf, Block* block, u64 size)
+static void Split(Ctx* ctx, Block* block, u64 size)
 {
 	Assert(block->Size() >= size + 8);
 	Assert(!block->IsPrevFree());
@@ -145,7 +154,7 @@ static void Split(TlsfObj* tlsf, Block* block, u64 size)
 	Block* const rem = block->Next();
 	rem->size = remSize | BlockFreeBit;
 	rem->prevPhys = block;
-	InsertFreeBlock(tlsf, rem);
+	InsertFreeBlock(ctx, rem);
 	rem->Next()->prevPhys = rem;
 }
 
@@ -153,45 +162,52 @@ static void Split(TlsfObj* tlsf, Block* block, u64 size)
 
 void Tlsf::Init(void* ptr, u64 size) {
 	opaque = (u64)ptr;
-	TlsfObj* tlsf = (TlsfObj*)ptr;
+	Ctx* ctx = (Ctx*)ptr;
 
-	tlsf->nullBlock.nextFree = &tlsf->nullBlock;
-	tlsf->nullBlock.prevFree = &tlsf->nullBlock;
+	ctx->nullBlock.nextFree = &ctx->nullBlock;
+	ctx->nullBlock.prevFree = &ctx->nullBlock;
 
-	tlsf->first = 0;
-	MemSet(tlsf->second, 0, sizeof(tlsf->second));
+	ctx->first = 0;
+	MemSet(ctx->second, 0, sizeof(ctx->second));
 	for (u32 i = 0; i < FirstCount; i++) {
 		for (u32 j = 0; j < SecondCount; j++) {
-			tlsf->blocks[i][j] = &tlsf->nullBlock;
+			ctx->blocks[i][j] = &ctx->nullBlock;
 		}
 	}
 
-	void* const chunk    = AlignPtrUp((u8*)ptr + sizeof(TlsfObj), AlignSize);
-	u64 const chunkSize = size - (u64)((u8*)chunk - (u8*)ptr);
-	AddChunk(chunk, chunkSize);
+	ctx->chunks = 0;
+	void* const chunk = AlignPtrUp((u8*)ptr + sizeof(Ctx), AlignSize);
+	AddChunk(chunk, size - (u64)((u8*)chunk - (u8*)ptr));
 }
 
 //--------------------------------------------------------------------------------------------------
 
 void Tlsf::AddChunk(void* ptr, u64 size){
-	TlsfObj* const tlsf = (TlsfObj*)opaque;
+	Ctx* const ctx = (Ctx*)opaque;
 
 	Assert(ptr);
 	Assert((u64)ptr % AlignSize == 0);
 	Assert(size % AlignSize == 0);
 
-	Block* const block  = (Block*)((u8*)ptr - 8);
-	block->size         = (size - 16) | BlockFreeBit;
+	Chunk* chunk = (Chunk*)ptr;
+	chunk->next = ctx->chunks;
+	chunk->size = size;
+	ctx->chunks = chunk;
+
+
+	Block* const block  = (Block*)((u8*)ptr + sizeof(Chunk) - 8);
+	block->prevPhys     = 0;
+	block->size         = (size - sizeof(Chunk) - 16) | BlockFreeBit;
 	Block* const last   = block->Next();
 	last->prevPhys      = block;
 	last->size          = 0 | BlockPrevFreeBit;
-	InsertFreeBlock(tlsf, block);
+	InsertFreeBlock(ctx, block);
 }
 
 //--------------------------------------------------------------------------------------------------
 
 void* Tlsf::Alloc(u64 size) {
-	TlsfObj* const tlsf = (TlsfObj*)opaque;
+	Ctx* const ctx = (Ctx*)opaque;
 
 	Assert(size);
 	Assert(size <= BlockSizeMax);
@@ -201,7 +217,7 @@ void* Tlsf::Alloc(u64 size) {
 	} else {
 		size = AlignUp(size, AlignSize);
 	}
-	Block* block = AllocFreeBlock(tlsf, size);
+	Block* block = AllocFreeBlock(ctx, size);
 	if (!block) {
 		return 0;
 	}
@@ -214,7 +230,7 @@ void* Tlsf::Alloc(u64 size) {
 		Block* const rem = block->Next();
 		rem->size = remSize | BlockFreeBit;
 		rem->prevPhys = block;
-		InsertFreeBlock(tlsf, rem);
+		InsertFreeBlock(ctx, rem);
 		rem->Next()->prevPhys = rem;
 
 	} else {
@@ -228,7 +244,7 @@ void* Tlsf::Alloc(u64 size) {
 //--------------------------------------------------------------------------------------------------
 
 bool Tlsf::Extend(void* ptr, u64 size) {
-	TlsfObj* const tlsf = (TlsfObj*)opaque;
+	Ctx* const ctx = (Ctx*)opaque;
 
 	Assert(ptr);
 	size = Max(AlignUp(size, AlignSize), BlockSizeMin);
@@ -251,7 +267,7 @@ bool Tlsf::Extend(void* ptr, u64 size) {
 		return false;
 	}
 
-	RemoveFreeBlock(tlsf, next, CalcIndex(nextSize));
+	RemoveFreeBlock(ctx, next, CalcIndex(nextSize));
 	block->size += nextSize + 8;	// doesn't affect flags
 	next = block->Next();
 	Assert(!next->IsFree());
@@ -259,7 +275,7 @@ bool Tlsf::Extend(void* ptr, u64 size) {
 	next->size &= ~(BlockFreeBit & BlockPrevFreeBit);
 
 	if (block->Size()- size >= sizeof(Block)) {
-		Split(tlsf, block, size);
+		Split(ctx, block, size);
 	}
 
 	return true;
@@ -268,7 +284,7 @@ bool Tlsf::Extend(void* ptr, u64 size) {
 //--------------------------------------------------------------------------------------------------
 
 void Tlsf::Free(void* ptr) {
-	TlsfObj* const tlsf = (TlsfObj*)opaque;
+	Ctx* const ctx = (Ctx*)opaque;
 
 	Block* block = (Block*)((u8*)ptr - 16);
 	Assert(!block->IsFree());
@@ -278,55 +294,94 @@ void Tlsf::Free(void* ptr) {
 
 	if (block->IsPrevFree()) {
 		Block* const prev = block->prevPhys;
-		RemoveFreeBlock(tlsf, prev);
+		RemoveFreeBlock(ctx, prev);
 		prev->size += block->Size() + 8;
 		block = prev;
 	}
 	next->prevPhys = block;
 
 	if (next->size & BlockFreeBit) {
-		RemoveFreeBlock(tlsf, next);
+		RemoveFreeBlock(ctx, next);
 		block->size += next->Size() + 8;
 		block->Next()->prevPhys = block;
 	}
 
-	InsertFreeBlock(tlsf, block);
+	InsertFreeBlock(ctx, block);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Tlsf::CheckIntegrity() {
-	TlsfObj* const tlsf = (TlsfObj*)opaque;
+#define TlsfCheck(cond, ec, ...) if (!(cond)) { return MakeErr(ec, ##__VA_ARGS__); }
+
+Res<> Tlsf::Check() {
+	u32 freeBlockCount[FirstCount][SecondCount] = {};
+
+	Ctx* const ctx = (Ctx*)opaque;
 	for (u32 f = 0; f < FirstCount; f++) {
-		const u32 fBit = tlsf->first & (1 << f);
+		const u64 fBit = ctx->first & ((u64)1 << f);
 		if (
-			( fBit && !tlsf->second[f]) ||
-			(!fBit &&  tlsf->second[f])
+			( fBit && !ctx->second[f]) ||
+			(!fBit &&  ctx->second[f])
 		) {
-			return MakeErr(Err_BitMapsMismatch, "f", f, "first", tlsf->first, "second", tlsf->second[f]);
+			return MakeErr(Err_BitMapsMismatch, "f", f, "first", ctx->first, "second", ctx->second[f]);
 		}
 		for (u32 s = 0; s < SecondCount; s++) {
-			const u32 sBit = tlsf->second[f] & (1 << s);
+			const u64 sBit = ctx->second[f] & ((u64)1 << s);
 			if (
-				( sBit && tlsf->blocks[f][s] == &tlsf->nullBlock) ||
-				(!sBit && tlsf->blocks[f][s] != &tlsf->nullBlock)
+				( sBit && ctx->blocks[f][s] == &ctx->nullBlock) ||
+				(!sBit && ctx->blocks[f][s] != &ctx->nullBlock)
 			) {
 				return MakeErr(Err_FreeBlocksMismatch, "f", f, "s", s);
 			}
 
-			#define TlsfCheck(cond, ec, ...) if (!(cond)) { return MakeErr(ec, ##__VA_ARGS__); }
-
-			for (Block* block = tlsf->blocks[f][s]; block != &tlsf->nullBlock; block = block->Next()) {
+			for (Block* block = ctx->blocks[f][s]; block != &ctx->nullBlock; block = block->Next()) {
 				TlsfCheck(block->IsFree(),               Err_NotMarkedFree, "f", f, "s", s);
 				TlsfCheck(block->IsPrevFree(),           Err_NotCoalesced,  "f", f, "s", s);
 				TlsfCheck(!block->Next()->IsFree(),      Err_NotCoalesced,  "f", f, "s", s);
 				TlsfCheck(block->Next()->IsPrevFree(),   Err_NotMarkedFree, "f", f, "s", s);
 				TlsfCheck(block->Size() >= BlockSizeMin, Err_BlockTooSmall, "f", f, "s", s);
 				const Index idx = CalcIndex(block->Size());
-				TlsfCheck(idx.f == f && idx.s == s,      Err_BlockIndex,    "f", f, "s", s, "size", block->Size());
+				TlsfCheck(idx.f == f && idx.s == s,      Err_BlockBadIndex, "f", f, "s", s, "size", block->Size());
+				freeBlockCount[f][s]++;
 			}
 		}
 	}
+
+	// TODO: count free blocks of each f/s size and ensure chunk walk covers them all
+
+	for (Chunk* chunk = ctx->chunks; chunk; chunk = chunk->next) {
+		Block* block = (Block*)((u8*)chunk + sizeof(Chunk) - 8);
+		bool prevFree = block->IsPrevFree();
+		Block* prev = block;
+		TlsfCheck(!block->prevPhys, Err_BadFirstBlock);
+		TlsfCheck(!prevFree,        Err_BadFirstBlock);
+		while (block->Size() > 0) {
+			TlsfCheck(prev == block->prevPhys,         Err_PrevBlockMismatch);
+			TlsfCheck(prevFree == block->IsPrevFree(), Err_PrevBlockMismatch);
+			TlsfCheck(!(prevFree && block->IsFree()),  Err_NotCoalesced);
+			
+			if (block->IsFree()) {
+				const Index idx = CalcIndex(block->Size());
+				TlsfCheck(freeBlockCount[idx.f][idx.s] > 0, Err_TooManyFreeBlocks, "f", idx.f, "s", idx.s);
+				freeBlockCount[idx.f][idx.s]--;
+			}
+
+			prev = block;
+			prevFree = block->IsPrevFree();
+			block = block->Next();
+		}
+		TlsfCheck(prev == block->prevPhys,         Err_PrevBlockMismatch);
+		TlsfCheck(prevFree == block->IsPrevFree(), Err_PrevBlockMismatch);
+		TlsfCheck(!block->IsFree(),                Err_NotCoalesced);
+	}
+
+	for (u32 f = 0; f < FirstCount; f++) {
+		for (u32 s = 0; s < SecondCount; s++) {
+			TlsfCheck(!freeBlockCount[f][s], Err_NotEnoughFreeBlocks, "f", f, "s", s, "free", freeBlockCount[f][s]);
+		}
+	}
+
+	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -340,85 +395,19 @@ UnitTest("Tlsf") {
 			CheckEq(i.s, (u64)second); \
 		}
 
-		CheckCalcIndex(  0, 0,  0);
-		CheckCalcIndex(  8, 0,  1);
-		CheckCalcIndex( 16, 0,  2);
-		CheckCalcIndex( 24, 0,  3);
-		CheckCalcIndex( 32, 0,  4);
-		CheckCalcIndex( 40, 0,  5);
-		CheckCalcIndex( 48, 0,  6);
-		CheckCalcIndex( 56, 0,  7);
-		CheckCalcIndex( 64, 0,  8);
-		CheckCalcIndex( 72, 0,  9);
-		CheckCalcIndex( 80, 0, 10);
-		CheckCalcIndex( 88, 0, 11);
-		CheckCalcIndex( 96, 0, 12);
-		CheckCalcIndex(104, 0, 13);
-		CheckCalcIndex(112, 0, 14);
-		CheckCalcIndex(120, 0, 15);
-		CheckCalcIndex(127, 0, 15);
-
-		CheckCalcIndex(128, 1,  0);
-		CheckCalcIndex(136, 1,  1);
-		CheckCalcIndex(144, 1,  2);
-		CheckCalcIndex(152, 1,  3);
-		CheckCalcIndex(160, 1,  4);
-		CheckCalcIndex(168, 1,  5);
-		CheckCalcIndex(176, 1,  6);
-		CheckCalcIndex(184, 1,  7);
-		CheckCalcIndex(192, 1,  8);
-		CheckCalcIndex(200, 1,  9);
-		CheckCalcIndex(208, 1, 10);
-		CheckCalcIndex(216, 1, 11);
-		CheckCalcIndex(224, 1, 12);
-		CheckCalcIndex(232, 1, 13);
-		CheckCalcIndex(240, 1, 14);
-		CheckCalcIndex(248, 1, 15);
-		CheckCalcIndex(255, 1, 15);
-		CheckCalcIndex(256, 2,  0);
-
-		// index 17 = 19 ignored zeroes
-		// increment 524288
-		CheckCalcIndex( 8388608, 17,  0);
-		CheckCalcIndex( 8912896, 17,  1);
-		CheckCalcIndex( 9437184, 17,  2);
-		CheckCalcIndex( 9961472, 17,  3);
-		CheckCalcIndex(10485760, 17,  4);
-		CheckCalcIndex(11010048, 17,  5);
-		CheckCalcIndex(11534336, 17,  6);
-		CheckCalcIndex(12058624, 17,  7);
-		CheckCalcIndex(12582912, 17,  8);
-		CheckCalcIndex(13107200, 17,  9);
-		CheckCalcIndex(13631488, 17, 10);
-		CheckCalcIndex(14155776, 17, 11);
-		CheckCalcIndex(14680064, 17, 12);
-		CheckCalcIndex(15204352, 17, 13);
-		CheckCalcIndex(15728640, 17, 14);
-		CheckCalcIndex(16252928, 17, 15);
-		CheckCalcIndex(16777215, 17, 15);
-		CheckCalcIndex(16777216, 18,  0);
-
-		// index 33 = 35 ignored zeros
-		// 1000000000000000000000000000000000000000 = 549755813888 = 0x80 0000 0000
-		// increment 100000000000000000000000000000000000 = 34359738368 = 0x8 0000 0000
-		CheckCalcIndex((u64)0x8000000000, 33,  0);
-		CheckCalcIndex((u64)0x8800000000, 33,  1);
-		CheckCalcIndex((u64)0x9000000000, 33,  2);
-		CheckCalcIndex((u64)0x9800000000, 33,  3);
-		CheckCalcIndex((u64)0xa000000000, 33,  4);
-		CheckCalcIndex((u64)0xa800000000, 33,  5);
-		CheckCalcIndex((u64)0xb000000000, 33,  6);
-		CheckCalcIndex((u64)0xb800000000, 33,  7);
-		CheckCalcIndex((u64)0xc000000000, 33,  8);
-		CheckCalcIndex((u64)0xc800000000, 33,  9);
-		CheckCalcIndex((u64)0xd000000000, 33, 10);
-		CheckCalcIndex((u64)0xd800000000, 33, 11);
-		CheckCalcIndex((u64)0xe000000000, 33, 12);
-		CheckCalcIndex((u64)0xe800000000, 33, 13);
-		CheckCalcIndex((u64)0xf000000000, 33, 14);
-		CheckCalcIndex((u64)0xf800000000, 33, 15);
-		CheckCalcIndex((u64)0xf8ffffffff, 33, 15);
-
+		u64 size = 0;
+		u64 inc = 8;
+		for (u32 s = 0; s < SecondCount; s++) {
+			CheckCalcIndex(size, 0, s);
+			size += inc;
+		}
+		for (u32 f = 1; f < FirstCount; f++) {
+			for (u32 s = 0; s < SecondCount; s++) {
+				CheckCalcIndex(size, f, s);
+				size += inc;
+			}
+			inc <<= 1;
+		}
 		CheckCalcIndex((u64)0x10000000000, 34, 0);
 	}
 
@@ -427,32 +416,13 @@ UnitTest("Tlsf") {
 		u8* const perm = (u8*)Sys::VirtualAlloc(permSize);
 		Tlsf tlsf;
 		tlsf.Init(perm, permSize);
-		TlsfObj* obj = (TlsfObj*)tlsf.opaque;
-
-		CheckEq(obj->first, 1 << 15);
-		CheckEq(obj->second[15], 1 << 15);
-		const Block* block = obj->blocks[15][15];
-		CheckEq(block->Size(), permSize - sizeof(TlsfObj) - 16);
-		Check(block->IsFree());
-		Check(!block->IsPrevFree());
-		const Block* next = block->Next();
-		CheckEq(next->Size(), 0);
-		Check(!next->IsFree());
-		Check(next->IsPrevFree());
+		CheckTrue(tlsf.Check());
 
 		void* p = tlsf.Alloc(1);
-		CheckEq(obj->first, 1 << 15);
-		CheckEq(obj->second[15], 1 << 15);
-		block = obj->blocks[15][15];
-		CheckEq(block->Size(), permSize - sizeof(TlsfObj) - 16 - 24);
-		Check(block->IsFree());
-		Check(!block->IsPrevFree());
-		next = block->Next();
-		CheckEq(next->Size(), 0);
-		Check(!next->IsFree());
-		Check(next->IsPrevFree());
+		CheckTrue(tlsf.Check());
 
 		tlsf.Free(p);
+		CheckTrue(tlsf.Check());
 
 		Sys::VirtualFree(perm);
 	}
