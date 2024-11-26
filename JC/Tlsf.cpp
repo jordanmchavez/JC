@@ -8,18 +8,18 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr u64 BlockFreeBit     = 1 << 0;
-static constexpr u64 BlockPrevFreeBit = 1 << 1;
+static constexpr u64 FreeBit     = 1 << 0;
+static constexpr u64 PrevFreeBit = 1 << 1;
 
 struct Block {
-	Block* prevPhys = 0;
+	Block* prev = 0;
 	u64    size     = 0;
 	Block* nextFree = 0;
 	Block* prevFree = 0;
 
-	u64          Size()       const { return size & ~(BlockFreeBit | BlockPrevFreeBit); }
-	bool         IsFree()     const { return size & BlockFreeBit; }
-	bool         IsPrevFree() const { return size & BlockPrevFreeBit; }
+	u64          Size()       const { return size & ~(FreeBit | PrevFreeBit); }
+	bool         IsFree()     const { return size & FreeBit; }
+	bool         IsPrevFree() const { return size & PrevFreeBit; }
 	Block*       Next()             { return (Block*)((u8*)this + Size() + 8); }
 	const Block* Next()       const { return (const Block*)((u8*)this + Size() + 8); }
 };
@@ -123,22 +123,6 @@ static void RemoveFreeBlock(Ctx* ctx, Block* block) { RemoveFreeBlock(ctx, block
 
 //--------------------------------------------------------------------------------------------------
 
-static void Split(Ctx* ctx, Block* block, u64 size)
-{
-	Assert(block->Size() >= size + 8);
-	Assert(!block->IsPrevFree());
-	const u64 remSize = block->Size() - size - 8;
-	block->size = size;	// !free, !prevFree 
-
-	Block* const rem = block->Next();
-	rem->size = remSize | BlockFreeBit;
-	rem->prevPhys = block;
-	InsertFreeBlock(ctx, rem);
-	rem->Next()->prevPhys = rem;
-}
-
-//--------------------------------------------------------------------------------------------------
-
 void Tlsf::Init(void* ptr, u64 size) {
 	opaque = (u64)ptr;
 	Ctx* ctx = (Ctx*)ptr;
@@ -175,11 +159,11 @@ void Tlsf::AddChunk(void* ptr, u64 size){
 
 
 	Block* const block  = (Block*)((u8*)ptr + sizeof(Chunk) - 8);
-	block->prevPhys     = 0;
-	block->size         = (size - sizeof(Chunk) - 16) | BlockFreeBit;
+	block->prev     = 0;
+	block->size         = (size - sizeof(Chunk) - 16) | FreeBit;
 	Block* const last   = block->Next();
-	last->prevPhys      = block;
-	last->size          = 0 | BlockPrevFreeBit;
+	last->prev      = block;
+	last->size          = 0 | PrevFreeBit;
 	InsertFreeBlock(ctx, block);
 }
 
@@ -188,48 +172,51 @@ void Tlsf::AddChunk(void* ptr, u64 size){
 void* Tlsf::Alloc(u64 size) {
 	Ctx* const ctx = (Ctx*)opaque;
 
-	Assert(size);
+	if (!size) {
+		return 0;
+	}
 	Assert(size < BlockSizeMax);
 
 	size = Max(AlignUp(size, AlignSize), BlockSizeMin);
 	if (size >= SmallBlockSize) {
 		size += ((u64)1 << (Bsr64(size) - SecondCountLog2)) - 1;
 	}
+
 	Index idx = CalcIndex(size);
-	u64 sMap = ctx->second[idx.f] & ((u64)(-1) << idx.s);
+	u64 sMap = ctx->second[idx.f] & ((u64)-1 << idx.s);
 	if (!sMap) {
-		const u32 fMap = ctx->first & ((u64)(-1) << (idx.f + 1));
+		const u32 fMap = ctx->first & ((u64)-1 << (idx.f + 1));
 		if (!fMap) {
-			return nullptr;
+			return 0;
 		}
 		idx.f = Bsf64(fMap);
 		sMap = ctx->second[idx.f];
 	}
 	Assert(sMap);
 	idx.s = Bsf64(sMap);
-	Block* const block = ctx->blocks[idx.f][idx.s];
-	Assert(block->Size() >= size);
 
-	if (!block) {
-		return 0;
-	}
+	Block* const block = ctx->blocks[idx.f][idx.s];
+	Assert(block != &ctx->nullBlock);
 	Assert(block->Size() >= size);
+	Assert(block->IsFree());
 	Assert(!block->IsPrevFree());
+	
 	RemoveFreeBlock(ctx, block, idx);
 
-	if (block->Size() - size >= sizeof(Block)) {
-		const u64 remSize = block->Size() - size - 8;
+	Block* const next = block->Next();
+	Assert(next->IsPrevFree());
+	if (block->Size() >= sizeof(Block) + size) {
+		Block* const rem = (Block*)((u8*)block + size + 8);
+		rem->prev = block;
+		rem->size = (block->Size() - size - 8) | FreeBit;
 		block->size = size;	// !free, !prevFree 
+		next->prev = rem;
 
-		Block* const rem = block->Next();
-		rem->size = remSize | BlockFreeBit;
-		rem->prevPhys = block;
 		InsertFreeBlock(ctx, rem);
-		rem->Next()->prevPhys = rem;
 
 	} else {
-		block->size &= ~(BlockFreeBit | BlockPrevFreeBit);
-		block->Next()->size |= BlockPrevFreeBit;
+		block->size &= ~FreeBit;
+		next->size |= PrevFreeBit;
 	}
 
 	return (u8*)block + 16;
@@ -240,13 +227,18 @@ void* Tlsf::Alloc(u64 size) {
 bool Tlsf::Extend(void* ptr, u64 size) {
 	Ctx* const ctx = (Ctx*)opaque;
 
-	Assert(ptr);
+	if (!ptr) {
+		return false;
+	}
+
 	size = Max(AlignUp(size, AlignSize), BlockSizeMin);
 	Assert(size <= BlockSizeMax);
 
 	Block* const block = (Block*)((u8*)ptr - 16);
+	Assert(!block->IsFree());
+
 	const u64 blockSize = block->Size();
-	if (blockSize - 8 >= size) {
+	if (size <= blockSize) {
 		return true;
 	}
 
@@ -257,19 +249,28 @@ bool Tlsf::Extend(void* ptr, u64 size) {
 
 	const u64 nextSize = next->Size();
 	const u64 combinedSize = blockSize + nextSize + 8;
-	if (combinedSize < size) {
+	if (size > combinedSize) {
 		return false;
 	}
 
 	RemoveFreeBlock(ctx, next, CalcIndex(nextSize));
+
 	block->size += nextSize + 8;	// doesn't affect flags
 	next = block->Next();
-	Assert(!next->IsFree());
-	next->prevPhys = block;
-	next->size &= ~(BlockFreeBit & BlockPrevFreeBit);
+	next->prev = block;
+	next->size &= ~ PrevFreeBit;
 
-	if (block->Size()- size >= sizeof(Block)) {
-		Split(ctx, block, size);
+	if (block->Size() >= sizeof(Block) + size) {
+		block->size = size;
+
+		Block* const rem = block->Next();
+		rem->prev = block;
+		rem->size = (block->Size() - size - 8) | FreeBit;
+
+		next->prev = rem;
+		next->size |= PrevFreeBit;
+
+		InsertFreeBlock(ctx, rem);
 	}
 
 	return true;
@@ -280,27 +281,29 @@ bool Tlsf::Extend(void* ptr, u64 size) {
 void Tlsf::Free(void* ptr) {
 	Ctx* const ctx = (Ctx*)opaque;
 
+	if (!ptr) {
+		return;
+	}
+
 	Block* block = (Block*)((u8*)ptr - 16);
 	Assert(!block->IsFree());
-	block->size |= BlockFreeBit;
+	block->size |= FreeBit;
 
 	Block* const next = block->Next();
-	next->size |= BlockPrevFreeBit;
+	next->size |= PrevFreeBit;
 
 	if (block->IsPrevFree()) {
-		Block* const prev = block->prevPhys;
-		Assert(prev);
+		Block* const prev = block->prev;
 		Assert(prev->IsFree());
 		RemoveFreeBlock(ctx, prev);
 		prev->size += block->Size() + 8;
-		next->prevPhys = prev;
+		next->prev = prev;
 		block = prev;
 	}
 	if (next->IsFree()) {
-		Assert(next->Size() > 0);
 		RemoveFreeBlock(ctx, next);
 		block->size += next->Size() + 8;
-		block->Next()->prevPhys = block;
+		block->Next()->prev = block;
 	}
 
 	InsertFreeBlock(ctx, block);
@@ -350,10 +353,10 @@ Res<> Tlsf::Check() {
 		Block* block = (Block*)((u8*)chunk + sizeof(Chunk) - 8);
 		bool prevFree = block->IsPrevFree();
 		Block* prev = block;
-		TlsfCheck(!block->prevPhys, Err_BadFirstBlock);
+		TlsfCheck(!block->prev, Err_BadFirstBlock);
 		TlsfCheck(!prevFree,        Err_BadFirstBlock);
 		while (block->Size() > 0) {
-			TlsfCheck(prev == block->prevPhys,         Err_PrevBlockMismatch);
+			TlsfCheck(prev == block->prev,         Err_PrevBlockMismatch);
 			TlsfCheck(prevFree == block->IsPrevFree(), Err_PrevBlockMismatch);
 			TlsfCheck(!(prevFree && block->IsFree()),  Err_NotCoalesced);
 			
@@ -367,7 +370,7 @@ Res<> Tlsf::Check() {
 			prevFree = block->IsPrevFree();
 			block = block->Next();
 		}
-		TlsfCheck(prev == block->prevPhys,         Err_PrevBlockMismatch);
+		TlsfCheck(prev == block->prev,         Err_PrevBlockMismatch);
 		TlsfCheck(prevFree == block->IsPrevFree(), Err_PrevBlockMismatch);
 		TlsfCheck(!block->IsFree(),                Err_NotCoalesced);
 	}
