@@ -14,6 +14,7 @@ struct TempMem;
 namespace UnitTest {
 	bool Run(TempMem* tempMem, LogApi* logApi);
 
+	bool CheckFailImpl(SrcLoc sl);
 	bool CheckTrueFail(SrcLoc sl, s8 expr);
 	bool CheckRelFail(SrcLoc sl, s8 expr, Arg x, Arg y);
 	bool CheckSpanEqFail_Len(SrcLoc sl, s8 expr, u64 xLen, u64 yLen);
@@ -73,6 +74,8 @@ namespace UnitTest {
 
 #define SubTest(name) SubTestImpl(name, MacroName(UnitSubtest_))
 
+#define CheckFailAt(sl)         (UnitTest::CheckFailImpl(sl) || TestDebuggerBreak)
+#define CheckFail()             (UnitTest::CheckFailImpl(SrcHere) || TestDebuggerBreak)
 #define CheckTrueAt(sl, x)      ((x) || UnitTest::CheckTrueFail(sl, #x) || TestDebuggerBreak)
 #define CheckEqAt(sl, x, y)     (UnitTest::CheckEq(sl, #x " == " #y, (x), (y)) || TestDebuggerBreak)
 #define CheckNeqAt(sl, x, y)    (UnitTest::CheckNeq(sl, #x " != " #y, (x), (y)) || TestDebuggerBreak)

@@ -392,7 +392,7 @@ template <> struct [[nodiscard]] Res<void> {
 	constexpr Res() = default;
 	constexpr Res(Err* e) { err = e; }	// implicit
 
-	constexpr operator bool() const { return err != 0; }
+	constexpr operator bool() const { return err == 0; }
 
 	constexpr void Ignore() const {}
 };

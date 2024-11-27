@@ -57,6 +57,14 @@ struct Array {
 		len += valsLen;
 	}
 
+	void Add(Span<T> vals, SrcLoc sl = SrcLoc::DefArg()) {
+		if (len + vals.len > cap) {
+			Grow(len + vals.len, sl);
+		}
+		MemCpy(data + len, vals,data, vals.len * sizeof(T));
+		len += vals.len;
+	}
+
 	void Fill(T val, u64 n, SrcLoc sl = SrcLoc::DefArg()) {
 		if (len + n > cap) {
 			Grow(len + n, sl);
@@ -87,6 +95,17 @@ struct Array {
 
 	void Remove(u64 n) {
 		--len -= n;
+	}
+
+	bool RemoveUnordered(T val) {
+		for (u64 i = 0; i < len; i++) {
+			if (data[i] == val) {
+				len--;
+				data[i] = data[len];
+				return true;
+			}
+		}
+		return false;
 	}
 
 	T* Extend(u64 n, SrcLoc sl = SrcLoc::DefArg()) {

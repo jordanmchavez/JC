@@ -125,8 +125,6 @@ pool_t tlsf_add_pool(Ctx* ctx, void* mem, u64 bytes)
 	const u64 pool_overhead = 16;
 	const u64 pool_bytes = align_down(bytes - pool_overhead, AlignSize);
 
-	** it will never be used.
-	*/
 	block = (Block*)((u8*)mem - 8);
 	block_set_size(block, pool_bytes);
 	block->size |= FreeBit;

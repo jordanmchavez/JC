@@ -116,9 +116,9 @@ namespace UnitTest {
 				Array<char> lastStr = { .mem = tempMem };
 				for (u32 j = 0; j < lastLen; j++) {
 					lastStr.Add(last[j].name.data, last[j].name.len);
-					lastStr.Add(':');
+					lastStr.Add("::", 2);
 				}
-				lastStr.len--;
+				lastStr.len -= 2;
 
 				if (checkFails > 0) {
 					Log("Failed: {}", s8(lastStr.data, lastStr.len));
@@ -135,6 +135,13 @@ namespace UnitTest {
 		Log("Total passed: {}", passedTests);
 		Log("Total failed: {}", failedTests);
 		return failedTests == 0;
+	}
+
+	bool CheckFailImpl(SrcLoc sl) {
+		Log("***CHECK FAILED***");
+		Log("{}({})", sl.file, sl.line);
+		checkFails++;
+		return false;
 	}
 
 	bool CheckTrueFail(SrcLoc sl, s8 expr) {

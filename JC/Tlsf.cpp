@@ -1,7 +1,8 @@
 #include "JC/Tlsf.h"
 
+#include "JC/Array.h"
 #include "JC/Bit.h"
-#include "JC/Err.h"
+#include "JC/Mem.h"
 #include "JC/UnitTest.h"
 
 namespace JC {
@@ -12,7 +13,7 @@ static constexpr u64 FreeBit     = 1 << 0;
 static constexpr u64 PrevFreeBit = 1 << 1;
 
 struct Block {
-	Block* prev = 0;
+	Block* prev     = 0;
 	u64    size     = 0;
 	Block* nextFree = 0;
 	Block* prevFree = 0;
@@ -33,13 +34,13 @@ static_assert(alignof(Chunk) == 8);
 
 static constexpr u32 AlignSizeLog2    = 3;
 static constexpr u32 AlignSize        = 1 << AlignSizeLog2;
-static constexpr u32 SecondCountLog2  = 4;
-static constexpr u32 SecondCount      = 1 << SecondCountLog2;    // 16
-static constexpr u32 FirstShift       = SecondCountLog2 + AlignSizeLog2; // 7
+static constexpr u32 SecondCountLog2  = 5;
+static constexpr u32 SecondCount      = 1 << SecondCountLog2;    // 32
+static constexpr u32 FirstShift       = SecondCountLog2 + AlignSizeLog2; // 8
 static constexpr u32 FirstMax         = 40;
-static constexpr u32 FirstCount       = FirstMax - FirstShift + 1;  // 40-7+1=34
-static constexpr u32 SmallBlockSize   = 1 << FirstShift; // 128
-static constexpr u64 BlockSizeMin     = sizeof(Block) - 8;	// 24
+static constexpr u32 FirstCount       = FirstMax - FirstShift + 1;  // 40-8+1=33
+static constexpr u32 SmallBlockSize   = 1 << FirstShift; // 256
+static constexpr u64 BlockSizeMin     = 24;	// nextFree + prevFree + next->prev
 static constexpr u64 BlockSizeMax     = ((u64)1 << FirstMax) - 8;	// 1TB - 8 bytes
 
 static_assert(AlignSize == SmallBlockSize / SecondCount);
@@ -68,19 +69,7 @@ static Index CalcIndex(u64 size) {
 			.s = (u32)size / (SmallBlockSize / SecondCount),
 		};
 	} else {
-		//const u32 b = Bsr64(size);
-		//const u64 round = ((u64)1 << (b - SecondCountLog2)) - 1;
-		//const u64 roundedSize = size + round;
-		//const u64 roundedSize = size + ((u64)1 << (Bsr64(size) - SecondCountLog2)) - 1;
 		const u32 bit = Bsr64(size);
-		//const u32 f = bit - FirstShift + 1;
-		//const u32 sMask = (SecondCount - 1);
-		//const u32 sXor = 1 << SecondCountLog2;
-		//const u32 sShift = (bit - SecondCountLog2);
-		//u32 s = (u32)(size >> sShift);
-		//u32 s1 = s & sMask;
-		//u32 s2 = s ^ sXor;
-		//s1;s2;f;
 		return Index {
 			.f = bit - FirstShift + 1,
 			.s = (u32)(size >> (bit - SecondCountLog2)) & (SecondCount - 1),
@@ -124,9 +113,12 @@ static void RemoveFreeBlock(Ctx* ctx, Block* block) { RemoveFreeBlock(ctx, block
 //--------------------------------------------------------------------------------------------------
 
 void Tlsf::Init(void* ptr, u64 size) {
+	Assert(size >= sizeof(Ctx));
 	opaque = (u64)ptr;
 	Ctx* ctx = (Ctx*)ptr;
 
+	ctx->nullBlock.prev     = 0;
+	ctx->nullBlock.size     = 0;
 	ctx->nullBlock.nextFree = &ctx->nullBlock;
 	ctx->nullBlock.prevFree = &ctx->nullBlock;
 
@@ -139,8 +131,10 @@ void Tlsf::Init(void* ptr, u64 size) {
 	}
 
 	ctx->chunks = 0;
-	void* const chunk = AlignPtrUp((u8*)ptr + sizeof(Ctx), AlignSize);
-	AddChunk(chunk, size - (u64)((u8*)chunk - (u8*)ptr));
+	void* const chunk       = AlignPtrUp((u8*)ptr + sizeof(Ctx), AlignSize);
+	const u64   chunkOffset = (u8*)chunk - (u8*)ptr;
+	Assert(size > chunkOffset);
+	AddChunk(chunk, size - chunkOffset);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -151,6 +145,7 @@ void Tlsf::AddChunk(void* ptr, u64 size){
 	Assert(ptr);
 	Assert((u64)ptr % AlignSize == 0);
 	Assert(size % AlignSize == 0);
+	Assert(size >= sizeof(Chunk) + 24);
 
 	Chunk* chunk = (Chunk*)ptr;
 	chunk->next = ctx->chunks;
@@ -158,11 +153,11 @@ void Tlsf::AddChunk(void* ptr, u64 size){
 	ctx->chunks = chunk;
 
 
-	Block* const block  = (Block*)((u8*)ptr + sizeof(Chunk) - 8);
-	block->prev     = 0;
-	block->size         = (size - sizeof(Chunk) - 16) | FreeBit;
+	Block* const block  = (Block*)(chunk + 1);
+	block->prev         = 0;
+	block->size         = (size - sizeof(Chunk) - 24) | FreeBit;	// 16 for the first block, 8 for the dummy last block
 	Block* const last   = block->Next();
-	last->prev      = block;
+	last->prev          = block;
 	last->size          = 0 | PrevFreeBit;
 	InsertFreeBlock(ctx, block);
 }
@@ -178,11 +173,12 @@ void* Tlsf::Alloc(u64 size) {
 	Assert(size < BlockSizeMax);
 
 	size = Max(AlignUp(size, AlignSize), BlockSizeMin);
+	u64 calcIndexSize = size;
 	if (size >= SmallBlockSize) {
-		size += ((u64)1 << (Bsr64(size) - SecondCountLog2)) - 1;
+		// Round up to next block size
+		calcIndexSize += ((u64)1 << (Bsr64(size) - SecondCountLog2)) - 1;
 	}
-
-	Index idx = CalcIndex(size);
+	Index idx = CalcIndex(calcIndexSize);
 	u64 sMap = ctx->second[idx.f] & ((u64)-1 << idx.s);
 	if (!sMap) {
 		const u32 fMap = ctx->first & ((u64)-1 << (idx.f + 1));
@@ -209,6 +205,7 @@ void* Tlsf::Alloc(u64 size) {
 		Block* const rem = (Block*)((u8*)block + size + 8);
 		rem->prev = block;
 		rem->size = (block->Size() - size - 8) | FreeBit;
+		Assert(rem->Next() == next);
 		block->size = size;	// !free, !prevFree 
 		next->prev = rem;
 
@@ -216,7 +213,7 @@ void* Tlsf::Alloc(u64 size) {
 
 	} else {
 		block->size &= ~FreeBit;
-		next->size |= PrevFreeBit;
+		next->size  &= ~PrevFreeBit;
 	}
 
 	return (u8*)block + 16;
@@ -311,121 +308,204 @@ void Tlsf::Free(void* ptr) {
 
 //--------------------------------------------------------------------------------------------------
 
-#define TlsfCheck(cond, ec, ...) if (!(cond)) { return MakeErr(ec, ##__VA_ARGS__); }
+struct ExpectedBlock {
+	u64  size;
+	bool free;
+};
 
-Res<> Tlsf::Check() {
+
+void CheckTlsf(Tlsf tlsf, Span<Span<ExpectedBlock>> expectedChunks) {
+	Ctx* const ctx = (Ctx*)tlsf.opaque;
+
 	u32 freeBlockCount[FirstCount][SecondCount] = {};
 
-	Ctx* const ctx = (Ctx*)opaque;
 	for (u32 f = 0; f < FirstCount; f++) {
 		const u64 fBit = ctx->first & ((u64)1 << f);
-		if (
-			( fBit && !ctx->second[f]) ||
-			(!fBit &&  ctx->second[f])
-		) {
-			return MakeErr(Err_BitMapsMismatch, "f", f, "first", ctx->first, "second", ctx->second[f]);
-		}
+		CheckTrue(
+			( fBit &&  ctx->second[f]) ||
+			(!fBit && !ctx->second[f])
+		);
 		for (u32 s = 0; s < SecondCount; s++) {
 			const u64 sBit = ctx->second[f] & ((u64)1 << s);
-			if (
-				( sBit && ctx->blocks[f][s] == &ctx->nullBlock) ||
-				(!sBit && ctx->blocks[f][s] != &ctx->nullBlock)
-			) {
-				return MakeErr(Err_FreeBlocksMismatch, "f", f, "s", s);
-			}
+			CheckTrue(
+				( sBit && ctx->blocks[f][s] != &ctx->nullBlock) ||
+				(!sBit && ctx->blocks[f][s] == &ctx->nullBlock)
+			);
 
-			for (Block* block = ctx->blocks[f][s]; block != &ctx->nullBlock; block = block->Next()) {
-				TlsfCheck(block->IsFree(),               Err_NotMarkedFree, "f", f, "s", s);
-				TlsfCheck(block->IsPrevFree(),           Err_NotCoalesced,  "f", f, "s", s);
-				TlsfCheck(!block->Next()->IsFree(),      Err_NotCoalesced,  "f", f, "s", s);
-				TlsfCheck(block->Next()->IsPrevFree(),   Err_NotMarkedFree, "f", f, "s", s);
-				TlsfCheck(block->Size() >= BlockSizeMin, Err_BlockTooSmall, "f", f, "s", s);
+			for (Block* block = ctx->blocks[f][s]; block != &ctx->nullBlock; block = block->nextFree) {
+				CheckTrue(block->IsFree());
+				CheckTrue(!block->IsPrevFree());
+				CheckTrue(!block->Next()->IsFree());
+				CheckTrue(block->Next()->IsPrevFree());
+				CheckTrue(block->Size() >= BlockSizeMin);
 				const Index idx = CalcIndex(block->Size());
-				TlsfCheck(idx.f == f && idx.s == s,      Err_BlockBadIndex, "f", f, "s", s, "size", block->Size());
+				CheckEq(idx.f, f);
+				CheckEq(idx.s, s);
 				freeBlockCount[f][s]++;
 			}
 		}
 	}
 
-	// TODO: count free blocks of each f/s size and ensure chunk walk covers them all
+	const Span<ExpectedBlock>* expectedChunk    = expectedChunks.data;
+	const Span<ExpectedBlock>* expectedChunksEnd = expectedChunks.End();
 
 	for (Chunk* chunk = ctx->chunks; chunk; chunk = chunk->next) {
-		Block* block = (Block*)((u8*)chunk + sizeof(Chunk) - 8);
-		bool prevFree = block->IsPrevFree();
-		Block* prev = block;
-		TlsfCheck(!block->prev, Err_BadFirstBlock);
-		TlsfCheck(!prevFree,        Err_BadFirstBlock);
+		CheckTrue(expectedChunk < expectedChunksEnd);
+
+		const ExpectedBlock* expectedBlock     = expectedChunk->data;
+		const ExpectedBlock* expectedBlocksEnd = expectedChunk->End();
+
+		Block* prev     = 0;
+		bool   prevFree = false;
+		Block* block    = (Block*)(chunk + 1);
+		u32 blockNum = 0;blockNum;
 		while (block->Size() > 0) {
-			TlsfCheck(prev == block->prev,         Err_PrevBlockMismatch);
-			TlsfCheck(prevFree == block->IsPrevFree(), Err_PrevBlockMismatch);
-			TlsfCheck(!(prevFree && block->IsFree()),  Err_NotCoalesced);
+			blockNum++;
+			CheckTrue(expectedBlock < expectedBlocksEnd);
+			CheckEq(prev, block->prev);
+			CheckEq(prevFree, block->IsPrevFree());
+			CheckTrue(!prevFree || !block->IsFree());
 			
+			CheckEq(expectedBlock->size, block->Size());
 			if (block->IsFree()) {
+				CheckTrue(expectedBlock->free);
 				const Index idx = CalcIndex(block->Size());
-				TlsfCheck(freeBlockCount[idx.f][idx.s] > 0, Err_TooManyFreeBlocks, "f", idx.f, "s", idx.s);
+				CheckTrue(freeBlockCount[idx.f][idx.s] > 0);
 				freeBlockCount[idx.f][idx.s]--;
+			} else {
+				CheckTrue(!expectedBlock->free);
 			}
 
-			prev = block;
-			prevFree = block->IsPrevFree();
-			block = block->Next();
+			expectedBlock++;
+			prev     = block;
+			prevFree = block->IsFree();
+			block    = block->Next();
 		}
-		TlsfCheck(prev == block->prev,         Err_PrevBlockMismatch);
-		TlsfCheck(prevFree == block->IsPrevFree(), Err_PrevBlockMismatch);
-		TlsfCheck(!block->IsFree(),                Err_NotCoalesced);
+		CheckEq(expectedBlock, expectedBlocksEnd);
+		CheckEq(prev, block->prev);
+		CheckEq(prevFree, block->IsPrevFree());
+		CheckTrue(!block->IsFree());
+		CheckEq((u8*)chunk + chunk->size, (u8*)block + 16);
+		expectedChunk++;
 	}
+	CheckEq(expectedChunk, expectedChunksEnd);
 
 	for (u32 f = 0; f < FirstCount; f++) {
 		for (u32 s = 0; s < SecondCount; s++) {
-			TlsfCheck(!freeBlockCount[f][s], Err_NotEnoughFreeBlocks, "f", f, "s", s, "free", freeBlockCount[f][s]);
+			CheckTrue(!freeBlockCount[f][s]);
 		}
 	}
-
-	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-UnitTest("Tlsf") {
-	SubTest("CalcIndex") {
-		#define CheckCalcIndex(size, first, second) \
-		{ \
-			const Index i = CalcIndex(size); \
-			CheckEq(i.f, (u64)first); \
-			CheckEq(i.s, (u64)second); \
+struct TlsfTestPerm {
+	static void* Mem() {
+		static void* mem = 0;
+		if (!mem) {
+			mem = Sys::VirtualAlloc(Size());
 		}
+		return mem;
+	}
 
-		u64 size = 0;
-		u64 inc = 8;
+	static constexpr u64 Size() {
+		return 65536;
+	}
+};
+
+UnitTest("Tlsf::CalcIndex") {
+	#define CheckCalcIndex(size, first, second) \
+	{ \
+		const Index i = CalcIndex(size); \
+		CheckEq(i.f, (u64)first); \
+		CheckEq(i.s, (u64)second); \
+	}
+
+	u64 size = 0;
+	u64 inc = 8;
+	for (u32 s = 0; s < SecondCount; s++) {
+		CheckCalcIndex(size, 0, s);
+		size += inc;
+	}
+	for (u32 f = 1; f < FirstCount; f++) {
 		for (u32 s = 0; s < SecondCount; s++) {
-			CheckCalcIndex(size, 0, s);
+			CheckCalcIndex(size, f, s);
 			size += inc;
 		}
-		for (u32 f = 1; f < FirstCount; f++) {
-			for (u32 s = 0; s < SecondCount; s++) {
-				CheckCalcIndex(size, f, s);
-				size += inc;
-			}
-			inc <<= 1;
-		}
-		CheckCalcIndex((u64)0x10000000000, 34, 0);
+		inc <<= 1;
+	}
+	CheckCalcIndex((u64)0x10000000000, 33, 0);
 	}
 
-	SubTest("Main Flow") {
-		constexpr u64 permSize = 4 * 1024 * 1024;
-		u8* const perm = (u8*)Sys::VirtualAlloc(permSize);
-		Tlsf tlsf;
-		tlsf.Init(perm, permSize);
-		CheckTrue(tlsf.Check());
+UnitTest("Tlsf") {
+	Tlsf tlsf;
+	void* perm = TlsfTestPerm::Mem();
+	constexpr u64 permSize = TlsfTestPerm::Size();
+	tlsf.Init(perm, permSize);
+	constexpr u64 base = permSize - sizeof(Ctx) - sizeof(Chunk) - 24;
+	const bool f = true;	// free
+	const bool u = false;	// used
+	Span<Span<ExpectedBlock>> expectedChunks = {
+		{ { base, f } },
+	};
+	CheckTlsf(tlsf, expectedChunks);
 
-		void* p = tlsf.Alloc(1);
-		CheckTrue(tlsf.Check());
+	void* p[64] = {};
+	u32 pn = 0;
+	void* x[64] = {};
+	u32 xn = 0;
+	u64 used = 0;
 
-		tlsf.Free(p);
-		CheckTrue(tlsf.Check());
+	#define PAlloc(size) p[pn++] = tlsf.Alloc(size); used += size + 8
+	#define XAlloc() x[xn++] = tlsf.Alloc(24); used += 24 + 8
 
-		Sys::VirtualFree(perm);
+	SubTest("Alloc exact first and second indexes") {
+		XAlloc();
+		PAlloc(984);
+		XAlloc();
+		PAlloc(1000);
+		XAlloc();
+		PAlloc(1016);
+		XAlloc();
+		tlsf.Free(p[0]);
+		tlsf.Free(p[1]);
+		tlsf.Free(p[2]);
+		tlsf.Alloc(992);
+		expectedChunks = {
+			{
+				{   24, u }, // x0
+				{  984, f }, // p0
+				{   24, u }, // x1
+				{ 1000, u }, // p1
+				{   24, u }, // x2
+				{ 1016, f }, // p2
+				{   24, u }, // x3
+				{ base - used, f },
+			},
+		};
+		CheckTlsf(tlsf, expectedChunks);
+
 	}
+	// alloc
+		// user exact first and second indexes
+		// use exact first index, but bigger second index
+		// use bigger first and second indxes
+			
+		// no split
+		// split
+		// split and merge with next free
+	// extend
+		// block big enough
+		// next free but not big enough
+		// next big enough none leftover / some leftover
+	// free
+		// merge none
+		// merge prev
+		// merge next
+		// merge both
+		// merge begin
+		// merge end
+	// alloc rounding
 }
 
 //--------------------------------------------------------------------------------------------------
