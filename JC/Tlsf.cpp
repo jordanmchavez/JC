@@ -1,6 +1,5 @@
 #include "JC/Tlsf.h"
 
-#include "JC/Array.h"
 #include "JC/Bit.h"
 #include "JC/Mem.h"
 #include "JC/UnitTest.h"
@@ -176,7 +175,8 @@ void* Tlsf::Alloc(u64 size) {
 	u64 calcIndexSize = size;
 	if (size >= SmallBlockSize) {
 		// Round up to next block size
-		calcIndexSize += ((u64)1 << (Bsr64(size) - SecondCountLog2)) - 1;
+		const u64 round = ((u64)1 << (Bsr64(size) - SecondCountLog2)) - 1;
+		calcIndexSize += round;
 	}
 	Index idx = CalcIndex(calcIndexSize);
 	u64 sMap = ctx->second[idx.f] & ((u64)-1 << idx.s);
@@ -435,7 +435,7 @@ UnitTest("Tlsf::CalcIndex") {
 		inc <<= 1;
 	}
 	CheckCalcIndex((u64)0x10000000000, 33, 0);
-	}
+}
 
 UnitTest("Tlsf") {
 	Tlsf tlsf;
@@ -459,7 +459,7 @@ UnitTest("Tlsf") {
 	#define PAlloc(size) p[pn++] = tlsf.Alloc(size); used += size + 8
 	#define XAlloc() x[xn++] = tlsf.Alloc(24); used += 24 + 8
 
-	SubTest("Alloc exact first and second indexes") {
+	SubTest("Alloc") {
 		XAlloc();
 		PAlloc(984);
 		XAlloc();
@@ -467,30 +467,79 @@ UnitTest("Tlsf") {
 		XAlloc();
 		PAlloc(1016);
 		XAlloc();
-		tlsf.Free(p[0]);
-		tlsf.Free(p[1]);
-		tlsf.Free(p[2]);
-		tlsf.Alloc(992);
-		expectedChunks = {
-			{
-				{   24, u }, // x0
-				{  984, f }, // p0
-				{   24, u }, // x1
-				{ 1000, u }, // p1
-				{   24, u }, // x2
-				{ 1016, f }, // p2
-				{   24, u }, // x3
-				{ base - used, f },
-			},
-		};
-		CheckTlsf(tlsf, expectedChunks);
 
+		SubTest("From larger first and second") {
+			expectedChunks = {
+				{
+					{   24, u }, // x0
+					{  984, u }, // p0
+					{   24, u }, // x1
+					{ 1000, u }, // p1
+					{   24, u }, // x2
+					{ 1016, u }, // p2
+					{   24, u }, // x3
+					{ base - used, f },
+				},
+			};
+			CheckTlsf(tlsf, expectedChunks);
+		}
+
+		SubTest("From exact") {
+			tlsf.Free(p[0]);
+			tlsf.Free(p[1]);
+			tlsf.Free(p[2]);
+			tlsf.Alloc(984);
+			expectedChunks = {
+				{
+					{   24, u }, // x0
+					{  984, u }, // p0
+					{   24, u }, // x1
+					{ 1000, f }, // p1
+					{   24, u }, // x2
+					{ 1016, f }, // p2
+					{   24, u }, // x3
+					{ base - used, f },
+				},
+			};
+			CheckTlsf(tlsf, expectedChunks);
+		}
+		SubTest("No split") {
+			tlsf.Free(p[1]);
+			tlsf.Alloc(1000 - 25);
+			expectedChunks = {
+				{
+					{   24, u }, // x0
+					{  984, u }, // p0
+					{   24, u }, // x1
+					{ 1000, u }, // p1
+					{   24, u }, // x2
+					{ 1016, u }, // p2
+					{   24, u }, // x3
+					{ base - used, f },
+				},
+			};
+			CheckTlsf(tlsf, expectedChunks);
+		}
+		SubTest("Split to new block") {
+			tlsf.Free(p[1]);
+			tlsf.Alloc(1000 - 24);
+			expectedChunks = {
+				{
+					{   24, u }, // x0
+					{  984, u }, // p0
+					{   24, u }, // x1
+					{  976, u }, // p1
+					{   24, f },
+					{   24, u }, // x2
+					{ 1016, u }, // p2
+					{   24, u }, // x3
+					{ base - used, f },
+				},
+			};
+			CheckTlsf(tlsf, expectedChunks);
+		}
 	}
 	// alloc
-		// user exact first and second indexes
-		// use exact first index, but bigger second index
-		// use bigger first and second indxes
-			
 		// no split
 		// split
 		// split and merge with next free

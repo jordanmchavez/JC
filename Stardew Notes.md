@@ -1,20 +1,3 @@
-# Spring Crops
-
-Season | Crop        |   Days | Buy | Sel | $/Day | $/Season
--------+-------------+--------+-----+-----+-------+---------
-Spring | Carrot      |    3   |   0 |  35 | 11.67 | 
-Spring | Cauliflower |   12   |  80 | 175 |  7.92 | 
-Spring | Coffee Bean |   10/2 |   0 |  15 |       |
-Spring |             |        |     |     |       | 
-Spring |             |        |     |     |       | 
-Spring |             |        |     |     |       | 
-Spring |             |        |     |     |       | 
-Spring |             |        |     |     |       | 
-Spring |             |        |     |     |       | 
-Spring |             |        |     |     |       | 
-Spring |             |        |     |     |       | 
-
-
 # Fish
 Chub            | F.River,M.Lake,              |                   | SUFW |           | 25  | 35 dart   |
 Goby            | F.Falls                      |                   | SUFW |           | 13  | 55 dart   |
@@ -54,9 +37,9 @@ Red Mullet      | Ocean                        | 6am-7pm           | -U-W |     
 Red Snapper     | Ocean                        | 6am-7pm           | -UFW | Rain      | 26  | 40 mixed  |
 Octopus         | Ocean,G.Oceans               | 6am-1pm           | -U-- |           | 49  | 95 sinker | Any Season on Ginger Island
 Tuna            | Ocean,G.Oceans               | 6am-7pm           | -U-W |           | 61  | 70 smooth | Any Season on Ginger Island
+Tilapia         | Ocean,G.River                | 6am-2pm           | -UF- |           | 31  | 50 mixed  | Any Season on Ginger Island
 Super Cucumber  | Ocean,G.Oceans               | 6pm-2am           | -UF- |           | 37  | 80 sinker | Any Season on Ginger Island
 Pufferfish      | Ocean,G.Oceans               | 12pm-4pm          | -U-- | Sun       | 37  | 80 floate | Any Season on Ginger Island
-Tilapia         | Ocean,G.River                | 6am-2pm           | -UF- |           | 31  | 50 mixed  | Any Season on Ginger Island
 
 Midnight Carp   | M.Lake,F.Pond,G.Pond,G.River | 10pm-2am          | --FW |           | 53  | 55 mixed  |
 Sea Cucumber    | Ocean                        | 6am-7pm           | --FW |           | 21  | 40 sinker |
