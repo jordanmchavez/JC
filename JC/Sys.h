@@ -13,8 +13,9 @@ namespace Sys {
 
 	void* VirtualAlloc(u64 size);
 	void* VirtualReserve(u64 size);
-	void  VirtualCommit(const void* p, u64 size);
-	void  VirtualFree(const void* p);
+	void  VirtualCommit(void* p, u64 size);
+	void  VirtualFree(void* p);
+	void  VirtualDecommit(void* p, u64 size);
 };
 
 #if defined Compiler_Msvc

@@ -34,7 +34,6 @@ struct LogApi {
 #define Log(fmt, ...) logApi->Print(SrcHere, LogCategory::Info,  (fmt), ##__VA_ARGS__)
 #define LogErr(err)   logApi->PrintErr(SrcHere, err)
 
-                                              
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC

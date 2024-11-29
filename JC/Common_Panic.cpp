@@ -1,6 +1,5 @@
 #include "JC/Common.h"
 
-#include "JC/Array.h"
 #include "JC/Fmt.h"
 #include "JC/Sys.h"
 

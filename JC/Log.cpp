@@ -57,10 +57,10 @@ struct LogApiObj : LogApi {
 	}
 };
 
-LogApiObj logApiObj;
+LogApiObj logApi;
 
 LogApi* LogApi::Get() {
-	return &logApiObj;
+	return &logApi;
 }
 
 //--------------------------------------------------------------------------------------------------

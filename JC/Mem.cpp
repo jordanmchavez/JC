@@ -1,5 +1,6 @@
 #include "JC/Mem.h"
 
+#include "Bit.h"
 #include "JC/MemTrace.h"
 #include "JC/Sys.h"
 #include "JC/Tlsf.h"
@@ -28,7 +29,7 @@ struct TempMemObj : TempMem {
 
 //--------------------------------------------------------------------------------------------------
 
-struct MemApiObj : MemApi {
+struct Mem : MemApi {
 	static constexpr u32 MaxMemObjs    = 1024;
 	static constexpr u64 TempAlignSize = 8;
 
@@ -41,6 +42,7 @@ struct MemApiObj : MemApi {
 
 	u8*          tempBegin           = 0;
 	u8*          tempUsed            = 0;
+	u8*          tempHigh            = 0;
 	u8*          tempCommit          = 0;
 	u8*          tempReserve         = 0;
 	u8*          tempLastAlloc       = 0;
@@ -72,52 +74,27 @@ struct MemApiObj : MemApi {
 
 	//----------------------------------------------------------------------------------------------
 
+	void Frame(u64 frame) override {
+		if (tempUsed > tempHigh) {
+			tempHigh = tempUsed;
+		}
+
+		if (!(frame & (1024 - 1))) {
+			u8* const tempCommitNeeded = (u8*)AlignPow2((u64)tempHigh);
+			Assert(tempCommitNeeded <= tempCommit);
+			if (tempCommitNeeded < tempCommit) {
+				Sys::VirtualDecommit(tempCommitNeeded, (u64)(tempCommit - tempCommitNeeded));
+			}
+			tempCommit = tempCommitNeeded;
+		}
+
+		tempUsed = 0;
+	}
+
+	//----------------------------------------------------------------------------------------------
+
 	Mem*     Perm() override { return &memObjs[0]; }
 	TempMem* Temp() override { return &tempMemObj; }
-
-	//----------------------------------------------------------------------------------------------
-
-	void* Alloc(MemObj* mem, u64 size, SrcLoc sl) {
-		if (size == 0) {
-			return 0;
-		}
-		void* ptr = tlsf.Alloc(size);
-		if (!ptr) {
-			u64 chunkSize = permSize;
-			while (chunkSize - 8 < size) {
-				chunkSize *= 2;
-			}
-			void* const chunk = Sys::VirtualAlloc(chunkSize);
-			memTraceApi->PermAlloc(chunkSize);
-			permSize += chunkSize;
-
-			tlsf.AddChunk(chunk, chunkSize);
-			ptr = tlsf.Alloc(size);
-			Assert(ptr);
-		}
-		memTraceApi->AddTrace(mem->scope, ptr, size, sl);
-		return ptr;
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	bool Extend(MemObj* mem, void* ptr, u64 size, SrcLoc sl) {
-		if (ptr && tlsf.Extend(ptr, size)) {
-			memTraceApi->RemoveTrace(mem->scope, ptr);
-			memTraceApi->AddTrace(mem->scope, ptr, size, sl);
-			return true;
-		}
-		return false;
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	void Free(MemObj* mem, void* ptr) {
-		if (ptr) {
-			tlsf.Free(ptr);
-			memTraceApi->RemoveTrace(mem->scope, ptr);
-		}
-	}
 
 	//----------------------------------------------------------------------------------------------
 
@@ -141,88 +118,121 @@ struct MemApiObj : MemApi {
 		m->parent = freeMemObjs;
 		freeMemObjs = m;
 	}
-
-	//----------------------------------------------------------------------------------------------
-
-	void* TempAlloc(u64 size) {
-		size = AlignUp(size, TempAlignSize);
-		Assert(tempCommit >= tempUsed);
-		const u64 tempAvail = (u64)(tempCommit - tempUsed);
-		if (tempAvail < size) {
-			u64 extend = Max((u64)4096, (u64)(tempCommit - tempBegin) * 2);
-			while (tempAvail + extend < size) {
-				extend *= 2;
-				Assert(tempCommit + extend < tempReserve);
-			}
-			Sys::VirtualCommit(tempCommit, extend);
-			tempCommit += extend;
-		}
-		tempLastAlloc = tempUsed;
-		void* p = tempUsed;
-		tempUsed += size;
-		return p;
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	bool TempExtend(void* ptr, u64 size) {
-		if (!ptr || ptr != tempLastAlloc) {
-			return false;
-		}
-
-		size = AlignUp(size, TempAlignSize);
-		tempUsed = tempLastAlloc;
-
-		Assert(tempCommit >= tempUsed);
-		const u64 tempAvail = (u64)(tempCommit - tempUsed);
-		if (tempAvail < size) {
-			u64 extend = Max((u64)4096, (u64)(tempCommit - tempReserve) * 2);
-			while (tempAvail + extend < size) {
-				extend *= 2;
-				Assert(tempCommit + extend < tempReserve);
-			}
-			Sys::VirtualCommit(tempCommit, extend);
-			tempCommit += extend;
-		}
-		void* p = tempUsed;
-		tempUsed += size;
-		return p;
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	u64 TempMark() {
-		Assert(tempUsed >= tempBegin);
-		return tempUsed - tempBegin;
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	void TempReset(u64 mark) {
-		Assert(tempUsed >= tempBegin);
-		Assert(mark <= (u64)(tempUsed - tempBegin));
-		tempUsed = tempBegin + mark;
-	}
 };
 
 //--------------------------------------------------------------------------------------------------
 
-static MemApiObj memApiObj;
+static Mem memApi;
 
 MemApi* MemApi::Get() {
-	return &memApiObj;
+	return &memApi;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void* MemObj::Alloc(u64 size, SrcLoc sl)              { return memApiObj.Alloc(this, size, sl); }
-bool  MemObj::Extend(void* ptr, u64 size, SrcLoc sl)  { return memApiObj.Extend(this, ptr, size, sl); }
-void  MemObj::Free(void* ptr)                         { memApiObj.Free(this, ptr); }
+void* MemObj::Alloc(u64 size, SrcLoc sl) {
+	if (size == 0) {
+		return 0;
+	}
+	void* ptr = memApi.tlsf.Alloc(size);
+	if (!ptr) {
+		u64 chunkSize = memApi.permSize;
+		while (chunkSize - 8 < size) {
+			chunkSize *= 2;
+		}
+		void* const chunk = Sys::VirtualAlloc(chunkSize);
+		memApi.memTraceApi->PermAlloc(chunkSize);
+		memApi.permSize += chunkSize;
 
-void* TempMemObj::Alloc(u64 size, SrcLoc)             { return memApiObj.TempAlloc(size); }
-bool  TempMemObj::Extend(void* ptr, u64 size, SrcLoc) { return memApiObj.TempExtend(ptr, size); }
-u64   TempMemObj::Mark()                              { return memApiObj.TempMark(); }
-void  TempMemObj::Reset(u64 mark)                     { memApiObj.TempReset(mark); }
+		memApi.tlsf.AddChunk(chunk, chunkSize);
+		ptr = memApi.tlsf.Alloc(size);
+		Assert(ptr);
+	}
+	memApi.memTraceApi->AddTrace(scope, ptr, size, sl);
+	return ptr;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+bool MemObj::Extend(void* ptr, u64 size, SrcLoc sl) {
+	if (ptr && memApi.tlsf.Extend(ptr, size)) {
+		memApi.memTraceApi->RemoveTrace(scope, ptr);
+		memApi.memTraceApi->AddTrace(scope, ptr, size, sl);
+		return true;
+	}
+	return false;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void MemObj::Free(void* ptr) {
+	if (ptr) {
+		memApi.tlsf.Free(ptr);
+		memApi.memTraceApi->RemoveTrace(scope, ptr);
+	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void* TempMemObj::Alloc(u64 size, SrcLoc) {
+	size = AlignUp(size, memApi.TempAlignSize);
+	Assert(memApi.tempCommit >= memApi.tempUsed);
+	const u64 tempAvail = (u64)(memApi.tempCommit - memApi.tempUsed);
+	if (tempAvail < size) {
+		u64 extend = Max((u64)4096, (u64)(memApi.tempCommit - memApi.tempBegin) * 2);
+		while (tempAvail + extend < size) {
+			extend *= 2;
+			Assert(memApi.tempCommit + extend < memApi.tempReserve);
+		}
+		Sys::VirtualCommit(memApi.tempCommit, extend);
+		memApi.tempCommit += extend;
+	}
+	memApi.tempLastAlloc = memApi.tempUsed;
+	void* p = memApi.tempUsed;
+	memApi.tempUsed += size;
+	return p;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+bool TempMemObj::Extend(void* ptr, u64 size, SrcLoc) {
+	if (!ptr || ptr != memApi.tempLastAlloc) {
+		return false;
+	}
+
+	size = AlignUp(size, memApi.TempAlignSize);
+	memApi.tempUsed = memApi.tempLastAlloc;
+
+	Assert(memApi.tempCommit >= memApi.tempUsed);
+	const u64 tempAvail = (u64)(memApi.tempCommit - memApi.tempUsed);
+	if (tempAvail < size) {
+		u64 extend = Max((u64)4096, (u64)(memApi.tempCommit - memApi.tempReserve) * 2);
+		while (tempAvail + extend < size) {
+			extend *= 2;
+			Assert(memApi.tempCommit + extend < memApi.tempReserve);
+		}
+		Sys::VirtualCommit(memApi.tempCommit, extend);
+		memApi.tempCommit += extend;
+	}
+	void* p = memApi.tempUsed;
+	memApi.tempUsed += size;
+	return p;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+u64 TempMemObj::Mark() {
+	Assert(memApi.tempUsed >= memApi.tempBegin);
+	return memApi.tempUsed - memApi.tempBegin;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void TempMemObj::Reset(u64 mark) {
+	Assert(memApi.tempUsed >= memApi.tempBegin);
+	Assert(mark <= (u64)(memApi.tempUsed - memApi.tempBegin));
+	memApi.tempUsed = memApi.tempBegin + mark;
+}
 
 //--------------------------------------------------------------------------------------------------
 

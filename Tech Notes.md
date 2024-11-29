@@ -1,3 +1,7 @@
+0-256: 8
+256-512: 8
+
+
 what do we want out of memory tracing?
 - leak detection
 - alloc stats: srcloc, size, count, scopes

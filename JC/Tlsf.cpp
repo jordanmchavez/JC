@@ -246,28 +246,26 @@ bool Tlsf::Extend(void* ptr, u64 size) {
 
 	const u64 nextSize = next->Size();
 	const u64 combinedSize = blockSize + nextSize + 8;
-	if (size > combinedSize) {
+	if (combinedSize < size) {
 		return false;
 	}
-
 	RemoveFreeBlock(ctx, next, CalcIndex(nextSize));
 
-	block->size += nextSize + 8;	// doesn't affect flags
-	next = block->Next();
-	next->prev = block;
-	next->size &= ~ PrevFreeBit;
-
-	if (block->Size() >= sizeof(Block) + size) {
+	if (combinedSize - size >= sizeof(Block)) {
 		block->size = size;
-
 		Block* const rem = block->Next();
 		rem->prev = block;
-		rem->size = (block->Size() - size - 8) | FreeBit;
-
+		rem->size = (combinedSize - size - 8) | FreeBit;
+		next = rem->Next();
 		next->prev = rem;
 		next->size |= PrevFreeBit;
-
 		InsertFreeBlock(ctx, rem);
+
+	} else {
+		block->size += nextSize + 8;	// Doesn't change flags
+		next = block->Next();
+		next->prev = block;
+		next->size &= ~PrevFreeBit;
 	}
 
 	return true;
@@ -413,148 +411,195 @@ struct TlsfTestPerm {
 	}
 };
 
-UnitTest("Tlsf::CalcIndex") {
-	#define CheckCalcIndex(size, first, second) \
-	{ \
-		const Index i = CalcIndex(size); \
-		CheckEq(i.f, (u64)first); \
-		CheckEq(i.s, (u64)second); \
-	}
+UnitTest("Tlsf") {
+	//      |  Max |  Free Rng | Free Classes           | Alloc Rng | Alloc Classes
+	// -----+------+-----------+------------------------+-----------+---------------
+	// 2.27 |  944 |           |                        |           |
+	// 2.28 |  960 |   960-975 |  960,  968             |   945-960 | 952, 960
+	// 2.29 |  976 |   976-991 |  976,  984             |   961-976 | 968, 976
+	// 2.30 |  992 |  992-1007 |  992, 1000             |   977-992 | 984, 992
+	// 2.31 | 1008 | 1008-1023 | 1008, 1016             |  993-1008 | 1000, 1008
+	// 3.0  | 1024 | 1024-1055 | 1024, 1032, 1040, 1048 | 1009-1024 | 1016, 1024
+	// 3.1  | 1056 | 1056-1087 | 1056, 1064, 1072, 1080 | 1025-1056 | 1032, 1040, 1048, 1056
+	// 3.2  | 1088 | 1088-1119 | 1088, 1096, 1104, 1112 | 1057-1088 | 1064, 1072, 1080, 1088
+	// 3.3  | 1120 | 1120-1151 | 1120, 1128, 1136, 1144 | 1089-1120 | 1096, 1104, 1112, 1120
+	// 3.4  | 1152 |           |                        |           |
 
-	u64 size = 0;
-	u64 inc = 8;
-	for (u32 s = 0; s < SecondCount; s++) {
-		CheckCalcIndex(size, 0, s);
-		size += inc;
-	}
-	for (u32 f = 1; f < FirstCount; f++) {
+	SubTest("CalcIndex") {
+		#define CheckCalcIndex(size, first, second) \
+		{ \
+			const Index i = CalcIndex(size); \
+			CheckEq(i.f, (u64)first); \
+			CheckEq(i.s, (u64)second); \
+		}
+
+		u64 size = 0;
+		u64 inc = 8;
 		for (u32 s = 0; s < SecondCount; s++) {
-			CheckCalcIndex(size, f, s);
+			CheckCalcIndex(size, 0, s);
 			size += inc;
 		}
-		inc <<= 1;
+		for (u32 f = 1; f < FirstCount; f++) {
+			for (u32 s = 0; s < SecondCount; s++) {
+				CheckCalcIndex(size, f, s);
+				size += inc;
+			}
+			inc <<= 1;
+		}
+		CheckCalcIndex((u64)0x10000000000, 33, 0);
 	}
-	CheckCalcIndex((u64)0x10000000000, 33, 0);
-}
 
-UnitTest("Tlsf") {
-	Tlsf tlsf;
-	void* perm = TlsfTestPerm::Mem();
-	constexpr u64 permSize = TlsfTestPerm::Size();
-	tlsf.Init(perm, permSize);
-	constexpr u64 base = permSize - sizeof(Ctx) - sizeof(Chunk) - 24;
-	const bool f = true;	// free
-	const bool u = false;	// used
-	Span<Span<ExpectedBlock>> expectedChunks = {
-		{ { base, f } },
-	};
-	CheckTlsf(tlsf, expectedChunks);
+	SubTest("Alloc/Extend/Free") {
+		Tlsf tlsf;
+		void* perm = TlsfTestPerm::Mem();
+		constexpr u64 permSize = TlsfTestPerm::Size();
+		tlsf.Init(perm, permSize);
+		constexpr u64 base = permSize - sizeof(Ctx) - sizeof(Chunk) - 24;
+		const bool f = true;	// free
+		const bool u = false;	// used
+		Span<Span<ExpectedBlock>> expectedChunks = {
+			{ { base, f } },
+		};
+		CheckTlsf(tlsf, expectedChunks);
 
-	void* p[64] = {};
-	u32 pn = 0;
-	void* x[64] = {};
-	u32 xn = 0;
-	u64 used = 0;
+		void* p[256] = {};
+		u32 pn = 0;
+		u64 used = 0;
 
-	#define PAlloc(size) p[pn++] = tlsf.Alloc(size); used += size + 8
-	#define XAlloc() x[xn++] = tlsf.Alloc(24); used += 24 + 8
+		#define PAlloc(size) p[pn++] = tlsf.Alloc(size); used += size + 8
+		PAlloc( 960); PAlloc(24);
+		PAlloc( 968); PAlloc(24);
+		PAlloc( 976); PAlloc(24);
+		PAlloc( 984); PAlloc(24);
+		PAlloc( 992); PAlloc(24);
+		PAlloc(1000); PAlloc(24);
+		PAlloc(1008); PAlloc(24);
+		PAlloc(1016); PAlloc(24);
+		PAlloc(1024); PAlloc(24);
+		PAlloc(1048); PAlloc(24);
+		PAlloc(1056); PAlloc(24);
+		PAlloc(1080); PAlloc(24);
+		PAlloc(1088); PAlloc(24);
+		PAlloc(1112); PAlloc(24);
+		PAlloc(1120); PAlloc(24);
+		PAlloc(1144); PAlloc(24);
+		expectedChunks = {
+			{
+				{   960, u }, { 24, u }, //  0,  1, 2.28
+				{   968, u }, { 24, u }, //  2,  3, 2.28
+				{   976, u }, { 24, u }, //  4,  5, 2.29
+				{   984, u }, { 24, u }, //  6,  7, 2.29
+				{   992, u }, { 24, u }, //  8,  9, 2.30
+				{  1000, u }, { 24, u }, // 10, 11, 2.30
+				{  1008, u }, { 24, u }, // 12, 13, 2.31
+				{  1016, u }, { 24, u }, // 14, 15, 2.31
+				{  1024, u }, { 24, u }, // 16, 17, 3.0
+				{  1048, u }, { 24, u }, // 18, 19, 3.0
+				{  1056, u }, { 24, u }, // 20, 21, 3.1
+				{  1080, u }, { 24, u }, // 22, 23, 3.1
+				{  1088, u }, { 24, u }, // 24, 25, 3.2
+				{  1112, u }, { 24, u }, // 26, 27, 3.2
+				{  1120, u }, { 24, u }, // 28, 29, 3.3
+				{  1144, u }, { 24, u }, // 30, 31, 3.3
+				{ base - used, f },
+			},
+		};
+		CheckTlsf(tlsf, expectedChunks);
 
-	SubTest("Alloc") {
-		XAlloc();
-		PAlloc(984);
-		XAlloc();
-		PAlloc(1000);
-		XAlloc();
-		PAlloc(1016);
-		XAlloc();
+		// free without merge
+		for (u32 i = 0; i <= 30; i += 2) { tlsf.Free(p[i]); }
+		expectedChunks = {
+			{
+				{   960, f }, { 24, u }, //  0,  1, 2.28
+				{   968, f }, { 24, u }, //  2,  3, 2.28
+				{   976, f }, { 24, u }, //  4,  5, 2.29
+				{   984, f }, { 24, u }, //  6,  7, 2.29
+				{   992, f }, { 24, u }, //  8,  9, 2.30
+				{  1000, f }, { 24, u }, // 10, 11, 2.30
+				{  1008, f }, { 24, u }, // 12, 13, 2.31
+				{  1016, f }, { 24, u }, // 14, 15, 2.31
+				{  1024, f }, { 24, u }, // 16, 17, 3.0
+				{  1048, f }, { 24, u }, // 18, 19, 3.0
+				{  1056, f }, { 24, u }, // 20, 21, 3.1
+				{  1080, f }, { 24, u }, // 22, 23, 3.1
+				{  1088, f }, { 24, u }, // 24, 25, 3.2
+				{  1112, f }, { 24, u }, // 26, 27, 3.2
+				{  1120, f }, { 24, u }, // 28, 29, 3.3
+				{  1144, f }, { 24, u }, // 30, 31, 3.3
+				{ base - used, f },
+			},
+		};
+		CheckTlsf(tlsf, expectedChunks);
 
-		SubTest("From larger first and second") {
-			expectedChunks = {
-				{
-					{   24, u }, // x0
-					{  984, u }, // p0
-					{   24, u }, // x1
-					{ 1000, u }, // p1
-					{   24, u }, // x2
-					{ 1016, u }, // p2
-					{   24, u }, // x3
-					{ base - used, f },
-				},
-			};
-			CheckTlsf(tlsf, expectedChunks);
-		}
+		// REMEMBER: free list is LIFO
+		// alloc exact first/second
+		void* tmp = 0;
+		tmp = tlsf.Alloc(945); CheckEq(tmp, p[2]);	// no split
+		tmp = tlsf.Alloc(945); CheckEq(tmp, p[0]);	// no split
+		// alloc exact first, larger second
+		tmp = tlsf.Alloc(945); CheckEq(tmp, p[6]);	// no split
+		tmp = tlsf.Alloc(945); CheckEq(tmp, p[4]);	// split 24
+		// alloc larger first, larger second
+		tmp = tlsf.Alloc(945); CheckEq(tmp, p[10]);	// split 32
+		tmp = tlsf.Alloc(945); CheckEq(tmp, p[8]);	// split 48
+		// alloc fail
+		tmp = tlsf.Alloc(base - used + 1);
+		CheckFalse(tmp);
+		expectedChunks = {
+			{
+				{   960, u },            { 24, u }, //  0,     1, 2.28
+				{   968, u },            { 24, u }, //  2,     3, 2.28
+				{   976, u },            { 24, u }, //  4,     5, 2.29
+				{   952, u }, { 24, f }, { 24, u }, //  6, x,  7, 2.28
+				{   952, u }, { 32, f }, { 24, u }, //  8, x,  9, 2.28
+				{   952, u }, { 40, f }, { 24, u }, // 10, x, 11, 2.28
+				{  1008, f },            { 24, u }, // 12,    13, 2.31
+				{  1016, f },            { 24, u }, // 14,    15, 2.31
+				{  1024, f },            { 24, u }, // 16,    17, 3.0
+				{  1048, f },            { 24, u }, // 18,    19, 3.0
+				{  1056, f },            { 24, u }, // 20,    21, 3.1
+				{  1080, f },            { 24, u }, // 22,    23, 3.1
+				{  1088, f },            { 24, u }, // 24,    25, 3.2
+				{  1112, f },            { 24, u }, // 26,    27, 3.2
+				{  1120, f },            { 24, u }, // 28,    29, 3.3
+				{  1144, f },            { 24, u }, // 30,    31, 3.3
+				{ base - used, f },
+			},
+		};
+		CheckTlsf(tlsf, expectedChunks);
 
-		SubTest("From exact") {
-			tlsf.Free(p[0]);
-			tlsf.Free(p[1]);
-			tlsf.Free(p[2]);
-			tlsf.Alloc(984);
-			expectedChunks = {
-				{
-					{   24, u }, // x0
-					{  984, u }, // p0
-					{   24, u }, // x1
-					{ 1000, f }, // p1
-					{   24, u }, // x2
-					{ 1016, f }, // p2
-					{   24, u }, // x3
-					{ base - used, f },
-				},
-			};
-			CheckTlsf(tlsf, expectedChunks);
-		}
-		SubTest("No split") {
-			tlsf.Free(p[1]);
-			tlsf.Alloc(1000 - 25);
-			expectedChunks = {
-				{
-					{   24, u }, // x0
-					{  984, u }, // p0
-					{   24, u }, // x1
-					{ 1000, u }, // p1
-					{   24, u }, // x2
-					{ 1016, u }, // p2
-					{   24, u }, // x3
-					{ base - used, f },
-				},
-			};
-			CheckTlsf(tlsf, expectedChunks);
-		}
-		SubTest("Split to new block") {
-			tlsf.Free(p[1]);
-			tlsf.Alloc(1000 - 24);
-			expectedChunks = {
-				{
-					{   24, u }, // x0
-					{  984, u }, // p0
-					{   24, u }, // x1
-					{  976, u }, // p1
-					{   24, f },
-					{   24, u }, // x2
-					{ 1016, u }, // p2
-					{   24, u }, // x3
-					{ base - used, f },
-				},
-			};
-			CheckTlsf(tlsf, expectedChunks);
-		}
+		// Extend
+		CheckFalse(tlsf.Extend(0, 0));
+		CheckTrue (tlsf.Extend(p[0], 0));
+		CheckTrue (tlsf.Extend(p[0], 960));
+		CheckFalse(tlsf.Extend(p[0], 961));
+		CheckTrue (tlsf.Extend(p[6], 953));	// no split
+		CheckTrue (tlsf.Extend(p[8], 953));	// enough for split
+		tlsf.Free(p[21]);	// merge prev and next
+		tlsf.Free(p[31]);	// merge prev and next=LAST
+		used -= 1144 + 8 + 24 + 8;
+		expectedChunks = {
+			{
+				{   960, u },            { 24, u }, //  0,     1, 2.28
+				{   968, u },            { 24, u }, //  2,     3, 2.28
+				{   976, u },            { 24, u }, //  4,     5, 2.29
+				{   984, u },            { 24, u }, //  6,     7, 2.29
+				{   960, u }, { 24, f }, { 24, u }, //  8, x,  9, 2.28
+				{   952, u }, { 40, f }, { 24, u }, // 10, x, 11, 2.28
+				{  1008, f },            { 24, u }, // 12,    13, 2.31
+				{  1016, f },            { 24, u }, // 14,    15, 2.31
+				{  1024, f },            { 24, u }, // 16,    17, 3.0
+				{  1048, f },            { 24, u }, // 18,    19, 3.0
+				{  2176, f },            { 24, u }, // merged
+				{  1088, f },            { 24, u }, // 24,    25, 3.2
+				{  1112, f },            { 24, u }, // 26,    27, 3.2
+				{  1120, f },            { 24, u }, // 28,    29, 3.3
+				// 30, 31 merged into base
+				{ base - used, f },
+			},
+		};
+		CheckTlsf(tlsf, expectedChunks);
 	}
-	// alloc
-		// no split
-		// split
-		// split and merge with next free
-	// extend
-		// block big enough
-		// next free but not big enough
-		// next big enough none leftover / some leftover
-	// free
-		// merge none
-		// merge prev
-		// merge next
-		// merge both
-		// merge begin
-		// merge end
-	// alloc rounding
 }
 
 //--------------------------------------------------------------------------------------------------

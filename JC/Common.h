@@ -459,10 +459,6 @@ template <class T> constexpr T Min(T x, T y) { return x < y ? x : y; }
 template <class T> constexpr T Max(T x, T y) { return x > y ? x : y; }
 template <class T> constexpr T Clamp(T lo, T x, T hi) { return x < lo ? lo : (x > hi ? hi : x); }
 
-constexpr u64   AlignUp   (u64   u, u64 align) { return (u + (align - 1)) & ~(align - 1); }
-constexpr u64   AlignDown (u64   u, u64 align) { return u & ~(align - 1); }
-constexpr void* AlignPtrUp(void* p, u64 align) { return (void*)AlignUp((u64)p, align); }
-
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC

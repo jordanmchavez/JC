@@ -36,19 +36,26 @@ void* Sys::VirtualReserve(u64 size) {
 	return p;
 }
 
-void Sys::VirtualCommit(const void* p, u64 size) {
+void Sys::VirtualCommit(void* p, u64 size) {
 	Assert(p);
 	Assert((u64)p % 4096 == 0);
 	Assert(size % 4096 == 0);
-	if (::VirtualAlloc((void*)p, size, MEM_COMMIT, PAGE_READWRITE) == nullptr) {
+	if (::VirtualAlloc(p, size, MEM_COMMIT, PAGE_READWRITE) == nullptr) {
 		Panic("VirtualAlloc failed with MEM_COMMIT for {} at {}", size, p);
 	}
 }
 
-void Sys::VirtualFree(const void* p) {
+void Sys::VirtualFree(void* p) {
 	if (p) {
-		::VirtualFree((void*)p, 0, MEM_RELEASE);
+		::VirtualFree(p, 0, MEM_RELEASE);
 	}
+}
+
+void Sys::VirtualDecommit(void* p, u64 size) {
+	# pragma warning(push )
+	# pragma warning(disable: 6250)
+	::VirtualFree(p, size, MEM_DECOMMIT);
+	# pragma warning(pop)
 }
 
 //--------------------------------------------------------------------------------------------------

@@ -1,4 +1,6 @@
 #include "JC/Map.h"
+
+#include "JC/Mem.h"
 #include "JC/UnitTest.h"
 
 namespace JC {

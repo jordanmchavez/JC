@@ -41,6 +41,16 @@ UnitTest("Bit") {
 	CheckEq(Bsr64(0x80000000),         31u);
 	CheckEq(Bsr64(0x100000000),        32u);
 	CheckEq(Bsr64(0xffffffffffffffff), 63u);
+
+	CheckEq(AlignPow2(0), 0);
+	CheckEq(AlignPow2(1), 1);
+	CheckEq(AlignPow2(2), 2);
+	for (u64 i = 2; i < 64; i++) {
+		const u64 pow2 = (u64)1 << i;
+		CheckEq(AlignPow2(pow2 - 1), pow2);
+		CheckEq(AlignPow2(pow2    ), pow2);
+		CheckEq(AlignPow2(pow2 + 1), pow2 << 1);
+	}
 }
 
 //--------------------------------------------------------------------------------------------------

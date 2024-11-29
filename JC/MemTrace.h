@@ -4,6 +4,8 @@
 
 namespace JC {
 
+struct Mem;
+
 //--------------------------------------------------------------------------------------------------
 
 struct MemScope { u64 opaque = 0; };
@@ -11,6 +13,7 @@ struct MemScope { u64 opaque = 0; };
 struct MemTraceApi {
 	static MemTraceApi* Get();
 
+	virtual void     Init(Mem* mem) = 0;
 	virtual MemScope CreateScope(s8 name, MemScope parent) = 0;
 	virtual void     DestroyScope(MemScope scope) = 0;
 	virtual void     PermAlloc(u64 size) = 0;

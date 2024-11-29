@@ -15,7 +15,7 @@ namespace UnitTest {
 	bool Run(TempMem* tempMem, LogApi* logApi);
 
 	bool CheckFailImpl(SrcLoc sl);
-	bool CheckTrueFail(SrcLoc sl, s8 expr);
+	bool CheckExprFail(SrcLoc sl, s8 expr);
 	bool CheckRelFail(SrcLoc sl, s8 expr, Arg x, Arg y);
 	bool CheckSpanEqFail_Len(SrcLoc sl, s8 expr, u64 xLen, u64 yLen);
 	bool CheckSpanEqFail_Elem(SrcLoc sl, s8 expr, u64 i, Arg x, Arg y);
@@ -76,11 +76,13 @@ namespace UnitTest {
 
 #define CheckFailAt(sl)         (UnitTest::CheckFailImpl(sl) || TestDebuggerBreak)
 #define CheckFail()             (UnitTest::CheckFailImpl(SrcHere) || TestDebuggerBreak)
-#define CheckTrueAt(sl, x)      ((x) || UnitTest::CheckTrueFail(sl, #x) || TestDebuggerBreak)
-#define CheckEqAt(sl, x, y)     (UnitTest::CheckEq(sl, #x " == " #y, (x), (y)) || TestDebuggerBreak)
-#define CheckNeqAt(sl, x, y)    (UnitTest::CheckNeq(sl, #x " != " #y, (x), (y)) || TestDebuggerBreak)
+#define CheckTrueAt(sl, x)      ((x) || UnitTest::CheckExprFail(sl, #x) || TestDebuggerBreak)
 #define CheckTrue(x)            CheckTrueAt(SrcHere, x)
+#define CheckFalseAt(sl, x)     (!(x) || UnitTest::CheckExprFail(sl, "NOT " #x) || TestDebuggerBreak)
+#define CheckFalse(x)           CheckFalseAt(SrcHere, x)
+#define CheckEqAt(sl, x, y)     (UnitTest::CheckEq(sl, #x " == " #y, (x), (y)) || TestDebuggerBreak)
 #define CheckEq(x, y)           CheckEqAt(SrcHere, x, y)
+#define CheckNeqAt(sl, x, y)    (UnitTest::CheckNeq(sl, #x " != " #y, (x), (y)) || TestDebuggerBreak)
 #define CheckNeq(x, y)          CheckNeqAt(SrcHere, x, y)
 #define CheckSpanEqAt(sl, x, y) (UnitTest::CheckSpanEq(sl, #x " == " #y, (x), (y)) || TestDebuggerBreak)
 #define CheckSpanEq(x, y)       CheckSpanEqAt(SrcHere, x, y)

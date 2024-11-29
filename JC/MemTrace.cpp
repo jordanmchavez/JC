@@ -1,10 +1,40 @@
 #include "JC/MemTrace.h"
 
+#include "JC/Array.h"
+#include "JC/Map.h"
+#include "JC/Mem.h"
+
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-struct MemTraceApiObj : MemTraceApi {
+struct MemTrace : MemTraceApi {
+	struct Scope {
+		s8  name     = {};
+		u64 bytes    = 0;
+		u32 allocs   = 0;
+		u32 children = 0;
+		u32 parent   = 0;
+	};
+
+	struct Trace {
+		SrcLoc sl     = {};
+		u64    bytes  = 0;
+		u32    allocs = 0;
+		u32    scope  = 0;
+	};
+
+	static constexpr u32 MaxScopes = 1024;
+	Mem*            mem               = 0;
+	Scope           scopes[MaxScopes] = {};
+	u32             scopesLen         = 0;
+	Array<Trace>    traces            = {};
+	Map<u64, u64>   srcLocToTrace     = {};
+	Map<void*, u64> ptrToTrace        = {};
+
+	void Init(Mem* memIn) {
+		mem = memIn;
+	}
 
 	MemScope CreateScope(s8 name, MemScope parent) {
 		name;parent;
@@ -28,25 +58,15 @@ struct MemTraceApiObj : MemTraceApi {
 	}
 };
 
-MemTraceApiObj memTraceApiObj;
+MemTrace memTraceApi;
 
 MemTraceApi* MemTraceApi::Get() {
-	return &memTraceApiObj;
+	return &memTraceApi;
 }
 
 /*
-struct Trace {
-	MemObj* mem    = 0;
-	SrcLoc  sl     = {};
-	u32     allocs = 0;
-	u64     bytes  = 0;
-};
-
 //--------------------------------------------------------------------------------------------------
 
-	Array<Trace>     traces              = {};
-	Map<u64, u64>    srcLocToTrace       = {};
-	Map<void*, u64>  ptrToTrace          = {};
 
 
 		void AddTrace(MemObj* mem, void* ptr, u64 size, SrcLoc sl) {

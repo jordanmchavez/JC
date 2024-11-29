@@ -1,10 +1,10 @@
 #pragma once
 
 #include "JC/Common.h"
-#include "JC/Hash.h"
-#include "JC/Mem.h"
 
 namespace JC {
+
+struct Mem;
 
 //-------------------------------------------------------------------------------------------------
 
@@ -36,7 +36,7 @@ struct Map {
 
 	void Init(Mem* memIn, SrcLoc sl = SrcLoc::DefArg()) {
 		mem        = memIn;
-		buckets    = mem->AllocT<Bucket>(16, sl);
+		buckets    = (Bucket*)mem->Alloc(16 * sizeof(Bucket), sl);
 		bucketsLen = 16;
 		elems      = 0;
 		elemsLen   = 0;
@@ -103,8 +103,8 @@ struct Map {
 			} else if (df > bucket->df) {
 				if (elemsLen >= elemsCap) {
 					u64 newCap = Max(16ull, elemsCap * 2u);
-					if (!mem->ExtendT<Elem>(elems, newCap, sl)) {
-						Elem* newElems = mem->AllocT<Elem>(newCap, sl);
+					if (!mem->Extend(elems, newCap * sizeof(Elem), sl)) {
+						Elem* newElems = (Elem*)mem->Alloc(newCap * sizeof(Elem), sl);
 						MemCpy(newElems, elems, elemsLen);
 						mem->Free(elems);
 						elems = newElems;
@@ -114,9 +114,9 @@ struct Map {
 				elems[elemsLen++] = Elem { .key = k, .val = v };
 				if (elemsLen > (7 * (bucketsLen >> 3))) {	// max load factor = 7/8 = 87.5%
 					u64 newBucketsLen = bucketsLen << 1;
-					if (!mem->ExtendT<Bucket>(buckets, newBucketsLen, sl)) {
+					if (!mem->Extend(buckets, newBucketsLen * sizeof(Bucket), sl)) {
 						mem->Free(buckets);
-						buckets = mem->AllocT<Bucket>(newBucketsLen, sl);
+						buckets = (Bucket*)mem->Alloc(newBucketsLen * sizeof(Bucket), sl);
 					}
 					MemSet(buckets, 0, newBucketsLen * sizeof(Bucket));
 					bucketsLen = newBucketsLen;

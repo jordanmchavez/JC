@@ -113,7 +113,7 @@ namespace UnitTest {
 
 				tests[i].fn(tempMem);
 
-				Array<char> lastStr = { .mem = tempMem };
+				Array<char> lastStr(tempMem);
 				for (u32 j = 0; j < lastLen; j++) {
 					lastStr.Add(last[j].name.data, last[j].name.len);
 					lastStr.Add("::", 2);
@@ -144,7 +144,7 @@ namespace UnitTest {
 		return false;
 	}
 
-	bool CheckTrueFail(SrcLoc sl, s8 expr) {
+	bool CheckExprFail(SrcLoc sl, s8 expr) {
 		Log("***CHECK FAILED***");
 		Log("{}({})", sl.file, sl.line);
 		Log("  {}\n", expr);
