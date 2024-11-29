@@ -29,7 +29,7 @@ struct TempMemObj : TempMem {
 
 //--------------------------------------------------------------------------------------------------
 
-struct Mem : MemApi {
+struct MemApiObj : MemApi {
 	static constexpr u32 MaxMemObjs    = 1024;
 	static constexpr u64 TempAlignSize = 8;
 
@@ -122,7 +122,7 @@ struct Mem : MemApi {
 
 //--------------------------------------------------------------------------------------------------
 
-static Mem memApi;
+static MemApiObj memApi;
 
 MemApi* MemApi::Get() {
 	return &memApi;
