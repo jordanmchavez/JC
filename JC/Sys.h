@@ -18,7 +18,6 @@ namespace Sys {
 	void  VirtualCommit(void* p, u64 size);
 	void  VirtualFree(void* p);
 	void  VirtualDecommit(void* p, u64 size);
-	Mem*  VirtualMem();
 };
 
 #if defined Compiler_Msvc

@@ -1,7 +1,6 @@
 #include "JC/Fmt.h"
 #include "JC/Log.h"
 #include "JC/Mem.h"
-#include "JC/MemTrace.h"
 #include "JC/Render.h"
 #include "JC/UnitTest.h"
 #include <stdio.h>
@@ -38,18 +37,37 @@ constexpr s8 FileNameOnly(s8 path) {
 	Sys::Abort();
 }
 
+struct LogLeakReporter : MemLeakReporter {
+	LogApi* logApi = 0;
+
+	void LeakedScope(s8 name, u64 leakedBytes, u32 leakedAllocs, u32 leakedChildren) override {
+		LogError("Leaked scope: name={}, leakedBytes={}, leakedAllocs={}, leakedChildren={}", name, leakedBytes, leakedAllocs, leakedChildren);
+	}
+
+	void LeakedAlloc(SrcLoc sl, u64 leakedBytes, u32 leakedAllocs) override {
+		LogError("  {}({}): leakedBytes={}, leakedAllocs={}", sl.file, sl.line, leakedBytes, leakedAllocs);
+	}
+
+	void LeakedChild(s8 name, u64 leakedBytes, u32 leakedAllocs) override {
+		LogError("  Leaked child: name={}, leakedBytes={}, leakedAllocs={}", name, leakedBytes, leakedAllocs);
+	}
+};
+
 int main(int argc, const char** argv) {
 	//RenderApi*        renderApi        = RenderApi::Get();
 
 	SetPanicFn(MyPanicFn);
 
-	MemTraceApi* memTraceApi = MemTraceApi::Get();
 	MemApi* memApi = MemApi::Get();
-	memApi->Init(memTraceApi);
+	memApi->Init();
 	tempMem = memApi->Temp();
 
 	LogApi* logApi = LogApi::Get();
 	logApi->Init(tempMem);
+
+	LogLeakReporter logLeakReporter;
+	logLeakReporter.logApi = logApi;
+	memApi->SetLeakReporter(&logLeakReporter);
 
 	if (argc == 2 && argv[1] == s8("test")) {
 		return UnitTest::Run(tempMem, logApi) ? 0 : 1;

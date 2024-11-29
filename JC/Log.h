@@ -31,8 +31,9 @@ struct LogApi {
 	}
 };
 
-#define Log(fmt, ...) logApi->Print(SrcHere, LogCategory::Info,  (fmt), ##__VA_ARGS__)
-#define LogErr(err)   logApi->PrintErr(SrcHere, err)
+#define Log(fmt, ...)      logApi->Print(SrcHere, LogCategory::Info,  (fmt), ##__VA_ARGS__)
+#define LogError(fmt, ...) logApi->Print(SrcHere, LogCategory::Error, (fmt), ##__VA_ARGS__)
+#define LogErr(err)        logApi->PrintErr(SrcHere, err)
 
 //--------------------------------------------------------------------------------------------------
 

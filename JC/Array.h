@@ -136,10 +136,10 @@ struct Array {
 	void Grow(u64 newCap, SrcLoc sl = SrcLoc::DefArg()) {
 		Assert(newCap > cap);
 		newCap = Max(Max((u64)16, newCap), cap + (cap >> 1));
-		if (!mem->Extend(data, newCap * sizeof(T), sl)) {
+		if (!mem->Extend(data, cap * sizeof(T), newCap * sizeof(T), sl)) {
 			T* newData = (T*)mem->Alloc(newCap * sizeof(T), sl);
 			MemCpy(newData, data, len * sizeof(T));
-			mem->Free(data);
+			mem->Free(data, cap * sizeof(T));
 			data = newData;
 		}
 		cap = newCap;

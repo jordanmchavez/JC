@@ -59,30 +59,6 @@ void Sys::VirtualDecommit(void* p, u64 size) {
 	# pragma warning(pop)
 }
 
-struct VirtualMem : Mem {
-	void* Alloc(u64 size, SrcLoc) override {
-		void* p = ::VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-		if (!p) {
-			Panic("VirtualAlloc failed with MEM_RESERVE for {}", size);
-		}
-		return p;
-	}
-
-	bool Extend(void*, u64, SrcLoc) override { return false; }
-
-	void Free(void* p) override {
-		if (p) {
-			::VirtualFree(p, 0, MEM_RELEASE);
-		}
-	}
-};
-
-static VirtualMem virtualMem = {};
-
-Mem* Sys::VirtualMem() {
-	return &virtualMem;
-}
-
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC

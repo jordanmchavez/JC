@@ -4,6 +4,8 @@
 	#include <string.h>	// memset/memmove/memcpy
 #endif
 
+#define MemTraceEnabled
+
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
