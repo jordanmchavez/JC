@@ -28,11 +28,12 @@ struct RenderApiObj : RenderApi {
 		bool        present = false;
 	};
 
-	LogApi*                logApi          = 0;
-	Mem*                   mem             = 0;
-	TempMem*               tempMem         = 0;
-	VkAllocationCallbacks* allocCallbacks  = 0;
-	VkInstance             instance        = VK_NULL_HANDLE;
+	LogApi*                  logApi          = 0;
+	Mem*                     mem             = 0;
+	TempMem*                 tempMem         = 0;
+	VkAllocationCallbacks*   allocCallbacks  = 0;
+	VkInstance               instance        = VK_NULL_HANDLE;
+	VkDebugUtilsMessengerEXT debugMessenger  = VK_NULL_HANDLE;
 
 	//-------------------------------------------------------------------------------------------------
 
@@ -206,6 +207,22 @@ struct RenderApiObj : RenderApi {
 		} \
 	}
 
+	static Res<> CheckLayers(Span<const char*> requiredLayers, Span<VkLayerProperties> layerProps) {
+		for (u64 i = 0; i < requiredLayers.len; i++) {
+			bool found = false;
+			for (u64 j = 0; j < layerProps.len; j++) {
+				if (!StrCmp(requiredLayers[i], layerProps[j].layerName)) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				return MakeErr(Err_LayerNotFound, "name", requiredLayers[i]);
+			}
+		}
+		return Ok();
+	}
+
 	Res<> Init(LogApi* logApi_, Mem* mem_, TempMem* tempMem_) override {
 		logApi  = logApi_;
 		mem     = mem_;
@@ -233,18 +250,7 @@ struct RenderApiObj : RenderApi {
 		#if defined Render_Debug
 			requiredLayers.Add("VK_LAYER_KHRONOS_validation");
 		#endif	// Render_Debug
-		for (u64 i = 0; i < requiredLayers.len; i++) {
-			bool found = false;
-			for (u64 j = 0; j < layerProps.len; j++) {
-				if (!StrCmp(requiredLayers[i], layerProps[j].layerName)) {
-					found = true;
-					break;
-				}
-			}
-			if (!found) {
-				return MakeErr(Err_LayerNotFound, "name", requiredLayers[i]);
-			}
-		}
+		if (Res<> r = CheckLayers(requiredLayers, layerProps); !r) { return r; }
 	
 		Array<VkExtensionProperties> instExtProps(tempMem);
 		CheckVk(vkEnumerateInstanceExtensionProperties(0, &n, 0));
@@ -257,11 +263,19 @@ struct RenderApiObj : RenderApi {
 		#else	//  Os_
 			#error("Unsupported OS")
 		#endif	//	Os_
-
-		for (u64 i = 0; i < instExtProps.len; i++) {
-			
-			Log("  {}: specVersion={}", instExtProps[i].extensionName, instExtProps[i].specVersion);
+		for (u64 i = 0; i < requiredInstExts.len; i++) {
+			bool found = false;
+			for (u64 j = 0; j < layerProps.len; j++) {
+				if (!StrCmp(requiredLayers[i], layerProps[j].layerName)) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				return MakeErr(Err_LayerNotFound, "name", requiredLayers[i]);
+			}
 		}
+
 		const bool haveDebugUtils = (bool)AddInstanceExtension("VK_EXT_debug_utils", &instExts);
 		
 		VkInstanceCreateInfo createInfo = {
@@ -269,10 +283,10 @@ struct RenderApiObj : RenderApi {
 			.pNext                   = nullptr,
 			.flags                   = 0,
 			.pApplicationInfo        = &appInfo,
-			.enabledLayerCount       = (u32)layers.len,
-			.ppEnabledLayerNames     = layers.data,
-			.enabledExtensionCount   = (u32)instExts.len,
-			.ppEnabledExtensionNames = instExts.data,
+			.enabledLayerCount       = (u32)requiredLayers.len,
+			.ppEnabledLayerNames     = requiredLayers.data,
+			.enabledExtensionCount   = (u32)requiredInstExts.len,
+			.ppEnabledExtensionNames = requiredInstExts.data,
 		};
 
 		VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
@@ -287,23 +301,25 @@ struct RenderApiObj : RenderApi {
 			createInfo.pNext = &debugCreateInfo;
 		}
 
-		VkResult vkRes = vkCreateInstance(&createInfo, allocCallbacks, &instance);
-		if (vkRes != VK_SUCCESS) {
-			return MakeVkErr(vkCreateInstance, vkRes);
-		}
-
-		EnumerateInstanceExtensions();
-		if (Res<> r = CreateInstance(); !r) { return r; }
+		CheckVk(vkCreateInstance(&createInfo, allocCallbacks, &instance));
 		Vk::LoadInstanceFns(instance);
-		if (Res<> r = EnumeratePhysicalDevices(); !r) { return r; }
-		//if (Res<> r = CreateDevice(); !r) { return r; }
-		*/
+
+		CheckVk(vkCreateDebugUtilsMessengerEXT(instance, &debugCreateInfo, allocCallbacks, &debugMessenger));
+
 		return Ok();
 	}
 
 	//----------------------------------------------------------------------------------------------
 
 	void Shutdown() override {
+		if (debugMessenger != VK_NULL_HANDLE) {
+			vkDestroyDebugUtilsMessengerEXT(instance, debugMessenger, allocCallbacks);
+			debugMessenger = VK_NULL_HANDLE;
+		}
+		if (instance != VK_NULL_HANDLE) {
+			vkDestroyInstance(instance, allocCallbacks);
+			instance = VK_NULL_HANDLE;
+		}
 	}
 };
 
