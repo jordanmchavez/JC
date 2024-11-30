@@ -1,3 +1,9 @@
+memtrace
+windowing based on sdl2
+simple 2d renderer api based on, maybe, love.2d
+input
+console/cmd
+
 vk allocation callbacks
 
 console window for logging
