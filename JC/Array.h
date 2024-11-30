@@ -20,8 +20,8 @@ struct Array {
 
 	void Init(Mem* mem_) { mem = mem_; }
 
-	constexpr T& operator[](u64 i)       { return data[i]; }
-	constexpr T  operator[](u64 i) const { return data[i]; }
+	constexpr       T& operator[](u64 i)       { return data[i]; }
+	constexpr const T& operator[](u64 i) const { return data[i]; }
 
 	operator Span<T>() const { return Span(data, len); }
 

@@ -122,6 +122,7 @@
     <ClInclude Include="JC\Render_Vk.h" />
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Tlsf.h" />
+    <ClInclude Include="JC\Unicode.h" />
     <ClInclude Include="JC\UnitTest.h" />
     <ClInclude Include="Scratch.h" />
   </ItemGroup>
@@ -138,6 +139,7 @@
     <ClCompile Include="JC\Render_VkStr.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
     <ClCompile Include="JC\Tlsf.cpp" />
+    <ClCompile Include="JC\Unicode.cpp" />
     <ClCompile Include="JC\UnitTest.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="JC\Mem.cpp" />

@@ -43,7 +43,7 @@ namespace JC {
 #define MacroConcat2(x, y) x##y
 #define MacroConcat(x, y)  MacroConcat2(x, y)
 #define MacroName(x) MacroConcat(x, __LINE__)
-#define CountOf(a) (u64)(sizeof(a) / sizeof(a[0]))
+#define LenOf(a) (u64)(sizeof(a) / sizeof(a[0]))
 
 //--------------------------------------------------------------------------------------------------
 

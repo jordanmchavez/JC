@@ -32,8 +32,9 @@ namespace Vk {
 	void  LoadDeviceFns(VkDevice vkDevice);
 	void  FreeFns();
 
-	s8 ResultStr(VkResult v);
-	s8 PhysicalDeviceTypeStr(VkPhysicalDeviceType v);
+	s8 ResultStr(VkResult r);
+	s8 PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
+	s8 VersionStr(u32 v);
 }
 
 //--------------------------------------------------------------------------------------------------

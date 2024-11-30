@@ -2,17 +2,17 @@
 
 #include "JC/Common.h"
 
-struct Allocator;
-
 namespace JC {
+
+struct Mem;
 
 //--------------------------------------------------------------------------------------------------
 
-constexpr u64 StrLen16(const char16_t* s) {
+constexpr u64 StrLen16(const wchar_t* s) {
 	if (s == nullptr) {
 		return 0;
 	}
-	const char16_t* p = s;
+	const wchar_t* p = s;
 	while (*p) {
 		++p;
 	}
@@ -22,16 +22,16 @@ constexpr u64 StrLen16(const char16_t* s) {
 //--------------------------------------------------------------------------------------------------
 
 struct s16z {
-	const char16_t* data = nullptr;
-	u64             len  = 0;
+	const wchar_t* data = nullptr;
+	u64            len  = 0;
 
-	constexpr          s16z()                         { data = nullptr; len = 0; }
-	constexpr          s16z(const s16z&s)             { data = s.data;  len = s.len; }
-	constexpr          s16z(const char16_t* sz)       { data = sz;      len = StrLen16(sz); }
-	constexpr          s16z(const char16_t* p, u64 l) { data = p;       len = l; }
+	constexpr          s16z()                        { data = nullptr; len = 0; }
+	constexpr          s16z(const s16z&s)            { data = s.data;  len = s.len; }
+	constexpr          s16z(const wchar_t* sz)       { data = sz;      len = StrLen16(sz); }
+	constexpr          s16z(const wchar_t* p, u64 l) { data = p;       len = l; }
 
-	constexpr s16z&    operator=(const s16z& s)       { data = s.data;  len = s.len;        return *this;}
-	constexpr s16z&    operator=(const char16_t* sz)  { data = sz;      len = StrLen16(sz); return *this;}
+	constexpr s16z&    operator=(const s16z& s)      { data = s.data;  len = s.len;        return *this;}
+	constexpr s16z&    operator=(const wchar_t* sz)  { data = sz;      len = StrLen16(sz); return *this;}
 
 	constexpr char16_t operator[](u64 i) const        { return data[i]; }
 };
