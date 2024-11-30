@@ -273,6 +273,14 @@ struct RenderApiObj : RenderApi {
 				pd->vkPhysicalDeviceProperties.deviceID,
 				Vk::PhysicalDeviceTypeStr(pd->vkPhysicalDeviceProperties.deviceType)
 			);
+			pd->
+		VkPhysicalDeviceFeatures         vkPhysicalDeviceFeatures         = {};
+		VkPhysicalDeviceMemoryProperties vkPhysicalDeviceMemoryProperties = {};
+		VkSurfaceCapabilitiesKHR         vkSurfaceCapabilities            = {};
+		Array<VkExtensionProperties>     vkExtensionProperties            = {};
+		Array<VkSurfaceFormatKHR>        vkSurfaceFormats                 = {};
+		Array<VkPresentModeKHR>          vkPresentModes                   = {};
+		Array<QueueFamily>               queueFamilies                    = {};
 
 		//VkPhysicalDeviceFeatures         vkPhysicalDeviceFeatures         = {};
 		//VkPhysicalDeviceMemoryProperties vkPhysicalDeviceMemoryProperties = {};
