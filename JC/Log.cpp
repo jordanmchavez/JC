@@ -35,8 +35,7 @@ struct LogApiObj : LogApi {
 	}
 
 	void VPrint(SrcLoc sl, LogCategory category, s8 fmt, Args args) override {
-		char buf[1024];
-		Array<char> arr = { .mem = tempMem, .data = buf, .cap = sizeof(buf) };
+		Array<char> arr(tempMem);
 		VFmt(&arr, fmt, args);
 		arr.Add('\n');
 		arr.Add(0);
@@ -46,8 +45,7 @@ struct LogApiObj : LogApi {
 	}
 
 	void PrintErr(SrcLoc sl, Err* err) override {
-		char buf[1024];
-		Array<char> arr = { .mem = tempMem, .data = buf, .cap = sizeof(buf) };
+		Array<char> arr(tempMem);
 		AddErrStr(err, &arr);
 		arr.Add('\n');
 		arr.Add(0);

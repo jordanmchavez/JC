@@ -30,11 +30,11 @@ struct Map {
 
 	Map() = default;
 
-	Map(Mem* memIn, SrcLoc sl = SrcLoc::DefArg()) {
+	Map(Mem* memIn, SrcLoc sl = SrcLoc::Here()) {
 		Init(memIn, sl);
 	}
 
-	void Init(Mem* memIn, SrcLoc sl = SrcLoc::DefArg()) {
+	void Init(Mem* memIn, SrcLoc sl = SrcLoc::Here()) {
 		mem        = memIn;
 		buckets    = (Bucket*)mem->Alloc(16 * sizeof(Bucket), sl);
 		bucketsLen = 16;
@@ -89,7 +89,7 @@ struct Map {
 		}
 	}
 
-	V* Put(K k, V v, SrcLoc sl = SrcLoc::DefArg()) {
+	V* Put(K k, V v, SrcLoc sl = SrcLoc::Here()) {
 		u64 h = Hash(k);
 		u32 df = 0x100 | (h & 0xff);
 		u64 i = h & mask;
@@ -103,10 +103,10 @@ struct Map {
 			} else if (df > bucket->df) {
 				if (elemsLen >= elemsCap) {
 					u64 newCap = Max(16ull, elemsCap * 2u);
-					if (!mem->Extend(elems, newCap * sizeof(Elem), sl)) {
+					if (!mem->Extend(elems, elemsCap * sizeof(Elem), newCap * sizeof(Elem), sl)) {
 						Elem* newElems = (Elem*)mem->Alloc(newCap * sizeof(Elem), sl);
 						MemCpy(newElems, elems, elemsLen);
-						mem->Free(elems);
+						mem->Free(elems, elemsCap * sizeof(Elem));
 						elems = newElems;
 					}
 					elemsCap = newCap;
@@ -114,8 +114,8 @@ struct Map {
 				elems[elemsLen++] = Elem { .key = k, .val = v };
 				if (elemsLen > (7 * (bucketsLen >> 3))) {	// max load factor = 7/8 = 87.5%
 					u64 newBucketsLen = bucketsLen << 1;
-					if (!mem->Extend(buckets, newBucketsLen * sizeof(Bucket), sl)) {
-						mem->Free(buckets);
+					if (!mem->Extend(buckets, bucketsLen * sizeof(Bucket), newBucketsLen * sizeof(Bucket), sl)) {
+						mem->Free(buckets, bucketsLen * sizeof(Bucket));
 						buckets = (Bucket*)mem->Alloc(newBucketsLen * sizeof(Bucket), sl);
 					}
 					MemSet(buckets, 0, newBucketsLen * sizeof(Bucket));

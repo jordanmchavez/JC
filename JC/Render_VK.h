@@ -22,12 +22,12 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-namespace Render {
+namespace Vk {
 	#if defined Os_Windows
 		constexpr ErrCode Err_Dll = { .ns = "vk", .code = 1 };
 	#endif	// Os_Windows
 
-	Res<> LoadRootFns(Mem* perm);
+	Res<> LoadRootFns();
 	void  LoadInstanceFns(VkInstance vkInstance);
 	void  LoadDeviceFns(VkDevice vkDevice);
 	void  FreeFns();

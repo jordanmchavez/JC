@@ -31,7 +31,7 @@ template <class... A> Err* _MakeErr(Err* prev, SrcLoc sl, ErrCode ec, A... a) {
 }
 
 #define MakeErr(ec, ...) \
-	_MakeErr(0, SrcLoc::DefArg(), ec, ##__VA_ARGS__)
+	_MakeErr(0, SrcLoc::Here(), ec, ##__VA_ARGS__)
 
 s8 MakeErrStr(Err* err);
 void AddErrStr(Err* err, Array<char>* arr);

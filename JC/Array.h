@@ -15,6 +15,11 @@ struct Array {
 	u64  len  = 0;
 	u64  cap  = 0;
 
+	Array() = default;
+	Array(Mem* mem_) { mem = mem_; }
+
+	void Init(Mem* mem_) { mem = mem_; }
+
 	constexpr T& operator[](u64 i)       { return data[i]; }
 	constexpr T  operator[](u64 i) const { return data[i]; }
 
@@ -23,7 +28,7 @@ struct Array {
 	constexpr const T* Begin() const { return data; }
 	constexpr const T* End()   const { return data + len; }
 
-	T* Add(SrcLoc sl = SrcLoc::DefArg()) {
+	T* Add(SrcLoc sl = SrcLoc::Here()) {
 		if (len + 1 > cap) {
 			Grow(len + 1, sl);
 		}
@@ -32,7 +37,7 @@ struct Array {
 		return &data[len - 1];
 	}
 
-	T* Add(T val, SrcLoc sl = SrcLoc::DefArg()) {
+	T* Add(T val, SrcLoc sl = SrcLoc::Here()) {
 		if (len + 1 > cap) {
 			Grow(len + 1, sl);
 		}
@@ -40,7 +45,7 @@ struct Array {
 		return &data[len - 1];
 	}
 
-	void Add(const T* vals, u64 valsLen, SrcLoc sl = SrcLoc::DefArg()) {
+	void Add(const T* vals, u64 valsLen, SrcLoc sl = SrcLoc::Here()) {
 		if (len + valsLen > cap) {
 			Grow(len + valsLen, sl);
 		}
@@ -48,7 +53,7 @@ struct Array {
 		len += valsLen;
 	}
 
-	void Add(const T* begin, const T* end, SrcLoc sl = SrcLoc::DefArg()) {
+	void Add(const T* begin, const T* end, SrcLoc sl = SrcLoc::Here()) {
 		const u64 valsLen = (u64)(end - begin);
 		if (len + valsLen > cap) {
 			Grow(len + valsLen, sl);
@@ -57,7 +62,7 @@ struct Array {
 		len += valsLen;
 	}
 
-	void Add(Span<T> vals, SrcLoc sl = SrcLoc::DefArg()) {
+	void Add(Span<T> vals, SrcLoc sl = SrcLoc::Here()) {
 		if (len + vals.len > cap) {
 			Grow(len + vals.len, sl);
 		}
@@ -65,7 +70,7 @@ struct Array {
 		len += vals.len;
 	}
 
-	void Fill(T val, u64 n, SrcLoc sl = SrcLoc::DefArg()) {
+	void Fill(T val, u64 n, SrcLoc sl = SrcLoc::Here()) {
 		if (len + n > cap) {
 			Grow(len + n, sl);
 		}
@@ -80,7 +85,7 @@ struct Array {
 		len += n;
 	}
 
-	void Insert(u32 i, T val, SrcLoc sl = SrcLoc::DefArg()) {
+	void Insert(u32 i, T val, SrcLoc sl = SrcLoc::Here()) {
 		if (len + 1 > cap) {
 			Grow(len + 1, sl);
 		}
@@ -108,7 +113,7 @@ struct Array {
 		return false;
 	}
 
-	T* Extend(u64 n, SrcLoc sl = SrcLoc::DefArg()) {
+	T* Extend(u64 n, SrcLoc sl = SrcLoc::Here()) {
 		if (len + n > cap) {
 			Grow(len + n, sl);
 		}
@@ -117,7 +122,7 @@ struct Array {
 		return res;
 	}
 
-	T* Resize(u64 newLen, SrcLoc sl = SrcLoc::DefArg()) {
+	T* Resize(u64 newLen, SrcLoc sl = SrcLoc::Here()) {
 		if (newLen > cap) {
 			Grow(newLen, sl);
 		}
@@ -126,20 +131,20 @@ struct Array {
 		return res;
 	}
 
-	T* Reserve(u64 newCap, SrcLoc sl = SrcLoc::DefArg()) {
+	T* Reserve(u64 newCap, SrcLoc sl = SrcLoc::Here()) {
 		if (newCap > cap) {
 			Grow(newCap, sl);
 		}
 		return data + len;
 	}
 
-	void Grow(u64 newCap, SrcLoc sl = SrcLoc::DefArg()) {
+	void Grow(u64 newCap, SrcLoc sl = SrcLoc::Here()) {
 		Assert(newCap > cap);
 		newCap = Max(Max((u64)16, newCap), cap + (cap >> 1));
-		if (!mem->Extend(data, newCap * sizeof(T), sl)) {
+		if (!mem->Extend(data, cap * sizeof(T), newCap * sizeof(T), sl)) {
 			T* newData = (T*)mem->Alloc(newCap * sizeof(T), sl);
 			MemCpy(newData, data, len * sizeof(T));
-			mem->Free(data);
+			mem->Free(data, cap * sizeof(T));
 			data = newData;
 		}
 		cap = newCap;
