@@ -88,12 +88,14 @@ int main(int argc, const char** argv) {
 		}
 	});
 
-	//if (Res<> r = Render::Init(&scratch); !r) {	
-	//	LogErr(scratch, r.err);
-	//	return 1;
-	//}
+	RenderApi* renderApi = RenderApi::Get();
+	Mem* renderMem = memApi->CreateScope("render", 0);
+	if (Res<> r = renderApi->Init(logApi, renderMem, tempMem); !r) {
+		LogErr(r.err);
+		return 1;
+	}
 
-	//Render::Shutdown();
+	renderApi->Shutdown();
 
 	return 0;
 }

@@ -1,5 +1,7 @@
 #include "JC/Render_Vk.h"
 
+#include "JC/Err.h"
+
 #if defined Os_Windows
 	typedef __int64 (__stdcall *FARPROC)();
 
@@ -14,11 +16,11 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Render::LoadRootFns(Mem* scratch) {
+Res<> Vk::LoadRootFns() {
 	#if defined Os_Windows
 		vulkanDll = LoadLibraryW(L"vulkan-1.dll");
 		if (!vulkanDll) {
-			return MakeErr(scratch, Err_Dll);
+			return MakeErr(Err_Dll);
 		}
 		vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)GetProcAddress(vulkanDll, "vkGetInstanceProcAddr");
 		vkCreateInstance = (PFN_vkCreateInstance)vkGetInstanceProcAddr(nullptr, "vkCreateInstance");
@@ -33,7 +35,7 @@ Res<> Render::LoadRootFns(Mem* scratch) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Render::LoadInstanceFns(VkInstance vkInstance) {
+void Vk::LoadInstanceFns(VkInstance vkInstance) {
 	vkCreateDevice = (PFN_vkCreateDevice)vkGetInstanceProcAddr(vkInstance, "vkCreateDevice");
 	vkDestroyInstance = (PFN_vkDestroyInstance)vkGetInstanceProcAddr(vkInstance, "vkDestroyInstance");
 	vkEnumerateDeviceExtensionProperties = (PFN_vkEnumerateDeviceExtensionProperties)vkGetInstanceProcAddr(vkInstance, "vkEnumerateDeviceExtensionProperties");
@@ -87,7 +89,7 @@ void Render::LoadInstanceFns(VkInstance vkInstance) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Render::LoadDeviceFns(VkDevice vkDevice) {
+void Vk::LoadDeviceFns(VkDevice vkDevice) {
 	vkAllocateCommandBuffers = (PFN_vkAllocateCommandBuffers)vkGetDeviceProcAddr(vkDevice, "vkAllocateCommandBuffers");
 	vkAllocateDescriptorSets = (PFN_vkAllocateDescriptorSets)vkGetDeviceProcAddr(vkDevice, "vkAllocateDescriptorSets");
 	vkAllocateMemory = (PFN_vkAllocateMemory)vkGetDeviceProcAddr(vkDevice, "vkAllocateMemory");
@@ -284,7 +286,7 @@ void Render::LoadDeviceFns(VkDevice vkDevice) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Render::FreeFns() {
+void Vk::FreeFns() {
 	#if defined Os_Windows
 		FreeLibrary(vulkanDll);
 	#endif	// Os_Windows

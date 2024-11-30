@@ -30,11 +30,11 @@ struct Map {
 
 	Map() = default;
 
-	Map(Mem* memIn, SrcLoc sl = SrcLoc::DefArg()) {
+	Map(Mem* memIn, SrcLoc sl = SrcLoc::Here()) {
 		Init(memIn, sl);
 	}
 
-	void Init(Mem* memIn, SrcLoc sl = SrcLoc::DefArg()) {
+	void Init(Mem* memIn, SrcLoc sl = SrcLoc::Here()) {
 		mem        = memIn;
 		buckets    = (Bucket*)mem->Alloc(16 * sizeof(Bucket), sl);
 		bucketsLen = 16;
@@ -89,7 +89,7 @@ struct Map {
 		}
 	}
 
-	V* Put(K k, V v, SrcLoc sl = SrcLoc::DefArg()) {
+	V* Put(K k, V v, SrcLoc sl = SrcLoc::Here()) {
 		u64 h = Hash(k);
 		u32 df = 0x100 | (h & 0xff);
 		u64 i = h & mask;

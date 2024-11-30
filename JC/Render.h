@@ -4,14 +4,20 @@
 
 namespace JC {
 
+struct LogApi;
+struct Mem;
+struct TempMem;
+
 //--------------------------------------------------------------------------------------------------
 
-namespace Render {
+struct RenderApi {
 	static constexpr ErrCode Err_LayerNotFound     = { .ns = "ren", .code = 1 };
 	static constexpr ErrCode Err_ExtensionNotFound = { .ns = "ren", .code = 2 };
 
-	Res<> Init(Mem* perm, Mem* res);
-	void  Shutdown();
+	static RenderApi* Get();
+
+	virtual Res<> Init(LogApi* logApi, Mem* mem, TempMem* tempMem) = 0;
+	virtual void  Shutdown() = 0;
 };
 
 //--------------------------------------------------------------------------------------------------

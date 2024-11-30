@@ -7,8 +7,8 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 struct Mem {
-	virtual void* Alloc(u64 size, SrcLoc sl = SrcLoc::DefArg()) = 0;
-	virtual bool  Extend(void* p, u64 oldSize, u64 newSize, SrcLoc sl = SrcLoc::DefArg()) = 0;
+	virtual void* Alloc(u64 size, SrcLoc sl = SrcLoc::Here()) = 0;
+	virtual bool  Extend(void* p, u64 oldSize, u64 newSize, SrcLoc sl = SrcLoc::Here()) = 0;
 	virtual void  Free(void* p, u64 size) = 0;
 };
 
@@ -17,8 +17,7 @@ struct Mem {
 struct TempMem : Mem {
 	virtual u64  Mark() = 0;
 	virtual void Reset(u64 mark) = 0;
-
-	void Free(void*, u64) override {}
+	virtual void Free(void* p, u64 size) = 0;
 };
 
 //--------------------------------------------------------------------------------------------------

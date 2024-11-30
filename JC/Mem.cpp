@@ -19,14 +19,15 @@ struct Scope : Mem {
 	Scope* parent   = 0;	// doubles as next link in free list
 
 	void* Alloc(u64 size, SrcLoc sl) override;
-	bool  Extend(void* ptr, u64 oldSize, u64 newSize, SrcLoc sl) override;
-	void  Free(void* ptr, u64 size) override;
+	bool  Extend(void* p, u64 oldSize, u64 newSize, SrcLoc sl) override;
+	void  Free(void* p, u64 size) override;
 };
 //--------------------------------------------------------------------------------------------------
 
 struct TempMemObj : TempMem {
 	void* Alloc(u64 size, SrcLoc sl) override;
-	bool  Extend(void* ptr, u64 oldSize, u64 newSize, SrcLoc sl) override;
+	bool  Extend(void* p, u64 oldSize, u64 newSize, SrcLoc sl) override;
+	void  Free(void* p, u64 size) override;
 	u64   Mark() override;
 	void  Reset(u64 mark) override;
 };
@@ -163,7 +164,7 @@ struct MemApiObj : MemApi {
 		freeScopes = scope;
 	}
 
-	void AddTrace(Scope* scope, void* ptr, u64 size, SrcLoc sl) {
+	void AddTrace(Scope* scope, void* p, u64 size, SrcLoc sl) {
 		if (scope == &scopes[0]) {
 			return;
 		}
@@ -172,7 +173,7 @@ struct MemApiObj : MemApi {
 			Trace* trace = &traces[idx.val];
 			trace->allocs++;
 			trace->bytes += size;
-			ptrToTrace.Put(ptr, idx.val);
+			ptrToTrace.Put(p, idx.val);
 		} else {
 			traces.Add(Trace {
 				.scope  = scope,
@@ -180,22 +181,22 @@ struct MemApiObj : MemApi {
 				.bytes  = size,
 				.allocs = 1,
 			});
-			ptrToTrace.Put(ptr, traces.len - 1);
+			ptrToTrace.Put(p, traces.len - 1);
 			slToTrace.Put(key, traces.len - 1);
 		}
 	}
 
-	void RemoveTrace(Scope* scope, void* ptr, u64 size) {
+	void RemoveTrace(Scope* scope, void* p, u64 size) {
 		if (scope == &scopes[0]) {
 			return;
 		}
-		if (Opt<u64> idx = ptrToTrace.Find(ptr); idx.hasVal) {
+		if (Opt<u64> idx = ptrToTrace.Find(p); idx.hasVal) {
 			Trace* trace = &traces[idx.val];
 			Assert(trace->scope == scope);
 			Assert(trace->allocs > 0);
 			trace->bytes -= size;
 			trace->allocs--;
-			ptrToTrace.Remove(ptr);
+			ptrToTrace.Remove(p);
 		}
 	}
 };
@@ -214,8 +215,8 @@ void* Scope::Alloc(u64 size, SrcLoc sl) {
 	if (size == 0) {
 		return 0;
 	}
-	void* ptr = memApi.tlsf.Alloc(size);
-	if (!ptr) {
+	void* p = memApi.tlsf.Alloc(size);
+	if (!p) {
 		u64 chunkSize = memApi.permSize;
 		while (chunkSize - 8 < size) {
 			chunkSize *= 2;
@@ -224,30 +225,30 @@ void* Scope::Alloc(u64 size, SrcLoc sl) {
 		memApi.permSize += chunkSize;
 
 		memApi.tlsf.AddChunk(chunk, chunkSize);
-		ptr = memApi.tlsf.Alloc(size);
-		Assert(ptr);
+		p = memApi.tlsf.Alloc(size);
+		Assert(p);
 	}
-	memApi.AddTrace(this, ptr, size, sl);
-	return ptr;
+	memApi.AddTrace(this, p, size, sl);
+	return p;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-bool Scope::Extend(void* ptr, u64 oldSize, u64 newSize, SrcLoc sl) {
-	if (!ptr || !memApi.tlsf.Extend(ptr, newSize)) {
+bool Scope::Extend(void* p, u64 oldSize, u64 newSize, SrcLoc sl) {
+	if (!p || !memApi.tlsf.Extend(p, newSize)) {
 		return false;
 	}
-	memApi.RemoveTrace(this, ptr, oldSize);
-	memApi.AddTrace(this, ptr, newSize, sl);
+	memApi.RemoveTrace(this, p, oldSize);
+	memApi.AddTrace(this, p, newSize, sl);
 	return true;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void Scope::Free(void* ptr, u64 size) {
-	if (ptr) {
-		memApi.tlsf.Free(ptr);
-		memApi.RemoveTrace(this, ptr, size);
+void Scope::Free(void* p, u64 size) {
+	if (p) {
+		memApi.tlsf.Free(p);
+		memApi.RemoveTrace(this, p, size);
 	}
 }
 
@@ -258,13 +259,15 @@ void* TempMemObj::Alloc(u64 size, SrcLoc) {
 	Assert(memApi.tempCommit >= memApi.tempUsed);
 	const u64 tempAvail = (u64)(memApi.tempCommit - memApi.tempUsed);
 	if (tempAvail < size) {
-		u64 extend = Max((u64)4096, (u64)(memApi.tempCommit - memApi.tempBegin) * 2);
-		while (tempAvail + extend < size) {
-			extend *= 2;
-			Assert(memApi.tempCommit + extend < memApi.tempReserve);
+		const u64 committed = (u64)(memApi.tempCommit - memApi.tempBegin);
+		u64 nextCommitted = Max((u64)4096, committed * 2);
+		while (tempAvail + nextCommitted < size) {
+			nextCommitted *= 2;
+			Assert(memApi.tempBegin + nextCommitted < memApi.tempReserve);
 		}
-		Sys::VirtualCommit(memApi.tempCommit, extend);
-		memApi.tempCommit += extend;
+		const u64 commitExtend = nextCommitted - committed;
+		Sys::VirtualCommit(memApi.tempCommit, commitExtend);
+		memApi.tempCommit += commitExtend;
 	}
 	void* p = memApi.tempUsed;
 	memApi.tempUsed += size;
@@ -273,13 +276,13 @@ void* TempMemObj::Alloc(u64 size, SrcLoc) {
 
 //--------------------------------------------------------------------------------------------------
 
-bool TempMemObj::Extend(void* ptr, u64 oldSize, u64 newSize, SrcLoc) {
-	if (!ptr) {
+bool TempMemObj::Extend(void* p, u64 oldSize, u64 newSize, SrcLoc) {
+	if (!p) {
 		return false;
 	}
 
 	oldSize = AlignUp(oldSize, memApi.TempAlignSize);
-	if (ptr != memApi.tempUsed - oldSize) {
+	if (p != memApi.tempUsed - oldSize) {
 		return false;
 	}
 
@@ -288,16 +291,26 @@ bool TempMemObj::Extend(void* ptr, u64 oldSize, u64 newSize, SrcLoc) {
 	Assert(memApi.tempCommit >= memApi.tempUsed);
 	const u64 tempAvail = (u64)(memApi.tempCommit - memApi.tempUsed);
 	if (tempAvail < newSize) {
-		u64 extend = Max((u64)4096, (u64)(memApi.tempCommit - memApi.tempReserve) * 2);
-		while (tempAvail + extend < newSize) {
-			extend *= 2;
-			Assert(memApi.tempCommit + extend < memApi.tempReserve);
+		const u64 committed = (u64)(memApi.tempCommit - memApi.tempBegin);
+		u64 nextCommitted = Max((u64)4096, committed * 2);
+		while (tempAvail + nextCommitted < newSize) {
+			nextCommitted *= 2;
+			Assert(memApi.tempBegin + nextCommitted < memApi.tempReserve);
 		}
-		Sys::VirtualCommit(memApi.tempCommit, extend);
-		memApi.tempCommit += extend;
+		const u64 commitExtend = nextCommitted - committed;
+		Sys::VirtualCommit(memApi.tempCommit, commitExtend);
+		memApi.tempCommit += commitExtend;
 	}
 	memApi.tempUsed += newSize;
 	return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void TempMemObj::Free(void* p, u64 size) {
+	if (p == memApi.tempUsed - size) {
+		memApi.tempUsed -= size;
+	}
 }
 
 //--------------------------------------------------------------------------------------------------

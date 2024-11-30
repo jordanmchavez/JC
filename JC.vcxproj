@@ -118,6 +118,8 @@
     <ClInclude Include="JC\Log.h" />
     <ClInclude Include="JC\Map.h" />
     <ClInclude Include="JC\Mem.h" />
+    <ClInclude Include="JC\Render.h" />
+    <ClInclude Include="JC\Render_Vk.h" />
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Tlsf.h" />
     <ClInclude Include="JC\UnitTest.h" />
@@ -131,6 +133,9 @@
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Log.cpp" />
     <ClCompile Include="JC\Map.cpp" />
+    <ClCompile Include="JC\Render_Vk.cpp" />
+    <ClCompile Include="JC\Render_VkLoad.cpp" />
+    <ClCompile Include="JC\Render_VkStr.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
     <ClCompile Include="JC\Tlsf.cpp" />
     <ClCompile Include="JC\UnitTest.cpp" />

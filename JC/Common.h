@@ -25,13 +25,14 @@ namespace JC {
 	using f32 = float;
 	using f64 = double;
 
-	#define StrLen              __builtin_strlen
-	#define MemCmp              __builtin_memcmp
-	#define MemSet              memset
-	#define MemCpy              memcpy
-	#define MemMove             memmove
-	#define BuiltinFile         __builtin_FILE()
-	#define BuiltinLine         __builtin_LINE()
+	#define StrLen      __builtin_strlen
+	#define StrCmp      strcmp
+	#define MemCmp      __builtin_memcmp
+	#define MemSet      memset
+	#define MemCpy      memcpy
+	#define MemMove     memmove
+	#define BuiltinFile __builtin_FILE()
+	#define BuiltinLine __builtin_LINE()
 	#define IfConsteval if (__builtin_is_constant_evaluated())
 	#define BuiltinIsEnum(T)   __is_enum(T)
 
@@ -42,7 +43,7 @@ namespace JC {
 #define MacroConcat2(x, y) x##y
 #define MacroConcat(x, y)  MacroConcat2(x, y)
 #define MacroName(x) MacroConcat(x, __LINE__)
-#define countof(a) (u64)(sizeof(a) / sizeof(a[0]))
+#define CountOf(a) (u64)(sizeof(a) / sizeof(a[0]))
 
 //--------------------------------------------------------------------------------------------------
 
@@ -301,12 +302,10 @@ struct SrcLoc {
 	s8  file = {};
 	i32 line = 0;
 
-	static consteval SrcLoc DefArg(s8 file = BuiltinFile, i32 line = BuiltinLine) {
+	static consteval SrcLoc Here(s8 file = BuiltinFile, i32 line = BuiltinLine) {
 		return SrcLoc { .file = file, .line = line };
 	}
 };
-
-#define SrcHere SrcLoc { .file = __FILE__, .line = __LINE__ }
 
 //--------------------------------------------------------------------------------------------------
 
