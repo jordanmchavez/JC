@@ -1,6 +1,9 @@
 #pragma once
 
-#include "JC/Render_Vk.h"
+#include "JC/Vk.h"
+
+#include "JC/Fmt.h"
+#include "JC/Mem.h"
 
 namespace JC {
 
@@ -73,6 +76,12 @@ s8 Vk::PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
 		case VK_PHYSICAL_DEVICE_TYPE_CPU: return "VK_PHYSICAL_DEVICE_TYPE_CPU";
 		default: return "<unknown VkPhysicalDeviceType>";
 	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+s8 Vk::VersionStr(u32 v) {
+	return Fmt(MemApi::Get()->Temp(), "{}.{}.{}", VK_API_VERSION_MAJOR(v), VK_API_VERSION_MINOR(v), VK_API_VERSION_PATCH(v));
 }
 
 //--------------------------------------------------------------------------------------------------
