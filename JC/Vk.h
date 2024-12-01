@@ -32,6 +32,12 @@ namespace Vk {
 	void  LoadDeviceFns(VkDevice vkDevice);
 	void  FreeFns();
 
+	s8 ColorSpaceStr(VkColorSpaceKHR c);
+	s8 FormatStr(VkFormat f);
+	s8 MemoryHeapFlagsStr(VkMemoryHeapFlags f);
+	s8 MemoryPropertyFlagsStr(VkMemoryPropertyFlags f);
+	s8 QueueFlagsStr(VkQueueFlags f);
+	s8 PresentModeStr(VkPresentModeKHR m);
 	s8 ResultStr(VkResult r);
 	s8 PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
 	s8 VersionStr(u32 v);

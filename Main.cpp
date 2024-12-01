@@ -194,7 +194,18 @@ int main(int argc, const char** argv) {
 		LogErr(r.err);
 		return 1;
 	}
-
+	/*
+	MSG msg;
+	for (;;) {
+		PeekMessageW(&msg, 0, 0, 0, PM_REMOVE);
+		if (msg.message == WM_QUIT) {
+			break;
+		}
+		TranslateMessage(&msg);
+		DispatchMessageW(&msg);
+		renderApi->Frame().Ignore();
+	}
+	*/
 	renderApi->Shutdown();
 
 	return 0;

@@ -156,8 +156,7 @@ struct Array {
 
 	void Free() {
 		if (mem) {
-			mem->Free(mem);
-			mem = 0;
+			mem->Free(data, cap * sizeof(T));
 			cap = 0;
 		}
 		len = 0;

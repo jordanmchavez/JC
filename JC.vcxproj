@@ -118,6 +118,7 @@
     <ClInclude Include="JC\Log.h" />
     <ClInclude Include="JC\Map.h" />
     <ClInclude Include="JC\Mem.h" />
+    <ClInclude Include="JC\MinimalWindows.h" />
     <ClInclude Include="JC\Render.h" />
     <ClInclude Include="JC\Vk.h" />
     <ClInclude Include="JC\Sys.h" />
@@ -130,11 +131,12 @@
     <ClCompile Include="JC\Common_Panic.cpp" />
     <ClCompile Include="JC\Err.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
+    <ClCompile Include="Shaders\frag.glsl" />
     <ClCompile Include="JC\Fmt.cpp" />
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Log.cpp" />
     <ClCompile Include="JC\Map.cpp" />
-    <ClCompile Include="JC\Render_Vk.cpp" />
+    <ClCompile Include="JC\Render.cpp" />
     <ClCompile Include="JC\Vk_Load.cpp" />
     <ClCompile Include="JC\Vk_Str.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
@@ -147,8 +149,8 @@
   <ItemGroup>
     <None Include="Game Notes.md" />
     <None Include="Guidebook.md" />
+    <None Include="Shaders\vert.glsl" />
     <None Include="Stardew Notes.md" />
-    <None Include="Tech Notes.md" />
     <None Include="Todo.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
