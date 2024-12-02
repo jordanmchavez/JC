@@ -11,16 +11,7 @@
 
 #define Render_Debug
 
-#include <stdio.h>
-struct Shaders {
-	void* vert;
-	JC::u64 vertSize;
-	void* frag;
-	JC::u64 fragSize;
-};
-Shaders LoadShaders(){
-	fopen("
-}
+#include <stdio.h>	
 
 namespace JC {
 
@@ -31,6 +22,21 @@ namespace JC {
 
 #define LogVkErr(Fn, vkRes) \
 	LogErr(MakeVkErr(Fn, vkRes))
+
+//--------------------------------------------------------------------------------------------------
+
+Array<u8> ReadFile(Mem* mem, const char* path) {
+	FILE* f = fopen(path, "rb");
+	Assert(f);
+	fseek(f, 0, SEEK_END);
+	u64 len = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	Array<u8> a(mem);
+	a.Resize(len);
+	Assert(fread(a.data, 1, len, f) == len);
+	fclose(f);
+	return a;
+}
 
 //--------------------------------------------------------------------------------------------------
 
@@ -54,31 +60,33 @@ struct RenderApiObj : RenderApi {
 		u32                              score                            = 0;
 	};
 
-	LogApi*                  logApi                = 0;
-	Mem*                     mem                   = 0;
-	TempMem*                 tempMem               = 0;
-	VkAllocationCallbacks*   vkAllocationCallbacks = 0;
-	VkInstance               vkInstance            = VK_NULL_HANDLE;
-	VkDebugUtilsMessengerEXT vkDebugUtilsMessenger = VK_NULL_HANDLE;
-	VkSurfaceKHR             vkSurface             = VK_NULL_HANDLE;
-	Array<PhysicalDevice>    physicalDevices       = {};
-	VkDevice                 vkDevice              = VK_NULL_HANDLE;
-	VkSwapchainKHR           vkSwapchain           = VK_NULL_HANDLE;
-	VkQueue                  vkQueue               = VK_NULL_HANDLE;
-	VkCommandPool            vkCommandPool         = VK_NULL_HANDLE;
-	VkCommandBuffer          vkSetupCommandBuffer  = VK_NULL_HANDLE;
-	VkCommandBuffer          vkRenderCommandBuffer = VK_NULL_HANDLE;
-	Array<VkImage>           vkSwapchainImages     = {};
-	VkFence                  vkFence               = VK_NULL_HANDLE;
-	Array<VkImageView>       vkSwapchainImageViews = {};
-	VkImage                  vkDepthImage          = VK_NULL_HANDLE;
-	VkDeviceMemory           vkDepthImageMemory    = VK_NULL_HANDLE;
-	VkImageView              vkDepthImageView      = VK_NULL_HANDLE;
-	VkRenderPass             vkRenderPass          = VK_NULL_HANDLE;
-	Array<VkFramebuffer>     vkFramebuffers        = {};
-	VkBuffer                 vkVertexBuffer        = VK_NULL_HANDLE;
-	VkDeviceMemory           vkVertexBufferMemory  = VK_NULL_HANDLE;
-
+	LogApi*                  logApi                 = 0;
+	Mem*                     mem                    = 0;
+	TempMem*                 tempMem                = 0;
+	VkAllocationCallbacks*   vkAllocationCallbacks  = 0;
+	VkInstance               vkInstance             = VK_NULL_HANDLE;
+	VkDebugUtilsMessengerEXT vkDebugUtilsMessenger  = VK_NULL_HANDLE;
+	VkSurfaceKHR             vkSurface              = VK_NULL_HANDLE;
+	Array<PhysicalDevice>    physicalDevices        = {};
+	VkDevice                 vkDevice               = VK_NULL_HANDLE;
+	VkSwapchainKHR           vkSwapchain            = VK_NULL_HANDLE;
+	VkQueue                  vkQueue                = VK_NULL_HANDLE;
+	VkCommandPool            vkCommandPool          = VK_NULL_HANDLE;
+	VkCommandBuffer          vkSetupCommandBuffer   = VK_NULL_HANDLE;
+	VkCommandBuffer          vkRenderCommandBuffer  = VK_NULL_HANDLE;
+	Array<VkImage>           vkSwapchainImages      = {};
+	VkFence                  vkFence                = VK_NULL_HANDLE;
+	Array<VkImageView>       vkSwapchainImageViews  = {};
+	VkImage                  vkDepthImage           = VK_NULL_HANDLE;
+	VkDeviceMemory           vkDepthImageMemory     = VK_NULL_HANDLE;
+	VkImageView              vkDepthImageView       = VK_NULL_HANDLE;
+	VkRenderPass             vkRenderPass           = VK_NULL_HANDLE;
+	Array<VkFramebuffer>     vkFramebuffers         = {};
+	VkBuffer                 vkVertexBuffer         = VK_NULL_HANDLE;
+	VkDeviceMemory           vkVertexBufferMemory   = VK_NULL_HANDLE;
+	VkShaderModule           vkVertexShaderModule   = VK_NULL_HANDLE;
+	VkShaderModule           vkFragmentShaderModule = VK_NULL_HANDLE;
+	
 	//-------------------------------------------------------------------------------------------------
 
 	s8 SizeStr(u64 size) {
@@ -903,6 +911,183 @@ struct RenderApiObj : RenderApi {
 
 		CheckVk(vkBindBufferMemory(vkDevice, vkVertexBuffer, vkVertexBufferMemory, 0));
 
+		Array<u8> vertShaderSpv = ReadFile(tempMem, "Shaders/vert.spv");
+		VkShaderModuleCreateInfo vkShaderModuleCreateInfo = {
+			.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+			.pNext    = 0,
+			.flags    = 0,
+			.codeSize = vertShaderSpv.len,
+			.pCode    = (const u32*)vertShaderSpv.data,
+		};
+		CheckVk(vkCreateShaderModule(vkDevice, &vkShaderModuleCreateInfo, vkAllocationCallbacks, &vkVertexShaderModule));
+		Log("Created vertex shader module");
+
+		Array<u8> fragShaderSpv = ReadFile(tempMem, "Shaders/frag.spv");
+		vkShaderModuleCreateInfo = {
+			.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+			.pNext    = 0,
+			.flags    = 0,
+			.codeSize = fragShaderSpv.len,
+			.pCode    = (const u32*)fragShaderSpv.data,
+		};
+		CheckVk(vkCreateShaderModule(vkDevice, &vkShaderModuleCreateInfo, vkAllocationCallbacks, &vkFragmentShaderModule));
+		Log("Created fragment shader module");
+
+		VkPipelineShaderStageCreateInfo vkPipelineShaderStageCreateInfos[2] = {
+			{
+				.sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+				.pNext               = 0,
+				.flags               = 0,
+				.stage               = VK_SHADER_STAGE_VERTEX_BIT,
+				.module              = vkVertexShaderModule,
+				.pName               = "main",
+				.pSpecializationInfo = 0,
+			},
+			{
+				.sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+				.pNext               = 0,
+				.flags               = 0,
+				.stage               = VK_SHADER_STAGE_FRAGMENT_BIT,
+				.module              = vkFragmentShaderModule,
+				.pName               = "main",
+				.pSpecializationInfo = 0,
+			},
+		};
+		VkVertexInputBindingDescription vkVertexInputBindingDescription = {
+			.binding   = 0,
+			.stride    = sizeof(Vertex),
+			.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+		};
+		VkVertexInputAttributeDescription vkVertexInputAttributeDescription = {
+			.location = 0,
+			.binding  = 0,
+			.format   = VK_FORMAT_R32G32B32A32_SFLOAT,
+			.offset   = 0,
+		};
+		VkPipelineVertexInputStateCreateInfo vkPipelineVertexInputStateCreateInfo = {
+			.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+			.pNext                           = 0,
+			.flags                           = 0,
+			.vertexBindingDescriptionCount   = 1,
+			.pVertexBindingDescriptions      = &vkVertexInputBindingDescription,
+			.vertexAttributeDescriptionCount = 1,
+			.pVertexAttributeDescriptions    = &vkVertexInputAttributeDescription,
+		};
+		VkPipelineInputAssemblyStateCreateInfo vkPipelineInputAssemblyStateCreateInfo = {
+			.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+			.pNext                  = 0,
+			.flags                  = 0,
+			.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+			.primitiveRestartEnable = VK_FALSE,
+		};
+		VkViewport vkViewport = {
+			.x        = 0,
+			.y        = 0,
+			.width    = vkSwapchainExtent.width,
+			.height   = vkSwapchainExtent.height,
+			.minDepth = 0,
+			.maxDepth = 1,
+		};
+		VkRect2D vkScissorRect = {
+			.offset = {
+				.x = 0,
+				.y = 0,
+			},
+			.extent = {
+				.width  = vkSwapchainExtent.width,
+				.height = vkSwapchainExtent.height,
+			},
+		};
+		VkPipelineViewportStateCreateInfo vkPipelineViewportStateCreateInfo = {
+			.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+			.pNext         = 0,
+			.flags         = 0,
+			.viewportCount = 1,
+			.pViewports    = &vkViewport,
+			.scissorCount  = 1,
+			.pScissors     = &vkScissorRect,
+		};
+		VkPipelineRasterizationStateCreateInfo vkPipelineRasterizationStateCreateInfo = {
+			.sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+			.pNext                   = 0,
+			.flags                   = 0,
+			.depthClampEnable        = VK_FALSE,
+			.rasterizerDiscardEnable = VK_FALSE,
+			.polygonMode             = VK_POLYGON_MODE_FILL,
+			.cullMode                = VK_CULL_MODE_NONE,
+			.frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+			.depthBiasEnable         = VK_FALSE,
+			.depthBiasConstantFactor = 0.0,
+			.depthBiasClamp          = 0.0,
+			.depthBiasSlopeFactor    = 0.0,
+			.lineWidth               = 1.0,
+		};
+		VkPipelineMultisampleStateCreateInfo vkPipelineMultisampleStateCreateInfo = {
+			VkStructureType                          sType                 = ,
+			const void*                              pNext                 = ,
+			VkPipelineMultisampleStateCreateFlags    flags                 = ,
+			VkSampleCountFlagBits                    rasterizationSamples  = ,
+			VkBool32                                 sampleShadingEnable   = ,
+			float                                    minSampleShading      = ,
+			const VkSampleMask*                      pSampleMask           = ,
+			VkBool32                                 alphaToCoverageEnable = ,
+			VkBool32                                 alphaToOneEnable      = ,
+		};
+		VkPipelineDepthStencilStateCreateInfo vkPipelineDepthStencilStateCreateInfo = {
+			VkStructureType                           sType                 = ,
+			const void*                               pNext                 = ,
+			VkPipelineDepthStencilStateCreateFlags    flags                 = ,
+			VkBool32                                  depthTestEnable       = ,
+			VkBool32                                  depthWriteEnable      = ,
+			VkCompareOp                               depthCompareOp        = ,
+			VkBool32                                  depthBoundsTestEnable = ,
+			VkBool32                                  stencilTestEnable     = ,
+			VkStencilOpState                          front                 = ,
+			VkStencilOpState                          back                  = ,
+			float                                     minDepthBounds        = ,
+			float                                     maxDepthBounds        = ,
+		};
+		VkPipelineColorBlendStateCreateInfo vkPipelineColorBlendStateCreateInfo = {
+			VkStructureType                               sType             = ,
+			const void*                                   pNext             = ,
+			VkPipelineColorBlendStateCreateFlags          flags             = ,
+			VkBool32                                      logicOpEnable     = ,
+			VkLogicOp                                     logicOp           = ,
+			uint32_t                                      attachmentCount   = ,
+			const VkPipelineColorBlendAttachmentState*    pAttachments      = ,
+			float                                         blendConstants[4] = ,
+		};
+		VkPipelineDynamicStateCreateInfo vkPipelineDynamicStateCreateInfo = {
+			VkStructureType                      sType             = ,
+			const void*                          pNext             = ,
+			VkPipelineDynamicStateCreateFlags    flags             = ,
+			uint32_t                             dynamicStateCount = ,
+			const VkDynamicState*                pDynamicStates    = ,
+		};
+
+		VkGraphicsPipelineCreateInfo vkGraphicsPipelineCreateInfo = {
+			.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+			.pNext               = 0,
+			.flags               = 0,
+			.stageCount          = 2,
+			.pStages             = vkPipelineShaderStageCreateInfos,
+			.pVertexInputState   = &vkPipelineVertexInputStateCreateInfo,
+			.pInputAssemblyState = &vkPipelineInputAssemblyStateCreateInfo,
+			.pTessellationState  = ,
+			.pViewportState      = ,
+			.pRasterizationState = ,
+			.pMultisampleState   = ,
+			.pDepthStencilState  = ,
+			.pColorBlendState    = ,
+			.pDynamicState       = ,
+			.layout              = ,
+			.renderPass          = ,
+			.subpass             = ,
+			.basePipelineHandle  = ,
+			.basePipelineIndex   = ,
+		};
+		vkCreateGraphicsPipelines(vkDevice, vkPipelineCache, 1, &vkGraphicsPipelineCreateInfo
+
 		return Ok();
 	}
 
@@ -915,6 +1100,8 @@ struct RenderApiObj : RenderApi {
 		}
 
 	void Shutdown() override {
+		DestroyVkHandle(vkFragmentShaderModule, vkDestroyShaderModule(vkDevice, vkFragmentShaderModule, vkAllocationCallbacks));
+		DestroyVkHandle(vkVertexShaderModule, vkDestroyShaderModule(vkDevice, vkVertexShaderModule, vkAllocationCallbacks));
 		DestroyVkHandle(vkVertexBufferMemory, vkFreeMemory(vkDevice, vkVertexBufferMemory, vkAllocationCallbacks));
 		DestroyVkHandle(vkVertexBuffer, vkDestroyBuffer(vkDevice, vkVertexBuffer, vkAllocationCallbacks));
 		for (u64 i = 0; i < vkFramebuffers.len; i++) {

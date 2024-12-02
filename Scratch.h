@@ -230,50 +230,6 @@ void render( ) {
 }
 						
 int CALLBACK WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow ) {
-	// TUTORIAL_014 Shaders
-	uint32_t codeSize;
-	char *code = new char[10000];
-	HANDLE fileHandle = 0;
-
-	// load our vertex shader:
-	fileHandle = CreateFile( "..\\vert.spv", GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
-	if( fileHandle == INVALID_HANDLE_VALUE ) {
-		OutputDebugStringA( "Failed to open shader file." );
-		exit(1);
-	}
-	ReadFile( (HANDLE)fileHandle, code, 10000, (LPDWORD)&codeSize, 0 );
-	CloseHandle( fileHandle );
-
-	VkShaderModuleCreateInfo vertexShaderCreationInfo = {};
-	vertexShaderCreationInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	vertexShaderCreationInfo.codeSize = codeSize;
-	vertexShaderCreationInfo.pCode = (uint32_t *)code;
-
-	VkShaderModule vertexShaderModule;
-	result = vkCreateShaderModule( context.device, &vertexShaderCreationInfo, NULL, &vertexShaderModule );
-	checkVulkanResult( result, "Failed to create vertex shader module." );
-
-	// load our fragment shader:
-	fileHandle = CreateFile( "..\\frag.spv", GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
-	if( fileHandle == INVALID_HANDLE_VALUE ) {
-		OutputDebugStringA( "Failed to open shader file." );
-		exit(1);
-	}
-	ReadFile( (HANDLE)fileHandle, code, 10000, (LPDWORD)&codeSize, 0 );
-	CloseHandle( fileHandle );
-
-	VkShaderModuleCreateInfo fragmentShaderCreationInfo = {};
-	fragmentShaderCreationInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	fragmentShaderCreationInfo.codeSize = codeSize;
-	fragmentShaderCreationInfo.pCode = (uint32_t *)code;
-
-	VkShaderModule fragmentShaderModule;
-	result = vkCreateShaderModule( context.device, &fragmentShaderCreationInfo, NULL, &fragmentShaderModule );
-	checkVulkanResult( result, "Failed to create vertex shader module." );
-
-
-	// SHADERS TUTORIAL
-	// TUTORIAL_2_004: MVP
 	const double PI = 3.14159265359f;
 	const double TORAD = PI/180.0f;
 
