@@ -159,38 +159,38 @@ struct Arg {
 		ArgStr      s;
 		const void* p;
 	};
-
-	template <class T>
-	static Arg Make(T val) {
-		using Underlying = typename RemoveConst<typename RemoveVolatile<typename RemoveRef<T>::Type>::Type>::Type;
-		     if constexpr (IsSameType<Underlying, bool>)               { return { .type = ArgType::Bool, .b = val }; }
-		else if constexpr (IsSameType<Underlying, char>)               { return { .type = ArgType::Char, .c = val }; }
-		else if constexpr (IsSameType<Underlying, signed char>)        { return { .type = ArgType::I64,  .i = val }; }
-		else if constexpr (IsSameType<Underlying, signed short>)       { return { .type = ArgType::U64,  .i = val }; }
-		else if constexpr (IsSameType<Underlying, signed int>)         { return { .type = ArgType::I64,  .i = val }; }
-		else if constexpr (IsSameType<Underlying, signed long>)        { return { .type = ArgType::I64,  .i = val }; }
-		else if constexpr (IsSameType<Underlying, signed long long>)   { return { .type = ArgType::I64,  .i = val }; }
-		else if constexpr (IsSameType<Underlying, unsigned char>)      { return { .type = ArgType::U64,  .u = val }; }
-		else if constexpr (IsSameType<Underlying, unsigned short>)     { return { .type = ArgType::U64,  .u = val }; }
-		else if constexpr (IsSameType<Underlying, unsigned int>)       { return { .type = ArgType::U64,  .u = val }; }
-		else if constexpr (IsSameType<Underlying, unsigned long>)      { return { .type = ArgType::U64,  .u = val }; }
-		else if constexpr (IsSameType<Underlying, unsigned long long>) { return { .type = ArgType::U64,  .u = val }; }
-		else if constexpr (IsSameType<Underlying, float>)              { return { .type = ArgType::F64,  .f = val }; }
-		else if constexpr (IsSameType<Underlying, double>)             { return { .type = ArgType::F64,  .f = val }; }
-		else if constexpr (IsSameType<Underlying, s8>)                 { return { .type = ArgType::S8,   .s = { .data = val.data, .len = val.len } }; }
-		else if constexpr (IsSameType<Underlying, Str>)                { return { .type = ArgType::S8,   .s = { .data = val.data, .len = val.Len() } }; }
-		else if constexpr (IsSameType<Underlying, char*>)              { return { .type = ArgType::S8,   .s = { .data = val,      .len = StrLen8(val) } }; }
-		else if constexpr (IsSameType<Underlying, const char*>)        { return { .type = ArgType::S8,   .s = { .data = val,      .len = StrLen8(val) } }; }
-		else if constexpr (IsPointer<Underlying>)                      { return { .type = ArgType::Ptr,  .p = val }; }
-		else if constexpr (IsSameType<Underlying, decltype(nullptr)>)  { return { .type = ArgType::Ptr,  .p = nullptr }; }
-		else if constexpr (IsEnum<Underlying>)                         { return { .type = ArgType::U64,  .u = (u64)val }; }
-		else if constexpr (IsSameType<Underlying, Arg>)                { return val; }
-		else if constexpr (IsSameType<Underlying, Args>)               { static_assert(AlwaysFalse<T>, "You passed Args as a placeholder variable: you probably meant to call VFmt() instead of Fmt()"); }
-		else                                                           { static_assert(AlwaysFalse<T>, "Unsupported arg type"); }
-	}
-	template <u64 N> static constexpr Arg Make(char (&val)[N])       { return { .type = ArgType::S8, .s = { .data = val, .len = StrLen8(val) } }; }
-	template <u64 N> static constexpr Arg Make(const char (&val)[N]) { return { .type = ArgType::S8, .s = { .data = val, .len = StrLen8(val) } }; }
 };
+
+template <class T>
+static Arg MakeArg(T val) {
+	using Underlying = typename RemoveConst<typename RemoveVolatile<typename RemoveRef<T>::Type>::Type>::Type;
+	     if constexpr (IsSameType<Underlying, bool>)               { return { .type = ArgType::Bool, .b = val }; }
+	else if constexpr (IsSameType<Underlying, char>)               { return { .type = ArgType::Char, .c = val }; }
+	else if constexpr (IsSameType<Underlying, signed char>)        { return { .type = ArgType::I64,  .i = val }; }
+	else if constexpr (IsSameType<Underlying, signed short>)       { return { .type = ArgType::U64,  .i = val }; }
+	else if constexpr (IsSameType<Underlying, signed int>)         { return { .type = ArgType::I64,  .i = val }; }
+	else if constexpr (IsSameType<Underlying, signed long>)        { return { .type = ArgType::I64,  .i = val }; }
+	else if constexpr (IsSameType<Underlying, signed long long>)   { return { .type = ArgType::I64,  .i = val }; }
+	else if constexpr (IsSameType<Underlying, unsigned char>)      { return { .type = ArgType::U64,  .u = val }; }
+	else if constexpr (IsSameType<Underlying, unsigned short>)     { return { .type = ArgType::U64,  .u = val }; }
+	else if constexpr (IsSameType<Underlying, unsigned int>)       { return { .type = ArgType::U64,  .u = val }; }
+	else if constexpr (IsSameType<Underlying, unsigned long>)      { return { .type = ArgType::U64,  .u = val }; }
+	else if constexpr (IsSameType<Underlying, unsigned long long>) { return { .type = ArgType::U64,  .u = val }; }
+	else if constexpr (IsSameType<Underlying, float>)              { return { .type = ArgType::F64,  .f = val }; }
+	else if constexpr (IsSameType<Underlying, double>)             { return { .type = ArgType::F64,  .f = val }; }
+	else if constexpr (IsSameType<Underlying, s8>)                 { return { .type = ArgType::S8,   .s = { .data = val.data, .len = val.len } }; }
+	else if constexpr (IsSameType<Underlying, Str>)                { return { .type = ArgType::S8,   .s = { .data = val.data, .len = val.Len() } }; }
+	else if constexpr (IsSameType<Underlying, char*>)              { return { .type = ArgType::S8,   .s = { .data = val,      .len = StrLen8(val) } }; }
+	else if constexpr (IsSameType<Underlying, const char*>)        { return { .type = ArgType::S8,   .s = { .data = val,      .len = StrLen8(val) } }; }
+	else if constexpr (IsPointer<Underlying>)                      { return { .type = ArgType::Ptr,  .p = val }; }
+	else if constexpr (IsSameType<Underlying, decltype(nullptr)>)  { return { .type = ArgType::Ptr,  .p = nullptr }; }
+	else if constexpr (IsEnum<Underlying>)                         { return { .type = ArgType::U64,  .u = (u64)val }; }
+	else if constexpr (IsSameType<Underlying, Arg>)                { return val; }
+	else if constexpr (IsSameType<Underlying, Args>)               { static_assert(AlwaysFalse<T>, "You passed Args as a placeholder variable: you probably meant to call VFmt() instead of Fmt()"); }
+	else                                                           { static_assert(AlwaysFalse<T>, "Unsupported arg type"); }
+}
+template <u64 N> static constexpr Arg MakeArg(char (&val)[N])       { return { .type = ArgType::S8, .s = { .data = val, .len = StrLen8(val) } }; }
+template <u64 N> static constexpr Arg MakeArg(const char (&val)[N]) { return { .type = ArgType::S8, .s = { .data = val, .len = StrLen8(val) } }; }
 
 template <u32 N> struct ArgStore {
 	Arg args[N > 0 ? N : 1] = {};
@@ -204,11 +204,11 @@ struct Args {
 		args = argStore.args;
 		len  = N;
 	}
-
-	template <class... A> static constexpr ArgStore<sizeof...(A)> Make(A... args) {
-		return ArgStore<sizeof...(A)> { Arg::Make(args)... };
-	}
 };
+
+template <class... A> constexpr ArgStore<sizeof...(A)> MakeArgs(A... args) {
+	return ArgStore<sizeof...(A)> { MakeArg(args)... };
+}
 
 //--------------------------------------------------------------------------------------------------
 
@@ -310,8 +310,8 @@ struct SrcLoc {
 //--------------------------------------------------------------------------------------------------
 
                       [[noreturn]]        void _VPanic(s8 file, i32 line, s8 expr, s8 fmt, Args args);
-                      [[noreturn]] inline void _Panic (s8 file, i32 line, s8 expr) { _VPanic(file, line, expr, "", Args::Make()); }
-template <class... A> [[noreturn]]        void _Panic (s8 file, i32 line, s8 expr, FmtStr<A...> fmt, A... args) { _VPanic(file, line, expr, fmt, Args::Make(args...)); }
+                      [[noreturn]] inline void _Panic (s8 file, i32 line, s8 expr) { _VPanic(file, line, expr, "", MakeArgs()); }
+template <class... A> [[noreturn]]        void _Panic (s8 file, i32 line, s8 expr, FmtStr<A...> fmt, A... args) { _VPanic(file, line, expr, fmt, MakeArgs(args...)); }
 
 using PanicFn = void (s8 file, i32 line, s8 expr, s8 fmt, Args args);
 PanicFn* SetPanicFn(PanicFn* panicFn);

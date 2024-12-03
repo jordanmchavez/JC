@@ -294,7 +294,7 @@ s8 FormatStr(VkFormat f) {
 //--------------------------------------------------------------------------------------------------
 
 s8 MemoryHeapFlagsStr(VkMemoryHeapFlags f) {
-	Array<char> a(MemApi::Get()->Temp());
+	Array<char> a(GetMemApi()->Temp());
 	if (f & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)   { Add(&a, "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT|"); }
 	if (f & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT) { Add(&a, "VK_MEMORY_HEAP_MULTI_INSTANCE_BIT|"); }       
 	if (a.len > 0) {
@@ -306,7 +306,7 @@ s8 MemoryHeapFlagsStr(VkMemoryHeapFlags f) {
 //--------------------------------------------------------------------------------------------------
 
 s8 MemoryPropertyFlagsStr(VkMemoryPropertyFlags f) {
-	Array<char> a(MemApi::Get()->Temp());
+	Array<char> a(GetMemApi()->Temp());
 	if (f & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)        { Add(&a, "VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT|"); }
 	if (f & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)        { Add(&a, "VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|"); }       
 	if (f & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)       { Add(&a, "VK_MEMORY_PROPERTY_HOST_COHERENT_BIT|"); }
@@ -339,7 +339,7 @@ s8 PresentModeStr(VkPresentModeKHR m) {
 //--------------------------------------------------------------------------------------------------
 
 s8 QueueFlagsStr(VkQueueFlags f) {
-	Array<char> a(MemApi::Get()->Temp());
+	Array<char> a(GetMemApi()->Temp());
 	if (f & VK_QUEUE_GRAPHICS_BIT)         { Add(&a, "VK_QUEUE_GRAPHICS_BIT|"); }
 	if (f & VK_QUEUE_COMPUTE_BIT)          { Add(&a, "VK_QUEUE_COMPUTE_BIT|"); }
 	if (f & VK_QUEUE_TRANSFER_BIT)         { Add(&a, "VK_QUEUE_TRANSFER_BIT|"); }
@@ -428,7 +428,7 @@ s8 PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
 //--------------------------------------------------------------------------------------------------
 
 s8 VersionStr(u32 v) {
-	return Fmt(MemApi::Get()->Temp(), "{}.{}.{}", VK_API_VERSION_MAJOR(v), VK_API_VERSION_MINOR(v), VK_API_VERSION_PATCH(v));
+	return Fmt(GetMemApi()->Temp(), "{}.{}.{}", VK_API_VERSION_MAJOR(v), VK_API_VERSION_MINOR(v), VK_API_VERSION_PATCH(v));
 }
 
 //--------------------------------------------------------------------------------------------------

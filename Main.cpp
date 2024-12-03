@@ -14,38 +14,6 @@ static TempMem* tempMem = 0;
 
 //--------------------------------------------------------------------------------------------------
 
-template <class... A>
-Err* _MakeWinErr(SrcLoc sl, s8 fn, A... args) {
-	const DWORD code = GetLastError();
-	const ErrCode ec = { .ns = "win", .code = (u64)code };
-	wchar_t* desc = nullptr;
-	DWORD descLen = FormatMessageW(
-		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-		nullptr,
-		code,
-		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		(LPWSTR)&desc,
-		0,
-		nullptr
-	);
-	if (descLen == 0) {
-		return _MakeErr(0, sl, ec, "fn", fn, args...);
-	}
-
-	while (descLen > 0 && desc[descLen] == L'\n' || desc[descLen] == L'\r' || desc[descLen] == L'.') {
-		--descLen;
-	}
-	s8 msg = Unicode::Wtf16zToUtf8(tempMem, s16z(desc, descLen));
-	LocalFree(desc);
-
-	return _MakeErr(0, sl, ec, "fn", fn, "desc", desc, args...);
-}
-
-#define MakeWinErr(fn, ...) \
-	_MakeWinErr(SrcLoc::Here(), #fn, ##__VA_ARGS__)
-
-//--------------------------------------------------------------------------------------------------
-
 constexpr s8 FileNameOnly(s8 path) {
 	for (const char* i = path.data + path.len - 1; i >= path.data; i--) {
 		if (*i == '/' || *i == '\\') {
@@ -78,18 +46,18 @@ constexpr s8 FileNameOnly(s8 path) {
 //--------------------------------------------------------------------------------------------------
 
 struct LogLeakReporter : MemLeakReporter {
-	LogApi* logApi = 0;
+	Log* log = 0;
 
 	void LeakedScope(s8 name, u64 leakedBytes, u32 leakedAllocs, u32 leakedChildren) override {
-		LogError("Leaked scope: name={}, leakedBytes={}, leakedAllocs={}, leakedChildren={}", name, leakedBytes, leakedAllocs, leakedChildren);
+		LogErrorf("Leaked scope: name={}, leakedBytes={}, leakedAllocs={}, leakedChildren={}", name, leakedBytes, leakedAllocs, leakedChildren);
 	}
 
 	void LeakedAlloc(SrcLoc sl, u64 leakedBytes, u32 leakedAllocs) override {
-		LogError("  {}({}): leakedBytes={}, leakedAllocs={}", sl.file, sl.line, leakedBytes, leakedAllocs);
+		LogErrorf("  {}({}): leakedBytes={}, leakedAllocs={}", sl.file, sl.line, leakedBytes, leakedAllocs);
 	}
 
 	void LeakedChild(s8 name, u64 leakedBytes, u32 leakedAllocs) override {
-		LogError("  Leaked child: name={}, leakedBytes={}, leakedAllocs={}", name, leakedBytes, leakedAllocs);
+		LogErrorf("  Leaked child: name={}, leakedBytes={}, leakedAllocs={}", name, leakedBytes, leakedAllocs);
 	}
 };
 
@@ -113,88 +81,42 @@ int main(int argc, const char** argv) {
 
 	SetPanicFn(MyPanicFn);
 
-	MemApi* memApi = MemApi::Get();
+	MemApi* memApi = GetMemApi();
 	memApi->Init();
 	tempMem = memApi->Temp();
 
-	LogApi* logApi = LogApi::Get();
+	LogApi* logApi = GetLogApi();
 	logApi->Init(tempMem);
+	Log* log = logApi->GetLog();
 
 	LogLeakReporter logLeakReporter;
-	logLeakReporter.logApi = logApi;
+	logLeakReporter.log = log;
 	memApi->SetLeakReporter(&logLeakReporter);
 
 	if (argc == 2 && argv[1] == s8("test")) {
+		logApi->AddFn([](const char* msg, u64 len) {
+			fwrite(msg, 1, len, stdout);
+			if (Sys::IsDebuggerPresent()) {
+				Sys::DebuggerPrint(msg);
+			}
+		});
+
 		return UnitTest::Run(tempMem, logApi) ? 0 : 1;
 	}
 
-	logApi->AddFn([](SrcLoc sl, LogCategory category, const char* msg, u64) {
-		s8 fullMsg = Fmt(
-			tempMem,
-			"{}{}({}): {}",
-			category == LogCategory::Error ? "!!! " : "",
-			sl.file,
-			sl.line,
-			msg
-		);
-		fwrite(fullMsg.data, 1, fullMsg.len, stdout);
+	logApi->AddFn([](const char* msg, u64 len) {
+		fwrite(msg, 1, len, stdout);
 		if (Sys::IsDebuggerPresent()) {
 			Sys::DebuggerPrint(msg);
 		}
 	});
 
-	const HINSTANCE hinstance = GetModuleHandle(0);
-	constexpr const wchar_t* classNameW = L"JC";
-	WNDCLASSEXW wndClassExW = {
-		.cbSize        = sizeof(wndClassExW),
-		.style         = CS_OWNDC | CS_VREDRAW | CS_HREDRAW,
-		.lpfnWndProc   = WndProc,
-		.cbClsExtra    = 0,
-		.cbWndExtra    = 0,
-		.hInstance     = hinstance,
-		.hIcon         = 0,
-		.hCursor       = 0,
-		.hbrBackground = 0,
-		.lpszMenuName  = 0,
-		.lpszClassName = classNameW,
-		.hIconSm       = 0,
-	};
-	if (!RegisterClassExW(&wndClassExW)) {
-		LogErr(MakeWinErr(RegisterClassExW));
-		return 1;
-	}
-
-	HWND hwnd = CreateWindowExW(
-		0,
-		classNameW,
-		L"JC",
-		WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-		100, 100,
-		800, 600,
-		0,
-		0,
-		hinstance,
-		0
-	);
-	if (!hwnd) {
-		LogErr(MakeWinErr(CreateWindowExW));
-		return 1;
-	}
-
-	OsWindowData osWindowData = {
-		.width     = 800,
-		.height    = 600,
-		.hinstance = hinstance,
-		.hwnd      = hwnd,
-	};
-
-	RenderApi* renderApi = RenderApi::Get();
-	Mem* renderMem = memApi->CreateScope("render", 0);
+	/*Mem* renderMem = memApi->CreateScope("render", 0);
 	if (Res<> r = renderApi->Init(logApi, renderMem, tempMem, &osWindowData); !r) {
 		LogErr(r.err);
 		return 1;
 	}
-	/*
+
 	MSG msg;
 	for (;;) {
 		PeekMessageW(&msg, 0, 0, 0, PM_REMOVE);
@@ -205,8 +127,8 @@ int main(int argc, const char** argv) {
 		DispatchMessageW(&msg);
 		renderApi->Frame().Ignore();
 	}
-	*/
-	renderApi->Shutdown();
 
+	renderApi->Shutdown();
+	*/
 	return 0;
 }

@@ -21,6 +21,18 @@ struct OsWindowData {
 	#endif	// Os_
 };
 
+namespace RenderApiCfgFlags {
+	constexpr u64 Debug = (u64)1 << 0;
+};
+
+struct RenderInit {
+	u64                 flags        = 0;
+	LogApi*             logApi       = 0;
+	Mem*                mem          = 0;
+	TempMem*            tempMem      = 0;
+	const OsWindowData* osWindowData = 0;
+};
+
 struct RenderApi {
 	static constexpr ErrCode Err_LayerNotFound     = { .ns = "ren", .code = 1 };
 	static constexpr ErrCode Err_ExtensionNotFound = { .ns = "ren", .code = 2 };
@@ -28,7 +40,7 @@ struct RenderApi {
 	
 	static RenderApi* Get();
 
-	virtual Res<> Init(LogApi* logApi, Mem* mem, TempMem* tempMem, const OsWindowData* osWindowData) = 0;
+	virtual Res<> Init(const RenderInit * renderInitInfo) = 0;
 	virtual void  Shutdown() = 0;
 	virtual Res<> Frame() = 0;
 };

@@ -25,7 +25,7 @@ struct [[nodiscard]] Err {
 //--------------------------------------------------------------------------------------------------
 
 Err* _VMakeErr(Err* prev, SrcLoc sl, ErrCode ec, const s8* argNames, const Arg* args, u32 argsLen) {
-	Err* err     = (Err*)MemApi::Get()->Temp()->Alloc(sizeof(Err) + (argsLen > 0 ? argsLen - 1 : 0) * sizeof(ErrArg));
+	Err* err     = (Err*)GetMemApi()->Temp()->Alloc(sizeof(Err) + (argsLen > 0 ? argsLen - 1 : 0) * sizeof(ErrArg));
 	err->prev    = (Err*)prev;
 	err->sl      = sl;
 	err->ec      = ec;

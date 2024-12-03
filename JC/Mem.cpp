@@ -28,8 +28,6 @@ struct TempMemObj : TempMem {
 	void* Alloc(u64 size, SrcLoc sl) override;
 	bool  Extend(void* p, u64 oldSize, u64 newSize, SrcLoc sl) override;
 	void  Free(void* p, u64 size) override;
-	u64   Mark() override;
-	void  Reset(u64 mark) override;
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -114,12 +112,12 @@ struct MemApiObj : MemApi {
 
 	//----------------------------------------------------------------------------------------------
 
-	Mem*     Perm() override { return &scopes[1]; }
+	Mem*     Root() override { return &scopes[1]; }
 	TempMem* Temp() override { return &tempMemObj; }
 
 	//----------------------------------------------------------------------------------------------
 
-	Mem* CreateScope(s8 name, Mem* parent) override {
+	Mem* Create(s8 name, Mem* parent) override {
 		Scope* const parentScope = (Scope*)parent;
 		Assert(!parent || (parentScope >= &scopes[1] && parentScope<= &scopes[MaxScopes]));
 		Assert(freeScopes);
@@ -138,7 +136,7 @@ struct MemApiObj : MemApi {
 
 	//----------------------------------------------------------------------------------------------
 
-	void DestroyScope(Mem* mem) override {
+	void Destroy(Mem* mem) override {
 		Scope* scope = (Scope*)mem;
 		Assert(scope >= scopes + 2 && scope < scopes + MaxScopes);
 
@@ -205,7 +203,7 @@ struct MemApiObj : MemApi {
 
 static MemApiObj memApi;
 
-MemApi* MemApi::Get() {
+MemApi* GetMemApi() {
 	return &memApi;
 }
 
@@ -311,21 +309,6 @@ void TempMemObj::Free(void* p, u64 size) {
 	if (p == memApi.tempUsed - size) {
 		memApi.tempUsed -= size;
 	}
-}
-
-//--------------------------------------------------------------------------------------------------
-
-u64 TempMemObj::Mark() {
-	Assert(memApi.tempUsed >= memApi.tempBegin);
-	return memApi.tempUsed - memApi.tempBegin;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-void TempMemObj::Reset(u64 mark) {
-	Assert(memApi.tempUsed >= memApi.tempBegin);
-	Assert(mark <= (u64)(memApi.tempUsed - memApi.tempBegin));
-	memApi.tempUsed = memApi.tempBegin + mark;
 }
 
 //--------------------------------------------------------------------------------------------------

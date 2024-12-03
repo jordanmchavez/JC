@@ -13,7 +13,7 @@ Err* _VMakeErr(Err* prev, SrcLoc sl, ErrCode ec, const s8* argNames, const Arg* 
 
 template <class T, class... A> static void _FillErrArgs(s8* argNames, Arg* args, s8 name, T val, A... a) {
 	argNames[0] = name;
-	args[0]  = Arg::Make(val);
+	args[0]  = MakeArg(val);
 	if constexpr (sizeof...(A) > 0) {
 		_FillErrArgs(argNames + 1, args + 1, a...);
 	}

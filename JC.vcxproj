@@ -109,6 +109,7 @@
     <ClInclude Include="3rd\vulkan\vk_platform.h" />
     <ClInclude Include="3rd\vulkan\vulkan_core.h" />
     <ClInclude Include="3rd\vulkan\vulkan_win32.h" />
+    <ClInclude Include="JC\App.h" />
     <ClInclude Include="JC\Array.h" />
     <ClInclude Include="JC\Bit.h" />
     <ClInclude Include="JC\Common.h" />
@@ -119,12 +120,13 @@
     <ClInclude Include="JC\Map.h" />
     <ClInclude Include="JC\Mem.h" />
     <ClInclude Include="JC\MinimalWindows.h" />
-    <ClInclude Include="JC\Render.h" />
+    <ClInclude Include="JC\Sys_Win.h" />
     <ClInclude Include="JC\Vk.h" />
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Tlsf.h" />
     <ClInclude Include="JC\Unicode.h" />
     <ClInclude Include="JC\UnitTest.h" />
+    <ClInclude Include="JC\Window.h" />
     <ClInclude Include="Scratch.h" />
   </ItemGroup>
   <ItemGroup>
@@ -135,7 +137,6 @@
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Log.cpp" />
     <ClCompile Include="JC\Map.cpp" />
-    <ClCompile Include="JC\Render.cpp" />
     <ClCompile Include="JC\Vk_Load.cpp" />
     <ClCompile Include="JC\Vk_Str.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
@@ -144,6 +145,7 @@
     <ClCompile Include="JC\UnitTest.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="JC\Mem.cpp" />
+    <ClCompile Include="JC\Window_Win.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Game Notes.md" />

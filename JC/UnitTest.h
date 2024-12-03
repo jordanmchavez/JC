@@ -21,11 +21,11 @@ namespace UnitTest {
 	bool CheckSpanEqFail_Elem(SrcLoc sl, s8 expr, u64 i, Arg x, Arg y);
 
 	template <class X, class Y> bool CheckEq(SrcLoc sl, s8 expr, X x, Y y) {
-		return (x == y) || CheckRelFail(sl, expr, Arg::Make(x), Arg::Make(y));
+		return (x == y) || CheckRelFail(sl, expr, MakeArg(x), MakeArg(y));
 	}
 
 	template <class X, class Y> bool CheckNeq(SrcLoc sl, s8 expr, X x, Y y) {
-		return (x != y) || CheckRelFail(sl, expr, Arg::Make(x), Arg::Make(y));
+		return (x != y) || CheckRelFail(sl, expr, MakeArg(x), MakeArg(y));
 	}
 
 	template <class X, class Y> bool CheckSpanEq(SrcLoc sl, s8 expr, Span<X> x, Span<Y> y) {
@@ -34,7 +34,7 @@ namespace UnitTest {
 		}
 		for (u64 i = 0; i < x.len; i++) {
 			if (x[i] != y[i]) {
-				return CheckSpanEqFail_Elem(sl, expr, i, Arg::Make(x[i]), Arg::Make(y[i]));
+				return CheckSpanEqFail_Elem(sl, expr, i, MakeArg(x[i]), MakeArg(y[i]));
 			}
 		}
 		return true;

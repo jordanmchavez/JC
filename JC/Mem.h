@@ -12,12 +12,8 @@ struct Mem {
 	virtual void  Free(void* p, u64 size) = 0;
 };
 
-//--------------------------------------------------------------------------------------------------
-
 struct TempMem : Mem {
-	virtual u64  Mark() = 0;
-	virtual void Reset(u64 mark) = 0;
-	virtual void Free(void* p, u64 size) = 0;
+	void Free(void*, u64) override {}
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -28,17 +24,19 @@ struct MemLeakReporter {
 	virtual void LeakedChild(s8 name, u64 leakedBytes, u32 leakedAllocs) = 0;
 };
 
-struct MemApi {
-	static MemApi* Get();
+//--------------------------------------------------------------------------------------------------
 
+struct MemApi {
 	virtual void     Init() = 0;
 	virtual void     SetLeakReporter(MemLeakReporter* memLeakReporter) = 0;
 	virtual void     Frame(u64 frame) = 0;
-	virtual Mem*     Perm() = 0;
+	virtual Mem*     Root() = 0;
 	virtual TempMem* Temp() = 0;
-	virtual Mem*     CreateScope(s8 name, Mem* parent) = 0;
-	virtual void     DestroyScope(Mem* mem) = 0;
+	virtual Mem*     Create(s8 name, Mem* parent) = 0;
+	virtual void     Destroy(Mem* mem) = 0;
 };
+
+MemApi* GetMemApi();
 
 //--------------------------------------------------------------------------------------------------
 
