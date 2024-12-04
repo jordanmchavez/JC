@@ -3,6 +3,7 @@
 #include "JC/Array.h"
 #include "JC/Err.h"
 #include "JC/Mem.h"
+#include "JC/Sys_Win.h"
 
 #include "JC/MinimalWindows.h"
 #include <ShellScalingApi.h>
@@ -48,7 +49,7 @@ struct DisplayApiObj : DisplayApi {
 
 	Res<> Refresh() override {
 		if (EnumDisplayMonitors(0, 0, MonitorEnumFn, (LPARAM)this) == FALSE) {
-			return MakeErr(Err_EnumDisplays);
+			return MakeLastErr(EnumDisplayMonitors)->Push(Err_EnumDisplays);
 		}
 	}
 };
@@ -61,9 +62,36 @@ DisplayApi* GetDisplayApi() {
 
 //--------------------------------------------------------------------------------------------------
 
-struct WindowApiObj : WindowApi {
-	Res<> Init(WindowApiInit* init) override {
+struct Window {
+	HWND hwnd = 0;
 
+};
+
+struct WindowApiObj : WindowApi {
+	static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+		return DefWindowProc(hwnd, msg, wparam, lparam);
+	}
+
+	Res<> Init(WindowApiInit* init) override {
+		const WNDCLASSEXW wndClassExW = {
+			.cbSize        = sizeof(wndClassExW),
+			.style         = CS_OWNDC | CS_DBLCLKS,
+			.lpfnWndProc   = WndProc,
+			.cbClsExtra    = 0,
+			.cbWndExtra    = 0,
+			.hInstance     = GetModuleHandle(0),
+			.hIcon         = 0,
+			.hCursor       = 0,
+			.hbrBackground = 0,
+			.lpszMenuName  = 0,
+			.lpszClassName = L"JC",
+			.hIconSm       = 0,
+		};
+		if (!RegisterClassExW(&wndClassExW)) {
+			return MakeLastError();
+		}
+
+		return Ok();
 	}
 };
 
