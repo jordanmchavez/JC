@@ -1,7 +1,6 @@
 ﻿#include "JC/Unicode.h"
 
 #include "JC/Array.h"
-#include "JC/Err.h"
 #include "JC/Mem.h"
 #include "JC/UnitTest.h"
 

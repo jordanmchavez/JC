@@ -88,7 +88,7 @@ namespace UnitTest {
 		}
 	}
 
-	bool Run(MemApi* memApi, Log* log_) {
+	bool Run(Log* log_, MemApi* memApi) {
 		log = log_;
 
 		TempMem* tempMem = memApi->Temp();

@@ -113,6 +113,18 @@ inline bool operator==(Str s1, Str s2) { return s1.data == s2.data; }
 
 //--------------------------------------------------------------------------------------------------
 
+struct SrcLoc {
+	s8  file = {};
+	i32 line = 0;
+
+	static consteval SrcLoc Here(s8 file = BuiltinFile, i32 line = BuiltinLine) {
+		return SrcLoc { .file = file, .line = line };
+	}
+};
+
+//--------------------------------------------------------------------------------------------------
+
+template <class T>            struct                TypeIdentity                { using Type = T; };
 template <class T>            struct                RemoveRef                   { using Type = T; };
 template <class T>            struct                RemoveRef<T&>               { using Type = T; };
 template <class T>            struct                RemoveRef<T&&>              { using Type = T; };
@@ -212,124 +224,123 @@ template <class... A> constexpr ArgStore<sizeof...(A)> MakeArgs(A... args) {
 
 //--------------------------------------------------------------------------------------------------
 
-template <class... A> struct _FmtStr {
-	s8 fmt = {};
+inline void BadFmtStr_UnmatchedOpenBrace() {}
+inline void BadFmtStr_NotEnoughArgs() {}
+inline void BadFmtStr_CloseBraceNotEscaped() {}
+inline void BadFmtStr_TooManyArgs() {}
+inline void BadFmtStr_BadPlaceholderSpec() {}
 
-	static inline void UnmatchedOpenBrace() {}
-	static inline void NotEnoughArgs() {}
-	static inline void CloseBraceNotEscaped() {}
-	static inline void TooManyArgs() {}
-	static inline void BadPlaceholderSpec() {}
-
-	consteval _FmtStr(s8          inFmt) { Init(inFmt); }
-	consteval _FmtStr(const char* inFmt) { Init(inFmt); }
-
-	consteval const char* CheckSpec(const char* i, const char* end) {
-		bool flagsDone = false;
-		while (!flagsDone && i < end) {
-			switch (*i) {
-				case '}': i++; return i;
-				case '<': i++; break;
-				case '+': i++; break;
-				case ' ': i++; break;
-				case '0': i++; flagsDone = true; break;
-				default:       flagsDone = true; break;
-			}
+consteval const char* CheckFmtSpec(const char* i, const char* end) {
+	bool flagsDone = false;
+	while (!flagsDone && i < end) {
+		switch (*i) {
+			case '}': i++; return i;
+			case '<': i++; break;
+			case '+': i++; break;
+			case ' ': i++; break;
+			case '0': i++; flagsDone = true; break;
+			default:       flagsDone = true; break;
 		}
+	}
+	while (i < end && *i >= '0' && *i <= '9') {
+		i++;
+	}
+	if (i < end && *i == '.') {
+		i++;
 		while (i < end && *i >= '0' && *i <= '9') {
 			i++;
 		}
-		if (i < end && *i == '.') {
-			i++;
-			while (i < end && *i >= '0' && *i <= '9') {
-				i++;
-			}
-		}
-		if (i >= end) { BadPlaceholderSpec(); }
-
-		switch (*i) {
-			case 'x': i++; break;
-			case 'X': i++; break;
-			case 'b': i++; break;
-			case 'f': i++; break;
-			case 'e': i++; break;
-			default:       break;
-		}
-		if (i >= end || *i != '}') { BadPlaceholderSpec(); }
-		i++;
-		return i;
 	}
+	if (i >= end) { BadFmtStr_BadPlaceholderSpec(); }
 
-	consteval void Init(s8 fmtIn) {
-		constexpr size_t  argsLen = sizeof...(A);
-		const char* i = fmtIn.data;
-		const char* const end = i + fmtIn.len;
-		u32 nextArg = 0;
+	switch (*i) {
+		case 'x': i++; break;
+		case 'X': i++; break;
+		case 'b': i++; break;
+		case 'f': i++; break;
+		case 'e': i++; break;
+		default:       break;
+	}
+	if (i >= end || *i != '}') { BadFmtStr_BadPlaceholderSpec(); }
+	i++;
+	return i;
+}
 
-		for (;;) {
-			if (i >= end) {
-				if (nextArg != argsLen) { TooManyArgs(); }
-				fmt = fmtIn;
-				return;
-			} else if (*i == '{') {
-				i++;
-				if (i >= end) { UnmatchedOpenBrace(); }
-				if (*i == '{') {
-					i++;
-				} else {
-					i = CheckSpec(i, end);
-					if (nextArg >= argsLen) { NotEnoughArgs(); }
-					nextArg++;
-				}
-			} else if (*i != '}') {
+consteval void CheckFmtStr(s8 fmt, size_t argsLen) {
+	const char* i = fmt.data;
+	const char* const end = i + fmt.len;
+	u32 nextArg = 0;
+
+	for (;;) {
+		if (i >= end) {
+			if (nextArg != argsLen) { BadFmtStr_TooManyArgs(); }
+			return;
+		} else if (*i == '{') {
+			i++;
+			if (i >= end) { BadFmtStr_UnmatchedOpenBrace(); }
+			if (*i == '{') {
 				i++;
 			} else {
-				i++;
-				if (i >= end || *i != '}') { CloseBraceNotEscaped(); }
-				i++;
+				i = CheckFmtSpec(i, end);
+				if (nextArg >= argsLen) { BadFmtStr_NotEnoughArgs(); }
+				nextArg++;
 			}
+		} else if (*i != '}') {
+			i++;
+		} else {
+			i++;
+			if (i >= end || *i != '}') { BadFmtStr_CloseBraceNotEscaped(); }
+			i++;
 		}
 	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+template <class... A> struct _FmtStr {
+	s8 fmt;
+
+	consteval _FmtStr(s8          fmt_) { CheckFmtStr(fmt_, sizeof...(A)); fmt = fmt_; }
+	consteval _FmtStr(const char* fmt_) { CheckFmtStr(fmt_, sizeof...(A)); fmt = fmt_; }
+
 	operator s8() const { return fmt; }
 };
 
-template <class T> struct TypeIdentity { using Type = T; };
 template <class... A> using FmtStr = _FmtStr<typename TypeIdentity<A>::Type...>;
 
-//--------------------------------------------------------------------------------------------------
+template <class... A> struct _FmtStrSrcLoc {
+	s8     fmt;
+	SrcLoc sl;
 
-struct SrcLoc {
-	s8  file = {};
-	i32 line = 0;
+	consteval _FmtStrSrcLoc(s8          fmt_, SrcLoc sl_ = SrcLoc::Here()) { CheckFmtStr(fmt_, sizeof...(A)); fmt = fmt_; sl = sl_; }
+	consteval _FmtStrSrcLoc(const char* fmt_, SrcLoc sl_ = SrcLoc::Here()) { CheckFmtStr(fmt_, sizeof...(A)); fmt = fmt_; sl = sl_; }
 
-	static consteval SrcLoc Here(s8 file = BuiltinFile, i32 line = BuiltinLine) {
-		return SrcLoc { .file = file, .line = line };
-	}
+	operator s8() const { return fmt; }
 };
 
+template <class... A> using FmtStrSrcLoc = _FmtStrSrcLoc<typename TypeIdentity<A>::Type...>;
+
 //--------------------------------------------------------------------------------------------------
 
-                      [[noreturn]]        void _VPanic(s8 file, i32 line, s8 expr, s8 fmt, Args args);
-                      [[noreturn]] inline void _Panic (s8 file, i32 line, s8 expr) { _VPanic(file, line, expr, "", MakeArgs()); }
-template <class... A> [[noreturn]]        void _Panic (s8 file, i32 line, s8 expr, FmtStr<A...> fmt, A... args) { _VPanic(file, line, expr, fmt, MakeArgs(args...)); }
+                      [[noreturn]] void VPanic(SrcLoc sl, s8 expr, s8 fmt, Args args);
+template <class... A> [[noreturn]] void Panic(FmtStrSrcLoc<A...> fmtSl, A... args) { VPanic(fmtSl.sl, 0, fmtSl.fmt, MakeArgs(args...)); }
 
-using PanicFn = void (s8 file, i32 line, s8 expr, s8 fmt, Args args);
+                      [[noreturn]] inline void _AssertFail(SrcLoc sl, s8 expr)                              { VPanic(sl, expr, "",   MakeArgs()); }
+template <class... A> [[noreturn]]        void _AssertFail(SrcLoc sl, s8 expr, FmtStr<A...> fmt, A... args) { VPanic(sl, expr, fmt,  MakeArgs(args...)); }
+
+using PanicFn = void (SrcLoc sl, s8 expr, s8 fmt, Args args);
 PanicFn* SetPanicFn(PanicFn* panicFn);
 
 #define Assert(expr, ...) \
 	do { \
 		if (!(expr)) { \
-			_Panic(__FILE__, __LINE__, #expr, ##__VA_ARGS__); \
+			_AssertFail(SrcLoc::Here(), #expr, ##__VA_ARGS__); \
 		} \
 	} while (false)
-
-#define Panic(fmt, ...) \
-	_Panic(__FILE__, __LINE__, 0, (fmt), ##__VA_ARGS__)
 
 //--------------------------------------------------------------------------------------------------
 
 constexpr s8::s8(const char* s) {
-	Assert(s);
 	data = s;
 	len  = StrLen8(s);
 }
@@ -366,7 +377,37 @@ struct [[nodiscard]] ErrCode {
 constexpr bool operator==(ErrCode ec1, ErrCode ec2) { return ec1.code == ec2.code && ec1.ns == ec2.ns; }
 constexpr bool operator!=(ErrCode ec1, ErrCode ec2) { return ec1.code != ec2.code || ec1.ns != ec2.ns; }
 
-struct [[nodiscard]] Err;
+struct ErrCodeSrcLoc {
+	ErrCode ec;
+	SrcLoc  sl;
+	constexpr ErrCodeSrcLoc(ErrCode ec_, SrcLoc sl_ = SrcLoc::Here()) { ec = ec_; sl = sl_; }
+};
+
+struct [[nodiscard]] ErrArg {
+	s8  name;
+	Arg arg;
+};
+
+struct [[nodiscard]] Err {
+	Err*    prev;
+	SrcLoc  sl;
+	i32     line;
+	ErrCode ec;
+	u32     argsLen;
+	ErrArg  args[1];	// variable length
+
+	template <class... A> Err* Push(ErrCodeSrcLoc ecSl, A... args) {
+		static_assert(sizeof...(A) % 2 == 0);
+		return VMakeErr(this, ecSl.sl, ecSl.ec, MakeArgs(args...));
+	}
+};
+
+Err* VMakeErr(Err* prev, SrcLoc sl, ErrCode ec, Args args);
+
+template <class... A> Err* MakeErr(ErrCodeSrcLoc ecSl, A... args) {
+	static_assert(sizeof...(A) % 2 == 0);
+	return VMakeErr(0, ecSl.sl, ecSl.ec, MakeArgs(args...));
+}
 
 //--------------------------------------------------------------------------------------------------
 

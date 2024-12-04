@@ -1,7 +1,5 @@
 #include "JC/Vk.h"
 
-#include "JC/Err.h"
-
 #if defined Os_Windows
 	typedef __int64 (__stdcall *FARPROC)();
 

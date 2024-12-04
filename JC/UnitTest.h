@@ -6,13 +6,14 @@
 
 namespace JC {
 
-struct LogApi;
+struct Log;
+struct MemApi;
 struct TempMem;
 
 //--------------------------------------------------------------------------------------------------
 
 namespace UnitTest {
-	bool Run(TempMem* tempMem, LogApi* logApi);
+	bool Run(Log* log_, MemApi* memApi);
 
 	bool CheckFailImpl(SrcLoc sl);
 	bool CheckExprFail(SrcLoc sl, s8 expr);

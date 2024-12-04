@@ -11,9 +11,9 @@
 #define NOMENUS           // MF_*
 #define NOICONS           // IDI_*
 #define NOKEYSTATES       // MK_*
-#define NOSYSCOMMANDS     // SC_*
+//#define NOSYSCOMMANDS     // SC_*
 #define NORASTEROPS       // Binary and Tertiary raster ops
-#define NOSHOWWINDOW      // SW_*
+//#define NOSHOWWINDOW      // SW_*
 #define OEMRESOURCE       // OEM Resource values
 #define NOATOM            // Atom Manager routines
 #define NOCLIPBOARD       // Clipboard routines
@@ -35,7 +35,7 @@
 #define NOSOUND           // Sound driver routines
 #define NOTEXTMETRIC      // typedef TEXTMETRIC and associated routines
 #define NOWH              // SetWindowsHook and WH_*
-#define NOWINOFFSETS      // GWL_*, GCL_*, associated routines
+//#define NOWINOFFSETS      // GWL_*, GCL_*, associated routines
 #define NOCOMM            // COMM driver routines
 #define NOKANJI           // Kanji support stuff.
 #define NOHELP            // Help engine interface.
@@ -44,3 +44,25 @@
 #define NOMCX             // Modem Configuration Extensions
 
 #include <Windows.h>
+
+#undef CreateWindow
+
+#include "JC/Common.h"
+
+namespace JC {
+
+//--------------------------------------------------------------------------------------------------
+
+s8 MakeWinErrorDesc(u32 code);
+
+template <class... A> Err* _MakeWinErr (SrcLoc sl, u32 code, s8 fn, A... args) {
+	static_assert(sizeof...(A) % 2 == 0);
+	return VMakeErr(0, sl, ErrCode { .ns = "win", .code = code }, MakeArgs("fn", fn, "desc", MakeWinErrorDesc(code), args...));
+}
+
+#define MakeWinErr( fn, code, ...) _MakeWinErr(SrcLoc::Here(), code,           #fn, ##__VA_ARGS__)
+#define MakeLastErr(fn,       ...) _MakeWinErr(SrcLoc::Here(), GetLastError(), #fn, ##__VA_ARGS__)
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC

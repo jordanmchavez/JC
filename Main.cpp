@@ -1,10 +1,11 @@
-#include "JC/Err.h"
+#include "JC/Event.h"
 #include "JC/Fmt.h"
 #include "JC/Log.h"
 #include "JC/Mem.h"
 #include "JC/Render.h"
 #include "JC/Unicode.h"
 #include "JC/UnitTest.h"
+#include "JC/Window.h"
 #include <stdio.h>
 #include "JC/MinimalWindows.h"
 
@@ -25,11 +26,11 @@ constexpr s8 FileNameOnly(s8 path) {
 
 //--------------------------------------------------------------------------------------------------
 
-[[noreturn]] void MyPanicFn(s8 file, i32 line, s8 expr, s8 fmt, Args args) {
+[[noreturn]] void MyPanicFn(SrcLoc sl, s8 expr, s8 fmt, Args args) {
 	char msg[1024];
 	char* end = msg + sizeof(msg) - 1;
 	end = Fmt(msg, end, "***PANIC***\n");
-	end = Fmt(msg, end, "{}({})\n", file, line);
+	end = Fmt(msg, end, "{}({})\n", sl.file, sl.line);
 	end = Fmt(msg, end, "expr: {}\n", expr);
 	end = Fmt(msg, end, "msg:  ");
 	end = VFmt(msg, end, fmt, args);
@@ -101,7 +102,7 @@ int main(int argc, const char** argv) {
 			}
 		});
 
-		return UnitTest::Run(tempMem, logApi) ? 0 : 1;
+		return UnitTest::Run(log, memApi) ? 0 : 1;
 	}
 
 	logApi->AddFn([](const char* msg, u64 len) {
@@ -110,6 +111,41 @@ int main(int argc, const char** argv) {
 			Sys::DebuggerPrint(msg);
 		}
 	});
+
+	EventApi* eventApi = GetEventApi();
+	eventApi->Init(log, tempMem);
+
+	DisplayApi* displayApi = GetDisplayApi();
+	if (Res<> r = displayApi->Init(log); !r) {
+		LogErr(r.err);
+		return 1;
+	}
+
+	WindowApi* windowApi = GetWindowApi();
+	if (Res<> r = windowApi->Init(displayApi, eventApi, log, tempMem); !r) {
+		LogErr(r.err);
+		return 1;
+	}
+
+	Window window = {};
+	if (Res<> r = windowApi->CreateWindow("hihi", WindowMode::BorderedResizable, Rect{100,100,800,600}, 0).To(window); !r) {
+		LogErr(r.err);
+		return 1;
+	}
+
+	bool exitRequested = false;
+	while (!exitRequested) {
+		windowApi->PumpMessages();
+		Span<Event> events = eventApi->GetEvents();
+		for (const Event* e = events.Begin(); e != events.End(); e++) {
+			switch (e->type) {
+				case EventType::Exit:
+					exitRequested = true;
+					break;
+			}
+		}
+		eventApi->ClearEvents();
+	}
 
 	/*Mem* renderMem = memApi->CreateScope("render", 0);
 	if (Res<> r = renderApi->Init(logApi, renderMem, tempMem, &osWindowData); !r) {

@@ -69,6 +69,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -93,6 +94,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -113,14 +115,13 @@
     <ClInclude Include="JC\Array.h" />
     <ClInclude Include="JC\Bit.h" />
     <ClInclude Include="JC\Common.h" />
-    <ClInclude Include="JC\Err.h" />
+    <ClInclude Include="JC\Event.h" />
     <ClInclude Include="JC\Fmt.h" />
     <ClInclude Include="JC\Hash.h" />
     <ClInclude Include="JC\Log.h" />
     <ClInclude Include="JC\Map.h" />
     <ClInclude Include="JC\Mem.h" />
     <ClInclude Include="JC\MinimalWindows.h" />
-    <ClInclude Include="JC\Sys_Win.h" />
     <ClInclude Include="JC\Vk.h" />
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Tlsf.h" />
@@ -131,8 +132,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="JC\Common_Panic.cpp" />
-    <ClCompile Include="JC\Err.cpp" />
+    <ClCompile Include="JC\Common_Err.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
+    <ClCompile Include="JC\Event.cpp" />
     <ClCompile Include="JC\Fmt.cpp" />
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Log.cpp" />

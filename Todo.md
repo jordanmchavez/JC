@@ -206,4 +206,3 @@ add temp memory high water mark tracking and freeing up
 map perf test to ensure our impl doesn't suck
 initial reserve sizes for arrays/maps...some use cases would like this such as mem traces
 xIn -> x_
-DPI awareness: https://learn.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows?redirectedfrom=MSDN
