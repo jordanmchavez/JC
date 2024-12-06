@@ -3,11 +3,10 @@
 #include "JC/Render.h"
 
 #include "JC/Array.h"
-#include "JC/Err.h"
 #include "JC/Fmt.h"
 #include "JC/Log.h"
 #include "JC/Mem.h"
-#include "JC/Vk.h"
+#include "JC/RenderVk.h"
 
 #define Render_Debug
 
@@ -19,10 +18,13 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 #define MakeVkErr(Fn, vkRes) \
-	_MakeErr(0, SrcLoc::Here(), ErrCode { .ns = "vk", .code = (u64)vkRes }, "fn", #Fn, "desc", Vk::ResultStr(vkRes))
+	MakeErr(ErrCode { .ns = "vk", .code = (u64)vkRes }, "fn", #Fn, "desc", Vk::ResultStr(vkRes))
 
-#define LogVkErr(Fn, vkRes) \
-	LogErr(MakeVkErr(Fn, vkRes))
+#define CheckVk(expr) { \
+	if (vkRes = expr; vkRes != VK_SUCCESS) { \
+		return MakeVkErr(#expr, vkRes); \
+	} \
+}
 
 //--------------------------------------------------------------------------------------------------
 
@@ -61,7 +63,7 @@ struct RenderApiObj : RenderApi {
 		u32                              score                            = 0;
 	};
 
-	LogApi*                  logApi                      = 0;
+	Log*                     log                         = 0;
 	Mem*                     mem                         = 0;
 	TempMem*                 tempMem                     = 0;
 	VkAllocationCallbacks*   vkAllocationCallbacks       = 0;
@@ -122,44 +124,38 @@ struct RenderApiObj : RenderApi {
 		void*                                       userData
 	) {
 		flags;
-		LogApi* logApi = ((RenderApiObj*)userData)->logApi;
-		logApi->Print(
-			SrcLoc::Here(),
-			(severity & (VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)) ? LogCategory::Error : LogCategory::Info,
-			"[{}] {}: {}",
-			data->messageIdNumber,
-			data->pMessageIdName,
-			data->pMessage ? data->pMessage : ""
-		);
+		Log* const log = (Log*)userData;
+		if (severity & (VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)) {
+			log->Error("[{}] {}: {}", data->messageIdNumber, data->pMessageIdName, data->pMessage ? data->pMessage : "");
+		} else {
+			log->Print("[{}] {}: {}", data->messageIdNumber, data->pMessageIdName, data->pMessage ? data->pMessage : "");
+		}
 		return VK_FALSE;
 	}
 
 	//-------------------------------------------------------------------------------------------------
 
-	#define CheckVk(expr) { \
-		if (vkRes = expr; vkRes != VK_SUCCESS) { \
-			return MakeVkErr(#expr, vkRes); \
-		} \
-	}
-
-	Res<> Init(LogApi* logApi_, Mem* mem_, TempMem* tempMem_, const OsWindowData* osWindowData) override {
-		logApi  = logApi_;
-		mem     = mem_;
-		tempMem = tempMem_;
+	Res<> Init(const RenderApiInit* init) override {
+		log     = init->log;
+		mem     = init->mem;
+		tempMem = init->tempMem;
 
 		VkResult vkRes = VK_SUCCESS;
 		u32 n = 0;
 
+		Logf("Initializing vulkan renderer");
+
 		if (Res<> r = Vk::LoadRootFns(); !r) { return r; }
 
+		// TODO: we can remove 
 		Array<VkLayerProperties> layers(tempMem);
 		CheckVk(vkEnumerateInstanceLayerProperties(&n, 0));
 		CheckVk(vkEnumerateInstanceLayerProperties(&n, layers.Resize(n)));
 
-		Log("{} layers:", layers.len);
+		Logf("{} layers:", layers.len);
 		for (u64 i = 0; i < layers.len; i++) {
-			Log(
-				"  {}: implementationVersion={}, specVerion={}, description={}",
+			Logf(
+				"  {}: implementationVersion={}, specVersion={}, description={}",
 				layers[i].layerName,
 				Vk::VersionStr(layers[i].implementationVersion),
 				Vk::VersionStr(layers[i].specVersion),
@@ -177,7 +173,7 @@ struct RenderApiObj : RenderApi {
 			bool found = false;
 			for (u64 j = 0; j < layers.len; j++) {
 				if (!StrCmp(requiredLayers[i], layers[j].layerName)) {
-					Log("Found required layer '{}'", requiredLayers[i]);
+					Logf("Found required layer '{}'", requiredLayers[i]);
 					found = true;
 					break;
 				}
@@ -191,9 +187,9 @@ struct RenderApiObj : RenderApi {
 		CheckVk(vkEnumerateInstanceExtensionProperties(0, &n, 0));
 		CheckVk(vkEnumerateInstanceExtensionProperties(0, &n, instExts.Resize(n)));
 
-		Log("{} instance extensions:", instExts.len);
+		Logf("{} instance extensions:", instExts.len);
 		for (u64 i = 0; i < instExts.len; i++) {
-			Log("  {}: specVersion={}", instExts[i].extensionName, Vk::VersionStr(instExts[i].specVersion));
+			Logf("  {}: specVersion={}", instExts[i].extensionName, Vk::VersionStr(instExts[i].specVersion));
 		}
 
 		constexpr const char* requiredInstExts[] = {
@@ -212,7 +208,7 @@ struct RenderApiObj : RenderApi {
 			bool found = false;
 			for (u64 j = 0; j < instExts.len; j++) {
 				if (!StrCmp(requiredInstExts[i], instExts[j].extensionName)) {
-					Log("Found required instance extension '{}'", requiredInstExts[i]);
+					Logf("Found required instance extension '{}'", requiredInstExts[i]);
 					found = true;
 					break;
 				}
@@ -241,7 +237,6 @@ struct RenderApiObj : RenderApi {
 			.enabledExtensionCount   = requiredInstExtsLen,
 			.ppEnabledExtensionNames = requiredInstExts,
 		};
-
 		#if defined Render_Debug
 			VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {
 				.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
@@ -254,14 +249,13 @@ struct RenderApiObj : RenderApi {
 			};
 			vkInstanceCreateInfo.pNext = &debugCreateInfo;
 		#endif	// Render_Debug
-
 		CheckVk(vkCreateInstance(&vkInstanceCreateInfo, vkAllocationCallbacks, &vkInstance));
 		Vk::LoadInstanceFns(vkInstance);
-		Log("Created instance");
+		Logf("Created instance");
 
 		#if defined Render_Debug
 			CheckVk(vkCreateDebugUtilsMessengerEXT(vkInstance, &debugCreateInfo, vkAllocationCallbacks, &vkDebugUtilsMessenger));
-			Log("Created debug messenger");
+			Logf("Created debug messenger");
 		#endif	// Render_Debug
 
 		#if defined Os_Windows
@@ -269,11 +263,11 @@ struct RenderApiObj : RenderApi {
 				.sType     = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
 				.pNext     = 0,
 				.flags     = 0,
-				.hinstance = (HINSTANCE)osWindowData->hinstance,
-				.hwnd      = (HWND)osWindowData->hwnd,
+				.hinstance = (HINSTANCE)init->osInstanceHandle,
+				.hwnd      = (HWND)init->osWindowHandle,
 			};
 			CheckVk(vkCreateWin32SurfaceKHR(vkInstance, &win32SurfaceCreateInfo, vkAllocationCallbacks, &vkSurface));
-			Log("Created win32 surface");
+			Logf("Created win32 surface");
 		#else	// Os_
 			#error("Unsupported OS");
 		#endif	// OS_
@@ -306,6 +300,15 @@ struct RenderApiObj : RenderApi {
 			pd->vkSurfaceFormats.Init(mem);
 			CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(pd->vkPhysicalDevice, vkSurface, &n, 0));
 			CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(pd->vkPhysicalDevice, vkSurface, &n, pd->vkSurfaceFormats.Resize(n)));
+			constexpr VkFormat vkDesiredSurfaceFormats[] = {
+				VK_FORMAT_B8G8R8A8_UNORM,
+				VK_FORMAT_R8G8B8A8_UNORM,
+				VK_FORMAT_B8G8R8_UNORM,
+				VK_FORMAT_R8G8B8_UNORM 
+			};
+			for (u64 j = 0; j < pd->vkSurfaceFormats.len; j++) {
+				
+			}
 
 			pd->vkPresentModes.Init(mem);
 			CheckVk(vkGetPhysicalDeviceSurfacePresentModesKHR(pd->vkPhysicalDevice, vkSurface, &n, 0));
@@ -323,16 +326,17 @@ struct RenderApiObj : RenderApi {
 			//vkGetPhysicalDeviceFormatProperties2(pd->vkPhysicalDevice, 
 			//vkGetPhysicalDeviceWin32PresentationSupportKHR;
 		}
+		// TODO: separate queue families
 
 		constexpr const char* requiredDeviceExts[] = {
 			"VK_KHR_swapchain",
 		};
 		constexpr u64 requiredDeviceExtsLen = LenOf(requiredDeviceExts);
 
-		Log("{} physical devices:", physicalDevices.len);
+		Logf("{} physical devices:", physicalDevices.len);
 		for (u64 i = 0; i < physicalDevices.len; i++) {
 			PhysicalDevice* pd = &physicalDevices[i];
-			Log(
+			Logf(
 				"{}: apiVersion={}, driverVersion={}, vendorID={}, deviceId={}, deviceType={}",
 				pd->vkPhysicalDeviceProperties.deviceName,
 				Vk::VersionStr(pd->vkPhysicalDeviceProperties.apiVersion),
@@ -341,32 +345,32 @@ struct RenderApiObj : RenderApi {
 				pd->vkPhysicalDeviceProperties.deviceID,
 				Vk::PhysicalDeviceTypeStr(pd->vkPhysicalDeviceProperties.deviceType)
 			);
-			Log("  {} memory types:", pd->vkPhysicalDeviceMemoryProperties.memoryTypeCount);
+			Logf("  {} memory types:", pd->vkPhysicalDeviceMemoryProperties.memoryTypeCount);
 			for (u64 j = 0; j < pd->vkPhysicalDeviceMemoryProperties.memoryTypeCount; j++) {
 				const VkMemoryType mt = pd->vkPhysicalDeviceMemoryProperties.memoryTypes[j];
-				Log("    [{}] heapIndex={}, flags={}", j, mt.heapIndex, Vk::MemoryPropertyFlagsStr(mt.propertyFlags));
+				Logf("    [{}] heapIndex={}, flags={}", j, mt.heapIndex, Vk::MemoryPropertyFlagsStr(mt.propertyFlags));
 			}
-			Log("  {} memory heaps:", pd->vkPhysicalDeviceMemoryProperties.memoryHeapCount);
+			Logf("  {} memory heaps:", pd->vkPhysicalDeviceMemoryProperties.memoryHeapCount);
 			for (u64 j = 0; j < pd->vkPhysicalDeviceMemoryProperties.memoryHeapCount; j++) {
 				const VkMemoryHeap mh = pd->vkPhysicalDeviceMemoryProperties.memoryHeaps[j];
-				Log("    [{}] size={}, flags={}", j, SizeStr(mh.size), Vk::MemoryHeapFlagsStr(mh.flags));
+				Logf("    [{}] size={}, flags={}", j, SizeStr(mh.size), Vk::MemoryHeapFlagsStr(mh.flags));
 			}
-			Log("  {} device extensions: ", pd->vkExtensionProperties.len);
+			Logf("  {} device extensions: ", pd->vkExtensionProperties.len);
 			for (u64 j = 0; j < pd->vkExtensionProperties.len; j++) {
-				Log("    {}: specVersion={}", pd->vkExtensionProperties[j].extensionName, Vk::VersionStr(pd->vkExtensionProperties[j].specVersion));
+				Logf("    {}: specVersion={}", pd->vkExtensionProperties[j].extensionName, Vk::VersionStr(pd->vkExtensionProperties[j].specVersion));
 			}
-			Log("  {} surface formats:", pd->vkSurfaceFormats.len);
+			Logf("  {} surface formats:", pd->vkSurfaceFormats.len);
 			for (u64 j = 0; j < pd->vkSurfaceFormats.len; j++) {
-				Log("    {}, {}", Vk::FormatStr(pd->vkSurfaceFormats[j].format), Vk::ColorSpaceStr(pd->vkSurfaceFormats[j].colorSpace));
+				Logf("    {}, {}", Vk::FormatStr(pd->vkSurfaceFormats[j].format), Vk::ColorSpaceStr(pd->vkSurfaceFormats[j].colorSpace));
 			}
-			Log("  {} present modes:", pd->vkPresentModes.len);
+			Logf("  {} present modes:", pd->vkPresentModes.len);
 			for (u64 j = 0; j < pd->vkPresentModes.len; j++) {
-				Log("    {}", Vk::PresentModeStr(pd->vkPresentModes[j]));
+				Logf("    {}", Vk::PresentModeStr(pd->vkPresentModes[j]));
 			}
-			Log("  {} queue families:", pd->queueFamilies.len);
+			Logf("  {} queue families:", pd->queueFamilies.len);
 			for (u32 j = 0; j < pd->queueFamilies.len; j++) {
 				const VkQueueFamilyProperties* props = &pd->queueFamilies[j].vkQueueFamilyProperties;
-				Log("    [{}] count={}, flags={}, supportsPresent={}", j, props->queueCount, Vk::QueueFlagsStr(props->queueFlags), pd->queueFamilies[j].supportsPresent);
+				Logf("    [{}] count={}, flags={}, supportsPresent={}", j, props->queueCount, Vk::QueueFlagsStr(props->queueFlags), pd->queueFamilies[j].supportsPresent);
 
 				const VkQueueFlags flags = pd->queueFamilies[j].vkQueueFamilyProperties.queueFlags;
 				if (pd->grahicsQueueFamily == VK_QUEUE_FAMILY_IGNORED && (flags & VK_QUEUE_GRAPHICS_BIT) && pd->queueFamilies[j].supportsPresent) {
@@ -391,20 +395,20 @@ struct RenderApiObj : RenderApi {
 					}
 				}
 				if (!found) {
-					Log("Rejecting device '{}': doesn't support extension '{}'", pd->vkPhysicalDeviceProperties.deviceName, requiredDeviceExts[j]);
+					Logf("Rejecting device '{}': doesn't support extension '{}'", pd->vkPhysicalDeviceProperties.deviceName, requiredDeviceExts[j]);
 					pd->score = 0;
 				}
 			}
 			if (pd->vkSurfaceFormats.len == 0) {
-				Log("Rejecting device '{}': no surface formats", pd->vkPhysicalDeviceProperties.deviceName);
+				Logf("Rejecting device '{}': no surface formats", pd->vkPhysicalDeviceProperties.deviceName);
 				pd->score = 0;
 			}
 			if (pd->vkPresentModes.len == 0) {
-				Log("Rejecting device '{}': no present modes", pd->vkPhysicalDeviceProperties.deviceName);
+				Logf("Rejecting device '{}': no present modes", pd->vkPhysicalDeviceProperties.deviceName);
 				pd->score = 0;
 			}
 			if (pd->grahicsQueueFamily == VK_QUEUE_FAMILY_IGNORED) {
-				Log("Rejecting device '{}': no graphics queue supporting present", pd->vkPhysicalDeviceProperties.deviceName);
+				Logf("Rejecting device '{}': no graphics queue supporting present", pd->vkPhysicalDeviceProperties.deviceName);
 				pd->score = 0;
 			}
 		}
@@ -413,7 +417,7 @@ struct RenderApiObj : RenderApi {
 		const PhysicalDevice* physicalDevice = 0;
 		for (u64 i = 0; i < physicalDevices.len; i++) {
 			const PhysicalDevice* pd = &physicalDevices[i];
-			Log("{}: score {}", pd->vkPhysicalDeviceProperties.deviceName, pd->score);
+			Logf("{}: score {}", pd->vkPhysicalDeviceProperties.deviceName, pd->score);
 			if (pd->score > bestScore) {
 				physicalDevice = pd;
 				bestScore = pd->score;
@@ -422,7 +426,7 @@ struct RenderApiObj : RenderApi {
 		if (bestScore == 0) {
 			return MakeErr(Err_NoSuitableDevice);
 		}
-		Log("Selected physical device '{}' with score={}", physicalDevice->vkPhysicalDeviceProperties.deviceName, physicalDevice->score);
+		Logf("Selected physical device '{}' with score={}", physicalDevice->vkPhysicalDeviceProperties.deviceName, physicalDevice->score);
 
 		float queuePriority = 1.0f;
 		VkDeviceQueueCreateInfo vkDeviceQueueCreateInfo = {
@@ -448,7 +452,7 @@ struct RenderApiObj : RenderApi {
 			.pEnabledFeatures        = &vkPhysicalDeviceFeatures,
 		};
 		CheckVk(vkCreateDevice(physicalDevice->vkPhysicalDevice, &vkDeviceCreateInfo, vkAllocationCallbacks, &vkDevice));
-		Log("Created device");
+		Logf("Created device");
 
 		Vk::LoadDeviceFns(vkDevice);
 
@@ -456,7 +460,7 @@ struct RenderApiObj : RenderApi {
 			? VK_FORMAT_B8G8R8_UNORM
 			: physicalDevice->vkSurfaceFormats[0].format;
 		VkColorSpaceKHR vkSwapchainColorSpace = physicalDevice->vkSurfaceFormats[0].colorSpace;
-		Log("Selected swapchainForma=t{}, swapchainColorSpace={}", Vk::FormatStr(vkSwapchainFormat), Vk::ColorSpaceStr(vkSwapchainColorSpace));
+		Logf("Selected swapchainForma=t{}, swapchainColorSpace={}", Vk::FormatStr(vkSwapchainFormat), Vk::ColorSpaceStr(vkSwapchainColorSpace));
 
 
 		u32 swapchainImageCount = 2;
@@ -466,14 +470,14 @@ struct RenderApiObj : RenderApi {
 		if (physicalDevice->vkSurfaceCapabilities.maxImageCount && physicalDevice->vkSurfaceCapabilities.maxImageCount < swapchainImageCount) {
 			swapchainImageCount = physicalDevice->vkSurfaceCapabilities.maxImageCount;
 		}
-		Log("Selected swapchainImageCount={}", swapchainImageCount);
+		Logf("Selected swapchainImageCount={}", swapchainImageCount);
 
 		vkSwapchainExtent = physicalDevice->vkSurfaceCapabilities.currentExtent;
 		if (vkSwapchainExtent.width == -1) {
-			vkSwapchainExtent.width  = osWindowData->width;
-			vkSwapchainExtent.height = osWindowData->height;
+			vkSwapchainExtent.width  = init->width;
+			vkSwapchainExtent.height = init->height;
 		}
-		Log("Selected vkSwapchainExtent=({}, {})", vkSwapchainExtent.width, vkSwapchainExtent.height);
+		Logf("Selected vkSwapchainExtent=({}, {})", vkSwapchainExtent.width, vkSwapchainExtent.height);
 
 		VkSurfaceTransformFlagBitsKHR swapchainTransform = physicalDevice->vkSurfaceCapabilities.currentTransform;
 		if (physicalDevice->vkSurfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
@@ -486,7 +490,7 @@ struct RenderApiObj : RenderApi {
 				swapchainPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
 			}
 		}
-		Log("Selected swapchainPresentMode={}", Vk::PresentModeStr(swapchainPresentMode));
+		Logf("Selected swapchainPresentMode={}", Vk::PresentModeStr(swapchainPresentMode));
 
 		VkSwapchainCreateInfoKHR vkSwapchainCreateInfoKHR = {
 			.sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
@@ -509,7 +513,7 @@ struct RenderApiObj : RenderApi {
 			.oldSwapchain          = 0,
 		};
 		CheckVk(vkCreateSwapchainKHR(vkDevice, &vkSwapchainCreateInfoKHR, vkAllocationCallbacks, &vkSwapchain));
-		Log("Created swapchain");
+		Logf("Created swapchain");
 
 		vkGetDeviceQueue(vkDevice, physicalDevice->grahicsQueueFamily, 0, &vkQueue);
 
@@ -520,7 +524,7 @@ struct RenderApiObj : RenderApi {
 			.queueFamilyIndex = physicalDevice->grahicsQueueFamily,
 		};
 		CheckVk(vkCreateCommandPool(vkDevice, &vkCommandPoolCreateInfo, vkAllocationCallbacks, &vkCommandPool));
-		Log("Created command pool");
+		Logf("Created command pool");
 
 		VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo = {
 			.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -531,12 +535,12 @@ struct RenderApiObj : RenderApi {
 		};
 		CheckVk(vkAllocateCommandBuffers(vkDevice, &vkCommandBufferAllocateInfo, &vkSetupCommandBuffer));
 		CheckVk(vkAllocateCommandBuffers(vkDevice, &vkCommandBufferAllocateInfo, &vkRenderCommandBuffer));
-		Log("Created command buffers");
+		Logf("Created command buffers");
 
 		vkSwapchainImages.Init(mem);
 		CheckVk(vkGetSwapchainImagesKHR(vkDevice, vkSwapchain, &n, 0));
 		CheckVk(vkGetSwapchainImagesKHR(vkDevice, vkSwapchain, &n, vkSwapchainImages.Resize(n)));
-		Log("Got swapchain images");
+		Logf("Got swapchain images");
 
 		VkFenceCreateInfo vkFenceCreateInfo = {
 			.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
@@ -544,7 +548,7 @@ struct RenderApiObj : RenderApi {
 			.flags = 0,
 		};
 		CheckVk(vkCreateFence(vkDevice, &vkFenceCreateInfo, vkAllocationCallbacks, &vkFence));
-		Log("Created fence");
+		Logf("Created fence");
 
 		bool* const transitioned = (bool*)tempMem->Alloc(swapchainImageCount * sizeof(bool));
 		MemSet(transitioned, 0, sizeof(transitioned));
@@ -621,7 +625,7 @@ struct RenderApiObj : RenderApi {
 
 				transitioned[imageIndex] = true;
 				imagesRemaining--;
-				Log("Transitioned swap chain image {}", imageIndex);
+				Logf("Transitioned swap chain image {}", imageIndex);
 			}
 
 			VkPresentInfoKHR vkPresentInfo = {
@@ -636,7 +640,7 @@ struct RenderApiObj : RenderApi {
 			};
 			CheckVk(vkQueuePresentKHR(vkQueue, &vkPresentInfo));
 		}
-		Log("Transitioned all swap chain images");
+		Logf("Transitioned all swap chain images");
 
 		vkSwapchainImageViews.Init(mem);
 		vkSwapchainImageViews.Resize(vkSwapchainImages.len);
@@ -664,7 +668,7 @@ struct RenderApiObj : RenderApi {
 			};
 			CheckVk(vkCreateImageView(vkDevice, &vkImageViewCreateInfo, vkAllocationCallbacks, &vkSwapchainImageViews[i]));
 		}
-		Log("Got swapchain image views");
+		Logf("Got swapchain image views");
 
 		VkImageCreateInfo vkImageCreateInfo = {
 			.sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -688,7 +692,7 @@ struct RenderApiObj : RenderApi {
 			.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
 		};
 		CheckVk(vkCreateImage(vkDevice, &vkImageCreateInfo, vkAllocationCallbacks, &vkDepthImage));
-		Log("Created depth image");
+		Logf("Created depth image");
 
 		VkMemoryRequirements vkMemoryRequirements = {};
 		vkGetImageMemoryRequirements(vkDevice, vkDepthImage, &vkMemoryRequirements);
@@ -709,7 +713,7 @@ struct RenderApiObj : RenderApi {
 		}
 		CheckVk(vkAllocateMemory(vkDevice, &vkMemoryAllocateInfo, vkAllocationCallbacks, &vkDepthImageMemory));
 		CheckVk(vkBindImageMemory(vkDevice, vkDepthImage, vkDepthImageMemory, 0));
-		Log("Allocate depth image memory: size={}, memoryTypeIndex={}", vkMemoryAllocateInfo.allocationSize, vkMemoryAllocateInfo.memoryTypeIndex);
+		Logf("Allocate depth image memory: size={}, memoryTypeIndex={}", vkMemoryAllocateInfo.allocationSize, vkMemoryAllocateInfo.memoryTypeIndex);
 
 		{
 			VkCommandBufferBeginInfo vkCommandBufferBeginInfo = {
@@ -768,7 +772,7 @@ struct RenderApiObj : RenderApi {
 			CheckVk(vkResetFences(vkDevice, 1, &vkFence));
 			CheckVk(vkResetCommandBuffer(vkSetupCommandBuffer, 0));
 		}
-		Log("Transitioned depth image to VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL");
+		Logf("Transitioned depth image to VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL");
 
 		VkImageViewCreateInfo vkImageViewCreateInfo = {
 			.sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -792,7 +796,7 @@ struct RenderApiObj : RenderApi {
 			},
 		};
 		CheckVk(vkCreateImageView(vkDevice, &vkImageViewCreateInfo, vkAllocationCallbacks, &vkDepthImageView));
-		Log("Created depth image view");
+		Logf("Created depth image view");
 
 		VkAttachmentDescription vkAttachmentDescriptions[2] = {
 			{
@@ -851,7 +855,7 @@ struct RenderApiObj : RenderApi {
 
 		};
 		CheckVk(vkCreateRenderPass(vkDevice, &vkRenderPassCreateInfo, vkAllocationCallbacks, &vkRenderPass));
-		Log("Created render pass");
+		Logf("Created render pass");
 
 		vkFramebuffers.Init(mem);
 		vkFramebuffers.Resize(vkSwapchainImageViews.len);
@@ -870,7 +874,7 @@ struct RenderApiObj : RenderApi {
 			};
 			CheckVk(vkCreateFramebuffer(vkDevice, &vkFramebufferCreateInfo, vkAllocationCallbacks, &vkFramebuffers[i]));
 		}
-		Log("Created framebuffers");
+		Logf("Created framebuffers");
 
 		struct Vertex {
 			float x, y, z, w;
@@ -887,7 +891,7 @@ struct RenderApiObj : RenderApi {
 			.pQueueFamilyIndices   = 0,
 		};
 		CheckVk(vkCreateBuffer(vkDevice, &vkBufferCreateInfo, vkAllocationCallbacks, &vkVertexBuffer));
-		Log("Created vertex buffer");
+		Logf("Created vertex buffer");
 
 		vkGetBufferMemoryRequirements(vkDevice, vkVertexBuffer, &vkMemoryRequirements);
 		vkMemoryAllocateInfo = {
@@ -906,7 +910,7 @@ struct RenderApiObj : RenderApi {
 			}
 		}
 		CheckVk(vkAllocateMemory(vkDevice, &vkMemoryAllocateInfo, vkAllocationCallbacks, &vkVertexBufferMemory));
-		Log("Allocated vertex buffer memory: size={}, memoryTypeIndex={}", vkMemoryAllocateInfo.allocationSize, vkMemoryAllocateInfo.memoryTypeIndex);
+		Logf("Allocated vertex buffer memory: size={}, memoryTypeIndex={}", vkMemoryAllocateInfo.allocationSize, vkMemoryAllocateInfo.memoryTypeIndex);
 
 		void* ptr;
 		CheckVk(vkMapMemory(vkDevice, vkVertexBufferMemory, 0, VK_WHOLE_SIZE, 0, &ptr));
@@ -915,7 +919,7 @@ struct RenderApiObj : RenderApi {
 		verts[1] = {  1.0f, -1.0f, 0.0f, 1.0f };
 		verts[2] = {  0.0f,  1.0f, 0.0f, 1.0f };
 		vkUnmapMemory(vkDevice, vkVertexBufferMemory);
-		Log("Loaded vertices");
+		Logf("Loaded vertices");
 
 		CheckVk(vkBindBufferMemory(vkDevice, vkVertexBuffer, vkVertexBufferMemory, 0));
 
@@ -928,7 +932,7 @@ struct RenderApiObj : RenderApi {
 			.pCode    = (const u32*)vertShaderSpv.data,
 		};
 		CheckVk(vkCreateShaderModule(vkDevice, &vkShaderModuleCreateInfo, vkAllocationCallbacks, &vkVertexShaderModule));
-		Log("Created vertex shader module");
+		Logf("Created vertex shader module");
 
 		Array<u8> fragShaderSpv = ReadFile(tempMem, "Shaders/frag.spv");
 		vkShaderModuleCreateInfo = {
@@ -939,7 +943,7 @@ struct RenderApiObj : RenderApi {
 			.pCode    = (const u32*)fragShaderSpv.data,
 		};
 		CheckVk(vkCreateShaderModule(vkDevice, &vkShaderModuleCreateInfo, vkAllocationCallbacks, &vkFragmentShaderModule));
-		Log("Created fragment shader module");
+		Logf("Created fragment shader module");
 
 		vkBufferCreateInfo = {
 			.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -952,7 +956,7 @@ struct RenderApiObj : RenderApi {
 			.pQueueFamilyIndices   = 0,
 		};
 		CheckVk(vkCreateBuffer(vkDevice, &vkBufferCreateInfo, vkAllocationCallbacks, &vkShaderUniformBuffer));
-		Log("Created uniform buffer");
+		Logf("Created uniform buffer");
 
 		vkGetBufferMemoryRequirements(vkDevice, vkShaderUniformBuffer, &vkMemoryRequirements);
 		vkMemoryAllocateInfo = {
@@ -972,7 +976,7 @@ struct RenderApiObj : RenderApi {
 		}
 		CheckVk(vkAllocateMemory(vkDevice, &vkMemoryAllocateInfo, vkAllocationCallbacks, &vkShaderUniformBufferMemory));
 		CheckVk(vkBindBufferMemory(vkDevice, vkShaderUniformBuffer, vkShaderUniformBufferMemory, 0));
-		Log("Allocated uniform buffer memory: size={}, memoryTypeIndex={}", vkMemoryAllocateInfo.allocationSize, vkMemoryAllocateInfo.memoryTypeIndex);
+		Logf("Allocated uniform buffer memory: size={}, memoryTypeIndex={}", vkMemoryAllocateInfo.allocationSize, vkMemoryAllocateInfo.memoryTypeIndex);
 
 		VkDescriptorSetLayoutBinding vkDescriptorSetLayoutBinding = {
 			.binding            = 0,
@@ -989,7 +993,7 @@ struct RenderApiObj : RenderApi {
 			.pBindings    = &vkDescriptorSetLayoutBinding,
 		};
 		CheckVk(vkCreateDescriptorSetLayout(vkDevice, &vkDescriptorSetLayoutCreateInfo, vkAllocationCallbacks, &vkDescriptorSetLayout));
-		Log("Created descriptor set layout");
+		Logf("Created descriptor set layout");
 
 		VkDescriptorPoolSize vkDescriptorPoolSize = {
 			.type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -1004,7 +1008,7 @@ struct RenderApiObj : RenderApi {
 			.pPoolSizes    = &vkDescriptorPoolSize,
 		};
 		CheckVk(vkCreateDescriptorPool(vkDevice, &vkDescriptorPoolCreateInfo, vkAllocationCallbacks, &vkDescriptorPool));
-		Log("Created descriptor pool");
+		Logf("Created descriptor pool");
 
 		VkDescriptorSetAllocateInfo vkDescriptorSetAllocateInfo = {
 			.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -1014,7 +1018,7 @@ struct RenderApiObj : RenderApi {
 			.pSetLayouts        = &vkDescriptorSetLayout,
 		};
 		CheckVk(vkAllocateDescriptorSets(vkDevice, &vkDescriptorSetAllocateInfo, &vkDescriptorSet));
-		Log("Created descriptor set");
+		Logf("Created descriptor set");
 
 		VkDescriptorBufferInfo vkDescriptorBufferInfo = {
 			.buffer = vkShaderUniformBuffer,
@@ -1045,7 +1049,7 @@ struct RenderApiObj : RenderApi {
 			.pPushConstantRanges    = 0,
 		};
 		CheckVk(vkCreatePipelineLayout(vkDevice, &vkPipelineLayoutCreateInfo, vkAllocationCallbacks, &vkPipelineLayout));
-		Log("Created pipeline layout");
+		Logf("Created pipeline layout");
 
 		VkPipelineShaderStageCreateInfo vkPipelineShaderStageCreateInfos[2] = {
 			{
@@ -1220,7 +1224,7 @@ struct RenderApiObj : RenderApi {
 			.basePipelineIndex   = 0,
 		};
 		CheckVk(vkCreateGraphicsPipelines(vkDevice, 0, 1, &vkGraphicsPipelineCreateInfo, vkAllocationCallbacks, &vkPipeline));
-		Log("Created graphics pipeline");
+		Logf("Created graphics pipeline");
 
 
 		return Ok();

@@ -11,7 +11,30 @@
 
 using namespace JC;
 
-static TempMem* tempMem = 0;
+struct LogLeakReporter : MemLeakReporter {
+	Log* log = 0;
+
+	void LeakedScope(s8 name, u64 leakedBytes, u32 leakedAllocs, u32 leakedChildren) override {
+		Errorf("Leaked scope: name={}, leakedBytes={}, leakedAllocs={}, leakedChildren={}", name, leakedBytes, leakedAllocs, leakedChildren);
+	}
+
+	void LeakedAlloc(SrcLoc sl, u64 leakedBytes, u32 leakedAllocs) override {
+		Errorf("  {}({}): leakedBytes={}, leakedAllocs={}", sl.file, sl.line, leakedBytes, leakedAllocs);
+	}
+
+	void LeakedChild(s8 name, u64 leakedBytes, u32 leakedAllocs) override {
+		Errorf("  Leaked child: name={}, leakedBytes={}, leakedAllocs={}", name, leakedBytes, leakedAllocs);
+	}
+};
+
+//--------------------------------------------------------------------------------------------------
+
+static MemApi*         memApi;
+static TempMem*        tempMem;
+static LogApi*         logApi;
+static Log*            log;
+static LogLeakReporter logLeakReporter;
+static RenderApi*      renderApi;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -26,130 +49,98 @@ constexpr s8 FileNameOnly(s8 path) {
 
 //--------------------------------------------------------------------------------------------------
 
-[[noreturn]] void MyPanicFn(SrcLoc sl, s8 expr, s8 fmt, Args args) {
-	char msg[1024];
-	char* end = msg + sizeof(msg) - 1;
-	end = Fmt(msg, end, "***PANIC***\n");
-	end = Fmt(msg, end, "{}({})\n", sl.file, sl.line);
-	end = Fmt(msg, end, "expr: {}\n", expr);
-	end = Fmt(msg, end, "msg:  ");
-	end = VFmt(msg, end, fmt, args);
-	end = Fmt(msg, end, "\n");
-	*end = '\0';
-	fwrite(msg, 1, end - msg, stdout);
-	if (Sys::IsDebuggerPresent()) {
-		Sys::DebuggerPrint(msg);
-		Sys_DebuggerBreak();
-	}
-	Sys::Abort();
-}
-
-//--------------------------------------------------------------------------------------------------
-
-struct LogLeakReporter : MemLeakReporter {
-	Log* log = 0;
-
-	void LeakedScope(s8 name, u64 leakedBytes, u32 leakedAllocs, u32 leakedChildren) override {
-		LogErrorf("Leaked scope: name={}, leakedBytes={}, leakedAllocs={}, leakedChildren={}", name, leakedBytes, leakedAllocs, leakedChildren);
-	}
-
-	void LeakedAlloc(SrcLoc sl, u64 leakedBytes, u32 leakedAllocs) override {
-		LogErrorf("  {}({}): leakedBytes={}, leakedAllocs={}", sl.file, sl.line, leakedBytes, leakedAllocs);
-	}
-
-	void LeakedChild(s8 name, u64 leakedBytes, u32 leakedAllocs) override {
-		LogErrorf("  Leaked child: name={}, leakedBytes={}, leakedAllocs={}", name, leakedBytes, leakedAllocs);
-	}
-};
-
-//--------------------------------------------------------------------------------------------------
-
-LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
-	switch (msg) {
-		case WM_CLOSE:
-			PostQuitMessage(0);
-			break;
-		default:
-			break;
-	}
-	return DefWindowProc(hwnd, msg, wparam, lparam);
-}
-
-//--------------------------------------------------------------------------------------------------
-
-int main(int argc, const char** argv) {
-	//RenderApi*        renderApi        = RenderApi::Get();
-
-	SetPanicFn(MyPanicFn);
-
-	MemApi* memApi = GetMemApi();
+Res<> Run(int argc, const char** argv) {
+	memApi = GetMemApi();
 	memApi->Init();
 	tempMem = memApi->Temp();
 
-	LogApi* logApi = GetLogApi();
+	logApi = GetLogApi();
 	logApi->Init(tempMem);
-	Log* log = logApi->GetLog();
-
-	LogLeakReporter logLeakReporter;
-	logLeakReporter.log = log;
-	memApi->SetLeakReporter(&logLeakReporter);
-
-	if (argc == 2 && argv[1] == s8("test")) {
-		logApi->AddFn([](const char* msg, u64 len) {
-			fwrite(msg, 1, len, stdout);
-			if (Sys::IsDebuggerPresent()) {
-				Sys::DebuggerPrint(msg);
-			}
-		});
-
-		return UnitTest::Run(log, memApi) ? 0 : 1;
-	}
-
 	logApi->AddFn([](const char* msg, u64 len) {
 		fwrite(msg, 1, len, stdout);
 		if (Sys::IsDebuggerPresent()) {
 			Sys::DebuggerPrint(msg);
 		}
 	});
+	log = logApi->GetLog();
+
+	logLeakReporter.log = log;
+	memApi->SetLeakReporter(&logLeakReporter);
+
+	SetPanicFn([](SrcLoc sl, s8 expr, s8 fmt, Args args) {
+		char msg[1024];
+		char* iter = msg;
+		char* end = msg + sizeof(msg) - 1;
+		iter = Fmt(iter, end, "\n***PANIC***\n");
+		iter = Fmt(iter, end, "{}({})\n", sl.file, sl.line);
+		if (expr.len > 0) {
+			iter = Fmt(iter, end, "expr: {}\n", expr);
+		}
+		if (fmt.len > 0) {
+			iter = VFmt(iter, end, fmt, args);
+			iter = Fmt(iter, end, "\n");
+		}
+		Logf("{}", s8(msg, (u64)(end - msg)));
+	});
+
+	if (argc == 2 && argv[1] == s8("test")) {
+		UnitTest::Run(log, memApi);
+		return;
+	}
 
 	EventApi* eventApi = GetEventApi();
 	eventApi->Init(log, tempMem);
 
 	DisplayApi* displayApi = GetDisplayApi();
 	if (Res<> r = displayApi->Init(log); !r) {
-		LogErr(r.err);
+		Errorf(r.err);
 		return 1;
 	}
 
 	WindowApi* windowApi = GetWindowApi();
-	if (Res<> r = windowApi->Init(displayApi, eventApi, log, tempMem); !r) {
-		LogErr(r.err);
+	WindowApiInit windowApiInit = {
+		.displayApi        = displayApi,
+		.eventApi          = eventApi,
+		.log               = log,
+		.tempMem           = tempMem,
+		.title             = "test window",
+		.windowMode        = WindowMode::BorderedResizable,
+		.rect              = Rect { .x = 100, .y = 100, .width = 800, .height = 600 },
+		.fullscreenDisplay = 0,
+	};
+	if (Res<> r = windowApi->Init(&windowApiInit); !r) {
+		Errorf(r.err);
 		return 1;
 	}
 
-	Window window = {};
-	if (Res<> r = windowApi->CreateWindow("hihi", WindowMode::BorderedResizable, Rect{100,100,800,600}, 0).To(window); !r) {
-		LogErr(r.err);
-		return 1;
-	}
+	renderApi = GetRenderApi();
+	if (Res<> r = renderApi->Init();
 
+	u64 frame = 0;
 	bool exitRequested = false;
 	while (!exitRequested) {
 		windowApi->PumpMessages();
+		if (windowApi->IsExitRequested()) {
+			eventApi->AddEvent({ .type = EventType::Exit });
+		}
+
 		Span<Event> events = eventApi->GetEvents();
 		for (const Event* e = events.Begin(); e != events.End(); e++) {
 			switch (e->type) {
 				case EventType::Exit:
 					exitRequested = true;
 					break;
+				case EventType::Key:
+					Logf("key {} ({}): {}", EventKeyStr(e->key.key), e->key.key, e->key.down ? "down" : "up");
 			}
 		}
 		eventApi->ClearEvents();
+		memApi->Frame(frame);
 	}
 
 	/*Mem* renderMem = memApi->CreateScope("render", 0);
 	if (Res<> r = renderApi->Init(logApi, renderMem, tempMem, &osWindowData); !r) {
-		LogErr(r.err);
+		Errorf(r.err);
 		return 1;
 	}
 
@@ -166,5 +157,22 @@ int main(int argc, const char** argv) {
 
 	renderApi->Shutdown();
 	*/
+
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void Shutdown() {
+}
+
+//--------------------------------------------------------------------------------------------------
+
+int main(int argc, const char** argv) {
+	if (Res<> r = Run(argc, argv); !r) {
+		if (log) {
+			Errorf(r.err);
+		}
+	}
+	Shutdown();
 	return 0;
 }

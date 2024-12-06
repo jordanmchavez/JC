@@ -21,6 +21,7 @@ struct Rect {
 struct DisplayInfo {
 	bool primary  = false;
 	Rect rect     = {};
+	u32  dpi      = 0;
 	f32  dpiScale = 0.0f;
 };
 
@@ -36,14 +37,6 @@ DisplayApi* GetDisplayApi();
 
 //--------------------------------------------------------------------------------------------------
 
-struct Window { u64 handle = 0; };
-
-enum WindowCursorMode {
-	VisibleFree,
-	VisibleConstrained,
-	HiddenLocked,	// ->visible: reappear at position hidden, same with alt+tabbing
-};
-
 enum struct WindowMode {
 	Bordered,
 	BorderedResizable,
@@ -51,12 +44,47 @@ enum struct WindowMode {
 	Fullscreen,
 };
 
+enum CursorMode {
+	VisibleFree,
+	VisibleConstrained,
+	HiddenLocked,	// ->visible: reappear at position hidden, same with alt+tabbing
+};
+
+namespace WindowStateFlags {
+	constexpr u64 Minimized = 1 << 0;
+	constexpr u64 Maximized = 1 << 1;
+	constexpr u64 Focused   = 1 << 2;
+	constexpr u64 Hidden    = 1 << 3;
+};
+
+struct WindowState {
+	Rect       rect       = {};
+	u64        flags      = 0;
+	WindowMode windowMode = {};
+	CursorMode cursorMode = {};
+};
+
+struct WindowApiInit {
+	DisplayApi* displayApi        = 0;
+	EventApi*   eventApi          = 0;
+	Log*        log               = 0;
+	TempMem*    tempMem           = 0;
+	s8          title             = {};
+	WindowMode  windowMode        = {};
+	Rect        rect              = {};
+	u32         fullscreenDisplay = 0;
+};
+
 struct WindowApi {
-	virtual Res<>       Init(DisplayApi* displayApi, EventApi* eventApi, Log* log, TempMem* tempMem) = 0;
-	virtual Res<Window> CreateWindow(s8 title, WindowMode mode, Rect rect, u32 fullscreenDisplay) = 0;
-	//virtual void        DestroyWindow(Window window) = 0;
+	virtual Res<>       Init(const WindowApiInit* init) = 0;
+	virtual void        Shutdown() = 0;
 	virtual void        PumpMessages() = 0;
-	//virtual void WaitMessage() = 0;
+	virtual WindowState GetState() = 0;
+	virtual void        SetRect(Rect rect) = 0;
+	virtual void        SetWindowMode(WindowMode windowMode) = 0;
+	virtual void        SetCursorMode(CursorMode cursorMode) = 0;
+	virtual bool        IsExitRequested() = 0;
+
 /*	get rect
 	set rect
 	get dpi scale factor

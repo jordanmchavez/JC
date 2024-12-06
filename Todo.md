@@ -206,3 +206,4 @@ add temp memory high water mark tracking and freeing up
 map perf test to ensure our impl doesn't suck
 initial reserve sizes for arrays/maps...some use cases would like this such as mem traces
 xIn -> x_
+Consider VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT and friends

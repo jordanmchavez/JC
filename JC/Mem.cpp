@@ -42,8 +42,10 @@ struct Trace {
 //--------------------------------------------------------------------------------------------------
 
 struct MemApiObj : MemApi {
-	static constexpr u32 MaxScopes = 1024;
+	static constexpr u32 MaxScopes     = 1024;
 	static constexpr u64 TempAlignSize = 8;
+	static constexpr u64 TempReserve   = 4 * 1024 * 1024;
+	static constexpr u64 TempMinCommit = 64 * 1024;
 
 	MemLeakReporter* memLeakReporter   = 0;
 	Tlsf             tlsf              = {};
@@ -81,17 +83,20 @@ struct MemApiObj : MemApi {
 		slToTrace.Init(&scopes[0]);
 		ptrToTrace.Init(&scopes[0]);
 
-		constexpr u64 TempReserveSize = (u64)4 * 1024 * 1024 * 1024;
-		tempBegin     = (u8*)Sys::VirtualReserve(TempReserveSize);
+		tempBegin     = (u8*)Sys::VirtualReserve(TempReserve);
+		Sys::VirtualCommit(tempBegin, TempMinCommit);
 		tempUsed      = tempBegin;
-		tempCommit    = tempBegin;
-		tempReserve   = tempBegin + TempReserveSize;
+		tempCommit    = tempBegin + TempMinCommit;
+		tempReserve   = tempBegin + TempReserve;
 	}
+
 	//----------------------------------------------------------------------------------------------
 
 	void SetLeakReporter(MemLeakReporter* memLeakReporterIn) override {
 		memLeakReporter = memLeakReporterIn;
 	}
+
+	//----------------------------------------------------------------------------------------------
 
 	void Frame(u64 frame) override {
 		if (tempUsed > tempHigh) {
@@ -99,15 +104,16 @@ struct MemApiObj : MemApi {
 		}
 
 		if (!(frame & ((u64)1024 - 1))) {
-			u8* const tempCommitNeeded = (u8*)AlignPow2((u64)tempHigh);
-			Assert(tempCommitNeeded <= tempCommit);
-			if (tempCommitNeeded < tempCommit) {
-				Sys::VirtualDecommit(tempCommitNeeded, (u64)(tempCommit - tempCommitNeeded));
+			const u64 committed = (u64)(tempCommit - tempBegin);
+			const u64 needed   = AlignPow2((u64)(tempCommit - tempHigh));
+			Assert(needed <= committed);
+			if (needed < committed && needed > TempMinCommit) {
+				Sys::VirtualDecommit(tempBegin + needed, (u64)(committed - needed));
+				tempCommit = tempBegin + needed;
 			}
-			tempCommit = tempCommitNeeded;
 		}
 
-		tempUsed = 0;
+		tempUsed = tempBegin;
 	}
 
 	//----------------------------------------------------------------------------------------------
@@ -269,6 +275,7 @@ void* TempMemObj::Alloc(u64 size, SrcLoc) {
 	}
 	void* p = memApi.tempUsed;
 	memApi.tempUsed += size;
+	Assert(memApi.tempUsed <= memApi.tempCommit);
 	return p;
 }
 

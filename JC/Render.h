@@ -4,33 +4,22 @@
 
 namespace JC {
 
-struct LogApi;
+struct Log;
 struct Mem;
 struct TempMem;
 
 //--------------------------------------------------------------------------------------------------
 
-struct OsWindowData {
-	u32 width = 0;
-	u32 height = 0;
+struct RenderApiInit {
+	Log*     log              = 0;
+	Mem*     mem              = 0;
+	TempMem* tempMem          = 0;
+	u32      width            = 0;
+	u32      height           = 0;
+	void*    osWindowHandle   = 0;
 	#if defined Os_Windows
-		void* hinstance = 0;
-		void* hwnd      = 0;
-	#else	// Os_
-		#error("Unsupported OS");
-	#endif	// Os_
-};
-
-namespace RenderApiCfgFlags {
-	constexpr u64 Debug = (u64)1 << 0;
-};
-
-struct RenderInit {
-	u64                 flags        = 0;
-	LogApi*             logApi       = 0;
-	Mem*                mem          = 0;
-	TempMem*            tempMem      = 0;
-	const OsWindowData* osWindowData = 0;
+	void*    osInstanceHandle = 0;
+	#endif	// Os_Windows
 };
 
 struct RenderApi {
@@ -40,7 +29,7 @@ struct RenderApi {
 	
 	static RenderApi* Get();
 
-	virtual Res<> Init(const RenderInit * renderInitInfo) = 0;
+	virtual Res<> Init(const RenderApiInit* init) = 0;
 	virtual void  Shutdown() = 0;
 	virtual Res<> Frame() = 0;
 };

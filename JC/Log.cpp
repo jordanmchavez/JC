@@ -31,7 +31,7 @@ struct LogObj : Log {
 		}
 	}
 
-	void PrintErr(Err* err, SrcLoc sl) override {
+	void Error(Err* err, SrcLoc sl) override {
 		Array<char> arr(tempMem);
 		Fmt(
 			&arr,
