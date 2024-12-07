@@ -473,6 +473,12 @@ struct WindowApiObj : WindowApi {
 
 	//----------------------------------------------------------------------------------------------
 
+	void* GetOsWindowHandle() override {
+		return hwnd;
+	}
+
+	//----------------------------------------------------------------------------------------------
+
 	bool IsExitRequested() override {
 		return exitRequested;
 	}

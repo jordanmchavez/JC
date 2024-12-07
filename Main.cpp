@@ -85,7 +85,7 @@ Res<> Run(int argc, const char** argv) {
 
 	if (argc == 2 && argv[1] == s8("test")) {
 		UnitTest::Run(log, memApi);
-		return;
+		return Ok();
 	}
 
 	EventApi* eventApi = GetEventApi();
@@ -93,8 +93,7 @@ Res<> Run(int argc, const char** argv) {
 
 	DisplayApi* displayApi = GetDisplayApi();
 	if (Res<> r = displayApi->Init(log); !r) {
-		Errorf(r.err);
-		return 1;
+		return r;
 	}
 
 	WindowApi* windowApi = GetWindowApi();
@@ -109,12 +108,23 @@ Res<> Run(int argc, const char** argv) {
 		.fullscreenDisplay = 0,
 	};
 	if (Res<> r = windowApi->Init(&windowApiInit); !r) {
-		Errorf(r.err);
-		return 1;
+		return r;
 	}
 
+	Mem* renderMem = memApi->Create("Mem", 0);
 	renderApi = GetRenderApi();
-	if (Res<> r = renderApi->Init();
+	RenderApiInit renderApiInit = {
+		.log              = log,
+		.mem              = renderMem,
+		.tempMem          = tempMem,
+		.width            = 800,
+		.height           = 600,
+		.osWindowHandle   = windowApi->GetOsWindowHandle(),
+		.osInstanceHandle = GetModuleHandle(0),
+	};
+	if (Res<> r = renderApi->Init(&renderApiInit); !r) {
+		return r;
+	}
 
 	u64 frame = 0;
 	bool exitRequested = false;
@@ -158,6 +168,7 @@ Res<> Run(int argc, const char** argv) {
 	renderApi->Shutdown();
 	*/
 
+	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------

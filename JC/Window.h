@@ -83,6 +83,7 @@ struct WindowApi {
 	virtual void        SetRect(Rect rect) = 0;
 	virtual void        SetWindowMode(WindowMode windowMode) = 0;
 	virtual void        SetCursorMode(CursorMode cursorMode) = 0;
+	virtual void*       GetOsWindowHandle() = 0;
 	virtual bool        IsExitRequested() = 0;
 
 /*	get rect

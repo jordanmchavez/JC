@@ -27,12 +27,12 @@ struct RenderApi {
 	static constexpr ErrCode Err_ExtensionNotFound = { .ns = "ren", .code = 2 };
 	static constexpr ErrCode Err_NoSuitableDevice  = { .ns = "ren", .code = 3 };
 	
-	static RenderApi* Get();
-
 	virtual Res<> Init(const RenderApiInit* init) = 0;
 	virtual void  Shutdown() = 0;
 	virtual Res<> Frame() = 0;
 };
+
+RenderApi* GetRenderApi();
 
 //--------------------------------------------------------------------------------------------------
 

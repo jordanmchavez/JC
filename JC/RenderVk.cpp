@@ -57,6 +57,8 @@ struct RenderApiObj : RenderApi {
 		VkSurfaceCapabilitiesKHR         vkSurfaceCapabilities            = {};
 		Array<VkExtensionProperties>     vkExtensionProperties            = {};
 		Array<VkSurfaceFormatKHR>        vkSurfaceFormats                 = {};
+		VkFormat                         vkSurfaceFormat                  = VK_FORMAT_UNDEFINED;
+		VkColorSpaceKHR                  vkSurfaceColorSpace              = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 		Array<VkPresentModeKHR>          vkPresentModes                   = {};
 		Array<QueueFamily>               queueFamilies                    = {};
 		u32                              grahicsQueueFamily               = VK_QUEUE_FAMILY_IGNORED;
@@ -72,8 +74,8 @@ struct RenderApiObj : RenderApi {
 	VkSurfaceKHR             vkSurface                   = VK_NULL_HANDLE;
 	Array<PhysicalDevice>    physicalDevices             = {};
 	VkDevice                 vkDevice                    = VK_NULL_HANDLE;
-	VkSwapchainKHR           vkSwapchain                 = VK_NULL_HANDLE;
 	VkQueue                  vkQueue                     = VK_NULL_HANDLE;
+	VkSwapchainKHR           vkSwapchain                 = VK_NULL_HANDLE;
 	VkCommandPool            vkCommandPool               = VK_NULL_HANDLE;
 	VkCommandBuffer          vkSetupCommandBuffer        = VK_NULL_HANDLE;
 	VkCommandBuffer          vkRenderCommandBuffer       = VK_NULL_HANDLE;
@@ -300,15 +302,22 @@ struct RenderApiObj : RenderApi {
 			pd->vkSurfaceFormats.Init(mem);
 			CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(pd->vkPhysicalDevice, vkSurface, &n, 0));
 			CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(pd->vkPhysicalDevice, vkSurface, &n, pd->vkSurfaceFormats.Resize(n)));
-			constexpr VkFormat vkDesiredSurfaceFormats[] = {
+			constexpr VkFormat VkDesiredSurfaceFormats[] = {
 				VK_FORMAT_B8G8R8A8_UNORM,
 				VK_FORMAT_R8G8B8A8_UNORM,
 				VK_FORMAT_B8G8R8_UNORM,
 				VK_FORMAT_R8G8B8_UNORM 
 			};
 			for (u64 j = 0; j < pd->vkSurfaceFormats.len; j++) {
-				
+				for (u64 k = 0; k < LenOf(VkDesiredSurfaceFormats); k++) {
+					if (pd->vkSurfaceFormats[j].format == VkDesiredSurfaceFormats[k] && pd->vkSurfaceFormats[j].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+						pd->vkSurfaceFormat     = pd->vkSurfaceFormats[j].format;
+						pd->vkSurfaceColorSpace = pd->vkSurfaceFormats[j].colorSpace;
+						goto FoundSurfaceFormat;
+					}
+				}
 			}
+			FoundSurfaceFormat:
 
 			pd->vkPresentModes.Init(mem);
 			CheckVk(vkGetPhysicalDeviceSurfacePresentModesKHR(pd->vkPhysicalDevice, vkSurface, &n, 0));
@@ -322,9 +331,6 @@ struct RenderApiObj : RenderApi {
 				pd->queueFamilies[j].vkQueueFamilyProperties = vkQueueFamilyProperties[j];
 				pd->queueFamilies[j].supportsPresent         = (supportsPresent == VK_TRUE);
 			}
-
-			//vkGetPhysicalDeviceFormatProperties2(pd->vkPhysicalDevice, 
-			//vkGetPhysicalDeviceWin32PresentationSupportKHR;
 		}
 		// TODO: separate queue families
 
@@ -363,6 +369,7 @@ struct RenderApiObj : RenderApi {
 			for (u64 j = 0; j < pd->vkSurfaceFormats.len; j++) {
 				Logf("    {}, {}", Vk::FormatStr(pd->vkSurfaceFormats[j].format), Vk::ColorSpaceStr(pd->vkSurfaceFormats[j].colorSpace));
 			}
+			Logf("  Selected surface format: {}/{}", Vk::FormatStr(pd->vkSurfaceFormat), Vk::ColorSpaceStr(pd->vkSurfaceColorSpace));
 			Logf("  {} present modes:", pd->vkPresentModes.len);
 			for (u64 j = 0; j < pd->vkPresentModes.len; j++) {
 				Logf("    {}", Vk::PresentModeStr(pd->vkPresentModes[j]));
@@ -399,8 +406,8 @@ struct RenderApiObj : RenderApi {
 					pd->score = 0;
 				}
 			}
-			if (pd->vkSurfaceFormats.len == 0) {
-				Logf("Rejecting device '{}': no surface formats", pd->vkPhysicalDeviceProperties.deviceName);
+			if (pd->vkSurfaceFormat == VK_FORMAT_UNDEFINED) {
+				Logf("Rejecting device '{}': no suitable surface format", pd->vkPhysicalDeviceProperties.deviceName);
 				pd->score = 0;
 			}
 			if (pd->vkPresentModes.len == 0) {
@@ -456,33 +463,22 @@ struct RenderApiObj : RenderApi {
 
 		Vk::LoadDeviceFns(vkDevice);
 
-		VkFormat vkSwapchainFormat = (physicalDevice->vkSurfaceFormats.len == 1 && physicalDevice->vkSurfaceFormats[0].format == VK_FORMAT_UNDEFINED)
-			? VK_FORMAT_B8G8R8_UNORM
-			: physicalDevice->vkSurfaceFormats[0].format;
-		VkColorSpaceKHR vkSwapchainColorSpace = physicalDevice->vkSurfaceFormats[0].colorSpace;
-		Logf("Selected swapchainForma=t{}, swapchainColorSpace={}", Vk::FormatStr(vkSwapchainFormat), Vk::ColorSpaceStr(vkSwapchainColorSpace));
+		vkGetDeviceQueue(vkDevice, physicalDevice->grahicsQueueFamily, 0, &vkQueue);
 
-
-		u32 swapchainImageCount = 2;
-		if (physicalDevice->vkSurfaceCapabilities.minImageCount > swapchainImageCount) {
-			swapchainImageCount = physicalDevice->vkSurfaceCapabilities.minImageCount;
-		}
-		if (physicalDevice->vkSurfaceCapabilities.maxImageCount && physicalDevice->vkSurfaceCapabilities.maxImageCount < swapchainImageCount) {
-			swapchainImageCount = physicalDevice->vkSurfaceCapabilities.maxImageCount;
-		}
+		u32 swapchainImageCount = Clamp((u32)3, physicalDevice->vkSurfaceCapabilities.minImageCount, physicalDevice->vkSurfaceCapabilities.maxImageCount);
 		Logf("Selected swapchainImageCount={}", swapchainImageCount);
 
+		// TODO: check min/max extents
 		vkSwapchainExtent = physicalDevice->vkSurfaceCapabilities.currentExtent;
-		if (vkSwapchainExtent.width == -1) {
-			vkSwapchainExtent.width  = init->width;
-			vkSwapchainExtent.height = init->height;
+		if (vkSwapchainExtent.width == 0xffffffff) {
+			vkSwapchainExtent.width  = Clamp(init->width,  physicalDevice->vkSurfaceCapabilities.minImageExtent.width,  physicalDevice->vkSurfaceCapabilities.maxImageExtent.width);
+			vkSwapchainExtent.height = Clamp(init->height, physicalDevice->vkSurfaceCapabilities.minImageExtent.height, physicalDevice->vkSurfaceCapabilities.maxImageExtent.height);
 		}
 		Logf("Selected vkSwapchainExtent=({}, {})", vkSwapchainExtent.width, vkSwapchainExtent.height);
 
-		VkSurfaceTransformFlagBitsKHR swapchainTransform = physicalDevice->vkSurfaceCapabilities.currentTransform;
-		if (physicalDevice->vkSurfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
-			swapchainTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-		}
+		const VkSurfaceTransformFlagBitsKHR swapchainTransform = (physicalDevice->vkSurfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+			? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
+			: physicalDevice->vkSurfaceCapabilities.currentTransform;
 
 		VkPresentModeKHR swapchainPresentMode = VK_PRESENT_MODE_FIFO_KHR;
 		for (u64 i = 0; i < physicalDevice->vkPresentModes.len; i++) {
@@ -498,8 +494,8 @@ struct RenderApiObj : RenderApi {
 			.flags                 = 0,
 			.surface               = vkSurface,
 			.minImageCount         = swapchainImageCount,
-			.imageFormat           = vkSwapchainFormat,
-			.imageColorSpace       = vkSwapchainColorSpace,
+			.imageFormat           = physicalDevice->vkSurfaceFormat,
+			.imageColorSpace       = physicalDevice->vkSurfaceColorSpace,
 			.imageExtent           = vkSwapchainExtent,
 			.imageArrayLayers      = 1,
 			.imageUsage            = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
@@ -515,7 +511,38 @@ struct RenderApiObj : RenderApi {
 		CheckVk(vkCreateSwapchainKHR(vkDevice, &vkSwapchainCreateInfoKHR, vkAllocationCallbacks, &vkSwapchain));
 		Logf("Created swapchain");
 
-		vkGetDeviceQueue(vkDevice, physicalDevice->grahicsQueueFamily, 0, &vkQueue);
+		vkSwapchainImages.Init(mem);
+		CheckVk(vkGetSwapchainImagesKHR(vkDevice, vkSwapchain, &n, 0));
+		CheckVk(vkGetSwapchainImagesKHR(vkDevice, vkSwapchain, &n, vkSwapchainImages.Resize(n)));
+		Logf("Got swapchain images");
+
+		vkSwapchainImageViews.Init(mem);
+		vkSwapchainImageViews.Resize(vkSwapchainImages.len);
+		for (u64 i = 0; i < vkSwapchainImages.len; i++) {
+			VkImageViewCreateInfo vkImageViewCreateInfo = {
+				.sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+				.pNext              = 0,
+				.flags              = 0,
+				.image              = vkSwapchainImages[i],
+				.viewType           = VK_IMAGE_VIEW_TYPE_2D,
+				.format             = physicalDevice->vkSurfaceFormat,
+				.components         = {
+					.r              = VK_COMPONENT_SWIZZLE_R,
+					.g              = VK_COMPONENT_SWIZZLE_G,
+					.b              = VK_COMPONENT_SWIZZLE_B,
+					.a              = VK_COMPONENT_SWIZZLE_A,
+				},
+				.subresourceRange   = {
+					.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+					.baseMipLevel   = 0,
+					.levelCount     = 1,
+					.baseArrayLayer = 0,
+					.layerCount     = 1,
+				},
+			};
+			CheckVk(vkCreateImageView(vkDevice, &vkImageViewCreateInfo, vkAllocationCallbacks, &vkSwapchainImageViews[i]));
+		}
+		Logf("Got swapchain image views");
 
 		VkCommandPoolCreateInfo vkCommandPoolCreateInfo = {
 			.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -537,138 +564,6 @@ struct RenderApiObj : RenderApi {
 		CheckVk(vkAllocateCommandBuffers(vkDevice, &vkCommandBufferAllocateInfo, &vkRenderCommandBuffer));
 		Logf("Created command buffers");
 
-		vkSwapchainImages.Init(mem);
-		CheckVk(vkGetSwapchainImagesKHR(vkDevice, vkSwapchain, &n, 0));
-		CheckVk(vkGetSwapchainImagesKHR(vkDevice, vkSwapchain, &n, vkSwapchainImages.Resize(n)));
-		Logf("Got swapchain images");
-
-		VkFenceCreateInfo vkFenceCreateInfo = {
-			.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-			.pNext = 0,
-			.flags = 0,
-		};
-		CheckVk(vkCreateFence(vkDevice, &vkFenceCreateInfo, vkAllocationCallbacks, &vkFence));
-		Logf("Created fence");
-
-		bool* const transitioned = (bool*)tempMem->Alloc(swapchainImageCount * sizeof(bool));
-		MemSet(transitioned, 0, sizeof(transitioned));
-		i32 imagesRemaining = (i32)swapchainImageCount;
-		while (imagesRemaining > 0) {
-			VkSemaphoreCreateInfo vkSemaphoreCreateInfo = {
-				.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-				.pNext = 0,
-				.flags = 0,
-			};
-			VkSemaphore vkSemaphore = VK_NULL_HANDLE;
-			CheckVk(vkCreateSemaphore(vkDevice, &vkSemaphoreCreateInfo, vkAllocationCallbacks, &vkSemaphore));
-
-			u32 imageIndex = 0;
-			CheckVk(vkAcquireNextImageKHR(vkDevice, vkSwapchain, UINT64_MAX, vkSemaphore, 0, &imageIndex));
-
-			if (!transitioned[imageIndex]) {
-				VkCommandBufferBeginInfo vkCommandBufferBeginInfo = {
-					.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-					.pNext            = 0,
-					.flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-					.pInheritanceInfo = 0,
-				};
-				CheckVk(vkBeginCommandBuffer(vkSetupCommandBuffer, &vkCommandBufferBeginInfo));
-
-				VkImageMemoryBarrier vkImageMemoryBarrier = {
-					.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-					.pNext               = 0,
-					.srcAccessMask       = 0,
-					.dstAccessMask       = VK_ACCESS_MEMORY_READ_BIT,
-					.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
-					.newLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-					.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-					.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-					.image               = vkSwapchainImages[imageIndex],
-					.subresourceRange    = {
-						.aspectMask      = VK_IMAGE_ASPECT_COLOR_BIT,
-						.baseMipLevel    = 0,
-						.levelCount      = 1,
-						.baseArrayLayer  = 0,
-						.layerCount      = 1,
-					},
-				};
-				vkCmdPipelineBarrier(
-					vkSetupCommandBuffer,
-					VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-					VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-					0,
-					0, 0,
-					0, 0,
-					1, &vkImageMemoryBarrier
-				);
-
-				CheckVk(vkEndCommandBuffer(vkSetupCommandBuffer));
-
-				VkPipelineStageFlags vkWaitDstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-				VkSubmitInfo vkSubmitInfo = {
-					.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-					.pNext                = 0,
-					.waitSemaphoreCount   = 1,
-					.pWaitSemaphores      = &vkSemaphore,
-					.pWaitDstStageMask    = &vkWaitDstStageMask,
-					.commandBufferCount   = 1,
-					.pCommandBuffers      = &vkSetupCommandBuffer,
-					.signalSemaphoreCount = 0,
-					.pSignalSemaphores    = 0,
-				};
-				CheckVk(vkQueueSubmit(vkQueue, 1, &vkSubmitInfo, vkFence));
-
-				CheckVk(vkWaitForFences(vkDevice, 1, &vkFence, VK_TRUE, UINT64_MAX));
-				CheckVk(vkResetFences(vkDevice, 1, &vkFence));
-				vkDestroySemaphore(vkDevice, vkSemaphore, vkAllocationCallbacks);
-				CheckVk(vkResetCommandBuffer(vkSetupCommandBuffer, 0));
-
-				transitioned[imageIndex] = true;
-				imagesRemaining--;
-				Logf("Transitioned swap chain image {}", imageIndex);
-			}
-
-			VkPresentInfoKHR vkPresentInfo = {
-				.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-				.pNext              = 0,
-				.waitSemaphoreCount = 0,
-				.pWaitSemaphores    = 0,
-				.swapchainCount     = 1,
-				.pSwapchains        = &vkSwapchain,
-				.pImageIndices      = &imageIndex,
-				.pResults           = 0,
-			};
-			CheckVk(vkQueuePresentKHR(vkQueue, &vkPresentInfo));
-		}
-		Logf("Transitioned all swap chain images");
-
-		vkSwapchainImageViews.Init(mem);
-		vkSwapchainImageViews.Resize(vkSwapchainImages.len);
-		for (u64 i = 0; i < vkSwapchainImages.len; i++) {
-			VkImageViewCreateInfo vkImageViewCreateInfo = {
-				.sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-				.pNext              = 0,
-				.flags              = 0,
-				.image              = vkSwapchainImages[i],
-				.viewType           = VK_IMAGE_VIEW_TYPE_2D,
-				.format             = vkSwapchainFormat,
-				.components         = {
-					.r              = VK_COMPONENT_SWIZZLE_R,
-					.g              = VK_COMPONENT_SWIZZLE_G,
-					.b              = VK_COMPONENT_SWIZZLE_B,
-					.a              = VK_COMPONENT_SWIZZLE_A,
-				},
-				.subresourceRange   = {
-					.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-					.baseMipLevel   = 0,
-					.levelCount     = 1,
-					.baseArrayLayer = 0,
-					.layerCount     = 1,
-				},
-			};
-			CheckVk(vkCreateImageView(vkDevice, &vkImageViewCreateInfo, vkAllocationCallbacks, &vkSwapchainImageViews[i]));
-		}
-		Logf("Got swapchain image views");
 
 		VkImageCreateInfo vkImageCreateInfo = {
 			.sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -801,7 +696,7 @@ struct RenderApiObj : RenderApi {
 		VkAttachmentDescription vkAttachmentDescriptions[2] = {
 			{
 				.flags          = 0,
-				.format         = vkSwapchainFormat,
+				.format         = physicalDevice->vkSurfaceFormat,
 				.samples        = VK_SAMPLE_COUNT_1_BIT,
 				.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
 				.storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
@@ -1514,7 +1409,7 @@ struct RenderApiObj : RenderApi {
 
 static RenderApiObj renderApi;
 
-RenderApi* RenderApi::Get() {
+RenderApi* GetRenderApi() {
 	return &renderApi;
 }
 
