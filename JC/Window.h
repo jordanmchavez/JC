@@ -75,16 +75,25 @@ struct WindowApiInit {
 	u32         fullscreenDisplay = 0;
 };
 
+struct WindowPlatformData {
+	#if defined Platform_Windows
+		void* hinstance = 0;
+		void* hwnd      = 0;
+	#else	// Platform_
+		#error("unsupported platform");
+	#endif	// Platform_
+};
+
 struct WindowApi {
-	virtual Res<>       Init(const WindowApiInit* init) = 0;
-	virtual void        Shutdown() = 0;
-	virtual void        PumpMessages() = 0;
-	virtual WindowState GetState() = 0;
-	virtual void        SetRect(Rect rect) = 0;
-	virtual void        SetWindowMode(WindowMode windowMode) = 0;
-	virtual void        SetCursorMode(CursorMode cursorMode) = 0;
-	virtual void*       GetOsWindowHandle() = 0;
-	virtual bool        IsExitRequested() = 0;
+	virtual Res<>              Init(const WindowApiInit* init) = 0;
+	virtual void               Shutdown() = 0;
+	virtual void               PumpMessages() = 0;
+	virtual WindowState        GetState() = 0;
+	virtual void               SetRect(Rect rect) = 0;
+	virtual void               SetWindowMode(WindowMode windowMode) = 0;
+	virtual void               SetCursorMode(CursorMode cursorMode) = 0;
+	virtual WindowPlatformData GetPlatformData() = 0;
+	virtual bool               IsExitRequested() = 0;
 
 /*	get rect
 	set rect

@@ -473,8 +473,11 @@ struct WindowApiObj : WindowApi {
 
 	//----------------------------------------------------------------------------------------------
 
-	void* GetOsWindowHandle() override {
-		return hwnd;
+	WindowPlatformData GetPlatformData() override {
+		return WindowPlatformData {
+			.hinstance = GetModuleHandleW(0),
+			.hwnd      = hwnd,
+		};
 	}
 
 	//----------------------------------------------------------------------------------------------

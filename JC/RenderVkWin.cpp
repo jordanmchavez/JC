@@ -1,6 +1,6 @@
 #include "JC/RenderVk.h"
 
-#if defined Os_Windows
+#if defined Platform_Windows
 	typedef __int64 (__stdcall *FARPROC)();
 
 	extern "C" __declspec(dllimport) void*   __stdcall LoadLibraryW(const wchar_t*);
@@ -8,14 +8,14 @@
 	extern "C" __declspec(dllimport) int     __stdcall FreeLibrary(void*);
 
 	static void* vulkanDll = nullptr;
-#endif	// Os_Windows
+#endif	// Platform_
 
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
 Res<> Vk::LoadRootFns() {
-	#if defined Os_Windows
+	#if defined Platform_Windows
 		vulkanDll = LoadLibraryW(L"vulkan-1.dll");
 		if (!vulkanDll) {
 			return MakeErr(Err_Dll);
@@ -25,9 +25,7 @@ Res<> Vk::LoadRootFns() {
 		vkEnumerateInstanceExtensionProperties = (PFN_vkEnumerateInstanceExtensionProperties)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceExtensionProperties");
 		vkEnumerateInstanceLayerProperties = (PFN_vkEnumerateInstanceLayerProperties)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceLayerProperties");
 		vkEnumerateInstanceVersion = (PFN_vkEnumerateInstanceVersion)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion");
-	#else	// Os_
-		#error("Unsupported OS")
-	#endif	// Os_
+	#endif	// Platform_
 	return Ok();
 }
 

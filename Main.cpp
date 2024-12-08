@@ -113,14 +113,14 @@ Res<> Run(int argc, const char** argv) {
 
 	Mem* renderMem = memApi->Create("Mem", 0);
 	renderApi = GetRenderApi();
+	WindowPlatformData windowPlatformData = windowApi->GetPlatformData();
 	RenderApiInit renderApiInit = {
-		.log              = log,
-		.mem              = renderMem,
-		.tempMem          = tempMem,
-		.width            = 800,
-		.height           = 600,
-		.osWindowHandle   = windowApi->GetOsWindowHandle(),
-		.osInstanceHandle = GetModuleHandle(0),
+		.log                = log,
+		.mem                = renderMem,
+		.tempMem            = tempMem,
+		.width              = 800,
+		.height             = 600,
+		.windowPlatformData = &windowPlatformData,
 	};
 	if (Res<> r = renderApi->Init(&renderApiInit); !r) {
 		return r;
@@ -145,6 +145,11 @@ Res<> Run(int argc, const char** argv) {
 			}
 		}
 		eventApi->ClearEvents();
+
+		if (Res<> r = renderApi->Draw(); !r) {
+			Errorf(r.err);
+		}
+
 		memApi->Frame(frame);
 	}
 

@@ -207,3 +207,8 @@ map perf test to ensure our impl doesn't suck
 initial reserve sizes for arrays/maps...some use cases would like this such as mem traces
 xIn -> x_
 Consider VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT and friends
+GPU query pools
+Investigate whether we need to support separate graphics/present queues: currently require same queue for both
+const/constexpr all the VK structures in init
+Look into VkValidationFeatureEnableEXT
+Look into VkValidationFlagsEXT

@@ -12,7 +12,7 @@ namespace JC {
 
 #if defined _MSC_VER
 	#define Compiler_Msvc
-	#define Os_Windows
+	#define Platform_Windows
 
 	using  i8 = signed char;
 	using  u8 = unsigned char;
@@ -35,9 +35,6 @@ namespace JC {
 	#define BuiltinLine __builtin_LINE()
 	#define IfConsteval if (__builtin_is_constant_evaluated())
 	#define BuiltinIsEnum(T)   __is_enum(T)
-
-#else
-	#error("Unsupported compiler")
 #endif
 
 #define MacroConcat2(x, y) x##y
