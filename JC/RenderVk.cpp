@@ -15,17 +15,6 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-#define MakeVkErr(Fn, vkRes) \
-	MakeErr(ErrCode { .ns = "vk", .code = (u64)vkRes }, "fn", #Fn, "desc", Vk::ResultStr(vkRes))
-
-#define CheckVk(expr) { \
-	if (VkResult r = expr; r != VK_SUCCESS) { \
-		return MakeVkErr(#expr, r); \
-	} \
-}
-
-//--------------------------------------------------------------------------------------------------
-
 struct RenderApiObj : RenderApi {
 	struct QueueFamily {
 		VkQueueFamilyProperties vkQueueFamilyProperties = {};

@@ -20,6 +20,17 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
+#define MakeVkErr(Fn, vkRes) \
+	MakeErr(ErrCode { .ns = "vk", .code = (i64)vkRes }, "fn", #Fn, "desc", Vk::ResultStr(vkRes))
+
+#define CheckVk(expr) { \
+	if (VkResult r = expr; r != VK_SUCCESS) { \
+		return MakeVkErr(#expr, r); \
+	} \
+}
+
+//--------------------------------------------------------------------------------------------------
+
 namespace Vk {
 	#if defined Platform_Windows
 		constexpr ErrCode Err_Dll = { .ns = "vk", .code = 1 };
