@@ -141,13 +141,15 @@ Res<> Run(int argc, const char** argv) {
 					exitRequested = true;
 					break;
 				case EventType::Key:
-					Logf("key {} ({}): {}", EventKeyStr(e->key.key), e->key.key, e->key.down ? "down" : "up");
+					//Logf("key {} ({}): {}", EventKeyStr(e->key.key), e->key.key, e->key.down ? "down" : "up");
+					break;
 			}
 		}
 		eventApi->ClearEvents();
 
 		if (Res<> r = renderApi->Draw(); !r) {
 			Errorf(r.err);
+			return r;
 		}
 
 		memApi->Frame(frame);

@@ -172,7 +172,7 @@ struct WindowApiObj : WindowApi {
 				GetRawInputData(hrawInput, RID_INPUT, rawInput, &size, sizeof(RAWINPUTHEADER));
 				if (rawInput->header.dwType == RIM_TYPEMOUSE) {
 					rawInput->data.mouse;
-					Log* log = windowApi->log;
+					/*Log* log = windowApi->log;
 					Logf(
 						"mouse: flags={05b}, usButtonFlags={012b}, usButtonData={}, lLastX={}, lLastY={}",
 						rawInput->data.mouse.usFlags,
@@ -180,7 +180,7 @@ struct WindowApiObj : WindowApi {
 						rawInput->data.mouse.usButtonData,
 						rawInput->data.mouse.lLastX,
 						rawInput->data.mouse.lLastY
-					);
+					);*/
 					
 				} else if (rawInput->header.dwType == RIM_TYPEKEYBOARD) {
 					u32 scanCode   = rawInput->data.keyboard.MakeCode;

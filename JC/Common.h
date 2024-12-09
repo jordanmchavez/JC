@@ -369,7 +369,7 @@ constexpr bool operator!=(s8 str1, s8 str2) { return str1.len != str2.len && Mem
 
 struct [[nodiscard]] ErrCode {
 	s8  ns   = {};
-	u64 code = 0;
+	i64 code = 0;
 };
 constexpr bool operator==(ErrCode ec1, ErrCode ec2) { return ec1.code == ec2.code && ec1.ns == ec2.ns; }
 constexpr bool operator!=(ErrCode ec1, ErrCode ec2) { return ec1.code != ec2.code || ec1.ns != ec2.ns; }
@@ -388,7 +388,6 @@ struct [[nodiscard]] ErrArg {
 struct [[nodiscard]] Err {
 	Err*    prev;
 	SrcLoc  sl;
-	i32     line;
 	ErrCode ec;
 	u32     argsLen;
 	ErrArg  args[1];	// variable length

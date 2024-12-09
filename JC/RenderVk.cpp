@@ -462,7 +462,7 @@ struct RenderApiObj : RenderApi {
 		// TODO: possibly create more queues? one per type?
 		VkDeviceCreateInfo vkDeviceCreateInfo = {
 			.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-			.pNext                   = 0,
+			.pNext                   = &vkPhysicalDeviceFeatures2,
 			.flags                   = 0,
 			.queueCreateInfoCount    = 1,
 			.pQueueCreateInfos       = &vkDeviceQueueCreateInfo,
@@ -470,7 +470,7 @@ struct RenderApiObj : RenderApi {
 			.ppEnabledLayerNames     = 0,
 			.enabledExtensionCount   = LenOf(RequiredDeviceExts),
 			.ppEnabledExtensionNames = RequiredDeviceExts,
-			.pEnabledFeatures        = &vkPhysicalDeviceFeatures,
+			.pEnabledFeatures        = 0,
 		};
 
 		CheckVk(vkCreateDevice(physicalDevice->vkPhysicalDevice, &vkDeviceCreateInfo, vkAllocationCallbacks, &vkDevice));
@@ -520,7 +520,7 @@ struct RenderApiObj : RenderApi {
 			.imageColorSpace       = physicalDevice->vkSurfaceColorSpace,
 			.imageExtent           = vkExtent,
 			.imageArrayLayers      = 1,
-			.imageUsage            = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+			.imageUsage            = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
 			// TODO: if we add multiple queue families, then we need to change this
 			.imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE,
 			.queueFamilyIndexCount = 0,
@@ -1187,6 +1187,10 @@ struct RenderApiObj : RenderApi {
 		}
 
 	void Shutdown() override {
+		if (vkDevice) {
+			vkDeviceWaitIdle(vkDevice);
+		}
+
 		for (u32 i = 0; i < MaxFrames; i++) {
 			DestroyVkHandle(frames[i].vkCommandPool,         vkDestroyCommandPool  (vkDevice, frames[i].vkCommandPool,        vkAllocationCallbacks));
 			frames[i].vkCommandBuffer = VK_NULL_HANDLE;
@@ -1356,7 +1360,10 @@ struct RenderApiObj : RenderApi {
 			.pImageIndices      = &swapchainImageIndex,
 			.pResults           = 0,
 		};
-		CheckVk(vkQueuePresentKHR(vkQueue, &vkPresentInfoKHR));
+		//CheckVk(vkQueuePresentKHR(vkQueue, &vkPresentInfoKHR));
+		if (VkResult r = vkQueuePresentKHR(vkQueue, &vkPresentInfoKHR); r != VK_SUCCESS) {
+			return MakeVkErr("vkQueuePresentKHR", r);
+		}
 
 		frameNumber++;
 

@@ -40,16 +40,19 @@ struct LogObj : Log {
 			sl.line
 		);
 		for (Err* e = err; e; e = e->prev) {
-			Fmt(&arr, "{}-{}:", e->ec.ns, e->ec.code);
+			Fmt(&arr, "{}[{}]:", e->ec.ns, e->ec.code);
 		}
 		arr.data[arr.len - 1] = '\n';	// overwrite trailing ':'
 		for (Err* e = err; e; e = e->prev) {
-			Fmt(&arr, "  {}({}): {}-{}\n", e->sl.file, e->sl.line, e->ec.ns, e->ec.code);
+			Fmt(&arr, "  {}({}): {}[{}]\n", e->sl.file, e->sl.line, e->ec.ns, e->ec.code);
 			for (u32 i = 0; i < e->argsLen; i++) {
 				Fmt(&arr, "    '{}' = {}\n", e->args[i].name, e->args[i].arg);
 			}
 		}
-		arr.len--;	// remove trailing '\n'
+		arr.data[arr.len] = '\0';	// replace trailing '\n'
+		for (u32 i = 0; i < logFnsLen; i++) {
+			(*logFns[i])(arr.data, arr.len);
+		}
 	}
 
 	void AddFn(LogFn* fn) {
