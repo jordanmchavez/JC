@@ -109,7 +109,6 @@
     <ClInclude Include="3rd\vk_video\vulkan_video_codec_h265std.h" />
     <ClInclude Include="3rd\vk_video\vulkan_video_codec_h265std_decode.h" />
     <ClInclude Include="3rd\vk_video\vulkan_video_codec_h265std_encode.h" />
-    <ClInclude Include="3rd\vma\vk_mem_alloc.h" />
     <ClInclude Include="3rd\vulkan\vk_platform.h" />
     <ClInclude Include="3rd\vulkan\vulkan_core.h" />
     <ClInclude Include="3rd\vulkan\vulkan_win32.h" />
@@ -134,7 +133,6 @@
     <ClInclude Include="Scratch.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="3rd\vma\vk_mem_alloc.cpp" />
     <ClCompile Include="JC\Common_Panic.cpp" />
     <ClCompile Include="JC\Common_Err.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
@@ -144,6 +142,7 @@
     <ClCompile Include="JC\Log.cpp" />
     <ClCompile Include="JC\Map.cpp" />
     <ClCompile Include="JC\RenderVk.cpp" />
+    <ClCompile Include="JC\RenderVkMem.cpp" />
     <ClCompile Include="JC\RenderVkWin.cpp" />
     <ClCompile Include="JC\RenderVkStr.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
