@@ -41,15 +41,8 @@ constexpr bool operator!=(s16z str1, s16z str2) { return str1.len != str2.len &&
 
 //--------------------------------------------------------------------------------------------------
 
-namespace Unicode {
-	static constexpr ErrCode Err_Utf8BadByte             = { .ns = "uni", .code = 1 };
-	static constexpr ErrCode Err_Utf8MissingTrailingByte = { .ns = "uni", .code = 2 };
-	static constexpr ErrCode Err_Utf8BadTrailingByte     = { .ns = "uni", .code = 3 };
-
-	Res<s16z> Utf8ToWtf16z(Mem* mem, s8 s);
-	s8        Wtf16zToUtf8(Mem* mem, s16z s);
-
-}	// namespace Unicode
+s16z Utf8ToWtf16z(Mem* mem, s8 s);
+s8   Wtf16zToUtf8(Mem* mem, s16z s);
 
 //--------------------------------------------------------------------------------------------------
 

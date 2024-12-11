@@ -37,10 +37,25 @@ namespace JC {
 	#define BuiltinIsEnum(T)   __is_enum(T)
 #endif
 
+constexpr u32 U32Max = 0xffffffff;
+constexpr u64 U64Max = (u64)0xffffffffffffffff;
+
 #define MacroConcat2(x, y) x##y
 #define MacroConcat(x, y)  MacroConcat2(x, y)
 #define MacroName(x) MacroConcat(x, __LINE__)
 #define LenOf(a) (u64)(sizeof(a) / sizeof(a[0]))
+
+#define Defer \
+	auto MacroName(Defer_) = DeferHelper() + [&]()
+
+template <class F> struct DeferInvoker {
+	F fn;
+	DeferInvoker(F&& fn_) : fn(fn_) {}
+	~DeferInvoker() { fn(); }
+};
+
+enum struct DeferHelper {};
+template <class F> DeferInvoker<F> operator+(DeferHelper, F&& fn) { return DeferInvoker<F>((F&&)fn); }
 
 //--------------------------------------------------------------------------------------------------
 

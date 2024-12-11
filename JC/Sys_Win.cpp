@@ -27,7 +27,7 @@ s8 MakeWinErrorDesc(u32 code) {
 	while (descLen > 0 && desc[descLen] == L'\n' || desc[descLen] == L'\r' || desc[descLen] == L'.') {
 		--descLen;
 	}
-	s8 msg = Unicode::Wtf16zToUtf8(GetMemApi()->Temp(), s16z(desc, descLen));
+	s8 msg = Wtf16zToUtf8(GetMemApi()->Temp(), s16z(desc, descLen));
 	LocalFree(desc);
 	return msg;
 }

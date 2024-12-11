@@ -212,3 +212,40 @@ Investigate whether we need to support separate graphics/present queues: current
 const/constexpr all the VK structures in init
 Look into VkValidationFeatureEnableEXT
 Look into VkValidationFlagsEXT
+
+Vulkan heap notes:
+	VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+	Static GPU resources like render targets, textures, and geometry buffers
+
+	VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+	AMD only: the 256 of video memory the CPU can write to directly
+	Good for dynamic stuff the CPU writes to every frame eg uniform buffers/dyn geom buffers
+
+	VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+	CPU memory that the GPU reads over PCIE
+	Second best for uniform/dy geom buffers
+	Best for staging buffers
+
+	VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT
+	???
+
+	VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+	Integrated GPUs can store static resources here as well
+
+	Dynamic: any non-DEVICE_LOCAL works and write directly
+	Highly random access: DEVICE_LOCAL and stage from HOST_VISIBLE
+
+
+	if DEVICE_LOCAL alloc fails, fall back to HOST_VISIBLE
+	Alloc large DEVICE_LOCAL objects first, like render targets
+
+	HOST_CACHED: good for reading back via pointer
+	not HOST_CACHED: good for memcpying to
+
+	VK_MEMORY_PROPERTY_
+	VK_MEMORY_PROPERTY_
+	VK_MEMORY_PROPERTY_
+	VK_MEMORY_PROPERTY_
+	VK_MEMORY_PROPERTY_
+switch all UINT32_MAX and friends to local defs
+Interested in calculating avg wasted temp mem when we jump to a new block and leave the wasted end bit

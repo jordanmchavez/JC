@@ -1,4 +1,5 @@
 #include "JC/Event.h"
+#include "JC/File.h"
 #include "JC/Fmt.h"
 #include "JC/Log.h"
 #include "JC/Mem.h"
@@ -29,12 +30,16 @@ struct LogLeakReporter : MemLeakReporter {
 
 //--------------------------------------------------------------------------------------------------
 
-static MemApi*         memApi;
-static TempMem*        tempMem;
+static DisplayApi*     displayApi;
+static EventApi*       eventApi;
+static FileApi*        fileApi;
 static LogApi*         logApi;
 static Log*            log;
 static LogLeakReporter logLeakReporter;
+static MemApi*         memApi;
 static RenderApi*      renderApi;
+static TempMem*        tempMem;
+static WindowApi*      windowApi;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -74,13 +79,16 @@ Res<> Run(int argc, const char** argv) {
 		iter = Fmt(iter, end, "\n***PANIC***\n");
 		iter = Fmt(iter, end, "{}({})\n", sl.file, sl.line);
 		if (expr.len > 0) {
-			iter = Fmt(iter, end, "expr: {}\n", expr);
+			iter = Fmt(iter, end, "expr: '{}'\n", expr);
 		}
 		if (fmt.len > 0) {
 			iter = VFmt(iter, end, fmt, args);
 			iter = Fmt(iter, end, "\n");
 		}
-		Logf("{}", s8(msg, (u64)(end - msg)));
+		iter--;
+		Logf("{}", s8(msg, (u64)(iter - msg)));
+
+		Sys::Abort();
 	});
 
 	if (argc == 2 && argv[1] == s8("test")) {
@@ -88,15 +96,18 @@ Res<> Run(int argc, const char** argv) {
 		return Ok();
 	}
 
-	EventApi* eventApi = GetEventApi();
+	fileApi = GetFileApi();
+	fileApi->Init(tempMem);
+
+	eventApi = GetEventApi();
 	eventApi->Init(log, tempMem);
 
-	DisplayApi* displayApi = GetDisplayApi();
+	displayApi = GetDisplayApi();
 	if (Res<> r = displayApi->Init(log); !r) {
 		return r;
 	}
 
-	WindowApi* windowApi = GetWindowApi();
+	windowApi = GetWindowApi();
 	WindowApiInit windowApiInit = {
 		.displayApi        = displayApi,
 		.eventApi          = eventApi,
@@ -115,6 +126,7 @@ Res<> Run(int argc, const char** argv) {
 	renderApi = GetRenderApi();
 	WindowPlatformData windowPlatformData = windowApi->GetPlatformData();
 	RenderApiInit renderApiInit = {
+		.fileApi            = fileApi,
 		.log                = log,
 		.mem                = renderMem,
 		.tempMem            = tempMem,

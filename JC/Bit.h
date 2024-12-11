@@ -9,6 +9,8 @@ namespace JC {
 u32 Bsr64(u64 u);
 u32 Bsf64(u64 u);
 
+u32 PopCount64(u64 u);
+
 constexpr u64   AlignUp   (u64   u, u64 align) { return (u + (align - 1)) & ~(align - 1); }
 constexpr u64   AlignDown (u64   u, u64 align) { return u & ~(align - 1); }
 constexpr void* AlignPtrUp(void* p, u64 align) { return (void*)AlignUp((u64)p, align); }

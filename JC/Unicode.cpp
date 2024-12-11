@@ -4,11 +4,11 @@
 #include "JC/Mem.h"
 #include "JC/UnitTest.h"
 
-namespace JC::Unicode {
+namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<s16z> Utf8ToWtf16z(Mem* mem, s8 s) {
+s16z Utf8ToWtf16z(Mem* mem, s8 s) {
 	Array<wchar_t> out(mem);
 
 	const u8* p = (const u8*)s.data;
@@ -29,54 +29,57 @@ Res<s16z> Utf8ToWtf16z(Mem* mem, s8 s) {
 		// 0x80 - 0xbf
 		// 0xf8 - 0xff
 
-		u32 cp;
+		u32 cp = (u32)L'?';
 		const u32 c1 = (u32)*p++;
 		if (c1 <= 0x7f) {
 			cp = (u32)c1;
 
 		} else if (c1 >= 0xc2 && c1 <= 0xdf) {
-			if (p > end) { return MakeErr(Err_Utf8MissingTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+			if (p > end) { out.Add(L'?'); break; }
 			const u32 c2 = (u32)*p++;
-			if (c2 < 0x80 || c2 > 0xbf) { return MakeErr(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+			if (c2 < 0x80 || c2 > 0xbf) { out.Add(L'?'); continue; }
 			cp = ((c1 & 0x1f) << 6) + (c2 & 0x3f);
 
 		} else if (c1 <= 0xef) {
-			if (p + 1 > end) { return MakeErr(Err_Utf8MissingTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+			if (p + 1 > end) { out.Add(L'?'); break; }
 			const u32 c2 = (u32)*p++;
 			const u32 c3 = (u32)*p++;
 			if (c1 == 0xe0) {
-				if (c2 < 0xa0 || c2 > 0xbf) { return MakeErr(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+				if (c2 < 0xa0 || c2 > 0xbf) { out.Add(L'?'); continue; }
 			} else {
-				if (c2 < 0x80 || c2 > 0xbf) { return MakeErr(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+				if (c2 < 0x80 || c2 > 0xbf) { out.Add(L'?'); continue; }
 			}
-			if (c3 < 0x80 || c3 > 0xbf) { return MakeErr(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+			if (c3 < 0x80 || c3 > 0xbf) { out.Add(L'?'); continue; }
 			cp = ((c1 & 0xf) << 12) + ((c2 & 0x3f) << 6) + (c3 & 0x3f);
 
 		} else if (c1 <= 0xf4) {
-			if (p + 2 > end) { return MakeErr(Err_Utf8MissingTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+			if (p + 2 > end) {
+				out.Add(L'?');
+				break;
+			}
 			const u32 c2 = (u32)*p++;
 			const u32 c3 = (u32)*p++;
 			const u32 c4 = (u32)*p++;
 			if (c1 == 0xf0) {
-				if (c2 < 0x90 || c2 > 0xbf) { return MakeErr(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+				if (c2 < 0x90 || c2 > 0xbf) { out.Add(L'?'); continue; }
 			} else if (c1 >= 0xf1 && c1 <= 0xf3) {
-				if (c2 < 0x80 || c2 > 0xbf) { return MakeErr(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+				if (c2 < 0x80 || c2 > 0xbf) { out.Add(L'?'); continue; }
 			} else {
-				if (c2 < 0x80 || c2 > 0x8f) { return MakeErr(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+				if (c2 < 0x80 || c2 > 0x8f) { out.Add(L'?'); continue; }
 			}
-			if (c3 < 0x80 || c3 > 0xbf) { return MakeErr(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
-			if (c4 < 0x80 || c4 > 0xbf) { return MakeErr(Err_Utf8BadTrailingByte, "s", s, "i", p - (const u8*)s.data); }
+			if (c3 < 0x80 || c3 > 0xbf) { out.Add(L'?'); continue; }
+			if (c4 < 0x80 || c4 > 0xbf) { out.Add(L'?'); continue; }
 			cp = ((c1 & 0x7) << 18) + ((c2 & 0x3f) << 12) + ((c3 & 0x3f) << 6) + (c4 & 0x3f);
 
 		} else {
-			return MakeErr(Err_Utf8BadByte, "s", s, "i", p - (const u8*)s.data);
+			out.Add(L'?');
 		}
 
 		if (cp <= 0xffff) {
-			out.Add((char16_t)cp);
+			out.Add((wchar_t)cp);
 		} else {
-			out.Add((char16_t)(((cp - 0x10000) >> 10) + 0xd800));
-			out.Add((char16_t)(((cp - 0x10000) & 0x3ff) + 0xdc00));
+			out.Add((wchar_t)((cp - 0x10000) >> 10) + 0xd800);
+			out.Add((wchar_t)((cp - 0x10000) & 0x3ff) + 0xdc00);
 		}
 	}
 
@@ -88,13 +91,10 @@ Res<s16z> Utf8ToWtf16z(Mem* mem, s8 s) {
 
 #define CheckUtf8ToWtf16z(from8, to16z) \
 	{ \
-		Res<s16z> r = Unicode::Utf8ToWtf16z(tempMem, from8); \
-		if (CheckTrue(r)) { \
-			CheckTrue(r.val == to16z); \
-		} \
+		CheckTrue(Utf8ToWtf16z(tempMem, from8) == to16z); \
 	}
 
-UnitTest("Unicode::Utf8ToWtf16z") {
+UnitTest("Utf8ToWtf16z") {
 	CheckUtf8ToWtf16z("\x00", L"\x0000");
 	CheckUtf8ToWtf16z("\x7f", L"\x007f");
 
@@ -160,7 +160,7 @@ UnitTest("Unicode::Utf8ToWtf16z") {
 
 //--------------------------------------------------------------------------------------------------
 
-s8 Unicode::Wtf16zToUtf8(Mem* mem, s16z s) {
+s8 Wtf16zToUtf8(Mem* mem, s16z s) {
 	Array<char> out(mem);
 
 	const wchar_t* end = s.data + s.len;
@@ -205,7 +205,7 @@ s8 Unicode::Wtf16zToUtf8(Mem* mem, s16z s) {
 	// 1101111111111111 dfff
 
 UnitTest("Unicode::Wtf16zToUtf8") {
-	#define CheckWtf16zToUtf8(from16z, to8) { CheckEq(Unicode::Wtf16zToUtf8(tempMem, from16z), to8);  }
+	#define CheckWtf16zToUtf8(from16z, to8) { CheckEq(Wtf16zToUtf8(tempMem, from16z), to8);  }
 
 	// General 
 	CheckWtf16zToUtf8(L"", "");
@@ -252,4 +252,4 @@ UnitTest("Unicode::Wtf16zToUtf8") {
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Unicode
+}	// namespace JC

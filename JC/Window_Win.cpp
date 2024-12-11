@@ -310,10 +310,7 @@ struct WindowApiObj : WindowApi {
 			return MakeLastErr(RegisterClassExW);
 		}
 
-		Res<s16z> titlew = Unicode::Utf8ToWtf16z(tempMem, init->title);
-		if (!titlew) {
-			return titlew.err;
-		}
+		const s16z titlew = Utf8ToWtf16z(tempMem, init->title);
 
 		windowStyle = 0;
 		switch (init->windowMode) {
@@ -348,7 +345,7 @@ struct WindowApiObj : WindowApi {
 		hwnd = CreateWindowExW(
 			0,
 			L"JC",
-			titlew.val.data,
+			titlew.data,
 			windowStyle,
 			r.left,
 			r.top,

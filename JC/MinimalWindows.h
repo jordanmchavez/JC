@@ -63,6 +63,10 @@ template <class... A> Err* _MakeWinErr (SrcLoc sl, u32 code, s8 fn, A... args) {
 #define MakeWinErr( fn, code, ...) _MakeWinErr(SrcLoc::Here(), code,           #fn, ##__VA_ARGS__)
 #define MakeLastErr(fn,       ...) _MakeWinErr(SrcLoc::Here(), GetLastError(), #fn, ##__VA_ARGS__)
 
+constexpr bool IsInvalidHandle(HANDLE h) {
+	return h == (HANDLE)0 || h == INVALID_HANDLE_VALUE;
+}
+
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC

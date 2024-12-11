@@ -98,7 +98,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\VulkanMemoryAllocator\vk_mem_alloc.h.backup.h" />
     <ClInclude Include="3rd\dragonbox\dragonbox.h" />
     <ClInclude Include="3rd\vk_video\vulkan_video_codecs_common.h" />
     <ClInclude Include="3rd\vk_video\vulkan_video_codec_av1std.h" />
@@ -117,6 +116,7 @@
     <ClInclude Include="JC\Bit.h" />
     <ClInclude Include="JC\Common.h" />
     <ClInclude Include="JC\Event.h" />
+    <ClInclude Include="JC\File.h" />
     <ClInclude Include="JC\Fmt.h" />
     <ClInclude Include="JC\Hash.h" />
     <ClInclude Include="JC\Log.h" />
@@ -133,6 +133,7 @@
     <ClInclude Include="Scratch.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="JC\FileWin.cpp" />
     <ClCompile Include="JC\Common_Panic.cpp" />
     <ClCompile Include="JC\Common_Err.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
@@ -143,8 +144,8 @@
     <ClCompile Include="JC\Map.cpp" />
     <ClCompile Include="JC\RenderVk.cpp" />
     <ClCompile Include="JC\RenderVkMem.cpp" />
-    <ClCompile Include="JC\RenderVkWin.cpp" />
     <ClCompile Include="JC\RenderVkStr.cpp" />
+    <ClCompile Include="JC\RenderVkWin.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
     <ClCompile Include="JC\Tlsf.cpp" />
     <ClCompile Include="JC\Unicode.cpp" />

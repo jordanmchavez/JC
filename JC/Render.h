@@ -4,6 +4,7 @@
 
 namespace JC {
 
+struct FileApi;
 struct Log;
 struct Mem;
 struct TempMem;
@@ -12,6 +13,7 @@ struct WindowPlatformData;
 //--------------------------------------------------------------------------------------------------
 
 struct RenderApiInit {
+	FileApi*            fileApi            = 0;
 	Log*                log                = 0;
 	Mem*                mem                = 0;
 	TempMem*            tempMem            = 0;
@@ -21,11 +23,11 @@ struct RenderApiInit {
 };
 
 struct RenderApi {
-	static constexpr ErrCode Err_Version           = { .ns = "ren", .code = 1 };
-	static constexpr ErrCode Err_LayerNotFound     = { .ns = "ren", .code = 2 };
-	static constexpr ErrCode Err_ExtensionNotFound = { .ns = "ren", .code = 3 };
-	static constexpr ErrCode Err_NoSuitableDevice  = { .ns = "ren", .code = 4 };
-	
+	static constexpr ErrCode Err_Version  = { .ns = "render", .code = 1 };
+	static constexpr ErrCode Err_NoLayer  = { .ns = "render", .code = 2 };
+	static constexpr ErrCode Err_NoDevice = { .ns = "render", .code = 3 };
+	static constexpr ErrCode Err_NoMem    = { .ns = "render", .code = 4 };
+
 	virtual Res<> Init(const RenderApiInit* init) = 0;
 	virtual void  Shutdown() = 0;
 	virtual Res<> Draw() = 0;
