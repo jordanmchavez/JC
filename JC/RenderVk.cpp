@@ -57,7 +57,7 @@ struct RenderApiObj : RenderApi {
 
 	struct Vertex {
 		Vec3 position;
-		Vec2 texCoords;
+		Vec2 texCoord;
 	};
 
 	static constexpr u32 MaxFrames = 2;
@@ -92,11 +92,6 @@ struct RenderApiObj : RenderApi {
 	VkDescriptorPool         vkDescriptorPool             = VK_NULL_HANDLE;
 	VkDescriptorSetLayout    vkComputeDescriptorSetLayout = VK_NULL_HANDLE;
 	VkDescriptorSetLayout    vkMeshDescriptorSetLayout    = VK_NULL_HANDLE;
-	VkSampler                vkSampler                    = VK_NULL_HANDLE;
-
-
-	VkDescriptorSet          vkComputeDescriptorSet       = VK_NULL_HANDLE;
-	VkDescriptorSet          vkMeshDescriptorSet          = VK_NULL_HANDLE;
 	VkShaderModule           vkComputeShaderModule        = VK_NULL_HANDLE;
 	VkShaderModule           vkMeshVertShaderModule       = VK_NULL_HANDLE;
 	VkShaderModule           vkMeshFragShaderModule       = VK_NULL_HANDLE;
@@ -104,6 +99,14 @@ struct RenderApiObj : RenderApi {
 	VkPipeline               vkComputePipeline            = VK_NULL_HANDLE;
 	VkPipelineLayout         vkGraphicsPipelineLayout     = VK_NULL_HANDLE;
 	VkPipeline               vkGraphicsPipeline           = VK_NULL_HANDLE;
+	VkSampler                vkSampler                    = VK_NULL_HANDLE;
+	VkBuffer                 vkVertexBuffer               = VK_NULL_HANDLE;
+	VkDeviceMemory           vkVertexBufferDeviceMemory   = VK_NULL_HANDLE;
+	VkBuffer                 vkIndexBuffer                = VK_NULL_HANDLE;
+	VkDeviceMemory           vkIndexBufferDeviceMemory    = VK_NULL_HANDLE;
+
+	VkDescriptorSet          vkComputeDescriptorSet       = VK_NULL_HANDLE;
+	VkDescriptorSet          vkMeshDescriptorSet          = VK_NULL_HANDLE;
 	u64                      frameNumber                  = 0;
 	
 	//-------------------------------------------------------------------------------------------------
@@ -912,27 +915,33 @@ struct RenderApiObj : RenderApi {
 				.pSpecializationInfo = 0,
 			},
 		};
-		constexpr VkVertexInputBindingDescription vkVertexInputBindingDescriptions[2] = {
+		constexpr VkVertexInputBindingDescription vkVertexInputBindingDescription = {
+			.binding   = 0,
+			.stride    = sizeof(Vertex),
+			.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+		};
+		constexpr VkVertexInputAttributeDescription vkVertexInputAttributeDescriptions[2] = {
 			{
-				.binding   = 0,
-				.stride    = sizeof(Vertex),
-				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+				.location = 0,
+				.binding  = 0,
+				.format   = VK_FORMAT_R32G32B32_SFLOAT,
+				.offset   = 0,
 			},
 			{
-				.binding   = 1,
-				.stride    = sizeof(Vertex),
-				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
-			}
+				.location = 1,
+				.binding  = 0,
+				.format   = VK_FORMAT_R32G32_SFLOAT,
+				.offset   = 3 * sizeof(float),
+			},
 		};
-
-		constexpr VkPipelineVertexInputStateCreateInfo vkPipelineVertexInputStateCreateInfo = {
+		const VkPipelineVertexInputStateCreateInfo vkPipelineVertexInputStateCreateInfo = {
 			.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 			.pNext                           = 0,
 			.flags                           = 0,
-			.vertexBindingDescriptionCount   = 0,
-			.pVertexBindingDescriptions      = 0,
-			.vertexAttributeDescriptionCount = 0,
-			.pVertexAttributeDescriptions    = 0,
+			.vertexBindingDescriptionCount   = 1,
+			.pVertexBindingDescriptions      = &vkVertexInputBindingDescription,
+			.vertexAttributeDescriptionCount = 2,
+			.pVertexAttributeDescriptions    = vkVertexInputAttributeDescriptions,
 
 		};
 		constexpr VkPipelineInputAssemblyStateCreateInfo vkPipelineInputAssemblyStateCreateInfo = {
@@ -1163,13 +1172,17 @@ struct RenderApiObj : RenderApi {
 	}
 
 	//-------------------------------------------------------------------------------------------------
-
+	/*
+	0    1
+	
+	2    3
+	*/
 	Res<> CreateMeshes() {
 		constexpr Vertex vertices[4] = {
-			{ .position = {  0.5f, -0.5f, 0.0f }, .color = { 0.0f, 0.0f, 0.0f, 1.0f } },
-			{ .position = {  0.5f,  0.5f, 0.0f }, .color = { 0.5f, 0.5f, 0.5f, 1.0f } },
-			{ .position = { -0.5f, -0.5f, 0.0f }, .color = { 1.0f, 0.0f, 0.0f, 1.0f } },
-			{ .position = { -0.5f,  0.5f, 0.0f }, .color = { 0.0f, 1.0f, 0.0f, 1.0f } },
+			{ .position = { -1.0f, -1.0f, 0.0f }, .texCoord = { 0.0f, 0.0f } },
+			{ .position = {  1.0f, -1.0f, 0.0f }, .texCoord = { 1.0f, 0.0f } },
+			{ .position = { -1.0f,  1.0f, 0.0f }, .texCoord = { 0.0f, 1.0f } },
+			{ .position = {  1.0f,  1.0f, 0.0f }, .texCoord = { 1.0f, 1.0f } },
 		};
 		constexpr u32 indices[6] = {
 			0, 1, 2,
@@ -1186,7 +1199,34 @@ struct RenderApiObj : RenderApi {
 			.queueFamilyIndexCount = 1,
 			.pQueueFamilyIndices   = &physicalDevice->queueFamily,
 		};
-		CheckVk(vkCreateBuffer(vkDevice, &vkBufferCreateInfo, vkAllocationCallbacks, &vkBuffer));
+		CheckVk(vkCreateBuffer(vkDevice, &vkBufferCreateInfo, vkAllocationCallbacks, &vkVertexBuffer));
+
+		VkMemoryRequirements vkMemoryRequirements = {};
+		vkGetImageMemoryRequirements(vkDevice, vkDrawImage, &vkMemoryRequirements);
+		u32 memType = U32Max;
+		constexpr VkMemoryPropertyFlags vkMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+		for (u32 i = 0; i < physicalDevice->vkPhysicalDeviceMemoryProperties.memoryTypeCount; i++) {
+			if (
+				(vkMemoryRequirements.memoryTypeBits & (i << 1)) &&
+				(physicalDevice->vkPhysicalDeviceMemoryProperties.memoryTypes[i].propertyFlags & vkMemoryPropertyFlags)
+			) {
+				memType = i;
+			}
+		}
+		if (memType == U32Max) {
+			return MakeErr(Err_NoMem);
+		}
+
+		const VkMemoryAllocateInfo vkMemoryAllocateInfo = {
+			.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+			.pNext           = 0,
+			.allocationSize  = vkMemoryRequirements.size,
+			.memoryTypeIndex = memType,
+		};
+		CheckVk(vkAllocateMemory(vkDevice, &vkMemoryAllocateInfo, vkAllocationCallbacks, &vkDrawImageDeviceMemory));
+		CheckVk(vkBindImageMemory(vkDevice, vkDrawImage, vkDrawImageDeviceMemory, 0));
+
+
 
 		return Ok();
 	}
@@ -1212,8 +1252,6 @@ struct RenderApiObj : RenderApi {
 		if (Res<> r = CreateShaders();                            !r) { return r; }
 		if (Res<> r = CreateComputePipeline();                    !r) { return r; }
 		if (Res<> r = CreateGraphicsPipeline();                   !r) { return r; }
-
-
 		if (Res<> r = CreateSampler();                            !r) { return r; }
 		if (Res<> r = CreateMeshes();                             !r) { return r; }
 
