@@ -41,59 +41,70 @@ struct RenderApiObj : RenderApi {
 		u32                              score                            = 0;
 	};
 
-	struct Frame {
-		VkCommandPool    vkCommandPool        = VK_NULL_HANDLE;
-		VkCommandBuffer  vkCommandBuffer      = VK_NULL_HANDLE;
-		VkSemaphore      vkSwapchainSemaphore = VK_NULL_HANDLE;
-		VkSemaphore      vkRenderSemaphore    = VK_NULL_HANDLE;
-		VkFence          vkRenderFence        = VK_NULL_HANDLE;
-	};
-
+	struct Vec2 { float x, y; };
+	struct Vec3 { float x, y, z; };
 	struct Vec4 { float x, y, z, w; };
 
-	struct PushConstants {
-		Vec4 data1;
-		Vec4 data2;
-		Vec4 data3;
-		Vec4 data4;
+	struct ComputePushConstants {
+		Vec3 bottomColor;
+		Vec3 topColor;
+	};
+
+	struct MeshPushConstants {
+		u32 bufferIndex   = 0;
+		u32 textureIndex = 0;
+	};
+
+	struct Vertex {
+		Vec3 position;
+		Vec2 texCoords;
 	};
 
 	static constexpr u32 MaxFrames = 2;
 	static constexpr u32 MaxDescriptorSets = 16;
-	static constexpr u32 MaxDescriptors    = 16;
+	static constexpr u32 MaxDescriptors    = 64 * 1024;
 
-	FileApi*                 fileApi                     = 0;
-	Log*                     log                         = 0;
-	Mem*                     mem                         = 0;
-	TempMem*                 tempMem                     = 0;
-	VkAllocationCallbacks*   vkAllocationCallbacks       = 0;
-	VkInstance               vkInstance                  = VK_NULL_HANDLE;
-	VkDebugUtilsMessengerEXT vkDebugUtilsMessenger       = VK_NULL_HANDLE;
-	VkSurfaceKHR             vkSurface                   = VK_NULL_HANDLE;
-	Array<PhysicalDevice>    physicalDevices             = {};
-	PhysicalDevice*          physicalDevice              = 0;
-	VkDevice                 vkDevice                    = VK_NULL_HANDLE;
-	VkQueue                  vkQueue                     = VK_NULL_HANDLE;
-	VkSwapchainKHR           vkSwapchain                 = VK_NULL_HANDLE;
-	VkExtent2D               vkSwapchainExtent2D         = {};
-	Array<VkImage>           vkSwapchainImages           = {};
-	Array<VkImageView>       vkSwapchainImageViews       = {};
-	Frame                    frames[MaxFrames]           = {};
-	VkImage                  vkDrawImage                 = VK_NULL_HANDLE;
-	VkImageView              vkDrawImageView             = VK_NULL_HANDLE;
-	VkDeviceMemory           vkDrawImageDeviceMemory     = VK_NULL_HANDLE;
-	VkExtent2D               vkDrawImageExtent2D         = {};
-	VkDescriptorSetLayout    vkDescriptorSetLayout       = VK_NULL_HANDLE;
-	VkDescriptorPool         vkDescriptorPool            = VK_NULL_HANDLE;
-	VkDescriptorSet          vkDescriptorSet             = VK_NULL_HANDLE;
-	VkShaderModule           vkGradientShaderModule      = VK_NULL_HANDLE;
-	VkShaderModule           vkTriangleVertShaderModule  = VK_NULL_HANDLE;
-	VkShaderModule           vkTriangleFragShaderModule  = VK_NULL_HANDLE;
-	VkPipelineLayout         vkComputePipelineLayout     = VK_NULL_HANDLE;
-	VkPipeline               vkComputePipeline           = VK_NULL_HANDLE;
-	VkPipelineLayout         vkGraphicsPipelineLayout    = VK_NULL_HANDLE;
-	VkPipeline               vkGraphicsPipeline          = VK_NULL_HANDLE;
-	u64                      frameNumber                 = 0;
+	FileApi*                 fileApi                      = 0;
+	Log*                     log                          = 0;
+	Mem*                     mem                          = 0;
+	TempMem*                 tempMem                      = 0;
+	VkAllocationCallbacks*   vkAllocationCallbacks        = 0;
+	VkInstance               vkInstance                   = VK_NULL_HANDLE;
+	VkDebugUtilsMessengerEXT vkDebugUtilsMessenger        = VK_NULL_HANDLE;
+	VkSurfaceKHR             vkSurface                    = VK_NULL_HANDLE;
+	Array<PhysicalDevice>    physicalDevices              = {};
+	PhysicalDevice*          physicalDevice               = 0;
+	VkDevice                 vkDevice                     = VK_NULL_HANDLE;
+	VkQueue                  vkQueue                      = VK_NULL_HANDLE;
+	VkSwapchainKHR           vkSwapchain                  = VK_NULL_HANDLE;
+	VkExtent2D               vkSwapchainExtent2D          = {};
+	Array<VkImage>           vkSwapchainImages            = {};
+	Array<VkImageView>       vkSwapchainImageViews        = {};
+	VkCommandPool            vkCommandPool                = VK_NULL_HANDLE;
+	Array<VkCommandBuffer>   vkCommandBuffers             = {};
+	Array<VkSemaphore>       vkAcquireImageSemaphores     = {};
+	Array<VkSemaphore>       vkRenderSemaphores           = {};
+	Array<VkFence>           vkRenderFences               = {};
+	VkImage                  vkDrawImage                  = VK_NULL_HANDLE;
+	VkImageView              vkDrawImageView              = VK_NULL_HANDLE;
+	VkDeviceMemory           vkDrawImageDeviceMemory      = VK_NULL_HANDLE;
+	VkExtent2D               vkDrawImageExtent2D          = {};
+	VkDescriptorPool         vkDescriptorPool             = VK_NULL_HANDLE;
+	VkDescriptorSetLayout    vkComputeDescriptorSetLayout = VK_NULL_HANDLE;
+	VkDescriptorSetLayout    vkMeshDescriptorSetLayout    = VK_NULL_HANDLE;
+	VkSampler                vkSampler                    = VK_NULL_HANDLE;
+
+
+	VkDescriptorSet          vkComputeDescriptorSet       = VK_NULL_HANDLE;
+	VkDescriptorSet          vkMeshDescriptorSet          = VK_NULL_HANDLE;
+	VkShaderModule           vkComputeShaderModule        = VK_NULL_HANDLE;
+	VkShaderModule           vkMeshVertShaderModule       = VK_NULL_HANDLE;
+	VkShaderModule           vkMeshFragShaderModule       = VK_NULL_HANDLE;
+	VkPipelineLayout         vkComputePipelineLayout      = VK_NULL_HANDLE;
+	VkPipeline               vkComputePipeline            = VK_NULL_HANDLE;
+	VkPipelineLayout         vkGraphicsPipelineLayout     = VK_NULL_HANDLE;
+	VkPipeline               vkGraphicsPipeline           = VK_NULL_HANDLE;
+	u64                      frameNumber                  = 0;
 	
 	//-------------------------------------------------------------------------------------------------
 
@@ -203,7 +214,7 @@ struct RenderApiObj : RenderApi {
 			}
 		}
 		
-		VkApplicationInfo vkApplicationInfo = {
+		const VkApplicationInfo vkApplicationInfo = {
 			.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
 			.pNext              = 0,
 			.pApplicationName   = "JC",
@@ -223,7 +234,7 @@ struct RenderApiObj : RenderApi {
 			.ppEnabledExtensionNames = RequiredInstExts,
 		};
 		#if defined Render_Debug
-			VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {
+			const VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {
 				.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
 				.pNext           = nullptr,
 				.flags           = 0,
@@ -451,7 +462,7 @@ struct RenderApiObj : RenderApi {
 		Logf("Selected physical device '{}' with score={}", physicalDevice->vkPhysicalDeviceProperties.deviceName, physicalDevice->score);
 
 		float queuePriority = 1.0f;
-		VkDeviceQueueCreateInfo vkDeviceQueueCreateInfo = {
+		const VkDeviceQueueCreateInfo vkDeviceQueueCreateInfo = {
 			.sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
 			.pNext            = 0,
 			.flags            = 0,
@@ -479,7 +490,7 @@ struct RenderApiObj : RenderApi {
 		vkPhysicalDeviceVulkan13Features.synchronization2 = true;
 			
 		// TODO: possibly create more queues? one per type?
-		VkDeviceCreateInfo vkDeviceCreateInfo = {
+		const VkDeviceCreateInfo vkDeviceCreateInfo = {
 			.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
 			.pNext                   = &vkPhysicalDeviceFeatures2,
 			.flags                   = 0,
@@ -529,7 +540,7 @@ struct RenderApiObj : RenderApi {
 		Logf("Selected swapchain present mode: {}", Vk::PresentModeStr(presentMode));
 
 		const VkSwapchainKHR vkOldSwapchain = vkSwapchain;
-		VkSwapchainCreateInfoKHR vkSwapchainCreateInfoKHR = {
+		const VkSwapchainCreateInfoKHR vkSwapchainCreateInfoKHR = {
 			.sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 			.pNext                 = 0,
 			.flags                 = 0,
@@ -567,7 +578,7 @@ struct RenderApiObj : RenderApi {
 		vkSwapchainImageViews.Init(mem);
 		vkSwapchainImageViews.Resize(vkSwapchainImages.len);
 		for (u64 i = 0; i < vkSwapchainImages.len; i++) {
-			VkImageViewCreateInfo vkImageViewCreateInfo = {
+			const VkImageViewCreateInfo vkImageViewCreateInfo = {
 				.sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 				.pNext              = 0,
 				.flags              = 0,
@@ -591,42 +602,50 @@ struct RenderApiObj : RenderApi {
 			CheckVk(vkCreateImageView(vkDevice, &vkImageViewCreateInfo, vkAllocationCallbacks, &vkSwapchainImageViews[i]));
 		}
 
-		return Ok();
-	}
+		vkCommandBuffers.Init(mem);
+		vkCommandBuffers.Resize(vkSwapchainImages.len);
+		for (u64 i = 0; i < vkSwapchainImages.len; i++) {
+			const VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo = {
+				.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+				.pNext              = 0,
+				.commandPool        = vkCommandPool,
+				.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+				.commandBufferCount = 1,
+			};
+			CheckVk(vkAllocateCommandBuffers(vkDevice, &vkCommandBufferAllocateInfo, &vkCommandBuffers[i]));
+		}
 
-	//-------------------------------------------------------------------------------------------------
+		vkAcquireImageSemaphores.Init(mem);
+		vkAcquireImageSemaphores.Resize(vkSwapchainImages.len);
+		for (u64 i = 0; i < vkSwapchainImages.len; i++) {
+			constexpr VkSemaphoreCreateInfo vkSemaphoreCreateInfo = {
+				.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+				.pNext = 0,
+				.flags = 0,
+			};
+			CheckVk(vkCreateSemaphore(vkDevice, &vkSemaphoreCreateInfo, vkAllocationCallbacks, &vkAcquireImageSemaphores[i]));
+		}
 
-	Res<> CreateFrames() {
-		const VkCommandPoolCreateInfo vkCommandPoolCreateInfo = {
-			.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-			.pNext            = 0,
-			.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-			.queueFamilyIndex = physicalDevice->queueFamily,
-		};
-		VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo = {
-			.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-			.pNext              = 0,
-			.commandPool        = 0,
-			.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-			.commandBufferCount = 1,
-		};
-		constexpr VkSemaphoreCreateInfo vkSemaphoreCreateInfo = {
-			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-			.pNext = 0,
-			.flags = 0,
-		};
-		constexpr VkFenceCreateInfo vkFenceCreateInfo  = {
-			.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-			.pNext = 0,
-			.flags = VK_FENCE_CREATE_SIGNALED_BIT,
-		};
-		for (u64 i = 0; i < MaxFrames; i++) {
-			CheckVk(vkCreateCommandPool(vkDevice, &vkCommandPoolCreateInfo, vkAllocationCallbacks, &frames[i].vkCommandPool));
-			vkCommandBufferAllocateInfo.commandPool = frames[i].vkCommandPool;
-			CheckVk(vkAllocateCommandBuffers(vkDevice, &vkCommandBufferAllocateInfo, &frames[i].vkCommandBuffer));
-			CheckVk(vkCreateSemaphore(vkDevice, &vkSemaphoreCreateInfo, vkAllocationCallbacks, &frames[i].vkSwapchainSemaphore));
-			CheckVk(vkCreateSemaphore(vkDevice, &vkSemaphoreCreateInfo, vkAllocationCallbacks, &frames[i].vkRenderSemaphore));
-			CheckVk(vkCreateFence(vkDevice, &vkFenceCreateInfo, vkAllocationCallbacks, &frames[i].vkRenderFence));
+		vkRenderSemaphores.Init(mem);
+		vkRenderSemaphores.Resize(vkSwapchainImages.len);
+		for (u64 i = 0; i < vkSwapchainImages.len; i++) {
+			constexpr VkSemaphoreCreateInfo vkSemaphoreCreateInfo = {
+				.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+				.pNext = 0,
+				.flags = 0,
+			};
+			CheckVk(vkCreateSemaphore(vkDevice, &vkSemaphoreCreateInfo, vkAllocationCallbacks, &vkRenderSemaphores[i]));
+		}
+
+		vkRenderFences.Init(mem);
+		vkRenderFences.Resize(vkSwapchainImages.len);
+		for (u64 i = 0; i < vkSwapchainImages.len; i++) {
+			constexpr VkFenceCreateInfo vkFenceCreateInfo  = {
+				.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+				.pNext = 0,
+				.flags = VK_FENCE_CREATE_SIGNALED_BIT,
+			};
+			CheckVk(vkCreateFence(vkDevice, &vkFenceCreateInfo, vkAllocationCallbacks, &vkRenderFences[i]));
 		}
 
 		return Ok();
@@ -709,64 +728,78 @@ struct RenderApiObj : RenderApi {
 
 	//-------------------------------------------------------------------------------------------------
 
-	Res<> CreateDescriptors() {
-		const VkDescriptorSetLayoutBinding vkDescriptorSetLayoutBinding = {
-			.binding            = 0,
-			.descriptorType     = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-			.descriptorCount    = 1,
-			.stageFlags         = VK_SHADER_STAGE_COMPUTE_BIT,
-			.pImmutableSamplers = 0,
-		};
-		const VkDescriptorSetLayoutCreateInfo vkDescriptorSetLayoutCreateInfo = {
-			.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-			.pNext        = 0,
-			.flags        = 0,
-			.bindingCount = 1,
-			.pBindings    = &vkDescriptorSetLayoutBinding,
-		};
-		CheckVk(vkCreateDescriptorSetLayout(vkDevice, &vkDescriptorSetLayoutCreateInfo, vkAllocationCallbacks, &vkDescriptorSetLayout));
-
-		const VkDescriptorPoolSize vkDescriptorPoolSize[] = {
-			{ .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, .descriptorCount = MaxDescriptors },
+	Res<> CreateDescriptorPool() {
+		constexpr VkDescriptorPoolSize vkDescriptorPoolSizes[] = {
+			{ .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,         .descriptorCount = MaxDescriptorSets * MaxDescriptors },
+			{ .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .descriptorCount = MaxDescriptorSets * MaxDescriptors },
 		};
 		const VkDescriptorPoolCreateInfo vkDescriptorPoolCreateInfo = {
 			.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 			.pNext         = 0,
 			.flags         = 0,
 			.maxSets       = MaxDescriptorSets,
-			.poolSizeCount = LenOf(vkDescriptorPoolSize),
-			.pPoolSizes    = vkDescriptorPoolSize,
+			.poolSizeCount = LenOf(vkDescriptorPoolSizes),
+			.pPoolSizes    = vkDescriptorPoolSizes,
 		};
 		CheckVk(vkCreateDescriptorPool(vkDevice, &vkDescriptorPoolCreateInfo, vkAllocationCallbacks, &vkDescriptorPool));
 
-		const VkDescriptorSetAllocateInfo vkDescriptorSetAllocateInfo = {
-			.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-			.pNext              = 0,
-			.descriptorPool     = vkDescriptorPool,
-			.descriptorSetCount = 1,
-			.pSetLayouts        = &vkDescriptorSetLayout,
+		return Ok();
+	}
+
+	//-------------------------------------------------------------------------------------------------
+
+	Res<> CreateDescriptorSetLayouts() {
+		constexpr VkDescriptorSetLayoutBinding vkComputeDescriptorSetLayoutBinding = {
+			.binding            = 0,
+			.descriptorType     = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+			.descriptorCount    = 1,
+			.stageFlags         = VK_SHADER_STAGE_COMPUTE_BIT,
+			.pImmutableSamplers = 0,
+		};
+		const VkDescriptorSetLayoutCreateInfo vkComputeDescriptorSetLayoutCreateInfo = {
+			.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+			.pNext        = 0,
+			.flags        = 0,
+			.bindingCount = 1,
+			.pBindings    = &vkComputeDescriptorSetLayoutBinding,
+		};
+		CheckVk(vkCreateDescriptorSetLayout(vkDevice, &vkComputeDescriptorSetLayoutCreateInfo, vkAllocationCallbacks, &vkComputeDescriptorSetLayout));
+
+		constexpr VkDescriptorBindingFlags vkDescriptorBindingFlagss[2] = {
+			VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
+			VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
+		};
+		const VkDescriptorSetLayoutBindingFlagsCreateInfo vkDescriptorSetLayoutBindingFlagsCreateInfo = {
+			.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+			.pNext         = 0,
+			.bindingCount  = 2,
+			.pBindingFlags = vkDescriptorBindingFlagss,
 
 		};
-		CheckVk(vkAllocateDescriptorSets(vkDevice, &vkDescriptorSetAllocateInfo, &vkDescriptorSet));
-
-		const VkDescriptorImageInfo vkDescriptorImageInfo = {
-			.sampler     = 0,
-			.imageView   = vkDrawImageView,
-			.imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+		constexpr VkDescriptorSetLayoutBinding vkMeshDescriptorSetLayoutBindings[2] = {
+			{
+				.binding            = 0,
+				.descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+				.descriptorCount    = 1,
+				.stageFlags         = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+				.pImmutableSamplers = 0,
+			},
+			{
+				.binding            = 1,
+				.descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.descriptorCount    = 1,
+				.stageFlags         = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+				.pImmutableSamplers = 0,
+			},
 		};
-		const VkWriteDescriptorSet vkWriteDescriptorSet = {
-			.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			.pNext            = 0,
-			.dstSet           = vkDescriptorSet,
-			.dstBinding       = 0,
-			.dstArrayElement  = 0,
-			.descriptorCount  = 1,
-			.descriptorType   = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-			.pImageInfo       = &vkDescriptorImageInfo,
-			.pBufferInfo      = 0,
-			.pTexelBufferView = 0,
+		const VkDescriptorSetLayoutCreateInfo vkMeshDescriptorSetLayoutCreateInfo = {
+			.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+			.pNext        = &vkDescriptorSetLayoutBindingFlagsCreateInfo,
+			.flags        = 0,
+			.bindingCount = LenOf(vkMeshDescriptorSetLayoutBindings),
+			.pBindings    = vkMeshDescriptorSetLayoutBindings,
 		};
-		vkUpdateDescriptorSets(vkDevice, 1, &vkWriteDescriptorSet, 0, 0);
+		CheckVk(vkCreateDescriptorSetLayout(vkDevice, &vkMeshDescriptorSetLayoutCreateInfo, vkAllocationCallbacks, &vkMeshDescriptorSetLayout));
 
 		return Ok();
 	}
@@ -793,29 +826,28 @@ struct RenderApiObj : RenderApi {
 	}
 
 	Res<> CreateShaders() {
-
-		if (Res<> r = CreateShader("Shaders/gradient.comp.spv").To(vkGradientShaderModule); !r) { return r; }
-		if (Res<> r = CreateShader("Shaders/triangle.vert.spv").To(vkTriangleVertShaderModule); !r) { return r; }
-		if (Res<> r = CreateShader("Shaders/triangle.frag.spv").To(vkTriangleFragShaderModule); !r) { return r; }
+		if (Res<> r = CreateShader("Shaders/compute.comp.spv").To(vkComputeShaderModule); !r) { return r; }
+		if (Res<> r = CreateShader("Shaders/mesh.vert.spv").To(vkMeshVertShaderModule); !r) { return r; }
+		if (Res<> r = CreateShader("Shaders/mesh.frag.spv").To(vkMeshFragShaderModule); !r) { return r; }
 		return Ok();
 	}
 
 	//-------------------------------------------------------------------------------------------------
 
-	Res<> CreatePipelines() {
-		constexpr VkPushConstantRange vkPushConstantRange = {
+	Res<> CreateComputePipeline() {
+		constexpr VkPushConstantRange vkComputePushConstantRange = {
 			.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
 			.offset     = 0,
-			.size       = sizeof(PushConstants),
+			.size       = sizeof(ComputePushConstants),
 		};
 		const VkPipelineLayoutCreateInfo vkComputePipelineLayoutCreateInfo = {
 			.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 			.pNext                  = 0,
 			.flags                  = 0,
 			.setLayoutCount         = 1,
-			.pSetLayouts            = &vkDescriptorSetLayout,
+			.pSetLayouts            = &vkComputeDescriptorSetLayout,
 			.pushConstantRangeCount = 1,
-			.pPushConstantRanges    = &vkPushConstantRange,
+			.pPushConstantRanges    = &vkComputePushConstantRange,
 		};
 		CheckVk(vkCreatePipelineLayout(vkDevice, &vkComputePipelineLayoutCreateInfo, vkAllocationCallbacks, &vkComputePipelineLayout));
 
@@ -828,7 +860,7 @@ struct RenderApiObj : RenderApi {
 				.pNext               = 0,
 				.flags               = 0,
 				.stage               = VK_SHADER_STAGE_COMPUTE_BIT,
-				.module              = vkGradientShaderModule,
+				.module              = vkComputeShaderModule,
 				.pName               = "main",
 				.pSpecializationInfo = 0,
 			},
@@ -838,16 +870,27 @@ struct RenderApiObj : RenderApi {
 		};
 		CheckVk(vkCreateComputePipelines(vkDevice, 0, 1, &vkComputePipelineCreateInfo, vkAllocationCallbacks, &vkComputePipeline));
 
+		return Ok();
+	}
+
+	//----------------------------------------------------------------------------------------------
+
+	Res<> CreateGraphicsPipeline() {
+		constexpr VkPushConstantRange vkMeshPushConstantRange = {
+			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+			.offset     = 0,
+			.size       = sizeof(MeshPushConstants),
+		};
 		const VkPipelineLayoutCreateInfo vkGraphicsPipelineLayoutCreateInfo = {
 			.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 			.pNext                  = 0,
 			.flags                  = 0,
 			.setLayoutCount         = 1,
-			.pSetLayouts            = 0,
-			.pushConstantRangeCount = 0,
-			.pPushConstantRanges    = 0,
+			.pSetLayouts            = &vkMeshDescriptorSetLayout,
+			.pushConstantRangeCount = 1,
+			.pPushConstantRanges    = &vkMeshPushConstantRange,
 		};
-		CheckVk(vkCreatePipelineLayout(vkDevice, &vkComputePipelineLayoutCreateInfo, vkAllocationCallbacks, &vkGraphicsPipelineLayout));
+		CheckVk(vkCreatePipelineLayout(vkDevice, &vkGraphicsPipelineLayoutCreateInfo, vkAllocationCallbacks, &vkGraphicsPipelineLayout));
 
 		const VkPipelineShaderStageCreateInfo vkPipelineShaderStageCreateInfos[2] = {
 			{
@@ -855,7 +898,7 @@ struct RenderApiObj : RenderApi {
 				.pNext               = 0,
 				.flags               = 0,
 				.stage               = VK_SHADER_STAGE_VERTEX_BIT,
-				.module              = vkTriangleVertShaderModule,
+				.module              = vkMeshVertShaderModule,
 				.pName               = "main",
 				.pSpecializationInfo = 0,
 			},
@@ -864,11 +907,24 @@ struct RenderApiObj : RenderApi {
 				.pNext               = 0,
 				.flags               = 0,
 				.stage               = VK_SHADER_STAGE_FRAGMENT_BIT,
-				.module              = vkTriangleFragShaderModule,
+				.module              = vkMeshFragShaderModule,
 				.pName               = "main",
 				.pSpecializationInfo = 0,
 			},
 		};
+		constexpr VkVertexInputBindingDescription vkVertexInputBindingDescriptions[2] = {
+			{
+				.binding   = 0,
+				.stride    = sizeof(Vertex),
+				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+			},
+			{
+				.binding   = 1,
+				.stride    = sizeof(Vertex),
+				.inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+			}
+		};
+
 		constexpr VkPipelineVertexInputStateCreateInfo vkPipelineVertexInputStateCreateInfo = {
 			.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
 			.pNext                           = 0,
@@ -1018,6 +1074,123 @@ struct RenderApiObj : RenderApi {
 	}
 
 	//-------------------------------------------------------------------------------------------------
+
+	Res<> CreateSampler() {
+		const VkSamplerCreateInfo vkSamplerCreateInfo = {
+			.sType                   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+			.pNext                   = 0,
+			.flags                   = 0,
+			.magFilter               = VK_FILTER_NEAREST,
+			.minFilter               = VK_FILTER_NEAREST,
+			.mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+			.addressModeU            = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.addressModeV            = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.addressModeW            = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.mipLodBias              = 0.0f,
+			.anisotropyEnable        = VK_FALSE,
+			.maxAnisotropy           = 0.0f,
+			.compareEnable           = VK_FALSE,
+			.compareOp               = VK_COMPARE_OP_NEVER,
+			.minLod                  = 0.0f,
+			.maxLod                  = VK_LOD_CLAMP_NONE,
+			.borderColor             = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
+			.unnormalizedCoordinates = VK_FALSE,
+		};
+		CheckVk(vkCreateSampler(vkDevice, &vkSamplerCreateInfo, vkAllocationCallbacks, &vkSampler));
+
+		return Ok();
+	}
+
+	//-------------------------------------------------------------------------------------------------
+
+	Res<> CreateDescriptorSets() {
+
+		const VkDescriptorSetAllocateInfo vkComputeDescriptorSetAllocateInfo = {
+			.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+			.pNext              = 0,
+			.descriptorPool     = vkDescriptorPool,
+			.descriptorSetCount = 1,
+			.pSetLayouts        = &vkComputeDescriptorSetLayout,
+		};
+		CheckVk(vkAllocateDescriptorSets(vkDevice, &vkComputeDescriptorSetAllocateInfo, &vkComputeDescriptorSet));
+
+		constexpr VkDescriptorSetLayoutBinding vkDescriptorSetLayoutBindings[2] = {
+			{
+				.binding            = 0,
+				.descriptorType     = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+				.descriptorCount    = 1,
+				.stageFlags         = VK_SHADER_STAGE_COMPUTE_BIT,
+				.pImmutableSamplers = 0,
+			},
+			{
+				.binding            = 0,
+				.descriptorType     = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+				.descriptorCount    = 1,
+				.stageFlags         = VK_SHADER_STAGE_COMPUTE_BIT,
+				.pImmutableSamplers = 0,
+			},
+		};
+		const VkDescriptorSetLayoutCreateInfo vkDescriptorSetLayoutCreateInfo = {
+			.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+			.pNext        = 0,
+			.flags        = 0,
+			.bindingCount = 1,
+			.pBindings    = &vkDescriptorSetLayoutBinding,
+		};
+		CheckVk(vkCreateDescriptorSetLayout(vkDevice, &vkDescriptorSetLayoutCreateInfo, vkAllocationCallbacks, &vkDescriptorSetLayout));
+
+
+		const VkDescriptorImageInfo vkDescriptorImageInfo = {
+			.sampler     = 0,
+			.imageView   = vkDrawImageView,
+			.imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+		};
+		const VkWriteDescriptorSet vkWriteDescriptorSet = {
+			.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+			.pNext            = 0,
+			.dstSet           = vkDescriptorSet,
+			.dstBinding       = 0,
+			.dstArrayElement  = 0,
+			.descriptorCount  = 1,
+			.descriptorType   = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+			.pImageInfo       = &vkDescriptorImageInfo,
+			.pBufferInfo      = 0,
+			.pTexelBufferView = 0,
+		};
+		vkUpdateDescriptorSets(vkDevice, 1, &vkWriteDescriptorSet, 0, 0);
+
+		return Ok();
+	}
+
+	//-------------------------------------------------------------------------------------------------
+
+	Res<> CreateMeshes() {
+		constexpr Vertex vertices[4] = {
+			{ .position = {  0.5f, -0.5f, 0.0f }, .color = { 0.0f, 0.0f, 0.0f, 1.0f } },
+			{ .position = {  0.5f,  0.5f, 0.0f }, .color = { 0.5f, 0.5f, 0.5f, 1.0f } },
+			{ .position = { -0.5f, -0.5f, 0.0f }, .color = { 1.0f, 0.0f, 0.0f, 1.0f } },
+			{ .position = { -0.5f,  0.5f, 0.0f }, .color = { 0.0f, 1.0f, 0.0f, 1.0f } },
+		};
+		constexpr u32 indices[6] = {
+			0, 1, 2,
+			2, 1, 3,
+		};
+
+		const VkBufferCreateInfo vkBufferCreateInfo = {
+			.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+			.pNext                 = 0,
+			.flags                 = 0,
+			.size                  = sizeof(vertices),
+			.usage                 = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+			.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+			.queueFamilyIndexCount = 1,
+			.pQueueFamilyIndices   = &physicalDevice->queueFamily,
+		};
+		CheckVk(vkCreateBuffer(vkDevice, &vkBufferCreateInfo, vkAllocationCallbacks, &vkBuffer));
+
+		return Ok();
+	}
+
 	//-------------------------------------------------------------------------------------------------
 	//-------------------------------------------------------------------------------------------------
 	//-------------------------------------------------------------------------------------------------
@@ -1033,11 +1206,46 @@ struct RenderApiObj : RenderApi {
 		if (Res<> r = CreateSurface(init->windowPlatformData);    !r) { return r; }
 		if (Res<> r = CreateDevice();                             !r) { return r; }
 		if (Res<> r = CreateSwapchain(init->width, init->height); !r) { return r; }
-		if (Res<> r = CreateFrames();                             !r) { return r; }
 		if (Res<> r = CreateDrawImage(init->width, init->height); !r) { return r; }
-		if (Res<> r = CreateDescriptors();                        !r) { return r; }
+		if (Res<> r = CreateDescriptorPool();                     !r) { return r; }
+		if (Res<> r = CreateDescriptorSetLayouts();               !r) { return r; }
 		if (Res<> r = CreateShaders();                            !r) { return r; }
-		if (Res<> r = CreatePipelines();                          !r) { return r; }
+		if (Res<> r = CreateComputePipeline();                    !r) { return r; }
+		if (Res<> r = CreateGraphicsPipeline();                   !r) { return r; }
+
+
+		if (Res<> r = CreateSampler();                            !r) { return r; }
+		if (Res<> r = CreateMeshes();                             !r) { return r; }
+
+	VkDescriptorImageInfo imageInfo{};
+	imageInfo.sampler = ctx->sampler;
+	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	imageInfo.imageView = ctx->textureView;
+
+	VkWriteDescriptorSet textureDescriptorWrite{};
+	textureDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	textureDescriptorWrite.dstSet = descriptorSet;
+	textureDescriptorWrite.dstBinding = 1;
+	textureDescriptorWrite.descriptorCount = 1;
+	textureDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	textureDescriptorWrite.pImageInfo = &imageInfo;
+
+	vkUpdateDescriptorSets(
+		ctx->device,
+		1,
+		&textureDescriptorWrite,
+		0,
+		nullptr
+	);
+
+	static const float positions[4][2] = {
+		{ -0.5, -0.25 }, { -0.5, +0.25 }, { +0.5, +0.25 }, { +0.5, -0.25 }
+	};
+
+	for (int i = 0; i < 4; i++) {
+		entities.push_back(new Entity(this, positions[i][0], positions[i][1]));
+	}
+
 
 		return Ok();
 	}
