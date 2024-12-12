@@ -6,17 +6,17 @@ layout (location = 1) in vec2 inTexCoord;
 
 layout (location = 0) out vec2 outTexCoord;
 
-layout (push_constant) uniform PushConstants {
-	int bufferIndex;
-	int textureIndex;
-} pushConstants;
+//layout (push_constant) uniform PushConstants {
+//	int bufferIndex;
+//	int textureIndex;
+//} pushConstants;
 
-layout (binding = 0) uniform Uniforms {
+layout (binding = 0) uniform Uniform {
 	vec2 offset;
 	float rotation;
 	float scale;
 	float aspect;
-} uniforms[];
+} uni;
 
 vec3 rotate(vec3 v, float a) {
 	float s = sin(a);
@@ -27,10 +27,10 @@ vec3 rotate(vec3 v, float a) {
 }
 
 void main() {
-	vec3  offset   = vec3(uniforms[pushConstants.bufferIndex].offset, 0.0f);
-	float rotation = uniforms[pushConstants.bufferIndex].rotation;
-	float scale    = uniforms[pushConstants.bufferIndex].scale;
-	vec3  aspect   = vec3(1.0f, uniforms[pushConstants.bufferIndex].aspect, 1.0f);
+	vec3  offset   = vec3(uni.offset, 0.0f);
+	float rotation = uni.rotation;
+	float scale    = uni.scale;
+	vec3  aspect   = vec3(1.0f, uni.aspect, 1.0f);
 
 	gl_Position = vec4((offset + rotate(inPosition, rotation) * scale) * aspect, 1.0f);
 	outTexCoord = inTexCoord;

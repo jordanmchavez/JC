@@ -129,10 +129,10 @@ struct RenderApiObj : RenderApi {
 	VkPipelineLayout         vkGraphicsPipelineLayout     = VK_NULL_HANDLE;
 	VkPipeline               vkGraphicsPipeline           = VK_NULL_HANDLE;
 	VkSampler                vkSampler                    = VK_NULL_HANDLE;
-	Buffer                   vertexBuffer                 = {};
-	Buffer                   indexBuffer                  = {};
-	Image                    textureImage                 = {};
-	VkBuffer                 meshUniformBuffer            = {};
+	Buffer                   meshVertexBuffer             = {};
+	Buffer                   meshIndexBuffer              = {};
+	Image                    meshTextureImage             = {};
+	Buffer                   meshUniformBuffer            = {};
 	VkDescriptorSet          vkComputeDescriptorSet       = {};
 	VkDescriptorSet          vkMeshDescriptorSet          = {};
 	u64                      frameNumber                  = 0;
@@ -1502,15 +1502,24 @@ struct RenderApiObj : RenderApi {
 			{ .position = { -1.0f,  1.0f, 0.0f }, .texCoord = { 0.0f, 1.0f } },
 			{ .position = {  1.0f,  1.0f, 0.0f }, .texCoord = { 1.0f, 1.0f } },
 		};
-		if (Res<> r = CreateBuffer(sizeof(vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT).To(vertexBuffer); !r) { return r.err; }
-		if (Res<> r = UploadBuffer(vertexBuffer, vertices, sizeof(vertices));  !r) { return r.err; }
+		if (Res<> r = CreateBuffer(sizeof(vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT).To(meshVertexBuffer); !r) { return r.err; }
+		if (Res<> r = UploadBuffer(meshVertexBuffer, vertices, sizeof(vertices));  !r) { return r.err; }
 
 		constexpr u32 indices[6] = {
 			0, 1, 2,
 			2, 1, 3,
 		};
-		if (Res<> r = CreateBuffer(sizeof(indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT).To(indexBuffer); !r) { return r.err; }
-		if (Res<> r = UploadBuffer(indexBuffer, indices, sizeof(indices));  !r) { return r.err; }
+		if (Res<> r = CreateBuffer(sizeof(indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT).To(meshIndexBuffer); !r) { return r.err; }
+		if (Res<> r = UploadBuffer(meshIndexBuffer, indices, sizeof(indices));  !r) { return r.err; }
+
+		constexpr MeshUniform meshUniform = {
+			.offset   = { .x = 0.0f, .y = 0.0f },
+			.rotation = 0.0f,
+			.scale    = 0.1f,
+			.aspect   = 1.0f,
+		};
+		if (Res<> r = CreateBuffer(sizeof(meshUniform), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT).To(meshUniformBuffer); !r) { return r; }
+		if (Res<> r = UploadBuffer(meshUniformBuffer, &meshUniform, sizeof(meshUniform)); !r) { return r; }
 
 		return Ok();
 	}
@@ -1532,8 +1541,8 @@ struct RenderApiObj : RenderApi {
 			}
 		}
 
-		if (Res<> r = CreateImage(256, 256, VK_FORMAT_B8G8R8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT).To(textureImage); !r) { return r; }
-		if (Res<> r = UploadImage(textureImage, data, 256 * 256 * sizeof(u32)); !r) { return r; }
+		if (Res<> r = CreateImage(256, 256, VK_FORMAT_B8G8R8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT).To(meshTextureImage); !r) { return r; }
+		if (Res<> r = UploadImage(meshTextureImage, data, 256 * 256 * sizeof(u32)); !r) { return r; }
 
 		return Ok();
 	}
@@ -1581,7 +1590,7 @@ struct RenderApiObj : RenderApi {
 
 		const VkDescriptorImageInfo vkTextureDescriptorImageInfo = {
 			.sampler     = vkSampler,
-			.imageView   = textureImage.vkImageView,
+			.imageView   = meshTextureImage.vkImageView,
 			.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
 		const VkWriteDescriptorSet vkWriteTextureDescriptorSet = {
@@ -1634,40 +1643,6 @@ struct RenderApiObj : RenderApi {
 		//	entities.push_back(new Entity(this, positions[i][0], positions[i][1]));
 		//}
 
-		MeshUniform meshUniform = {
-			.
-		};
-		if (Res<> r = CreateBuffer(
-		Entity CreateEntity(float x, float y) {
-	Entity entity;
-	entity = descriptorIndex nextUniformIndex++;
-	VkResult result;
-
-	VkBufferCreateInfo createInfo{};
-	createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	createInfo.size = 5 * sizeof(float);
-	createInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-	createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	VmaAllocationCreateInfo allocInfo{};
-	allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-
-	CHECK_VK_RESULT(vmaCreateBuffer(
-		memoryAllocator,
-		&createInfo,
-		&allocInfo,
-		&uniform.buffer,
-		&uniform.allocation,
-		nullptr
-	));
-
-	CHECK_VK_RESULT(vmaMapMemory(memoryAllocator, uniform.allocation, reinterpret_cast<void**>(&uniformMapping)));
-
-	uniformMapping->x = x;
-	uniformMapping->y = y;
-	uniformMapping->rotation = 0;
-	uniformMapping->scale = 0.1;
-	uniformMapping->aspect = swapchain->width / static_cast<float>(swapchain->height);
 
 	VkDescriptorBufferInfo bufferInfo{};
 	bufferInfo.buffer = uniform.buffer;
@@ -1727,9 +1702,9 @@ struct RenderApiObj : RenderApi {
 
 		vkFreeDescriptorSets(vkDevice, vkDescriptorPool, 1, &vkMeshDescriptorSet); vkMeshDescriptorSet = VK_NULL_HANDLE;
 		vkFreeDescriptorSets(vkDevice, vkDescriptorPool, 1, &vkComputeDescriptorSet); vkComputeDescriptorSet = VK_NULL_HANDLE;
-		DestroyImage(textureImage);
-		DestroyBuffer(indexBuffer); indexBuffer = {};
-		DestroyBuffer(vertexBuffer); vertexBuffer = {};
+		DestroyImage(meshTextureImage);
+		DestroyBuffer(meshIndexBuffer); meshIndexBuffer = {};
+		DestroyBuffer(meshVertexBuffer); meshVertexBuffer = {};
 		DestroyVkHandle(vkGraphicsPipeline, vkDestroyPipeline);
 		DestroyVkHandle(vkGraphicsPipelineLayout, vkDestroyPipelineLayout);
 		DestroyVkHandle(vkComputePipeline, vkDestroyPipeline);
