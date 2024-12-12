@@ -132,6 +132,7 @@ struct RenderApiObj : RenderApi {
 	Buffer                   vertexBuffer                 = {};
 	Buffer                   indexBuffer                  = {};
 	Image                    textureImage                 = {};
+	VkBuffer                 meshUniformBuffer            = {};
 	VkDescriptorSet          vkComputeDescriptorSet       = {};
 	VkDescriptorSet          vkMeshDescriptorSet          = {};
 	u64                      frameNumber                  = 0;
@@ -1593,14 +1594,6 @@ struct RenderApiObj : RenderApi {
 		};
 		vkUpdateDescriptorSets(vkDevice, 1, &vkWriteTextureDescriptorSet, 0, 0);
 
-		//static const float positions[4][2] = {
-		//	{ -0.5, -0.25 }, { -0.5, +0.25 }, { +0.5, +0.25 }, { +0.5, -0.25 }
-		//};
-
-		//for (int i = 0; i < 4; i++) {
-		//	entities.push_back(new Entity(this, positions[i][0], positions[i][1]));
-		//}
-
 		return Ok();
 	}
 
@@ -1632,7 +1625,19 @@ struct RenderApiObj : RenderApi {
 		if (Res<> r = CreateTexture();                            !r) { return r; }
 		if (Res<> r = CreateDescriptorSets();                     !r) { return r; }
 
-		CreateBuffer(
+
+		//static const float positions[4][2] = {
+		//	{ -0.5, -0.25 }, { -0.5, +0.25 }, { +0.5, +0.25 }, { +0.5, -0.25 }
+		//};
+
+		//for (int i = 0; i < 4; i++) {
+		//	entities.push_back(new Entity(this, positions[i][0], positions[i][1]));
+		//}
+
+		MeshUniform meshUniform = {
+			.
+		};
+		if (Res<> r = CreateBuffer(
 		Entity CreateEntity(float x, float y) {
 	Entity entity;
 	entity = descriptorIndex nextUniformIndex++;
