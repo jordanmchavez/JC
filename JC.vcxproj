@@ -144,7 +144,7 @@
     <ClCompile Include="JC\Map.cpp" />
     <ClCompile Include="JC\RenderVk.cpp" />
     <ClCompile Include="JC\RenderVkMem.cpp" />
-    <ClCompile Include="JC\RenderVkStr.cpp" />
+    <ClCompile Include="JC\RenderVkUtil.cpp" />
     <ClCompile Include="JC\RenderVkWin.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
     <ClCompile Include="JC\Tlsf.cpp" />

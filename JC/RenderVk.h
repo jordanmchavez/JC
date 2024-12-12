@@ -24,7 +24,7 @@ namespace JC {
 	MakeErr(ErrCode { .ns = "vk", .code = (i64)vkRes }, "fn", #Fn, "desc", Vk::ResultStr(vkRes))
 
 #define CheckVk(expr) { \
-	if (VkResult r = expr; r != VK_SUCCESS) { \
+	if (const VkResult r = expr; r != VK_SUCCESS) { \
 		return MakeVkErr(r, #expr); \
 	} \
 }
