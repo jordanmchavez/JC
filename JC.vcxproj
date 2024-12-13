@@ -155,7 +155,7 @@
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="JC\Mem.cpp" />
     <ClCompile Include="JC\Window_Win.cpp" />
-    <ClCompile Include="Math.cpp" />
+    <ClCompile Include="JC\Math.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Game Notes.md" />

@@ -7,6 +7,7 @@ namespace JC {
 struct FileApi;
 struct Log;
 struct Mem;
+struct Mat4;
 struct TempMem;
 struct WindowPlatformData;
 
@@ -30,7 +31,7 @@ struct RenderApi {
 
 	virtual Res<> Init(const RenderApiInit* init) = 0;
 	virtual void  Shutdown() = 0;
-	virtual Res<> Draw() = 0;
+	virtual Res<> Draw(const Mat4* view, const Mat4* proj) = 0;
 };
 
 RenderApi* GetRenderApi();

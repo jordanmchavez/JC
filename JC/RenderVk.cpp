@@ -7,6 +7,7 @@
 #include "JC/File.h"
 #include "JC/Fmt.h"
 #include "JC/Log.h"
+#include "JC/Math.h"
 #include "JC/Mem.h"
 #include "JC/RenderVk.h"
 #include "JC/Window.h"
@@ -41,14 +42,12 @@ struct RenderApiObj : RenderApi {
 		u32                              score                            = 0;
 	};
 
-	struct Vec2 { float x, y; };
-	struct Vec3 { float x, y, z; };
-	struct Vec4 { float x, y, z, w; };
-
+	#pragma pack(1)
 	struct Vertex {
 		Vec4 pos;
 		Vec4 uv;
 	};
+	#pragma pack()
 
 	struct DeviceMem {
 		VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
@@ -71,11 +70,15 @@ struct RenderApiObj : RenderApi {
 		DeviceMem   deviceMem   = {};
 	};
 
-	struct MeshUniform {
-		Vec2  offset   = {};
-		float rotation = 0.0f;
-		float scale    = 0.0f;
-		float aspect   = 0.0f;
+	struct Material {
+		Vec4 color;
+		u32  textureIdx;
+		u32  pad[3];
+	};
+	
+	struct SceneData {
+		Mat4 view;
+		Mat4 proj;
 	};
 
 	struct ComputePushConstants {
@@ -84,12 +87,16 @@ struct RenderApiObj : RenderApi {
 	};
 
 	struct MeshPushConstants {
-		u64 vertexBufferAddress = 0;
-		u32 textureIndex        = 0;
+		Mat4 model        = {};
+		u64  scene        = 0;
+		u64  materials    = 0;
+		u64  vertexBuffer = 0;
+		u32  materialIdx  = 0;
 	};
 
 	static constexpr u32 MaxFrames = 2;
 	static constexpr u32 MaxSamplers = 64 * 1024;
+	static constexpr u32 MaxMaterials = 1024;
 
 	FileApi*                 fileApi                      = 0;
 	Log*                     log                          = 0;
@@ -116,16 +123,13 @@ struct RenderApiObj : RenderApi {
 	VkFence                  vkResourceFence              = {};
 	Image                    drawImage                    = {};
 	VkDescriptorPool         vkDescriptorPool             = VK_NULL_HANDLE;
-
 	VkDescriptorSetLayout    vkComputeDescriptorSetLayout = VK_NULL_HANDLE;
 	VkShaderModule           vkComputeShaderModule        = VK_NULL_HANDLE;
 	VkDescriptorSet          vkComputeDescriptorSet       = {};
-
 	VkDescriptorSetLayout    vkMeshDescriptorSetLayout    = VK_NULL_HANDLE;
 	VkShaderModule           vkMeshVertShaderModule       = VK_NULL_HANDLE;
 	VkDescriptorSet          vkMeshDescriptorSet          = {};
 	VkShaderModule           vkMeshFragShaderModule       = VK_NULL_HANDLE;
-
 	VkPipelineLayout         vkComputePipelineLayout      = VK_NULL_HANDLE;
 	VkPipeline               vkComputePipeline            = VK_NULL_HANDLE;
 	VkPipelineLayout         vkGraphicsPipelineLayout     = VK_NULL_HANDLE;
@@ -134,6 +138,10 @@ struct RenderApiObj : RenderApi {
 	Buffer                   meshVertexBuffer             = {};
 	Buffer                   meshIndexBuffer              = {};
 	Image                    meshTextureImage             = {};
+
+	Buffer                   sceneBuffer                  = {};
+	Buffer                   materialsBuffer              = {};
+	
 	u64                      frameNumber                  = 0;
 	
 	//-------------------------------------------------------------------------------------------------
@@ -1458,17 +1466,14 @@ struct RenderApiObj : RenderApi {
 
 	Res<> CreateMeshes() {
 		constexpr Vertex vertices[4] = {
-			{ .pos = { -0.5f, -0.5f, 0.0f, 1.0f }, .uv = { 0.0f, 0.0f, 0.0f, 0.0f } },
-			{ .pos = {  0.5f, -0.5f, 0.0f, 1.0f }, .uv = { 1.0f, 0.0f, 0.0f, 0.0f } },
-			{ .pos = {  0.5f,  0.5f, 0.0f, 1.0f }, .uv = { 1.0f, 1.0f, 0.0f, 0.0f } },
-			{ .pos = { -0.5f,  0.5f, 0.0f, 1.0f }, .uv = { 0.0f, 1.0f, 0.0f, 0.0f } },
+			{ .pos = { -0.5f,  0.5f, 0.0f, 1.0f }, .uv = { 0.0f, 0.0f, 0.0f, 0.0f } },
+			{ .pos = {  0.5f,  0.5f, 0.0f, 1.0f }, .uv = { 1.0f, 0.0f, 0.0f, 0.0f } },
+			{ .pos = {  0.5f, -0.5f, 0.0f, 1.0f }, .uv = { 1.0f, 1.0f, 0.0f, 0.0f } },
+			{ .pos = { -0.5f, -0.5f, 0.0f, 1.0f }, .uv = { 0.0f, 1.0f, 0.0f, 0.0f } },
 		};
 		if (Res<> r = CreateBuffer(sizeof(vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT).To(meshVertexBuffer); !r) { return r.err; }
 		if (Res<> r = UploadBuffer(meshVertexBuffer, vertices, sizeof(vertices));  !r) { return r.err; }
-/*
-0  1 
-3  2
-*/
+
 		constexpr u32 indices[6] = {
 			0, 1, 2,
 			0, 2, 3,
@@ -1484,15 +1489,14 @@ struct RenderApiObj : RenderApi {
 	Res<> CreateTexture() {
 		u32* data = (u32*)tempMem->Alloc(256 * 256 * sizeof(u32));
 		for (u32 y = 0; y < 256; y++) {
+			const float ty = (float)y / 256.0f;
 			for (u32 x = 0; x < 256; x++) {
-				if (
-					(y % 2 == 0 && x % 2 == 0) ||
-					(y % 2 == 1 && x % 2 == 1)
-				) {
-					data[y * 256 + x] = 0xff0000ff;
-				} else {
-					data[y * 256 + x] = 0xffffffff;
-				}
+				const float tx = (float)x / 256.0f;
+				const u32 r = 0;
+				const u32 g = 128 + (u32)((tx + ty) * 64.0f);
+				const u32 b = 0;
+				ty;
+				data[y * 256 + x] = b | (g << 8) | (r << 16) | 0xff000000;
 			}
 		}
 
@@ -1523,6 +1527,30 @@ struct RenderApiObj : RenderApi {
 	}
 
 	//-------------------------------------------------------------------------------------------------
+
+	Res<> CreateScene() {
+		if (Res<> r = CreateBuffer(sizeof(SceneData), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT).To(sceneBuffer); !r) { return r; }
+		if (Res<> r = CreateBuffer(sizeof(Material) * MaxMaterials, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT).To(materialsBuffer); !r) { return r; }
+
+		constexpr Material materials[] = {
+			{
+				.color      = { .x = 1.0f, .y = 1.0f, .z = 1.0f, .w = 1.0f },
+				.textureIdx = 0,
+			},
+			{
+				.color      = { .x = 0.5f, .y = 0.0f, .z = 1.0f, .w = 1.0f },
+				.textureIdx = 0,
+			},
+			{
+				.color      = { .x = 1.0f, .y = 0.0f, .z = 0.0f, .w = 1.0f },
+				.textureIdx = 0,
+			},
+		};
+		if (Res<> r = UploadBuffer(materialsBuffer, &materials, sizeof(materials)); !r) { return r; }
+
+		return Ok();
+	}
+
 	//-------------------------------------------------------------------------------------------------
 	//-------------------------------------------------------------------------------------------------
 	//-------------------------------------------------------------------------------------------------
@@ -1548,6 +1576,7 @@ struct RenderApiObj : RenderApi {
 		if (Res<> r = CreateSampler();                            !r) { return r; }
 		if (Res<> r = CreateMeshes();                             !r) { return r; }
 		if (Res<> r = CreateTexture();                            !r) { return r; }
+		if (Res<> r = CreateScene();                              !r) { return r; }
 
 		return Ok();
 	}
@@ -1656,7 +1685,15 @@ struct RenderApiObj : RenderApi {
 
 	//----------------------------------------------------------------------------------------------
 
-	Res<> Draw() override {
+	Res<> Draw(const Mat4* view, const Mat4* proj) override {
+		const SceneData sceneData = {
+			.view = *view,
+			.proj = *proj,
+		};
+		if (Res<> r = UploadBuffer(sceneBuffer, &sceneData, sizeof(sceneData)); !r) {
+			return r;
+		}
+
 		const u32 frameIndex = frameNumber % MaxFrames;
 		CheckVk(vkWaitForFences(vkDevice, 1, &vkRenderFences[frameIndex], VK_TRUE, U64Max));
 		CheckVk(vkResetFences(vkDevice, 1, &vkRenderFences[frameIndex]));
@@ -1757,11 +1794,15 @@ struct RenderApiObj : RenderApi {
 		vkCmdBindDescriptorSets(vkCommandBuffers[frameIndex], VK_PIPELINE_BIND_POINT_GRAPHICS, vkGraphicsPipelineLayout, 0, 1, &vkMeshDescriptorSet, 0, 0);
 
 		vkCmdBindIndexBuffer(vkCommandBuffers[frameIndex], meshIndexBuffer.vkBuffer, 0, VK_INDEX_TYPE_UINT32);
-		const MeshPushConstants meshPushConstants = {
-			.vertexBufferAddress = meshVertexBuffer.address,
-			.textureIndex        = 0,
-		};
 
+		const MeshPushConstants meshPushConstants = {
+			//.model        = Mat4::Identity(),
+			.model        = Mat4::AngleAxis((float)frameNumber * 0.001f, Vec3 { .x = 0.0f, .y = 0.0f, .z = 1.0f }),
+			.scene        = sceneBuffer.address,
+			.materials    = materialsBuffer.address,
+			.vertexBuffer = meshVertexBuffer.address,
+			.materialIdx  = 0,
+		};
 		vkCmdPushConstants(
 			vkCommandBuffers[frameIndex],
 			vkGraphicsPipelineLayout,

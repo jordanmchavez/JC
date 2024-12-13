@@ -2,6 +2,7 @@
 #include "JC/File.h"
 #include "JC/Fmt.h"
 #include "JC/Log.h"
+#include "JC/Math.h"
 #include "JC/Mem.h"
 #include "JC/Render.h"
 #include "JC/Unicode.h"
@@ -140,6 +141,11 @@ Res<> Run(int argc, const char** argv) {
 
 	u64 frame = 0;
 	bool exitRequested = false;
+	Vec3 eye = { .x = 0.0f, .y = 0.0f, .z = 5.0f };
+	Vec3 look = { .x = 0.0f, .y = 0.0f, .z = -1.0f };
+	Vec3 eyeVelocity = {};
+	float eyeRotY = 0.0f;
+	constexpr float camVelocity = 0.002f;
 	while (!exitRequested) {
 		windowApi->PumpMessages();
 		if (windowApi->IsExitRequested()) {
@@ -153,13 +159,37 @@ Res<> Run(int argc, const char** argv) {
 					exitRequested = true;
 					break;
 				case EventType::Key:
-					//Logf("key {} ({}): {}", EventKeyStr(e->key.key), e->key.key, e->key.down ? "down" : "up");
+					if (e->key.key == EventKey::W) {
+						eyeVelocity.z = e->key.down ? camVelocity : 0.0f;
+					} else if (e->key.key == EventKey::S) {
+						eyeVelocity.z = e->key.down ? -camVelocity : 0.0f;
+					} else if (e->key.key == EventKey::A) {
+						eyeVelocity.x = e->key.down ? camVelocity : 0.0f;
+					} else if (e->key.key == EventKey::D) {
+						eyeVelocity.x = e->key.down ? -camVelocity : 0.0f;
+					} else if (e->key.key == EventKey::Escape) {
+						exitRequested = true;
+					}
+					break;
+				case EventType::MouseMove:
+					eyeRotY += (float)e->mouseMove.x * -0.001f;
 					break;
 			}
 		}
 		eventApi->ClearEvents();
 
-		if (Res<> r = renderApi->Draw(); !r) {
+		constexpr Vec3 up = { .x = 0.0f, .y = 1.0f, .z = 0.0f };
+
+		const Vec3 rotatedLook = Mat4::Mul(Mat4::RotateY(eyeRotY), look);
+
+		const Vec3 rotatedLookOrtho = Vec3::Cross(up, rotatedLook);
+		eye = Vec3::AddScaled(eye, rotatedLook, eyeVelocity.z);
+		eye = Vec3::AddScaled(eye, rotatedLookOrtho, eyeVelocity.x);
+
+		const Vec3 at = Vec3::Add(eye, rotatedLook);
+		const Mat4 view = Mat4::LookAt(eye, at, up);
+		const Mat4 proj = Mat4::Perspective(DegToRad(45.0f), 800.0f / 600.0f, 0.01f, 1000.0f);
+		if (Res<> r = renderApi->Draw(&view, &proj); !r) {
 			Errorf(r.err);
 			return r;
 		}

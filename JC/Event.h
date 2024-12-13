@@ -13,6 +13,7 @@ enum struct EventType {
 	Exit,
 	Focus,
 	Key,
+	MouseMove,
 };
 
 struct FocusEvent {
@@ -140,11 +141,17 @@ struct KeyEvent {
 	EventKey key;
 };
 
+struct MouseMoveEvent {
+	i32 x;
+	i32 y;
+};
+
 struct Event {
 	EventType type;
 	union {
-		FocusEvent focus;
-		KeyEvent   key;
+		FocusEvent     focus;
+		KeyEvent       key;
+		MouseMoveEvent mouseMove;
 	};
 };
 

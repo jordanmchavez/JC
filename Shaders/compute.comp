@@ -11,5 +11,7 @@ void main() {
 	ivec2 size = imageSize(image);
 	if (texel.x < size.x && texel.y < size.y && gl_LocalInvocationID.x != 0 && gl_LocalInvocationID.y != 0) {
 		imageStore(image, texel, mix(pushConstants.topColor, pushConstants.bottomColor, float(texel.y) / float(size.y)));
+	} else {
+		imageStore(image, texel, vec4(0.0f, 0.0f, 0.0f, 1.0f));
 	}
 }
