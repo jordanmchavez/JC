@@ -1,23 +1,28 @@
-#pragma once
+#include "JC/Math.h"
 
 #include <math.h>
 
-#include "JC/Common.h"
+namespace JC {
 
-inline float Math_Radians(float deg) {
-	constexpr float PI = 3.14159265358979323846f;
-	return deg * PI / 180.0f;
-}
+//--------------------------------------------------------------------------------------------------
 
-inline Vec3 Vec3_Make(float x, float y, float z) {
+Vec3 Vec3::Add(Vec3 u, Vec3 v) {
 	return {
-		.x = x,
-		.y = y,
-		.z = z,
+		.x = u.x + v.x,
+		.y = u.y + v.y,
+		.z = u.y + v.z,
 	};
 }
 
-inline Vec3 Vec3_Scale(Vec3 v, float s) {
+Vec3 Vec3::Sub(Vec3 u, Vec3 v) {
+	return {
+		.x = u.x - v.x,
+		.y = u.y - v.y,
+		.z = u.y - v.z,
+	};
+}
+
+Vec3 Vec3::Scale(Vec3 v, float s) {
 	return {
 		.x = v.x * s,
 		.y = v.y * s,
@@ -25,27 +30,11 @@ inline Vec3 Vec3_Scale(Vec3 v, float s) {
 	};
 }
 
-inline Vec3 Vec3_Add(Vec3 u, Vec3 v) {
-	return {
-		.x = u.x + v.x,
-		.y = u.y + v.y,
-		.z = u.z + v.z,
-	};
-}
-
-inline Vec3 Vec3_Sub(Vec3 u, Vec3 v) {
-	return {
-		.x = u.x - v.x,
-		.y = u.y - v.y,
-		.z = u.z - v.z,
-	};
-}
-
-inline float Vec3_Dot(Vec3 u, Vec3 v) {
+float Vec3::Dot(Vec3 u, Vec3 v) {
 	return (u.x * v.x) + (u.y * v.y) + (u.z * v.z);
 }
 
-inline Vec3 Vec3_Cross(Vec3 u, Vec3 v) {
+Vec3 Vec3::Cross(Vec3 u, Vec3 v) {
 	return {
 		.x = u.y * v.z - u.z * v.y,
 		.y = u.z * v.x - u.x * v.z,
@@ -53,7 +42,7 @@ inline Vec3 Vec3_Cross(Vec3 u, Vec3 v) {
 	};
 }
 
-inline Vec3 Vec3_Normalize(Vec3 v) {
+Vec3 Vec3::Normalize(Vec3 v) {
 	const float s = 1.0f / sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
 	return {
 		.x = v.x * s,
@@ -62,11 +51,11 @@ inline Vec3 Vec3_Normalize(Vec3 v) {
 	};
 }
 
-inline Mat4 Mat4_AngleAxis(float a, Vec3 v) {
-	Vec3 n = Vec3_Normalize(v);
+Mat4 Mat4::AngleAxis(float a, Vec3 v) {
+	Vec3 n = Vec3::Normalize(v);
 	float c = cosf(a);
-	Vec3 vc = Vec3_Scale(n, 1.0f - c);
-	Vec3 vs = Vec3_Scale(n, sinf(a));
+	Vec3 vc = Vec3::Scale(n, 1.0f - c);
+	Vec3 vs = Vec3::Scale(n, sinf(a));
 
 	Mat4 m;
 	m.m[0][0] = vc.x * n.x + c;    m.m[1][0] = vc.y * n.x - vs.z; m.m[2][0] = vc.z * n.x + vs.x; m.m[3][0] = 0.0f;
@@ -76,19 +65,19 @@ inline Mat4 Mat4_AngleAxis(float a, Vec3 v) {
 	return m;
 }
 
-inline Mat4 Mat4_LookAt(Vec3 eye, Vec3 at, Vec3 up) {
-	Vec3 z = Vec3_Normalize(Vec3_Sub(at, eye));
-	Vec3 x = Vec3_Normalize(Vec3_Cross(z, up));
-	Vec3 y = Vec3_Cross(x, z);
+Mat4 Mat4::LookAt(Vec3 eye, Vec3 at, Vec3 up) {
+	Vec3 z = Vec3::Normalize(Vec3::Sub(at, eye));
+	Vec3 x = Vec3::Normalize(Vec3::Cross(z, up));
+	Vec3 y = Vec3::Cross(x, z);
 	Mat4 m;
-	m.m[0][0] =  x.x; m.m[1][0] =  x.y; m.m[2][0] =  x.z; m.m[3][0] = -Vec3_Dot(y, eye);
-	m.m[0][1] =  y.x; m.m[1][1] =  y.y; m.m[2][1] =  y.z; m.m[3][1] = -Vec3_Dot(x, eye);
-	m.m[0][2] = -z.x; m.m[1][2] = -z.y; m.m[2][2] = -z.z; m.m[3][2] =  Vec3_Dot(z, eye);
+	m.m[0][0] =  x.x; m.m[1][0] =  x.y; m.m[2][0] =  x.z; m.m[3][0] = -Vec3::Dot(y, eye);
+	m.m[0][1] =  y.x; m.m[1][1] =  y.y; m.m[2][1] =  y.z; m.m[3][1] = -Vec3::Dot(x, eye);
+	m.m[0][2] = -z.x; m.m[1][2] = -z.y; m.m[2][2] = -z.z; m.m[3][2] =  Vec3::Dot(z, eye);
 	m.m[0][3] = 0.0f; m.m[1][3] = 0.0f; m.m[2][3] = 0.0f; m.m[3][3] =  1.0f;
 	return m;
 }
 
-inline Mat4 Mat4_Perspective(float fovy, float aspect, float zn, float zf) {
+Mat4 _Perspective(float fovy, float aspect, float zn, float zf) {
 	const float ht = tanf(fovy / 2.0f);
 	Mat4 m;
 	m.m[0][0] = 1.0f / (aspect * ht); m.m[1][0] = 0.0f;       m.m[2][0] = 0.0f;           m.m[3][0] = 0.0f;
@@ -97,3 +86,7 @@ inline Mat4 Mat4_Perspective(float fovy, float aspect, float zn, float zf) {
 	m.m[0][3] = 0.0f;                 m.m[1][3] = 0.0f;       m.m[2][3] = -1.0f;          m.m[3][3] = 0.0f;
 	return m;
 }
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC

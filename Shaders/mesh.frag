@@ -1,16 +1,26 @@
 #version 450
 #extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_buffer_reference : require
 
-layout (location = 0) in vec2 inTexCoord;
+layout (location = 0) in vec2 inUv;
 layout (location = 0) out vec4 outColor;
 
-layout (push_constant, std430) uniform PushConstants {
-	int bufferIndex;
-	int textureIndex;
+struct Vertex {
+	vec4 pos;
+	vec4 uv;
+};
+
+layout (buffer_reference, std430) readonly buffer VertexBuffer {
+	Vertex vertices[];
+};
+
+layout (push_constant) uniform PushConstants {
+	VertexBuffer vertexBuffer;
+	uint         samplerIndex;
 } pushConstants;
 
-layout (binding = 1) uniform sampler2D textures[];
+layout (set = 0, binding = 0) uniform sampler2D samplers[];
 
 void main() {
-	outColor = vec4(texture(textures[pushConstants.textureIndex], inTexCoord).rgb, 1);
+    outColor = texture(nonuniformEXT(samplers[pushConstants.samplerIndex]), inUv);
 }

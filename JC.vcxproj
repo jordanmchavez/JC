@@ -99,6 +99,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="3rd\dragonbox\dragonbox.h" />
+    <ClInclude Include="3rd\stb\stb_image.h" />
     <ClInclude Include="3rd\vk_video\vulkan_video_codecs_common.h" />
     <ClInclude Include="3rd\vk_video\vulkan_video_codec_av1std.h" />
     <ClInclude Include="3rd\vk_video\vulkan_video_codec_av1std_decode.h" />
@@ -121,6 +122,7 @@
     <ClInclude Include="JC\Hash.h" />
     <ClInclude Include="JC\Log.h" />
     <ClInclude Include="JC\Map.h" />
+    <ClInclude Include="JC\Math.h" />
     <ClInclude Include="JC\Mem.h" />
     <ClInclude Include="JC\MinimalWindows.h" />
     <ClInclude Include="JC\Render.h" />
@@ -153,6 +155,7 @@
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="JC\Mem.cpp" />
     <ClCompile Include="JC\Window_Win.cpp" />
+    <ClCompile Include="Math.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Game Notes.md" />

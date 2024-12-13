@@ -1,37 +1,25 @@
 #version 450
-#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_buffer_reference : require
 
-layout (location = 0) in vec3 inPosition;
-layout (location = 1) in vec2 inTexCoord;
+struct Vertex {
+	vec4 pos;
+	vec4 uv;
+};
 
-layout (location = 0) out vec2 outTexCoord;
+layout (buffer_reference, std430) readonly buffer VertexBuffer {
+	Vertex vertices[];
+};
 
-//layout (push_constant) uniform PushConstants {
-//	int bufferIndex;
-//	int textureIndex;
-//} pushConstants;
+layout (push_constant) uniform PushConstants {
+	VertexBuffer vertexBuffer;
+	uint         textureIndex;
+} pushConstants;
 
-layout (binding = 0) uniform Uniform {
-	vec2 offset;
-	float rotation;
-	float scale;
-	float aspect;
-} uni;
-
-vec3 rotate(vec3 v, float a) {
-	float s = sin(a);
-	float c = cos(a);
-	float x = v.x * c - v.y * s;
-	float y = v.x * s + v.y * c;
-	return vec3(x, y, v.z);
-}
+layout (location = 0) out vec2 outUv;
 
 void main() {
-	vec3  offset   = vec3(uni.offset, 0.0f);
-	float rotation = uni.rotation;
-	float scale    = uni.scale;
-	vec3  aspect   = vec3(1.0f, uni.aspect, 1.0f);
-
-	gl_Position = vec4((offset + rotate(inPosition, rotation) * scale) * aspect, 1.0f);
-	outTexCoord = inTexCoord;
+	vec4 pos = pushConstants.vertexBuffer.vertices[gl_VertexIndex].pos;
+	vec4 uv  = pushConstants.vertexBuffer.vertices[gl_VertexIndex].uv;
+	gl_Position = pos;
+	outUv = vec2(uv.x, uv.y);
 }
