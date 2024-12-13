@@ -46,11 +46,17 @@ struct Map {
 	}
 
 	void Free() {
-		mem->Free(buckets);
-		mem->Free(elems);
-		buckets    = 0;
+		if (mem) {
+			if (buckets) {
+				mem->Free(buckets);
+				buckets = 0;
+			}
+			if (elems) {
+				mem->Free(elems);
+				elems = 0;
+			}
+		}
 		bucketsLen = 0;
-		elems      = 0;
 		elemsLen   = 0;
 		elemsCap   = 0;
 		mask       = 0;

@@ -28,10 +28,12 @@ struct RenderApi {
 	static constexpr ErrCode Err_NoLayer  = { .ns = "render", .code = 2 };
 	static constexpr ErrCode Err_NoDevice = { .ns = "render", .code = 3 };
 	static constexpr ErrCode Err_NoMem    = { .ns = "render", .code = 4 };
+	static constexpr ErrCode Err_Resize   = { .ns = "render", .code = 5 };
 
 	virtual Res<> Init(const RenderApiInit* init) = 0;
 	virtual void  Shutdown() = 0;
 	virtual Res<> Draw(const Mat4* view, const Mat4* proj) = 0;
+	virtual Res<> ResizeSwapchain(u32 width, u32 height) = 0;
 };
 
 RenderApi* GetRenderApi();

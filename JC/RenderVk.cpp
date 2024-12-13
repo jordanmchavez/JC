@@ -31,7 +31,6 @@ struct RenderApiObj : RenderApi {
 		VkPhysicalDeviceVulkan12Features vkPhysicalDeviceVulkan12Features = {};
 		VkPhysicalDeviceVulkan13Features vkPhysicalDeviceVulkan13Features = {};
 		VkPhysicalDeviceMemoryProperties vkPhysicalDeviceMemoryProperties = {};
-		VkSurfaceCapabilitiesKHR         vkSurfaceCapabilities            = {};
 		Array<VkExtensionProperties>     vkExtensionProperties            = {};
 		Array<VkSurfaceFormatKHR>        vkSurfaceFormats                 = {};
 		VkFormat                         vkSurfaceFormat                  = VK_FORMAT_UNDEFINED;
@@ -393,8 +392,6 @@ struct RenderApiObj : RenderApi {
 				Logf("    [{}] size={}, flags={}", j, SizeStr(mh.size), Vk::MemoryHeapFlagsStr(mh.flags));
 			}
 
-			CheckVk(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(pd->vkPhysicalDevice, vkSurface, &pd->vkSurfaceCapabilities));
-
 			Array<VkQueueFamilyProperties> vkQueueFamilyProperties(tempMem);
 			vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, &n, nullptr);
 			vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, &n, vkQueueFamilyProperties.Resize(n));
@@ -523,6 +520,7 @@ struct RenderApiObj : RenderApi {
 		vkPhysicalDeviceVulkan12Features.descriptorIndexing = true;
 		vkPhysicalDeviceVulkan12Features.descriptorBindingPartiallyBound = true;
 		vkPhysicalDeviceVulkan12Features.runtimeDescriptorArray = true;
+		vkPhysicalDeviceVulkan12Features.descriptorBindingSampledImageUpdateAfterBind = true;
 
 		vkPhysicalDeviceVulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 		vkPhysicalDeviceVulkan13Features.pNext = 0;
@@ -554,20 +552,22 @@ struct RenderApiObj : RenderApi {
 
 	//-------------------------------------------------------------------------------------------------
 
-	// TODO: currently we pass width and height, see if VkSurfaceCapabilitiesKHR.currentExtent actually has the surfaces new width and height so we don't need to pass this
 	Res<> CreateSwapchain(u32 width, u32 height) {
-		u32 imageCount = Max((u32)3, physicalDevice->vkSurfaceCapabilities.minImageCount);
-		if (physicalDevice->vkSurfaceCapabilities.maxImageCount > 0 && imageCount > physicalDevice->vkSurfaceCapabilities.maxImageCount) {
-			imageCount = physicalDevice->vkSurfaceCapabilities.maxImageCount;
+		VkSurfaceCapabilitiesKHR vkSurfaceCapabilities;
+		CheckVk(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice->vkPhysicalDevice, vkSurface, &vkSurfaceCapabilities));
+	
+		u32 imageCount = Max((u32)3, vkSurfaceCapabilities.minImageCount);
+		if (vkSurfaceCapabilities.maxImageCount > 0 && imageCount > vkSurfaceCapabilities.maxImageCount) {
+			imageCount = vkSurfaceCapabilities.maxImageCount;
 		}
 		Logf("Selected swapchain image count: {}", imageCount);
 
 		// TODO: check min/max extents
-		const VkExtent2D vkExtent = (physicalDevice->vkSurfaceCapabilities.currentExtent.width != U32Max)
-			? physicalDevice->vkSurfaceCapabilities.currentExtent
+		const VkExtent2D vkExtent = (vkSurfaceCapabilities.currentExtent.width != U32Max)
+			? vkSurfaceCapabilities.currentExtent
 			: VkExtent2D {
-				.width  = Clamp(width,  physicalDevice->vkSurfaceCapabilities.minImageExtent.width,  physicalDevice->vkSurfaceCapabilities.maxImageExtent.width),
-				.height = Clamp(height, physicalDevice->vkSurfaceCapabilities.minImageExtent.height, physicalDevice->vkSurfaceCapabilities.maxImageExtent.height),
+				.width  = Clamp(width,  vkSurfaceCapabilities.minImageExtent.width,  vkSurfaceCapabilities.maxImageExtent.width),
+				.height = Clamp(height, vkSurfaceCapabilities.minImageExtent.height, vkSurfaceCapabilities.maxImageExtent.height),
 			};
 		Logf("Selected swapchain extent: ({}, {})", vkExtent.width, vkExtent.height);
 
@@ -579,7 +579,6 @@ struct RenderApiObj : RenderApi {
 		}
 		Logf("Selected swapchain present mode: {}", Vk::PresentModeStr(presentMode));
 
-		const VkSwapchainKHR vkOldSwapchain = vkSwapchain;
 		const VkSwapchainCreateInfoKHR vkSwapchainCreateInfoKHR = {
 			.sType                 = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
 			.pNext                 = 0,
@@ -595,20 +594,15 @@ struct RenderApiObj : RenderApi {
 			.imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE,
 			.queueFamilyIndexCount = 0,
 			.pQueueFamilyIndices   = 0,
-			.preTransform          = (physicalDevice->vkSurfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR : physicalDevice->vkSurfaceCapabilities.currentTransform,
+			.preTransform          = (vkSurfaceCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR : vkSurfaceCapabilities.currentTransform,
 			.compositeAlpha        = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 			.presentMode           = presentMode,
 			.clipped               = VK_TRUE,
-			.oldSwapchain          = vkOldSwapchain,
+			.oldSwapchain          = 0,
 		};
 		CheckVk(vkCreateSwapchainKHR(vkDevice, &vkSwapchainCreateInfoKHR, vkAllocationCallbacks, &vkSwapchain));
-
 		vkSwapchainExtent2D.width  = width;
 		vkSwapchainExtent2D.height = height;
-
-		if (vkOldSwapchain != VK_NULL_HANDLE) {
-			vkDestroySwapchainKHR(vkDevice, vkOldSwapchain, vkAllocationCallbacks);
-		}
 
 		u32 n = 0;
 		vkSwapchainImages.Init(mem);
@@ -736,7 +730,7 @@ struct RenderApiObj : RenderApi {
 		const VkDescriptorPoolCreateInfo vkDescriptorPoolCreateInfo = {
 			.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 			.pNext         = 0,
-			.flags         = 0,
+			.flags         = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
 			.maxSets       = 2,
 			.poolSizeCount = LenOf(vkDescriptorPoolSizes),
 			.pPoolSizes    = vkDescriptorPoolSizes,
@@ -762,7 +756,7 @@ struct RenderApiObj : RenderApi {
 			.pBindings    = &vkComputeDescriptorSetLayoutBinding,
 		};
 		CheckVk(vkCreateDescriptorSetLayout(vkDevice, &vkComputeDescriptorSetLayoutCreateInfo, vkAllocationCallbacks, &vkComputeDescriptorSetLayout));
-
+		
 		const VkDescriptorSetAllocateInfo vkComputeDescriptorSetAllocateInfo = {
 			.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
 			.pNext              = 0,
@@ -776,7 +770,7 @@ struct RenderApiObj : RenderApi {
 		// Mesh
 
 		constexpr VkDescriptorBindingFlags vkDescriptorBindingFlags[] = {
-			VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
+			VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT,
 		};
 		const VkDescriptorSetLayoutBindingFlagsCreateInfo vkDescriptorSetLayoutBindingFlagsCreateInfo = {
 			.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
@@ -797,7 +791,7 @@ struct RenderApiObj : RenderApi {
 		const VkDescriptorSetLayoutCreateInfo vkMeshDescriptorSetLayoutCreateInfo = {
 			.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
 			.pNext        = &vkDescriptorSetLayoutBindingFlagsCreateInfo,
-			.flags        = 0,
+			.flags        = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
 			.bindingCount = LenOf(vkMeshDescriptorSetLayoutBindings),
 			.pBindings    = vkMeshDescriptorSetLayoutBindings,
 		};
@@ -1632,6 +1626,7 @@ struct RenderApiObj : RenderApi {
 		vkFreeCommandBuffers(vkDevice, vkCommandPool, (u32)vkCommandBuffers.len, vkCommandBuffers.data); vkCommandBuffers.Free();
 		DestroyVkHandle(vkCommandPool, vkDestroyCommandPool);
 		DestroyVkHandleArray(vkSwapchainImageViews, vkDestroyImageView);
+		vkSwapchainImages.Free();
 		DestroyVkHandle(vkSwapchain, vkDestroySwapchainKHR);
 		if (vkDevice != VK_NULL_HANDLE) { vkDestroyDevice(vkDevice, vkAllocationCallbacks); vkDevice = VK_NULL_HANDLE; }
 		physicalDevices.Free();
@@ -1700,18 +1695,8 @@ struct RenderApiObj : RenderApi {
 
 		u32 swapchainImageIndex = 0;
 		if (VkResult r = vkAcquireNextImageKHR(vkDevice, vkSwapchain, U64Max, vkAcquireImageSemaphores[frameIndex], 0, &swapchainImageIndex); r != VK_SUCCESS) {
-			if (r == VK_SUBOPTIMAL_KHR) {
-				// recreate
-				return MakeVkErr(r, "vkAcquireNextImageKHR");
-			} else if (r == VK_ERROR_OUT_OF_DATE_KHR) {
-				// recreate
-				return MakeVkErr(r, "vkAcquireNextImageKHR");
-			} else if (r == VK_ERROR_DEVICE_LOST) {
-				// ??
-				return MakeVkErr(r, "vkAcquireNextImageKHR");
-			} else if (r == VK_ERROR_SURFACE_LOST_KHR) {
-				// ??
-				return MakeVkErr(r, "vkAcquireNextImageKHR");
+			if (r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_OUT_OF_DATE_KHR) {
+				return MakeVkErr(r, "vkAcquireNextImageKHR")->Push(Err_Resize);
 			} else {
 				return MakeVkErr(r, "vkAcquireNextImageKHR");
 			}
@@ -1902,13 +1887,34 @@ struct RenderApiObj : RenderApi {
 		};
 
 		if (VkResult r = vkQueuePresentKHR(vkQueue, &vkPresentInfoKHR); r != VK_SUCCESS) {
-			return MakeVkErr(r, "vkQueuePresentKHR");
+			if (r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_OUT_OF_DATE_KHR) {
+				return MakeVkErr(r, "vkAcquireNextImageKHR")->Push(Err_Resize);
+			} else {
+				return MakeVkErr(r, "vkAcquireNextImageKHR");
+			}
 		}
 
 		frameNumber++;
 
 		return Ok();
 	}
+
+	//----------------------------------------------------------------------------------------------
+
+	Res<> ResizeSwapchain(u32 width, u32 height) override {
+		vkDeviceWaitIdle(vkDevice);
+
+		DestroyImage(drawImage); drawImage = {};
+		DestroyVkHandleArray(vkSwapchainImageViews, vkDestroyImageView);vkSwapchainImageViews.Free();
+		vkSwapchainImages.Free();
+		DestroyVkHandle(vkSwapchain, vkDestroySwapchainKHR);
+		
+		if (Res<> r = CreateSwapchain(width, height); !r) { return r; }
+		if (Res<> r = CreateDrawImage(width, height); !r) { return r; }
+
+		return Ok();
+	}
+
 };
 
 //--------------------------------------------------------------------------------------------------

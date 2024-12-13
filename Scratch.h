@@ -5,38 +5,46 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-struct Buffer {
+struct Buffer {};
+struct Texture {};
+struct Pipeline {};
+struct Shader {};
+
+enum struct BufferUsage {
+	Static,
+	Staging,
 };
 
-struct Image {
+enum struct Format {
+	// ...
 };
 
-struct Camera {
-};
+Shader CreateShader(void* data, u64 len);
+Buffer CreateBuffer(u64 size, BufferUsage usage);
+Texture CreateTexture(u32 width, u32 height, Format format);
 
 struct Scene {
-	Camera camera;
+	Vec3 cameraPos;
+	Vec3 cameraDir;
 	Vec3 ambient;
 };
 
 struct Mesh {
-	s8 name;
 	Buffer vertexBuffer;
 	Buffer indexBuffer;
-};
-
-struct Texture {
-	s8 name;
-	Image image;
 };
 
 struct Pipeline {
 	vertex shader;
 	pixel shader;
+	fill mode
+	front face
+	line width
+	multisampling
+	depth state / blending
 };
 
 struct Material {
-	s8 name;
 	Texture diffuse;
 	Vec3 color;
 	Pipeline pipeline;

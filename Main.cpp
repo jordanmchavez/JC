@@ -89,6 +89,10 @@ Res<> Run(int argc, const char** argv) {
 		iter--;
 		Logf("{}", s8(msg, (u64)(iter - msg)));
 
+		if (Sys::IsDebuggerPresent()) {
+			Sys_DebuggerBreak();
+		}
+
 		Sys::Abort();
 	});
 
@@ -146,7 +150,10 @@ Res<> Run(int argc, const char** argv) {
 	Vec3 eyeVelocity = {};
 	float eyeRotY = 0.0f;
 	constexpr float camVelocity = 0.002f;
+	Mat4 proj = Mat4::Perspective(DegToRad(45.0f), 800.0f / 600.0f, 0.01f, 1000.0f);
 	while (!exitRequested) {
+		memApi->Frame(frame);
+
 		windowApi->PumpMessages();
 		if (windowApi->IsExitRequested()) {
 			eventApi->AddEvent({ .type = EventType::Exit });
@@ -188,34 +195,17 @@ Res<> Run(int argc, const char** argv) {
 
 		const Vec3 at = Vec3::Add(eye, rotatedLook);
 		const Mat4 view = Mat4::LookAt(eye, at, up);
-		const Mat4 proj = Mat4::Perspective(DegToRad(45.0f), 800.0f / 600.0f, 0.01f, 1000.0f);
 		if (Res<> r = renderApi->Draw(&view, &proj); !r) {
-			Errorf(r.err);
+			if (r.err->ec == RenderApi::Err_Resize) {
+				WindowState windowState = windowApi->GetState();
+				proj = Mat4::Perspective(DegToRad(45.0f), (float)windowState.rect.width / (float)windowState.rect.height, 0.01f, 1000.0f);
+				if (r = renderApi->ResizeSwapchain(windowState.rect.width, windowState.rect.height); r) {
+					continue;
+				}
+			}
 			return r;
 		}
-
-		memApi->Frame(frame);
 	}
-
-	/*Mem* renderMem = memApi->CreateScope("render", 0);
-	if (Res<> r = renderApi->Init(logApi, renderMem, tempMem, &osWindowData); !r) {
-		Errorf(r.err);
-		return 1;
-	}
-
-	MSG msg;
-	for (;;) {
-		PeekMessageW(&msg, 0, 0, 0, PM_REMOVE);
-		if (msg.message == WM_QUIT) {
-			break;
-		}
-		TranslateMessage(&msg);
-		DispatchMessageW(&msg);
-		renderApi->Frame().Ignore();
-	}
-
-	renderApi->Shutdown();
-	*/
 
 	return Ok();
 }
