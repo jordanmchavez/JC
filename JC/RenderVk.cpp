@@ -1380,6 +1380,37 @@ struct RenderApiObj : RenderApi {
 
 	//-------------------------------------------------------------------------------------------------
 
+	void TransitionImage(VkCommandBuffer vkCommandBuffer, VkImage vkImage, VkImageLayout vkCurrentImageLayout, VkImageLayout vkNewImageLayout) {
+		const VkImageMemoryBarrier2 vkImageMemoryBarrier2 = {
+			.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+			.pNext               = 0,
+			.srcStageMask        = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+			.srcAccessMask       = VK_ACCESS_2_MEMORY_WRITE_BIT,
+			.dstStageMask        = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+			.dstAccessMask       = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
+			.oldLayout           = vkCurrentImageLayout,
+			.newLayout           = vkNewImageLayout,
+			.srcQueueFamilyIndex = 0,
+			.dstQueueFamilyIndex = 0,
+			.image               = vkImage,
+			.subresourceRange    = MakeVkSubresourceRange(vkNewImageLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT),
+		};
+		const VkDependencyInfo vkDependencyInfo = {
+			.sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+			.pNext                    = 0,
+			.dependencyFlags          = 0,
+			.memoryBarrierCount       = 0,
+			.pMemoryBarriers          = 0,
+			.bufferMemoryBarrierCount = 0,
+			.pBufferMemoryBarriers    = 0,
+			.imageMemoryBarrierCount  = 1,
+			.pImageMemoryBarriers     = &vkImageMemoryBarrier2,
+		};
+		vkCmdPipelineBarrier2(vkCommandBuffer, &vkDependencyInfo);
+	}
+
+	//----------------------------------------------------------------------------------------------
+
 	Res<> UploadImage(Image image, const void* data, u64 size) {
 		Buffer stagingBuffer;
 		if (Res<> r = CreateBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT).To(stagingBuffer); !r) {
@@ -1644,37 +1675,6 @@ struct RenderApiObj : RenderApi {
 			.baseArrayLayer  = 0,
 			.layerCount      = VK_REMAINING_ARRAY_LAYERS,
 		};
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	void TransitionImage(VkCommandBuffer vkCommandBuffer, VkImage vkImage, VkImageLayout vkCurrentImageLayout, VkImageLayout vkNewImageLayout) {
-		const VkImageMemoryBarrier2 vkImageMemoryBarrier2 = {
-			.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-			.pNext               = 0,
-			.srcStageMask        = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-			.srcAccessMask       = VK_ACCESS_2_MEMORY_WRITE_BIT,
-			.dstStageMask        = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-			.dstAccessMask       = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
-			.oldLayout           = vkCurrentImageLayout,
-			.newLayout           = vkNewImageLayout,
-			.srcQueueFamilyIndex = 0,
-			.dstQueueFamilyIndex = 0,
-			.image               = vkImage,
-			.subresourceRange    = MakeVkSubresourceRange(vkNewImageLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT),
-		};
-		const VkDependencyInfo vkDependencyInfo = {
-			.sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-			.pNext                    = 0,
-			.dependencyFlags          = 0,
-			.memoryBarrierCount       = 0,
-			.pMemoryBarriers          = 0,
-			.bufferMemoryBarrierCount = 0,
-			.pBufferMemoryBarriers    = 0,
-			.imageMemoryBarrierCount  = 1,
-			.pImageMemoryBarriers     = &vkImageMemoryBarrier2,
-		};
-		vkCmdPipelineBarrier2(vkCommandBuffer, &vkDependencyInfo);
 	}
 
 	//----------------------------------------------------------------------------------------------

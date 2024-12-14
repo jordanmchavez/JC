@@ -26,7 +26,10 @@ struct RenderApiInit {
 struct Buffer   { u64 handle = 0; };
 struct Texture  { u64 handle = 0; };
 struct Shader   { u64 handle = 0; };
-struct Pipelin  { u64 handle = 0; };
+struct Pipeline { u64 handle = 0; };
+
+enum struct TextureFormat {
+};
 
 struct RenderApi {
 	static constexpr ErrCode Err_Version  = { .ns = "render", .code = 1 };
@@ -39,6 +42,35 @@ struct RenderApi {
 	virtual void  Shutdown() = 0;
 	virtual Res<> Draw(const Mat4* view, const Mat4* proj) = 0;
 	virtual Res<> ResizeSwapchain(u32 width, u32 height) = 0;
+
+	virtual Buffer  CreateBuffer(u64 len) = 0;
+	virtual void    DestroyBuffer(Buffer buffer) = 0;
+	virtual void*   MapBuffer(Buffer buffer) = 0;
+	virtual void    UnmapBuffer(Buffer buffer) = 0;
+	virtual void    CmdCopyBuffer(Buffer src, Buffer dst) = 0;
+	virtual void    CmdBufferBarrier(Buffer buffer, srcStage, srcMask, dstStage, dstMask) = 0;
+
+	virtual void    CreateTexture() = 0;
+	virtual void    DestroyTexture() = 0;
+	virtual void    TransitionTexture(Texture texture, srcLayout, dstLayout) = 0;
+
+	virtual Texture CreateTexture(const void* data, u64 width, u64 height, TextureFormat format) = 0;
+	virtual Shader  CreateShader(const void* code, u64 len) = 0;
+	virtual Pipeline CreatePipeline(Shader vertexShader, Shader fragmentShader) = 0;
+	virtual void BeginFrame() = 0;
+	virtual void EndFrame() = 0;
+	virtual void BindPipeline(Pipeline pipeline);
+	virtual void 
+
+	2 frames in flight
+	update buffer (using internally managed xfer buffer)
+	clear
+	bind pipeline
+	bind ib
+	push constants
+	draw(#verts, #indices, startIndex, vertexOffset, #instances)
+	//textures bound automatically
+	
 };
 
 RenderApi* GetRenderApi();
