@@ -1127,7 +1127,7 @@ struct RenderApiObj : RenderApi {
 		u32 memType = U32Max;
 		for (u32 i = 0; i < physicalDevice->vkPhysicalDeviceMemoryProperties.memoryTypeCount; i++) {
 			if (
-				(vkMemoryRequirements.memoryTypeBits & (i << 1)) &&
+				(vkMemoryRequirements.memoryTypeBits & (1 << i)) &&
 				(physicalDevice->vkPhysicalDeviceMemoryProperties.memoryTypes[i].propertyFlags & vkMemoryPropertyFlags)
 			) {
 				memType = i;
@@ -1489,7 +1489,6 @@ struct RenderApiObj : RenderApi {
 				const u32 r = 0;
 				const u32 g = 128 + (u32)((tx + ty) * 64.0f);
 				const u32 b = 0;
-				ty;
 				data[y * 256 + x] = b | (g << 8) | (r << 16) | 0xff000000;
 			}
 		}

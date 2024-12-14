@@ -264,14 +264,13 @@ void* TempMemObj::Alloc(u64 size, SrcLoc) {
 	const u64 tempAvail = (u64)(memApi.tempCommit - memApi.tempUsed);
 	if (tempAvail < size) {
 		const u64 committed = (u64)(memApi.tempCommit - memApi.tempBegin);
-		u64 nextCommitted = Max((u64)4096, committed * 2);
-		while (tempAvail + nextCommitted < size) {
-			nextCommitted *= 2;
-			Assert(memApi.tempBegin + nextCommitted < memApi.tempReserve);
+		u64 extend = Max((u64)4096, committed);
+		while (tempAvail + extend < size) {
+			extend *= 2;
+			Assert(memApi.tempCommit + extend < memApi.tempReserve);
 		}
-		const u64 commitExtend = nextCommitted - committed;
-		Sys::VirtualCommit(memApi.tempCommit, commitExtend);
-		memApi.tempCommit += commitExtend;
+		Sys::VirtualCommit(memApi.tempCommit, extend);
+		memApi.tempCommit += extend;
 	}
 	void* p = memApi.tempUsed;
 	memApi.tempUsed += size;

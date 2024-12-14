@@ -23,6 +23,11 @@ struct RenderApiInit {
 	WindowPlatformData* windowPlatformData = {};
 };
 
+struct Buffer   { u64 handle = 0; };
+struct Texture  { u64 handle = 0; };
+struct Shader   { u64 handle = 0; };
+struct Pipelin  { u64 handle = 0; };
+
 struct RenderApi {
 	static constexpr ErrCode Err_Version  = { .ns = "render", .code = 1 };
 	static constexpr ErrCode Err_NoLayer  = { .ns = "render", .code = 2 };

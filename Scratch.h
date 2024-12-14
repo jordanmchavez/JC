@@ -5,6 +5,14 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
+
+create a vb/ib for the various meshes in the scene in dedicated buffers each
+load all textures
+load shaders
+create pipelines
+setup all materials
+now entities can be created dynamically: we just have a static array for max entities
+
 struct Buffer {};
 struct Texture {};
 struct Pipeline {};
