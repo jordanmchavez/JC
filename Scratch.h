@@ -6,41 +6,38 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-void foo() {
-vkBeginCommandBuffer(...);
+Frame
+	CommandPool
+	CommandBuffer
 
-vkCmdCopyBuffer2(...);
+Renderer
+	CreateBuffer()
+	CreateTexture()
+	CreateSampler()
+	CreateShader()
+	CreatePipeline()
 
-// queue the memory barrier: transfer/write -> vs/read
-const VkBufferMemoryBarrier2 VkBufferMemoryBarrier2 = {
-	.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
-	.pNext               = 0,
-	.srcStageMask        = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-	.srcAccessMask       = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-	.dstStageMask        = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT,
-	.dstAccessMask       = VK_ACCESS_2_SHADER_READ_BIT,
-	.srcQueueFamilyIndex = 0,
-	.dstQueueFamilyIndex = 0,
-	.buffer              = stagingBuffer.vkBuffer,
-	.offset              = 0,
-	.size                = stagingBuffer.size,
-};
-const VkDependencyInfo vkDependencyInfo = {
-	.sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-	.pNext                    = 0,
-	.dependencyFlags          = 0,
-	.memoryBarrierCount       = 0,
-	.pMemoryBarriers          = 0,
-	.bufferMemoryBarrierCount = 1,
-	.pBufferMemoryBarriers    = &vkBufferMemoryBarrier2,
-	.imageMemoryBarrierCount  = 0,
-	.pImageMemoryBarriers     = 0,
-};
-vkCmdPipelineBarrier2(vkCommandBuffer, &vkDependencyInfo);
+	u32 AddBindlessTexture(Texture)
+	u632AddBindlessSampler(Sampler)
 
-// various binds and draw calls
+	BindPipeline()
+	BindIndexBuffer()
 
-}
+	BeginFrame
+		wait frame fence
+		begin command buffer
+
+	EndFrame
+		acquireImage
+		reset frame fence
+		transition swapchain image -> layout_general
+		clear swapchain image
+		possibly copy draw image into swap chain via blit
+		possible render imgui
+		transition swapchain image -> present optimal
+		queuesubmit(wait=acquiresem, signal=rendersem)
+		vkQueuePresentKHR
+		
 
 
 	cmdBuffer = renderApi->BeginFrame();

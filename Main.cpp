@@ -1,3 +1,4 @@
+#include "JC/Array.h"
 #include "JC/Event.h"
 #include "JC/File.h"
 #include "JC/Fmt.h"
@@ -143,6 +144,39 @@ Res<> Run(int argc, const char** argv) {
 		return r;
 	}
 
+	struct BindlessTexture {
+		Texture texture;
+		u32 bindlessIndex;
+	};
+
+	struct Mesh {
+		Buffer vertexBuffer;
+		Buffer indexBuffer;
+		u32 vertices;
+		u32 indices;
+	};
+
+	struct Entity {
+		Mesh mesh;
+		Vec3 position;
+		Vec3 rotation;
+		float scale;
+		u32 bindlessTextureIndex;
+	};
+
+	struct SceneData {
+		Mat4 viewProj;
+		Vec4 ambient;
+	};
+
+	Shader vertexShader;
+	Shader fragmentShader;
+	Pipeline pipeline;
+	Array<BindlessTexture> bindlessTextures;
+	Array<Mesh> meshes;
+	Array<Entity> entities;
+	
+
 	u64 frame = 0;
 	bool exitRequested = false;
 	Vec3 eye = { .x = 0.0f, .y = 0.0f, .z = 5.0f };
@@ -195,7 +229,12 @@ Res<> Run(int argc, const char** argv) {
 
 		const Vec3 at = Vec3::Add(eye, rotatedLook);
 		const Mat4 view = Mat4::LookAt(eye, at, up);
-		if (Res<> r = renderApi->Draw(&view, &proj); !r) {
+
+
+		if (Res<> r = renderApi->BeginFrame(); !r) { return r; }
+
+
+		if (Res<> r = renderApi->EndFrame(); !r) {
 			if (r.err->ec == RenderApi::Err_Resize) {
 				WindowState windowState = windowApi->GetState();
 				proj = Mat4::Perspective(DegToRad(45.0f), (float)windowState.rect.width / (float)windowState.rect.height, 0.01f, 1000.0f);
@@ -205,6 +244,57 @@ Res<> Run(int argc, const char** argv) {
 			}
 			return r;
 		}
+
+
+
+
+
+beginFrame()
+	vkBeginCommandBuffer(frame.cmdBuf)
+	waitfence(frame.renderfence)
+
+upload scene buffer
+membarrier
+
+// mesh draw
+vkCmdBeginRendering
+	vkCmdBindPipeline
+	vkCmdBindDescriptorSets(bindless desc set)
+	vkCmdSetViewport
+	vkCmdSetScissor
+	for each mesh
+		frustum cull
+		vkCmdBindIndexBuffer
+		vkCmdPushConstants
+		vkCmdDrawIndexed
+vkCmdEndRendering
+
+endframe
+	vkAcquireNextImageKHR(signal=frame.swapchainSem)
+	resetfence frame.renderfence
+	transitionimage frame.swapchainimage -> VK_IMAGE_LAYOUT_GENERAL
+	vkCmdClearColorImage
+	tranition drawImage VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL->VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+	tranition frame.swapchainimage swapchainLayout->VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+	swapchainLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+	vkCmdBlitImage2 drawimage -> swapchainimage whole rect
+	transition swapchainimage -> VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+	drawimgui
+	transition swapchainimage -> VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+	end command buffer
+	vkQueueSubmit(signal=frame.renderFence)
+	vkQueuePresentKHR(wait=frame.renderSem)
+
+
+
+
+
+
+
+
+
+
+
 	}
 
 	return Ok();

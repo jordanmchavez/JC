@@ -20,6 +20,11 @@ struct Array {
 
 	void Init(Mem* mem_) { mem = mem_; }
 
+	void Init(Mem* mem_, u64 initLen) {
+		mem = mem_;
+		Resize(initLen);
+	}
+
 	constexpr       T& operator[](u64 i)       { return data[i]; }
 	constexpr const T& operator[](u64 i) const { return data[i]; }
 

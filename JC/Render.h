@@ -38,39 +38,28 @@ struct RenderApi {
 	static constexpr ErrCode Err_NoMem    = { .ns = "render", .code = 4 };
 	static constexpr ErrCode Err_Resize   = { .ns = "render", .code = 5 };
 
-	virtual Res<> Init(const RenderApiInit* init) = 0;
-	virtual void  Shutdown() = 0;
-	virtual Res<> Draw(const Mat4* view, const Mat4* proj) = 0;
-	virtual Res<> ResizeSwapchain(u32 width, u32 height) = 0;
-
-	virtual Buffer  CreateBuffer(u64 len) = 0;
-	virtual void    DestroyBuffer(Buffer buffer) = 0;
-	virtual void*   MapBuffer(Buffer buffer) = 0;
-	virtual void    UnmapBuffer(Buffer buffer) = 0;
-	virtual void    CmdCopyBuffer(Buffer src, Buffer dst) = 0;
-	virtual void    CmdBufferBarrier(Buffer buffer, srcStage, srcMask, dstStage, dstMask) = 0;
-
-	virtual void    CreateTexture() = 0;
-	virtual void    DestroyTexture() = 0;
-	virtual void    TransitionTexture(Texture texture, srcLayout, dstLayout) = 0;
-
-	virtual Texture CreateTexture(const void* data, u64 width, u64 height, TextureFormat format) = 0;
-	virtual Shader  CreateShader(const void* code, u64 len) = 0;
+	virtual Res<>    Init(const RenderApiInit* init) = 0;
+	virtual void     Shutdown() = 0;
+	virtual Res<>    Draw(const Mat4* view, const Mat4* proj) = 0;
+	virtual Res<>    ResizeSwapchain(u32 width, u32 height) = 0;
+	virtual Buffer   CreateBuffer(u64 len) = 0;
+	virtual void     DestroyBuffer(Buffer buffer) = 0;
+	virtual void     CreateTexture() = 0;
+	virtual void     DestroyTexture() = 0;
+	virtual u32      AddBindlessTexture(Texture texture) = 0;
+	virtual Shader   CreateShader(const void* code, u64 len) = 0;
+	virtual void     DestroyShader() = 0;
 	virtual Pipeline CreatePipeline(Shader vertexShader, Shader fragmentShader) = 0;
-	virtual void BeginFrame() = 0;
-	virtual void EndFrame() = 0;
-	virtual void BindPipeline(Pipeline pipeline);
-	virtual void 
+	virtual void     DestroyPipeline() = 0;
+	virtual void     BindPipeline(Pipeline pipeline) = 0;
+	virtual void     BindIndexBuffer(Buffer buffer) = 0;
 
-	2 frames in flight
-	update buffer (using internally managed xfer buffer)
-	clear
-	bind pipeline
-	bind ib
-	push constants
-	draw(#verts, #indices, startIndex, vertexOffset, #instances)
-	//textures bound automatically
-	
+	virtual Res<>    BeginFrame() = 0;
+	virtual Res<>    BeginRendering() = 0;
+	virtual Res<>    EndRendering() = 0;
+	virtual Res<>    EndFrame(Image drawImage) = 0;
+
+	virtual Res<>    Draw() = 0;
 };
 
 RenderApi* GetRenderApi();
