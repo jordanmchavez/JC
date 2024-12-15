@@ -55,6 +55,8 @@ struct Api {
 
 	virtual Res<Buffer>   CreateBuffer(u64 size, u64 flags) = 0;
 	virtual void          DestroyBuffer(Buffer buffer) = 0;
+	virtual Res<void*>    MapBuffer(Buffer buffer) = 0;
+	virtual void          UnmapBuffer(Buffer buffer) = 0;
 
 	virtual Res<Shader>   CreateShader(const void* data, u64 len) = 0;
 	virtual void          DestroyShader(Shader shader) = 0;

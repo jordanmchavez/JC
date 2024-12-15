@@ -250,3 +250,4 @@ Vulkan heap notes:
 switch all UINT32_MAX and friends to local defs
 Interested in calculating avg wasted temp mem when we jump to a new block and leave the wasted end bit
 ability to begin multiple buffer transfers and wait on all of their fences
+window rect is signed

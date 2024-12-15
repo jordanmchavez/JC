@@ -135,6 +135,8 @@ Res<> Run(int argc, const char** argv) {
 		return r;
 	}
 
+	u32 windowWidth = 800;
+	u32 windowHeight = 600;
 	windowApi = GetWindowApi();
 	WindowApiInit windowApiInit = {
 		.displayApi        = displayApi,
@@ -143,7 +145,7 @@ Res<> Run(int argc, const char** argv) {
 		.tempMem           = tempMem,
 		.title             = "test window",
 		.windowMode        = WindowMode::BorderedResizable,
-		.rect              = Rect { .x = 100, .y = 100, .width = 800, .height = 600 },
+		.rect              = Rect { .x = 100, .y = 100, .width = (i32)windowWidth, .height = (i32)windowHeight },
 		.fullscreenDisplay = 0,
 	};
 	if (Res<> r = windowApi->Init(&windowApiInit); !r) {
@@ -157,8 +159,8 @@ Res<> Run(int argc, const char** argv) {
 		.log                = log,
 		.mem                = renderMem,
 		.tempMem            = tempMem,
-		.width              = 800,
-		.height             = 600,
+		.width              = windowWidth,
+		.height             = windowHeight,
 		.windowPlatformData = &windowPlatformData,
 	};
 	if (Res<> r = renderApi->Init(&renderApiInit); !r) {
@@ -191,14 +193,17 @@ Res<> Run(int argc, const char** argv) {
 	Render::Buffer sceneBuffer = {};
 	if (Res<> r = renderApi->CreateBuffer(
 		sizeof(SceneData),
-		Render::BufferFlags::Index | Render::BufferFlags::Static | Render::BufferFlags::TransferDst
+		Render::BufferFlags::Index | Render::BufferFlags::Static | Render::BufferFlags::ShaderAddressable
 	).To(sceneBuffer); !r) { return r; }
 
 	Render::Buffer sceneStagingBuffer = {};
 	if (Res<> r = renderApi->CreateBuffer(
 		sizeof(SceneData),
-		Render::BufferFlags::Staging | Render::BufferFlags::TransferSrc
+		Render::BufferFlags::Staging
 	).To(sceneStagingBuffer); !r) { return r; }
+
+	void* sceneStagingBufferPtr = 0;
+	if (Res<> r = renderApi->MapBuffer(sceneStagingBuffer).To(sceneStagingBufferPtr); !r) { return r; }
 
 	u64 frame = 0;
 	bool exitRequested = false;
@@ -207,7 +212,7 @@ Res<> Run(int argc, const char** argv) {
 	Vec3 eyeVelocity = {};
 	float eyeRotY = 0.0f;
 	constexpr float camVelocity = 0.002f;
-	Mat4 proj = Mat4::Perspective(DegToRad(45.0f), 800.0f / 600.0f, 0.01f, 1000.0f);
+	Mat4 proj = Mat4::Perspective(DegToRad(45.0f), (float)windowWidth / (float)windowHeight, 0.01f, 1000.0f);
 	while (!exitRequested) {
 		memApi->Frame(frame);
 
@@ -253,7 +258,7 @@ Res<> Run(int argc, const char** argv) {
 
 		SceneData sceneData = {
 			.view = Mat4::LookAt(eye, at, up),
-			.proj = Mat4::Perspective(DegToRad(45.0f), (float)windowState.rect.width / (float)windowState.rect.height, 0.01f, 1000.0f),
+			.proj = Mat4::Perspective(DegToRad(45.0f), (float)windowWidth / (float)windowHeight, 0.01f, 1000.0f),
 			.ambient = { 0.1f, 0.1, 0.1, 1.0f },
 		};
 		MemCpy(sceneStagingBufferPtr, &sceneData, sizeof(sceneData));

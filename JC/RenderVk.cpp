@@ -1437,10 +1437,12 @@ struct ApiObj : Api {
 			.queueFamilyIndexCount = 1,
 			.pQueueFamilyIndices   = &physicalDevice->queueFamily,
 		};
-		CheckVk(vkCreateBuffer(vkDevice, &vkBufferCreateInfo, vkAllocationCallbacks, &buffer.vkBuffer));
+		VkBuffer vkBuffer = VK_NULL_HANDLE;
+		CheckVk(vkCreateBuffer(vkDevice, &vkBufferCreateInfo, vkAllocationCallbacks, &vkBuffer));
 
-		if (Res<> r = AllocateBufferDeviceMem(buffer.vkBuffer, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vkMemoryAllocateFlags).To(buffer.deviceMem); !r) {
-			DestroyBuffer(buffer);
+		DeviceMem deviceMem = {};
+		if (Res<> r = AllocateBufferDeviceMem(vkBuffer, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vkMemoryAllocateFlags).To(deviceMem); !r) {
+			vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
 			return r.err;
 		}
 
