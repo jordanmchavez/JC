@@ -54,7 +54,7 @@ UnitTest("Bit") {
 	CheckEq(Bsr64(0xffffffffffffffff), 63u);
 
 	CheckEq(PopCount64(0), 0u);
-	CheckEq(PopCount64(1), 0u);
+	CheckEq(PopCount64(1), 1u);
 	CheckEq(PopCount64((u64)0b10101010), 4u);
 	CheckEq(PopCount64((u64)0xffffffffffffffff), 64u);
 

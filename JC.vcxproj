@@ -146,7 +146,6 @@
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Log.cpp" />
     <ClCompile Include="JC\Map.cpp" />
-    <ClCompile Include="JC\RenderVk.cpp" />
     <ClCompile Include="JC\RenderVkMem.cpp" />
     <ClCompile Include="JC\RenderVkUtil.cpp" />
     <ClCompile Include="JC\RenderVkWin.cpp" />
@@ -154,7 +153,7 @@
     <ClCompile Include="JC\Tlsf.cpp" />
     <ClCompile Include="JC\Unicode.cpp" />
     <ClCompile Include="JC\UnitTest.cpp" />
-    <ClCompile Include="Main.cpp" />
+    <ClCompile Include="JC\Main.cpp" />
     <ClCompile Include="JC\Mem.cpp" />
     <ClCompile Include="JC\Window_Win.cpp" />
     <ClCompile Include="JC\Math.cpp" />

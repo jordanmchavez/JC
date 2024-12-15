@@ -1227,7 +1227,7 @@ struct ApiObj : Api {
 	}
 
 	//----------------------------------------------------------------------------------------------
-
+	/*
 	Res<> CmdBeginRendering(RenderImage colorImage, RenderImage depthImage) override {
 		Assert(colorImage.handle > 0 && colorImage.handle < renderImageObjs.len);
 		RenderImageObj* const colorImageObj = &renderImageObjs[colorImage.handle];
@@ -1278,7 +1278,7 @@ struct ApiObj : Api {
 		};
 		vkCmdBeginRendering(vkFrameCommandBuffers[frameIndex], 
 	}
-
+	*/
 	//----------------------------------------------------------------------------------------------
 
 	Res<> EndRendering() override {

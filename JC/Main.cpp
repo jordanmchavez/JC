@@ -123,7 +123,7 @@ Res<> Run(int argc, const char** argv) {
 		UnitTest::Run(log, memApi);
 		return Ok();
 	}
-
+	/*
 	fileApi = GetFileApi();
 	fileApi->Init(tempMem);
 
@@ -257,6 +257,7 @@ Res<> Run(int argc, const char** argv) {
 			.ambient = { 0.1f, 0.1, 0.1, 1.0f },
 		};
 		MemCpy(sceneStagingBufferPtr, &sceneData, sizeof(sceneData));
+		/*
 		renderApi->CmdCopyBuffer(sceneStagingBuffer, sceneBuffer);
 		renderApi->CmdBarrier(sceneBuffer, transfer/write -> vs+fs/read);
 		renderApi->CmdBeginRendering(drawImage);
@@ -281,6 +282,7 @@ Res<> Run(int argc, const char** argv) {
 			}
 			return r;
 		}
+		*/
 
 
 
@@ -288,8 +290,7 @@ Res<> Run(int argc, const char** argv) {
 
 
 
-
-	}
+	//}
 
 	return Ok();
 }
