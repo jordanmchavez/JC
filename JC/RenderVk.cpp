@@ -6,6 +6,7 @@
 #include "JC/Bit.h"
 #include "JC/File.h"
 #include "JC/Fmt.h"
+#include "JC/HandleArray.h"
 #include "JC/Log.h"
 #include "JC/Math.h"
 #include "JC/Mem.h"
@@ -46,37 +47,65 @@ struct ApiObj : Api {
 		u64            size           = 0;
 	};
 
+	struct BufferObj {
+		VkBuffer  vkBuffer  = VK_NULL_HANDLE;
+		DeviceMem deviceMem = {};
+		u64       addr      = 0;
+	};
+
+	struct ImageObj {
+		VkImage     vkImage     = VK_NULL_HANDLE;
+		VkImageView vkImageView = VK_NULL_HANDLE;
+		u32         width       = 0;
+		u32         height      = 0;
+		VkFormat    vkFormat    = VK_FORMAT_UNDEFINED;
+		DeviceMem   deviceMem   = {};
+	};
+
+	struct ShaderObj {
+		VkShaderModule vkShaderModule = VK_NULL_HANDLE;
+	};
+
+	struct PipelineObj {
+		VkPipeline       vkPipeline       = VK_NULL_HANDLE;
+		VkPipelineLayout vkPipelineLayout = VK_NULL_HANDLE;
+	};
+
 	static constexpr u32   MaxFrames                 = 2;
 	static constexpr u32   MaxBindlessSampledImages  = 64 * 1024;
 	static constexpr u32   MaxBindlessSamplers       = 8;
 	static constexpr u32   MaxBindlessDescriptorSets = 32;
 	static constexpr float MaxAnisotropy             = 8.0f;
 
-	Log*                     log                           = 0;
-	Mem*                     mem                           = 0;
-	TempMem*                 tempMem                       = 0;
-	VkAllocationCallbacks*   vkAllocationCallbacks         = 0;
-	VkInstance               vkInstance                    = VK_NULL_HANDLE;
-	VkDebugUtilsMessengerEXT vkDebugUtilsMessenger         = VK_NULL_HANDLE;
-	VkSurfaceKHR             vkSurface                     = VK_NULL_HANDLE;
-	Array<PhysicalDevice>    physicalDevices               = {};
-	PhysicalDevice*          physicalDevice                = 0;
-	VkDevice                 vkDevice                      = VK_NULL_HANDLE;
-	VkQueue                  vkQueue                       = VK_NULL_HANDLE;
-	VkSwapchainKHR           vkSwapchain                   = VK_NULL_HANDLE;
-	VkExtent2D               vkSwapchainExtent2D           = {};
-	Array<VkImage>           vkSwapchainImages             = {};
-	Array<VkImageView>       vkSwapchainImageViews         = {};
-	Array<VkSemaphore>       vkFrameAcquireImageSemaphores = {};
-	Array<VkSemaphore>       vkFrameRenderSemaphores       = {};
-	Array<VkFence>           vkFrameRenderFences           = {};
-	VkCommandPool            vkCommandPool                 = VK_NULL_HANDLE;
-	Array<VkCommandBuffer>   vkFrameCommandBuffers         = {};
-	VkDescriptorPool         vkDescriptorPool              = VK_NULL_HANDLE;
-	VkDescriptorSetLayout    vkBindlessDescriptorSetLayout = VK_NULL_HANDLE;
-	VkDescriptorSet          vkBindlessDescriptorSet       = VK_NULL_HANDLE;
-	Array<VkSampler>         vkBindlessSamplers            = {};
-	u64                      frameIndex                    = 0;
+	Log*                               log                           = 0;
+	Mem*                               mem                           = 0;
+	TempMem*                           tempMem                       = 0;
+	HandleArray<BufferObj,   Buffer>   bufferObjs                    = {};
+	HandleArray<ImageObj,    Image>    imageObjs                     = {};
+	HandleArray<ShaderObj,   Shader>   shaderObjs                    = {};
+	HandleArray<PipelineObj, Pipeline> pipelineObjs                  = {};
+	VkAllocationCallbacks*             vkAllocationCallbacks         = 0;
+	VkInstance                         vkInstance                    = VK_NULL_HANDLE;
+	VkDebugUtilsMessengerEXT           vkDebugUtilsMessenger         = VK_NULL_HANDLE;
+	VkSurfaceKHR                       vkSurface                     = VK_NULL_HANDLE;
+	Array<PhysicalDevice>              physicalDevices               = {};
+	PhysicalDevice*                    physicalDevice                = 0;
+	VkDevice                           vkDevice                      = VK_NULL_HANDLE;
+	VkQueue                            vkQueue                       = VK_NULL_HANDLE;
+	VkSwapchainKHR                     vkSwapchain                   = VK_NULL_HANDLE;
+	VkExtent2D                         vkSwapchainExtent2D           = {};
+	Array<VkImage>                     vkSwapchainImages             = {};
+	Array<VkImageView>                 vkSwapchainImageViews         = {};
+	Array<VkSemaphore>                 vkFrameAcquireImageSemaphores = {};
+	Array<VkSemaphore>                 vkFrameRenderSemaphores       = {};
+	Array<VkFence>                     vkFrameRenderFences           = {};
+	VkCommandPool                      vkCommandPool                 = VK_NULL_HANDLE;
+	Array<VkCommandBuffer>             vkFrameCommandBuffers         = {};
+	VkDescriptorPool                   vkDescriptorPool              = VK_NULL_HANDLE;
+	VkDescriptorSetLayout              vkBindlessDescriptorSetLayout = VK_NULL_HANDLE;
+	VkDescriptorSet                    vkBindlessDescriptorSet       = VK_NULL_HANDLE;
+	Array<VkSampler>                   vkBindlessSamplers            = {};
+	u64                                frameIndex                    = 0;
 
 	//-------------------------------------------------------------------------------------------------
 
@@ -577,24 +606,24 @@ struct ApiObj : Api {
 	//----------------------------------------------------------------------------------------------
 
 	Res<> CreateSyncObjects() {
-		vkAcquireImageSemaphores.Init(mem, MaxFrames);
-		vkRenderSemaphores.Init(mem, MaxFrames);
-		vkRenderFences.Init(mem, MaxFrames);
+		vkFrameAcquireImageSemaphores.Init(mem, MaxFrames);
+		vkFrameRenderSemaphores.Init(mem, MaxFrames);
+		vkFrameRenderFences.Init(mem, MaxFrames);
 		for (u64 i = 0; i < MaxFrames; i++) {
 			constexpr VkSemaphoreCreateInfo vkSemaphoreCreateInfo = {
 				.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
 				.pNext = 0,
 				.flags = 0,
 			};
-			CheckVk(vkCreateSemaphore(vkDevice, &vkSemaphoreCreateInfo, vkAllocationCallbacks, &vkAcquireImageSemaphores[i]));
-			CheckVk(vkCreateSemaphore(vkDevice, &vkSemaphoreCreateInfo, vkAllocationCallbacks, &vkRenderSemaphores[i]));
+			CheckVk(vkCreateSemaphore(vkDevice, &vkSemaphoreCreateInfo, vkAllocationCallbacks, &vkFrameAcquireImageSemaphores[i]));
+			CheckVk(vkCreateSemaphore(vkDevice, &vkSemaphoreCreateInfo, vkAllocationCallbacks, &vkFrameRenderSemaphores[i]));
 
 			constexpr VkFenceCreateInfo vkFenceCreateInfo  = {
 				.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
 				.pNext = 0,
 				.flags = VK_FENCE_CREATE_SIGNALED_BIT,
 			};
-			CheckVk(vkCreateFence(vkDevice, &vkFenceCreateInfo, vkAllocationCallbacks, &vkRenderFences[i]));
+			CheckVk(vkCreateFence(vkDevice, &vkFenceCreateInfo, vkAllocationCallbacks, &vkFrameRenderFences[i]));
 		}
 
 		return Ok();
@@ -611,8 +640,8 @@ struct ApiObj : Api {
 		};
 		CheckVk(vkCreateCommandPool(vkDevice, &vkCommandPoolCreateInfo, vkAllocationCallbacks, &vkCommandPool));
 
-		vkCommandBuffers.Init(mem);
-		vkCommandBuffers.Resize(MaxFrames);
+		vkFrameCommandBuffers.Init(mem);
+		vkFrameCommandBuffers.Resize(MaxFrames);
 		for (u64 i = 0; i < MaxFrames; i++) {
 			const VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo = {
 				.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -621,7 +650,7 @@ struct ApiObj : Api {
 				.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 				.commandBufferCount = 1,
 			};
-			CheckVk(vkAllocateCommandBuffers(vkDevice, &vkCommandBufferAllocateInfo, &vkCommandBuffers[i]));
+			CheckVk(vkAllocateCommandBuffers(vkDevice, &vkCommandBufferAllocateInfo, &vkFrameCommandBuffers[i]));
 		}
 
 		return Ok();
@@ -704,7 +733,7 @@ struct ApiObj : Api {
 			.pNext            = 0,
 			.dstSet           = vkBindlessDescriptorSet,
 			.dstBinding       = 1,
-			.dstArrayElement  = vkBindlessSamplers.len,
+			.dstArrayElement  = (u32)vkBindlessSamplers.len,
 			.descriptorCount  = 1,
 			.descriptorType   = VK_DESCRIPTOR_TYPE_SAMPLER,
 			.pImageInfo       = &vkComputeDescriptorImageInfo,
@@ -751,7 +780,88 @@ struct ApiObj : Api {
 	}
 
 	//----------------------------------------------------------------------------------------------
+	
+	Res<> Init(const ApiInit* init) override {
+		log     = init->log;
+		mem     = init->mem;
+		tempMem = init->tempMem;
 
+		if (Res<> r = Vk::LoadRootFns();                          !r) { return r; }
+		if (Res<> r = CreateInstance();                           !r) { return r; }
+		if (Res<> r = CreateSurface(init->windowPlatformData);    !r) { return r; }
+		if (Res<> r = CreateDevice();                             !r) { return r; }
+		if (Res<> r = CreateSwapchain(init->width, init->height); !r) { return r; }
+		if (Res<> r = CreateSyncObjects();                        !r) { return r; }
+		if (Res<> r = CreateCommandBuffers();                     !r) { return r; }
+		if (Res<> r = CreateBindlessDescriptors();                !r) { return r; }
+
+		return Ok();
+	}
+
+	//----------------------------------------------------------------------------------------------
+
+	#define DestroyVkHandle(handle, DestroyFn) \
+		if (handle != VK_NULL_HANDLE) { \
+			DestroyFn(vkDevice, handle, vkAllocationCallbacks); \
+			handle = VK_NULL_HANDLE; \
+		}
+
+	#define DestroyVkHandleArray(handleArray, DestroyFn) \
+		for (u64 i = 0; i < handleArray.len; i++) { \
+			if (handleArray[i] != VK_NULL_HANDLE) { \
+				DestroyFn(vkDevice, handleArray[i], vkAllocationCallbacks); \
+			} \
+		} \
+		handleArray.Shutdown();
+
+	void Shutdown() override {
+		if (vkDevice) {
+			vkDeviceWaitIdle(vkDevice);
+		}
+
+		DestroyVkHandleArray(vkFrameAcquireImageSemaphores, vkDestroySemaphore);
+		DestroyVkHandleArray(vkFrameRenderSemaphores, vkDestroySemaphore);
+		DestroyVkHandleArray(vkFrameRenderFences, vkDestroyFence);
+		vkFreeCommandBuffers(vkDevice, vkCommandPool, (u32)vkFrameCommandBuffers.len, vkFrameCommandBuffers.data);
+		vkFrameCommandBuffers.Shutdown();
+		DestroyVkHandle(vkCommandPool, vkDestroyCommandPool);
+		DestroyVkHandleArray(vkSwapchainImageViews, vkDestroyImageView);
+		vkSwapchainImages.Shutdown();
+		DestroyVkHandle(vkSwapchain, vkDestroySwapchainKHR);
+		if (vkDevice != VK_NULL_HANDLE) { vkDestroyDevice(vkDevice, vkAllocationCallbacks); vkDevice = VK_NULL_HANDLE; }
+		physicalDevices.Shutdown();
+		if (vkSurface != VK_NULL_HANDLE) { vkDestroySurfaceKHR(vkInstance, vkSurface, vkAllocationCallbacks); vkSurface = VK_NULL_HANDLE; }
+		if (vkDebugUtilsMessenger != VK_NULL_HANDLE) { vkDestroyDebugUtilsMessengerEXT(vkInstance, vkDebugUtilsMessenger, vkAllocationCallbacks); vkDebugUtilsMessenger = VK_NULL_HANDLE; }
+		if (vkInstance != VK_NULL_HANDLE) { vkDestroyInstance(vkInstance, vkAllocationCallbacks); vkInstance = VK_NULL_HANDLE; }
+	}
+
+	//----------------------------------------------------------------------------------------------
+
+	Res<> ResizeSwapchain(u32 width, u32 height) override {
+		vkDeviceWaitIdle(vkDevice);
+		DestroyVkHandleArray(vkSwapchainImageViews, vkDestroyImageView);
+		vkSwapchainImageViews.Shutdown();
+		vkSwapchainImages.Shutdown();
+		DestroyVkHandle(vkSwapchain, vkDestroySwapchainKHR);
+		
+		if (Res<> r = CreateSwapchain(width, height); !r) { return r; }
+
+		return Ok();
+	}
+
+	//----------------------------------------------------------------------------------------------
+
+	VkImageSubresourceRange MakeVkSubresourceRange(VkImageAspectFlags vkImageAspectFlags) {
+		return VkImageSubresourceRange {
+			.aspectMask      = vkImageAspectFlags,
+			.baseMipLevel    = 0,
+			.levelCount      = VK_REMAINING_MIP_LEVELS,
+			.baseArrayLayer  = 0,
+			.layerCount      = VK_REMAINING_ARRAY_LAYERS,
+		};
+	}
+
+	//----------------------------------------------------------------------------------------------
 
 	// TODO: buffer alignment
 	Res<DeviceMem> AllocateDeviceMem(VkMemoryRequirements vkMemoryRequirements, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkMemoryAllocateFlags vkMemoryAllocateFlags) {
@@ -798,97 +908,6 @@ struct ApiObj : Api {
 
 	//-------------------------------------------------------------------------------------------------
 
-	Res<DeviceMem> AllocateImage(VkImage vkImage, VkMemoryPropertyFlags vkMemoryPropertyFlags) {
-		VkMemoryRequirements vkMemoryRequirements = {};
-		vkGetImageMemoryRequirements(vkDevice, vkImage, &vkMemoryRequirements);
-
-		DeviceMem deviceMem = {};
-		if (Res<> r = AllocateDeviceMem(vkMemoryRequirements, vkMemoryPropertyFlags, 0).To(deviceMem); !r) {
-			return r.err;
-		}
-		
-		if (const VkResult r = vkBindImageMemory(vkDevice, vkImage, deviceMem.vkDeviceMemory, 0); r != VK_SUCCESS) {
-			FreeDeviceMem(deviceMem);
-			return MakeVkErr(r, vkBindImageMemory);
-		}
-	
-		return deviceMem;
-	}
-
-	//-------------------------------------------------------------------------------------------------
-
-	Res<Image> CreateImage(u32 width, u32 height, VkFormat vkFormat, VkImageUsageFlags vkImageUsageFlags) {
-		const VkImageCreateInfo vkImageCreateInfo = {
-			.sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-			.pNext                 = 0,
-			.flags                 = 0,
-			.imageType             = VK_IMAGE_TYPE_2D,
-			.format                = vkFormat,
-			.extent                = { .width = width, .height = height, .depth = 1 },
-			.mipLevels             = 1,
-			.arrayLayers           = 1,
-			.samples               = VK_SAMPLE_COUNT_1_BIT,
-			.tiling                = VK_IMAGE_TILING_OPTIMAL,
-			.usage                 = vkImageUsageFlags,
-			.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-			.queueFamilyIndexCount = 0,
-			.pQueueFamilyIndices   = 0,
-			.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED,
-		};
-		Image image;
-		CheckVk(vkCreateImage(vkDevice, &vkImageCreateInfo, vkAllocationCallbacks, &image.vkImage));
-		image.width    = width;
-		image.height   = height;
-		image.vkFormat = vkFormat;
-
-		if (Res<> r = AllocateImageDeviceMem(image.vkImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT).To(image.deviceMem); !r) {
-			DestroyImage(image);
-			return r.err;
-		}
-
-		const VkImageViewCreateInfo vkImageViewCreateInfo = {
-			.sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			.pNext              = 0,
-			.flags              = 0,
-			.image              = image.vkImage,
-			.viewType           = VK_IMAGE_VIEW_TYPE_2D,
-			.format             = image.vkFormat,
-			.components         = {
-				.r              = VK_COMPONENT_SWIZZLE_IDENTITY,
-				.g              = VK_COMPONENT_SWIZZLE_IDENTITY,
-				.b              = VK_COMPONENT_SWIZZLE_IDENTITY,
-				.a              = VK_COMPONENT_SWIZZLE_IDENTITY,
-			},
-			.subresourceRange   = {
-				.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-				.baseMipLevel   = 0,
-				.levelCount     = 1,
-				.baseArrayLayer = 0,
-				.layerCount     = 1,
-			},
-		};
-		if (VkResult r = vkCreateImageView(vkDevice, &vkImageViewCreateInfo, vkAllocationCallbacks, &image.vkImageView); r != VK_SUCCESS) {
-			DestroyImage(image);
-			return MakeVkErr(r, vkCreateImageView);
-		}
-
-		return image;
-	}
-
-	//-------------------------------------------------------------------------------------------------
-
-	void DestroyImage(Image image) {
-		if (image.vkImageView) {
-			vkDestroyImageView(vkDevice, image.vkImageView, vkAllocationCallbacks);
-		}
-		FreeDeviceMem(image.deviceMem);
-		if (image.vkImage) {
-			vkDestroyImage(vkDevice, image.vkImage, vkAllocationCallbacks);
-		}
-	}
-
-	//-------------------------------------------------------------------------------------------------
-
 	void TransitionImage(
 		VkCommandBuffer       vkCommandBuffer,
 		VkImage               vkImage,
@@ -929,161 +948,342 @@ struct ApiObj : Api {
 
 	//----------------------------------------------------------------------------------------------
 
-	Res<> UploadImage(Image image, const void* data, u64 size) {
-		Buffer stagingBuffer;
-		if (Res<> r = CreateBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT).To(stagingBuffer); !r) {
-			return r;
+	Res<Buffer> CreateBuffer(u64 size, BufferUsage usage) override {
+		Buffer buffer = {};
+
+		VkBufferUsageFlags    vkBufferUsageFlags    = 0;
+		VkMemoryPropertyFlags vkMemoryPropertyFlags = 0;
+		VkMemoryAllocateFlags vkMemoryAllocateFlags = 0;
+		switch (usage) {
+			case BufferUsage::Uniform: vkBufferUsageFlags |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT; break;
+			case BufferUsage::Vertex:  vkBufferUsageFlags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;  break;
+			case BufferUsage::Index:   vkBufferUsageFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;   break;
+			case BufferUsage::Storage: vkBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break;
+			case BufferUsage::Staging: vkBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break;
+		};
+		if (usage != BufferUsage::Staging) {
+			vkBufferUsageFlags    |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+			vkMemoryPropertyFlags |= VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+			vkMemoryAllocateFlags |= VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+		} else {
+			vkMemoryPropertyFlags |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 		}
-		Defer { DestroyBuffer(stagingBuffer); };
 
-		u8* ptr = 0;
-		CheckVk(vkMapMemory(vkDevice, stagingBuffer.deviceMem.vkDeviceMemory, stagingBuffer.deviceMem.offset, size, 0, (void**)&ptr));
-		MemCpy(ptr + stagingBuffer.deviceMem.offset, data, size);
-		vkUnmapMemory(vkDevice, stagingBuffer.deviceMem.vkDeviceMemory);
-
-		constexpr VkCommandBufferBeginInfo vkCommandBufferBeginInfo = {
-			.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-			.pNext            = 0,
-			.flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-			.pInheritanceInfo = 0,
+		const VkBufferCreateInfo vkBufferCreateInfo = {
+			.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+			.pNext                 = 0,
+			.flags                 = 0,
+			.size                  = size,
+			.usage                 = vkBufferUsageFlags,
+			.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+			.queueFamilyIndexCount = 1,
+			.pQueueFamilyIndices   = &physicalDevice->queueFamily,
 		};
-		CheckVk(vkBeginCommandBuffer(vkResourceCommandBuffer, &vkCommandBufferBeginInfo));
+		VkBuffer vkBuffer = VK_NULL_HANDLE;
+		CheckVk(vkCreateBuffer(vkDevice, &vkBufferCreateInfo, vkAllocationCallbacks, &vkBuffer));
 
-		TransitionImage(vkResourceCommandBuffer, image.vkImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		VkMemoryRequirements vkMemoryRequirements = {};
+		vkGetBufferMemoryRequirements(vkDevice, vkBuffer, &vkMemoryRequirements);
 
-		const VkBufferImageCopy2 vkBufferImageCopy2 = {
-			.sType              = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2,
-			.pNext              = 0,
-			.bufferOffset       = 0,
-			.bufferRowLength    = 0,
-			.bufferImageHeight  = 0,
-			.imageSubresource   = {
-				.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-				.mipLevel       = 0,
-				.baseArrayLayer = 0,
-				.layerCount     = 1,
-			},
-			.imageOffset        = { 0, 0, 0 },
-			.imageExtent        = { image.width, image.height, 1 },
-		};
-		const VkCopyBufferToImageInfo2 vkCopyBufferToImageInfo2 = {
-			.sType          = VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2,
-			.pNext          = 0,
-			.srcBuffer      = stagingBuffer.vkBuffer,
-			.dstImage       = image.vkImage,
-			.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			.regionCount    = 1,
-			.pRegions       = &vkBufferImageCopy2,
-		};
-		vkCmdCopyBufferToImage2(vkResourceCommandBuffer, &vkCopyBufferToImageInfo2);
+		DeviceMem deviceMem = {};
+		if (Res<> r = AllocateDeviceMem(vkMemoryRequirements, vkMemoryPropertyFlags, vkMemoryAllocateFlags).To(deviceMem); !r) {
+			vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
+			return r.err;
+		}
 
-		TransitionImage(vkResourceCommandBuffer, image.vkImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		if (const VkResult r = vkBindBufferMemory(vkDevice, vkBuffer, deviceMem.vkDeviceMemory, 0); r != VK_SUCCESS) {
+			vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
+			FreeDeviceMem(deviceMem);
+			return MakeVkErr(r, vkBindBufferMemory);
+		}
 
-		vkEndCommandBuffer(vkResourceCommandBuffer);
+		u64 addr    = 0;
+		if (vkBufferUsageFlags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+			const VkBufferDeviceAddressInfo vkBufferDeviceAddressInfo = {
+				.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+				.pNext = 0,
+				.buffer = vkBuffer,
+			};
+			addr    = vkGetBufferDeviceAddress(vkDevice, &vkBufferDeviceAddressInfo);
+		}
 
-		const VkCommandBufferSubmitInfo vkCommandBufferSubmitInfo = {
-			.sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-			.pNext         = 0,
-			.commandBuffer = vkResourceCommandBuffer,
-			.deviceMask    = 0,
-		};
-		const VkSubmitInfo2 vkSubmitInfo2 = {
-			.sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-			.pNext                    = 0,
-			.flags                    = 0,
-			.waitSemaphoreInfoCount   = 0,
-			.pWaitSemaphoreInfos      = 0,
-			.commandBufferInfoCount   = 1,
-			.pCommandBufferInfos      = &vkCommandBufferSubmitInfo,
-			.signalSemaphoreInfoCount = 0,
-			.pSignalSemaphoreInfos    = 0,
-		};
-		CheckVk(vkResetFences(vkDevice, 1, &vkResourceFence));
-		CheckVk(vkQueueSubmit2(vkQueue, 1, &vkSubmitInfo2, vkResourceFence));
-		CheckVk(vkWaitForFences(vkDevice, 1, &vkResourceFence, VK_TRUE, U64Max));
+		BufferObj* const bufferObj = bufferObjs.Alloc();
+		bufferObj->vkBuffer  = vkBuffer;
+		bufferObj->deviceMem = deviceMem;
+		bufferObj->addr      = addr;
+
+		return bufferObjs.GetHandle(bufferObj);
+	}
+
+	//----------------------------------------------------------------------------------------------
 	
-		return Ok();
+	void DestroyBuffer(Buffer buffer) override {
+		if (buffer.handle) {
+			BufferObj* const bufferObj = bufferObjs.Get(buffer);
+			FreeDeviceMem(bufferObj->deviceMem);
+			if (bufferObj->vkBuffer != VK_NULL_HANDLE) {
+				vkDestroyBuffer(vkDevice, bufferObj->vkBuffer, vkAllocationCallbacks);
+			}
+			MemSet(bufferObj, 0, sizeof(*bufferObj));
+			bufferObjs.Free(bufferObj);
+		}
+	}
+
+	//----------------------------------------------------------------------------------------------
+
+	u64 GetBufferAddr(Buffer buffer) {
+		return bufferObjs.Get(buffer)->addr;
+	}
+
+	//----------------------------------------------------------------------------------------------
+
+	Res<void*> MapBuffer(Buffer buffer) {
+		BufferObj* const bufferObj = bufferObjs.Get(buffer);
+		u8* ptr = 0;
+		CheckVk(vkMapMemory(vkDevice, bufferObj->deviceMem.vkDeviceMemory, 0, bufferObj->deviceMem.size, 0, (void**)&ptr));
+
+		return ptr;
+	}
+
+	//----------------------------------------------------------------------------------------------
+
+	void UnmapBuffer(Buffer buffer) override {
+		BufferObj* const bufferObj = bufferObjs.Get(buffer);
+		vkUnmapMemory(vkDevice, bufferObj->deviceMem.vkDeviceMemory);
 	}
 
 	//-------------------------------------------------------------------------------------------------
 
-	Res<> Init(const ApiInit* init) override {
-		log     = init->log;
-		mem     = init->mem;
-		tempMem = init->tempMem;
+	//-------------------------------------------------------------------------------------------------
+	//-------------------------------------------------------------------------------------------------
+	//-------------------------------------------------------------------------------------------------
+	//-------------------------------------------------------------------------------------------------
 
-		if (Res<> r = Vk::LoadRootFns();                          !r) { return r; }
-		if (Res<> r = CreateInstance();                           !r) { return r; }
-		if (Res<> r = CreateSurface(init->windowPlatformData);    !r) { return r; }
-		if (Res<> r = CreateDevice();                             !r) { return r; }
-		if (Res<> r = CreateSwapchain(init->width, init->height); !r) { return r; }
-		if (Res<> r = CreateSyncObjects();                        !r) { return r; }
-		if (Res<> r = CreateCommandBuffers();                     !r) { return r; }
-		if (Res<> r = CreateBindlessDescriptors();                !r) { return r; }
 
-		return Ok();
-	}
+	Res<Shader> CreateShader(const void* data, u64 len) override {
+		const VkShaderModuleCreateInfo vkShaderModuleCreateInfo = {
+			.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+			.pNext    = 0,
+			.flags    = 0,
+			.codeSize = (u32)len,
+			.pCode    = (const u32*)data,
 
-	//----------------------------------------------------------------------------------------------
-
-	#define DestroyVkHandle(handle, DestroyFn) \
-		if (handle != VK_NULL_HANDLE) { \
-			DestroyFn(vkDevice, handle, vkAllocationCallbacks); \
-			handle = VK_NULL_HANDLE; \
-		}
-
-	#define DestroyVkHandleArray(handleArray, DestroyFn) \
-		for (u64 i = 0; i < handleArray.len; i++) { \
-			if (handleArray[i] != VK_NULL_HANDLE) { \
-				DestroyFn(vkDevice, handleArray[i], vkAllocationCallbacks); \
-			} \
-		} \
-		handleArray.Free();
-
-	#define FreeVkHandleArray(handleArray, FreeFn) \
-		for (u64 i = 0; i < handleArray.len; i++) { \
-			if (handleArray[i] != VK_NULL_HANDLE) { \
-				FreeFn(vkDevice, 1, &handleArray[i], vkAllocationCallbacks); \
-			} \
-		} \
-		handleArray.Free();
-
-	void Shutdown() override {
-		if (vkDevice) {
-			vkDeviceWaitIdle(vkDevice);
-		}
-
-		DestroyVkHandleArray(vkAcquireImageSemaphores, vkDestroySemaphore);
-		DestroyVkHandleArray(vkRenderSemaphores, vkDestroySemaphore);
-		DestroyVkHandleArray(vkRenderFences, vkDestroyFence);
-		vkFreeCommandBuffers(vkDevice, vkCommandPool, (u32)vkCommandBuffers.len, vkCommandBuffers.data); vkCommandBuffers.Free();
-		DestroyVkHandle(vkCommandPool, vkDestroyCommandPool);
-		DestroyVkHandleArray(vkSwapchainImageViews, vkDestroyImageView);
-		vkSwapchainImages.Free();
-		DestroyVkHandle(vkSwapchain, vkDestroySwapchainKHR);
-		if (vkDevice != VK_NULL_HANDLE) { vkDestroyDevice(vkDevice, vkAllocationCallbacks); vkDevice = VK_NULL_HANDLE; }
-		physicalDevices.Free();
-		if (vkSurface != VK_NULL_HANDLE) { vkDestroySurfaceKHR(vkInstance, vkSurface, vkAllocationCallbacks); vkSurface = VK_NULL_HANDLE; }
-		if (vkDebugUtilsMessenger != VK_NULL_HANDLE) { vkDestroyDebugUtilsMessengerEXT(vkInstance, vkDebugUtilsMessenger, vkAllocationCallbacks); vkDebugUtilsMessenger = VK_NULL_HANDLE; }
-		if (vkInstance != VK_NULL_HANDLE) { vkDestroyInstance(vkInstance, vkAllocationCallbacks); vkInstance = VK_NULL_HANDLE; }
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	VkImageSubresourceRange MakeVkSubresourceRange(VkImageAspectFlags vkImageAspectFlags) {
-		return VkImageSubresourceRange {
-			.aspectMask      = vkImageAspectFlags,
-			.baseMipLevel    = 0,
-			.levelCount      = VK_REMAINING_MIP_LEVELS,
-			.baseArrayLayer  = 0,
-			.layerCount      = VK_REMAINING_ARRAY_LAYERS,
 		};
+		VkShaderModule vkShaderModule = VK_NULL_HANDLE;
+		CheckVk(vkCreateShaderModule(vkDevice, &vkShaderModuleCreateInfo, vkAllocationCallbacks, &vkShaderModule));
+
+		ShaderObj* const shaderObj = shaderObjs.Alloc();
+		shaderObj->vkShaderModule = vkShaderModule;
+
+		return shaderObjs.GetHandle(shaderObj);
+	}
+
+	//-------------------------------------------------------------------------------------------------
+
+	void DestroyShader(Shader shader) override {
+		if (shader.handle) {
+			ShaderObj* const shaderObj = shaderObjs.Get(shader);
+			vkDestroyShaderModule(vkDevice, shaderObj->vkShaderModule, vkAllocationCallbacks);
+			shaderObj->vkShaderModule = VK_NULL_HANDLE;
+			MemSet(shaderObj, 0, sizeof(*shaderObj));
+			shaderObjs.Free(shaderObj);
+		}
 	}
 
 	//----------------------------------------------------------------------------------------------
+
+	Res<Pipeline> CreatePipeline(Shader vertexShader, Shader fragmentShader, u32 pushConstantsSize) override {
+		const VkPushConstantRange vkPushConstantRange = {
+			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+			.offset     = 0,
+			.size       = pushConstantsSize,
+		};
+		const VkPipelineLayoutCreateInfo vkPipelineLayoutCreateInfo = {
+			.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+			.pNext                  = 0,
+			.flags                  = 0,
+			.setLayoutCount         = 1,
+			.pSetLayouts            = &vkBindlessDescriptorSetLayout,
+			.pushConstantRangeCount = 1,
+			.pPushConstantRanges    = &vkPushConstantRange,
+		};
+		VkPipelineLayout vkPipelineLayout;
+		CheckVk(vkCreatePipelineLayout(vkDevice, &vkPipelineLayoutCreateInfo, vkAllocationCallbacks, &vkPipelineLayout));
+
+		ShaderObj* const vertexShaderObj   = shaderObjs.Get(vertexShader);
+		ShaderObj* const fragmentShaderObj = shaderObjs.Get(fragmentShader);
+		const VkPipelineShaderStageCreateInfo vkPipelineShaderStageCreateInfos[2] = {
+			{
+				.sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+				.pNext               = 0,
+				.flags               = 0,
+				.stage               = VK_SHADER_STAGE_VERTEX_BIT,
+				.module              = vertexShaderObj->vkShaderModule,
+				.pName               = "main",
+				.pSpecializationInfo = 0,
+			},
+			{
+				.sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+				.pNext               = 0,
+				.flags               = 0,
+				.stage               = VK_SHADER_STAGE_FRAGMENT_BIT,
+				.module              = fragmentShaderObj->vkShaderModule,
+				.pName               = "main",
+				.pSpecializationInfo = 0,
+			},
+		};
+		const VkPipelineVertexInputStateCreateInfo vkPipelineVertexInputStateCreateInfo = {
+			.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+			.pNext                           = 0,
+			.flags                           = 0,
+			.vertexBindingDescriptionCount   = 0,
+			.pVertexBindingDescriptions      = 0,
+			.vertexAttributeDescriptionCount = 0,
+			.pVertexAttributeDescriptions    = 0,
+
+		};
+		constexpr VkPipelineInputAssemblyStateCreateInfo vkPipelineInputAssemblyStateCreateInfo = {
+			.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+			.pNext                  = 0,
+			.flags                  = 0,
+			.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+			.primitiveRestartEnable = VK_FALSE,
+		};
+		constexpr VkPipelineTessellationStateCreateInfo vkPipelineTessellationStateCreateInfo = {
+			.sType              = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO,
+			.pNext              = 0,
+			.flags              = 0,
+			.patchControlPoints = 0,
+		};
+		const VkPipelineViewportStateCreateInfo vkPipelineViewportStateCreateInfo = {
+			.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+			.pNext         = 0,
+			.flags         = 0,
+			.viewportCount = 0,
+			.pViewports    = 0,
+			.scissorCount  = 0,
+			.pScissors     = 0,
+
+		};
+		constexpr VkPipelineRasterizationStateCreateInfo vkPipelineRasterizationStateCreateInfo = {
+			.sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+			.pNext                   = 0,
+			.flags                   = 0,
+			.depthClampEnable        = VK_FALSE,
+			.rasterizerDiscardEnable = VK_FALSE,
+			.polygonMode             = VK_POLYGON_MODE_FILL,
+			.cullMode                = VK_CULL_MODE_NONE,
+			.frontFace               = VK_FRONT_FACE_CLOCKWISE,
+			.depthBiasEnable         = VK_FALSE,
+			.depthBiasConstantFactor = 0.0f,
+			.depthBiasClamp          = 0.0f,
+			.depthBiasSlopeFactor    = 0.0f,
+			.lineWidth               = 1.0f,
+		};
+		constexpr VkPipelineMultisampleStateCreateInfo vkPipelineMultisampleStateCreateInfo = {
+			.sType                 = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+			.pNext                 = 0,
+			.flags                 = 0,
+			.rasterizationSamples  = VK_SAMPLE_COUNT_1_BIT,
+			.sampleShadingEnable   = VK_FALSE,
+			.minSampleShading      = 1.0F,
+			.pSampleMask           = 0,
+			.alphaToCoverageEnable = VK_FALSE,
+			.alphaToOneEnable      = VK_FALSE,
+		};
+		constexpr VkStencilOpState vkNoOpStencilOpState = {
+			.failOp      = VK_STENCIL_OP_KEEP,
+			.passOp      = VK_STENCIL_OP_KEEP,
+			.depthFailOp = VK_STENCIL_OP_KEEP,
+			.compareOp   = VK_COMPARE_OP_NEVER,
+			.compareMask = 0,
+			.writeMask   = 0,
+			.reference   = 0,
+		};
+		constexpr VkPipelineDepthStencilStateCreateInfo vkPipelineDepthStencilStateCreateInfo = {
+			.sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+			.pNext                 = 0,
+			.flags                 = 0,
+			.depthTestEnable       = VK_FALSE,
+			.depthWriteEnable      = VK_FALSE,
+			.depthCompareOp        = VK_COMPARE_OP_NEVER,
+			.depthBoundsTestEnable = VK_FALSE,
+			.stencilTestEnable     = VK_FALSE,
+			.front                 = vkNoOpStencilOpState,
+			.back                  = vkNoOpStencilOpState,
+			.minDepthBounds        = 0.0f,
+			.maxDepthBounds        = 1.0f,
+		};
+		constexpr VkPipelineColorBlendAttachmentState vkPipelineColorBlendAttachmentState = {
+			.blendEnable         = VK_FALSE,
+			.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO,
+			.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
+			.colorBlendOp        = VK_BLEND_OP_ADD,
+			.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+			.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+			.alphaBlendOp        = VK_BLEND_OP_ADD,
+			.colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+		};
+		constexpr VkPipelineColorBlendStateCreateInfo vkPipelineColorBlendStateCreateInfo = {
+			.sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+			.pNext           = 0,
+			.flags           = 0,
+			.logicOpEnable   = VK_FALSE,
+			.logicOp         = VK_LOGIC_OP_CLEAR,
+			.attachmentCount = 0,
+			.pAttachments    = 0,
+			.blendConstants  = 0.0f,
+		};
+		constexpr VkDynamicState vkDynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+		const VkPipelineDynamicStateCreateInfo vkPipelineDynamicStateCreateInfo = {
+			.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+			.pNext             = 0,
+			.flags             = 0,
+			.dynamicStateCount = (u32)LenOf(vkDynamicStates),
+			.pDynamicStates    = vkDynamicStates,
+		};
+		const VkGraphicsPipelineCreateInfo vkGraphicsPipelineCreateInfo = {
+			.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+			.pNext               = 0,
+			.flags               = 0,
+			.stageCount          = 2,
+			.pStages             = vkPipelineShaderStageCreateInfos,
+			.pVertexInputState   = &vkPipelineVertexInputStateCreateInfo,
+			.pInputAssemblyState = &vkPipelineInputAssemblyStateCreateInfo,
+			.pTessellationState  = &vkPipelineTessellationStateCreateInfo,
+			.pViewportState      = &vkPipelineViewportStateCreateInfo,
+			.pRasterizationState = &vkPipelineRasterizationStateCreateInfo,
+			.pMultisampleState   = &vkPipelineMultisampleStateCreateInfo,
+			.pDepthStencilState  = &vkPipelineDepthStencilStateCreateInfo,
+			.pColorBlendState    = &vkPipelineColorBlendStateCreateInfo,
+			.pDynamicState       = &vkPipelineDynamicStateCreateInfo,
+			.layout              = vkPipelineLayout,
+			.renderPass          = VK_NULL_HANDLE,
+			.subpass             = 0,
+			.basePipelineHandle  = VK_NULL_HANDLE,
+			.basePipelineIndex   = 0,
+		};
+		VkPipeline vkPipeline = VK_NULL_HANDLE;
+		if (const VkResult r = vkCreateGraphicsPipelines(vkDevice, 0, 1, &vkGraphicsPipelineCreateInfo, vkAllocationCallbacks, &vkPipeline); r != VK_SUCCESS) {
+			vkDestroyPipelineLayout(vkDevice, vkPipelineLayout, vkAllocationCallbacks);
+			return MakeVkErr(r, vkCreateGraphicsPipelines);
+		}
+
+		PipelineObj* const pipelineObj = pipelineObjs.Alloc();
+		pipelineObj->vkPipelineLayout = vkPipelineLayout;
+		pipelineObj->vkPipeline       = vkPipeline;
+
+		return pipelineObjs.GetHandle(pipelineObj);
+	}
+
+	void DestroyPipeline(Pipeline pipeline) override {
+	}
+
+	//-------------------------------------------------------------------------------------------------
+
 	Res<> BeginFrame() override {
-		CheckVk(vkWaitForFences(vkDevice, 1, &vkFrameFences[frameIndex], VK_TRUE, U64Max));
-		CheckVk(vkResetFences(vkDevice, 1, &vkFrameFences[frameIndex]));
+		CheckVk(vkWaitForFences(vkDevice, 1, &vkFrameRenderFences[frameIndex], VK_TRUE, U64Max));
+		CheckVk(vkResetFences(vkDevice, 1, &vkFrameRenderFences[frameIndex]));
 
 		constexpr VkCommandBufferBeginInfo vkCommandBufferBeginInfo = {
 			.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -1281,386 +1481,14 @@ struct ApiObj : Api {
 	*/
 	//----------------------------------------------------------------------------------------------
 
-	Res<> EndRendering() override {
+	Res<> CmdEndRendering() override {
 	}
-
-	//----------------------------------------------------------------------------------------------
-
-	Res<> ResizeSwapchain(u32 width, u32 height) override {
-		vkDeviceWaitIdle(vkDevice);
-
-		DestroyImage(drawImage); drawImage = {};
-		DestroyVkHandleArray(vkSwapchainImageViews, vkDestroyImageView);vkSwapchainImageViews.Free();
-		vkSwapchainImages.Free();
-		DestroyVkHandle(vkSwapchain, vkDestroySwapchainKHR);
-		
-		if (Res<> r = CreateSwapchain(width, height); !r) { return r; }
-		if (Res<> r = CreateDrawImage(width, height); !r) { return r; }
-
-		return Ok();
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	
-	struct BufferObj {
-		VkBuffer  vkBuffer  = VK_NULL_HANDLE;
-		DeviceMem deviceMem = {};
-		u64       addr      = 0;
-	};
-
-	ResourceArray<BufferObj> bufferObjs = {};
-
-	Res<Buffer> CreateBuffer(u64 size, BufferUsage usage) override {
-		Buffer buffer = {};
-
-		VkBufferUsageFlags    vkBufferUsageFlags    = 0;
-		VkMemoryPropertyFlags vkMemoryPropertyFlags = 0;
-		VkMemoryAllocateFlags vkMemoryAllocateFlags = 0;
-		switch (usage) {
-			case BufferUsage::Uniform: vkBufferUsageFlags |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT; break;
-			case BufferUsage::Vertex:  vkBufferUsageFlags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;  break;
-			case BufferUsage::Index:   vkBufferUsageFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;   break;
-			case BufferUsage::Storage: vkBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break;
-			case BufferUsage::Staging: vkBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break;
-		};
-		if (usage != BufferUsage::Staging) {
-			vkBufferUsageFlags    |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-			vkMemoryPropertyFlags |= VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-			vkMemoryAllocateFlags |= VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
-		} else {
-			vkMemoryPropertyFlags |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-		}
-
-		const VkBufferCreateInfo vkBufferCreateInfo = {
-			.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-			.pNext                 = 0,
-			.flags                 = 0,
-			.size                  = size,
-			.usage                 = vkBufferUsageFlags,
-			.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-			.queueFamilyIndexCount = 1,
-			.pQueueFamilyIndices   = &physicalDevice->queueFamily,
-		};
-		VkBuffer vkBuffer = VK_NULL_HANDLE;
-		CheckVk(vkCreateBuffer(vkDevice, &vkBufferCreateInfo, vkAllocationCallbacks, &vkBuffer));
-
-		VkMemoryRequirements vkMemoryRequirements = {};
-		vkGetBufferMemoryRequirements(vkDevice, vkBuffer, &vkMemoryRequirements);
-
-		DeviceMem deviceMem = {};
-		if (Res<> r = AllocateDeviceMem(vkMemoryRequirements, vkMemoryPropertyFlags, vkMemoryAllocateFlags).To(deviceMem); !r) {
-			vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
-			return r.err;
-		}
-
-		if (const VkResult r = vkBindBufferMemory(vkDevice, vkBuffer, deviceMem.vkDeviceMemory, 0); r != VK_SUCCESS) {
-			vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
-			FreeDeviceMem(deviceMem);
-			return MakeVkErr(r, vkBindBufferMemory);
-		}
-
-		u64 addr    = 0;
-		if (vkBufferUsageFlags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
-			const VkBufferDeviceAddressInfo vkBufferDeviceAddressInfo = {
-				.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-				.pNext = 0,
-				.buffer = vkBuffer,
-			};
-			addr    = vkGetBufferDeviceAddress(vkDevice, &vkBufferDeviceAddressInfo);
-		}
-
-		BufferObj* const bufferObj = bufferObjs.Alloc();
-		bufferObj->vkBuffer  = vkBuffer;
-		bufferObj->deviceMem = deviceMem;
-		bufferObj->addr      = addr;
-
-		return Buffer { .handle = (u64)(bufferObj - bufferObjs.arr.data) };
-	}
-	
-	void DestroyBuffer(Buffer buffer) override {
-		if (buffer.handle) {
-			Assert(buffer.handle < bufferObjs.arr.len);
-			BufferObj* const bufferObj = &bufferObjs[buffer.handle];
-			FreeDeviceMem(bufferObj->deviceMem);
-			if (bufferObj->vkBuffer != VK_NULL_HANDLE) {
-				vkDestroyBuffer(vkDevice, bufferObj->vkBuffer, vkAllocationCallbacks);
-			}
-		}
-	}
-
-	u64 GetBufferAddr(Buffer buffer) {
-		Assert(buffer.handle && buffer.handle < bufferObjs.arr.len);
-		BufferObj* const bufferObj = &bufferObjs[buffer.handle];
-		Assert(bufferObj->vkBuffer != VK_NULL_HANDLE);
-		Assert(bufferObj->addr);
-		return bufferObj->addr;
-	}
-
-	Res<void*> MapBuffer(Buffer buffer) {
-		Assert(buffer.handle && buffer.handle < bufferObjs.arr.len);
-		BufferObj* const bufferObj = &bufferObjs[buffer.handle];
-		Assert(bufferObj->vkBuffer != VK_NULL_HANDLE);
-
-		u8* ptr = 0;
-		CheckVk(vkMapMemory(vkDevice, bufferObj->deviceMem.vkDeviceMemory, 0, bufferObj->deviceMem.size, 0, (void**)&ptr));
-
-		return ptr;
-	}
-
-	void UnmapBuffer(Buffer buffer) override {
-		Assert(buffer.handle && buffer.handle < bufferObjs.arr.len);
-		BufferObj* const bufferObj = &bufferObjs[buffer.handle];
-		Assert(bufferObj->vkBuffer != VK_NULL_HANDLE);
-		vkUnmapMemory(vkDevice, bufferObj->deviceMem.vkDeviceMemory);
-	}
-
-	//-------------------------------------------------------------------------------------------------
-
-	struct ImageObj {
-		VkImage     vkImage     = VK_NULL_HANDLE;
-		VkImageView vkImageView = VK_NULL_HANDLE;
-		u32         width       = 0;
-		u32         height      = 0;
-		VkFormat    vkFormat    = VK_FORMAT_UNDEFINED;
-		DeviceMem   deviceMem   = {};
-	};
-
-	//-------------------------------------------------------------------------------------------------
-
-	struct ShaderObj {
-		VkShaderModule vkShaderModule = VK_NULL_HANDLE;
-	};
-
-	ResourceArray<ShaderObj> shaderObjs;
-
-	Res<Shader> CreateShader(const void* data, u64 len) override {
-		ShaderObj* const shaderObj = shaderObjs.Alloc();
-
-		const VkShaderModuleCreateInfo vkShaderModuleCreateInfo = {
-			.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-			.pNext    = 0,
-			.flags    = 0,
-			.codeSize = (u32)len,
-			.pCode    = (const u32*)data,
-
-		};
-		CheckVk(vkCreateShaderModule(vkDevice, &vkShaderModuleCreateInfo, vkAllocationCallbacks, &shaderObj->vkShaderModule));
-
-		return Shader { .handle = (u64)(shaderObj - shaderObjs.arr.data) };
-	}
-
-	void DestroyShader(Shader shader) override {
-		if (shader.handle) {
-			ShaderObj* const shaderObj = &shaderObjs[shader.handle];
-			vkDestroyShaderModule(vkDevice, shaderObj->vkShaderModule, vkAllocationCallbacks);
-			shaderObj->vkShaderModule = VK_NULL_HANDLE;
-			shaderObjs.Free(shaderObj);
-		}
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	struct PipelineObj {
-		VkPipeline       vkPipeline       = VK_NULL_HANDLE;
-		VkPipelineLayout vkPipelineLayout = VK_NULL_HANDLE;
-	};
-
-	ResourceArray<PipelineObj> pipelineObjs;
-
-	Res<Pipeline> CreatePipeline(Shader vertexShader, Shader fragmentShader, u32 pushConstantsSize) override {
-		const VkPushConstantRange vkPushConstantRange = {
-			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-			.offset     = 0,
-			.size       = pushConstantsSize,
-		};
-		const VkPipelineLayoutCreateInfo vkPipelineLayoutCreateInfo = {
-			.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-			.pNext                  = 0,
-			.flags                  = 0,
-			.setLayoutCount         = 1,
-			.pSetLayouts            = &vkBindlessDescriptorSetLayout,
-			.pushConstantRangeCount = 1,
-			.pPushConstantRanges    = &vkPushConstantRange,
-		};
-		VkPipelineLayout vkPipelineLayout;
-		CheckVk(vkCreatePipelineLayout(vkDevice, &vkPipelineLayoutCreateInfo, vkAllocationCallbacks, &vkPipelineLayout));
-
-		ShaderObj* const vertexShaderObj   = &shaderObjs[vertexShader.handle];
-		ShaderObj* const fragmentShaderObj = &shaderObjs[fragmentShader.handle];
-		const VkPipelineShaderStageCreateInfo vkPipelineShaderStageCreateInfos[2] = {
-			{
-				.sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-				.pNext               = 0,
-				.flags               = 0,
-				.stage               = VK_SHADER_STAGE_VERTEX_BIT,
-				.module              = vertexShaderObj->vkShaderModule,
-				.pName               = "main",
-				.pSpecializationInfo = 0,
-			},
-			{
-				.sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-				.pNext               = 0,
-				.flags               = 0,
-				.stage               = VK_SHADER_STAGE_FRAGMENT_BIT,
-				.module              = fragmentShaderObj->vkShaderModule,
-				.pName               = "main",
-				.pSpecializationInfo = 0,
-			},
-		};
-		const VkPipelineVertexInputStateCreateInfo vkPipelineVertexInputStateCreateInfo = {
-			.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-			.pNext                           = 0,
-			.flags                           = 0,
-			.vertexBindingDescriptionCount   = 0,
-			.pVertexBindingDescriptions      = 0,
-			.vertexAttributeDescriptionCount = 0,
-			.pVertexAttributeDescriptions    = 0,
-
-		};
-		constexpr VkPipelineInputAssemblyStateCreateInfo vkPipelineInputAssemblyStateCreateInfo = {
-			.sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-			.pNext                  = 0,
-			.flags                  = 0,
-			.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-			.primitiveRestartEnable = VK_FALSE,
-		};
-		constexpr VkPipelineTessellationStateCreateInfo vkPipelineTessellationStateCreateInfo = {
-			.sType              = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO,
-			.pNext              = 0,
-			.flags              = 0,
-			.patchControlPoints = 0,
-		};
-		const VkPipelineViewportStateCreateInfo vkPipelineViewportStateCreateInfo = {
-			.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-			.pNext         = 0,
-			.flags         = 0,
-			.viewportCount = 0,
-			.pViewports    = 0,
-			.scissorCount  = 0,
-			.pScissors     = 0,
-
-		};
-		constexpr VkPipelineRasterizationStateCreateInfo vkPipelineRasterizationStateCreateInfo = {
-			.sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-			.pNext                   = 0,
-			.flags                   = 0,
-			.depthClampEnable        = VK_FALSE,
-			.rasterizerDiscardEnable = VK_FALSE,
-			.polygonMode             = VK_POLYGON_MODE_FILL,
-			.cullMode                = VK_CULL_MODE_NONE,
-			.frontFace               = VK_FRONT_FACE_CLOCKWISE,
-			.depthBiasEnable         = VK_FALSE,
-			.depthBiasConstantFactor = 0.0f,
-			.depthBiasClamp          = 0.0f,
-			.depthBiasSlopeFactor    = 0.0f,
-			.lineWidth               = 1.0f,
-		};
-		constexpr VkPipelineMultisampleStateCreateInfo vkPipelineMultisampleStateCreateInfo = {
-			.sType                 = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-			.pNext                 = 0,
-			.flags                 = 0,
-			.rasterizationSamples  = VK_SAMPLE_COUNT_1_BIT,
-			.sampleShadingEnable   = VK_FALSE,
-			.minSampleShading      = 1.0F,
-			.pSampleMask           = 0,
-			.alphaToCoverageEnable = VK_FALSE,
-			.alphaToOneEnable      = VK_FALSE,
-		};
-		constexpr VkStencilOpState vkNoOpStencilOpState = {
-			.failOp      = VK_STENCIL_OP_KEEP,
-			.passOp      = VK_STENCIL_OP_KEEP,
-			.depthFailOp = VK_STENCIL_OP_KEEP,
-			.compareOp   = VK_COMPARE_OP_NEVER,
-			.compareMask = 0,
-			.writeMask   = 0,
-			.reference   = 0,
-		};
-		constexpr VkPipelineDepthStencilStateCreateInfo vkPipelineDepthStencilStateCreateInfo = {
-			.sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-			.pNext                 = 0,
-			.flags                 = 0,
-			.depthTestEnable       = VK_FALSE,
-			.depthWriteEnable      = VK_FALSE,
-			.depthCompareOp        = VK_COMPARE_OP_NEVER,
-			.depthBoundsTestEnable = VK_FALSE,
-			.stencilTestEnable     = VK_FALSE,
-			.front                 = vkNoOpStencilOpState,
-			.back                  = vkNoOpStencilOpState,
-			.minDepthBounds        = 0.0f,
-			.maxDepthBounds        = 1.0f,
-		};
-		constexpr VkPipelineColorBlendAttachmentState vkPipelineColorBlendAttachmentState = {
-			.blendEnable         = VK_FALSE,
-			.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO,
-			.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
-			.colorBlendOp        = VK_BLEND_OP_ADD,
-			.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-			.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-			.alphaBlendOp        = VK_BLEND_OP_ADD,
-			.colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-		};
-		constexpr VkPipelineColorBlendStateCreateInfo vkPipelineColorBlendStateCreateInfo = {
-			.sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-			.pNext           = 0,
-			.flags           = 0,
-			.logicOpEnable   = VK_FALSE,
-			.logicOp         = VK_LOGIC_OP_CLEAR,
-			.attachmentCount = 0,
-			.pAttachments    = 0,
-			.blendConstants  = 0.0f,
-		};
-		constexpr VkDynamicState vkDynamicStates[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-		const VkPipelineDynamicStateCreateInfo vkPipelineDynamicStateCreateInfo = {
-			.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-			.pNext             = 0,
-			.flags             = 0,
-			.dynamicStateCount = (u32)LenOf(vkDynamicStates),
-			.pDynamicStates    = vkDynamicStates,
-		};
-		const VkGraphicsPipelineCreateInfo vkGraphicsPipelineCreateInfo = {
-			.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-			.pNext               = 0,
-			.flags               = 0,
-			.stageCount          = 2,
-			.pStages             = vkPipelineShaderStageCreateInfos,
-			.pVertexInputState   = &vkPipelineVertexInputStateCreateInfo,
-			.pInputAssemblyState = &vkPipelineInputAssemblyStateCreateInfo,
-			.pTessellationState  = &vkPipelineTessellationStateCreateInfo,
-			.pViewportState      = &vkPipelineViewportStateCreateInfo,
-			.pRasterizationState = &vkPipelineRasterizationStateCreateInfo,
-			.pMultisampleState   = &vkPipelineMultisampleStateCreateInfo,
-			.pDepthStencilState  = &vkPipelineDepthStencilStateCreateInfo,
-			.pColorBlendState    = &vkPipelineColorBlendStateCreateInfo,
-			.pDynamicState       = &vkPipelineDynamicStateCreateInfo,
-			.layout              = vkPipelineLayout,
-			.renderPass          = VK_NULL_HANDLE,
-			.subpass             = 0,
-			.basePipelineHandle  = VK_NULL_HANDLE,
-			.basePipelineIndex   = 0,
-		};
-		VkPipeline vkPipeline = VK_NULL_HANDLE;
-		if (const VkResult r = vkCreateGraphicsPipelines(vkDevice, 0, 1, &vkGraphicsPipelineCreateInfo, vkAllocationCallbacks, &vkPipeline); r != VK_SUCCESS) {
-			vkDestroyPipelineLayout(vkDevice, vkPipelineLayout, vkAllocationCallbacks);
-			return MakeVkErr(r, vkCreateGraphicsPipelines);
-		}
-
-		PipelineObj* const pipelineObj = pipelineObjs.Alloc();
-		pipelineObj->vkPipelineLayout = vkPipelineLayout;
-		pipelineObj->vkPipeline       = vkPipeline;
-
-		return Pipeline { .handle = (u64)(pipelineObj - pipelineObjs.arr.data) };
-	}
-
-	void DestroyPipeline(Pipeline pipeline) override {
-	}
-
-	//-------------------------------------------------------------------------------------------------
 };
 
 //--------------------------------------------------------------------------------------------------
 
 static ApiObj api;
+
 Api* GetApi() { return &api; }
 
 //--------------------------------------------------------------------------------------------------

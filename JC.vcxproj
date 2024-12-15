@@ -146,6 +146,7 @@
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Log.cpp" />
     <ClCompile Include="JC\Map.cpp" />
+    <ClCompile Include="JC\RenderVk.cpp" />
     <ClCompile Include="JC\RenderVkMem.cpp" />
     <ClCompile Include="JC\RenderVkUtil.cpp" />
     <ClCompile Include="JC\RenderVkWin.cpp" />

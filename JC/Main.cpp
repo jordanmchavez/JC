@@ -123,7 +123,7 @@ Res<> Run(int argc, const char** argv) {
 		UnitTest::Run(log, memApi);
 		return Ok();
 	}
-	/*
+
 	fileApi = GetFileApi();
 	fileApi->Init(tempMem);
 
@@ -166,6 +166,24 @@ Res<> Run(int argc, const char** argv) {
 	if (Res<> r = renderApi->Init(&renderApiInit); !r) {
 		return r;
 	}
+
+	struct Mesh {
+		Render::Buffer vertexBuffer;
+		Render::Buffer indexBuffer;
+		u32 vertexCount;
+		u32 indexCount;
+	};
+
+	struct BindlessImage {
+		Render::Image image;
+		u32  bindlessIdx;
+	};
+	BindlessImage 
+
+	struct Material {
+		BindlessImage bindlessImage;
+		Vec4 color;
+	};
 
 	struct PushConstants {
 		Mat4 model               = {};
@@ -257,7 +275,7 @@ Res<> Run(int argc, const char** argv) {
 			.ambient = { 0.1f, 0.1, 0.1, 1.0f },
 		};
 		MemCpy(sceneStagingBufferPtr, &sceneData, sizeof(sceneData));
-		/*
+	
 		renderApi->CmdCopyBuffer(sceneStagingBuffer, sceneBuffer);
 		renderApi->CmdBarrier(sceneBuffer, transfer/write -> vs+fs/read);
 		renderApi->CmdBeginRendering(drawImage);
@@ -282,15 +300,7 @@ Res<> Run(int argc, const char** argv) {
 			}
 			return r;
 		}
-		*/
-
-
-
-
-
-
-
-	//}
+	}
 
 	return Ok();
 }

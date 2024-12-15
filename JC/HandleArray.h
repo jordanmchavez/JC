@@ -42,7 +42,7 @@ template <class T, class H> struct HandleArray {
 		return &entry->val;
 	}
 
-	H Alloc(SrcLoc sl = SrcLoc::Here()) {
+	T* Alloc(SrcLoc sl = SrcLoc::Here()) {
 		u32 i = 0;
 		if (free) {
 			i = free;
@@ -64,7 +64,6 @@ template <class T, class H> struct HandleArray {
 		}
 
 		Entry* const entry = &entries[i];
-		const H handle = H { .handle = ((u64)gen << 32) | (u64)i };
 		entry->gen = gen;
 		entry->idx = i;
 
@@ -73,20 +72,21 @@ template <class T, class H> struct HandleArray {
 			gen = 1;
 		}
 
-		return handle;
+		return &entry->val;
 	}
 
-	void Free(H h) {
-		const u32 i = (u32)(h.handle & 0xffffffff);
-		const u32 g = (u32)(h.handle >> 32);
-		Assert(i > 0 && i < len);
-		Assert(g);
-		Entry* const entry = &entries[i];
-		Assert(entry->gen == g);
-		Assert(entry->idx == i);
+	void Free(T* val) {
+		Entry* const entry = (Entry*)val;
+		Assert(entry > entries && entry < entries + len);
+		Assert(entry->gen);
 		entry->gen = 0;
 		entry->idx = free;
-		free = i;
+		free = (u32)(entry - entries);
+	}
+
+	H GetHandle(const T* val) {
+		const Entry* const entry = (const Entry*)val;
+		return H { .handle = ((u64)entry->gen << 32) | entry->idx };
 	}
 
 	void Shutdown() {
