@@ -14,6 +14,12 @@
 
 using namespace JC;
 
+//--------------------------------------------------------------------------------------------------
+
+constexpr ErrCode Err_LoadShader = { .ns = "app", .code = 1 };
+
+//--------------------------------------------------------------------------------------------------
+
 struct LogLeakReporter : MemLeakReporter {
 	Log* log = 0;
 
@@ -39,7 +45,7 @@ static LogApi*         logApi;
 static Log*            log;
 static LogLeakReporter logLeakReporter;
 static MemApi*         memApi;
-static RenderApi*      renderApi;
+static Render::Api*    renderApi;
 static TempMem*        tempMem;
 static WindowApi*      windowApi;
 
@@ -52,6 +58,22 @@ constexpr s8 FileNameOnly(s8 path) {
 		}
 	}
 	return path;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<Render::Shader> LoadShader(s8 path) {
+	Span<u8> data;
+	if (Res<> r = fileApi->ReadAll(tempMem, path).To(data); !r) {
+		return r.err->Push(Err_LoadShader, "path", path);
+	}
+
+	Render::Shader shader;
+	if (Res<> r = renderApi->CreateShader(data.data, data.len).To(shader); !r) {
+		return r.err->Push(Err_LoadShader, "path", path);
+	}
+
+	return shader;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -129,10 +151,9 @@ Res<> Run(int argc, const char** argv) {
 	}
 
 	Mem* renderMem = memApi->Create("Mem", 0);
-	renderApi = GetRenderApi();
+	renderApi = Render::GetApi();
 	WindowPlatformData windowPlatformData = windowApi->GetPlatformData();
-	RenderApiInit renderApiInit = {
-		.fileApi            = fileApi,
+	Render::ApiInit renderApiInit = {
 		.log                = log,
 		.mem                = renderMem,
 		.tempMem            = tempMem,
@@ -144,38 +165,40 @@ Res<> Run(int argc, const char** argv) {
 		return r;
 	}
 
-	struct BindlessTexture {
-		Texture texture;
-		u32 bindlessIndex;
-	};
-
-	struct Mesh {
-		Buffer vertexBuffer;
-		Buffer indexBuffer;
-		u32 vertices;
-		u32 indices;
-	};
-
-	struct Entity {
-		Mesh mesh;
-		Vec3 position;
-		Vec3 rotation;
-		float scale;
-		u32 bindlessTextureIndex;
+	struct PushConstants {
+		Mat4 model              = {};
+		u64  vertexBufferPtr    = 0;
+		u64  sceneBufferPtr     = 0;
+		u64  materialsBufferPtr = 0;
+		u32  materialIdx        = 0;
 	};
 
 	struct SceneData {
-		Mat4 viewProj;
+		Mat4 view;
+		Mat4 proj;
 		Vec4 ambient;
 	};
 
-	Shader vertexShader;
-	Shader fragmentShader;
-	Pipeline pipeline;
-	Array<BindlessTexture> bindlessTextures;
-	Array<Mesh> meshes;
-	Array<Entity> entities;
-	
+	Render::Shader vertexShader = {};
+	if (Res<> r = LoadShader("Shaders/mesh.vert.spv").To(vertexShader); !r) { return r; }
+
+	Render::Shader fragmentShader = {};
+	if (Res<> r = LoadShader("Shaders/mesh.frag.spv").To(fragmentShader); !r) { return r; }
+
+	Render::Pipeline pipeline = {};
+	if (Res<> r = renderApi->CreatePipeline(vertexShader, fragmentShader, sizeof(PushConstants)).To(pipeline); !r) { return r; }
+
+	Render::Buffer sceneBuffer = {};
+	if (Res<> r = renderApi->CreateBuffer(
+		sizeof(SceneData),
+		Render::BufferFlags::Index | Render::BufferFlags::Static | Render::BufferFlags::TransferDst
+	).To(sceneBuffer); !r) { return r; }
+
+	Render::Buffer sceneStagingBuffer = {};
+	if (Res<> r = renderApi->CreateBuffer(
+		sizeof(SceneData),
+		Render::BufferFlags::Staging | Render::BufferFlags::TransferSrc
+	).To(sceneStagingBuffer); !r) { return r; }
 
 	u64 frame = 0;
 	bool exitRequested = false;
@@ -220,73 +243,44 @@ Res<> Run(int argc, const char** argv) {
 		eventApi->ClearEvents();
 
 		constexpr Vec3 up = { .x = 0.0f, .y = 1.0f, .z = 0.0f };
-
 		const Vec3 rotatedLook = Mat4::Mul(Mat4::RotateY(eyeRotY), look);
-
 		const Vec3 rotatedLookOrtho = Vec3::Cross(up, rotatedLook);
 		eye = Vec3::AddScaled(eye, rotatedLook, eyeVelocity.z);
 		eye = Vec3::AddScaled(eye, rotatedLookOrtho, eyeVelocity.x);
-
 		const Vec3 at = Vec3::Add(eye, rotatedLook);
-		const Mat4 view = Mat4::LookAt(eye, at, up);
-
 
 		if (Res<> r = renderApi->BeginFrame(); !r) { return r; }
 
+		SceneData sceneData = {
+			.view = Mat4::LookAt(eye, at, up),
+			.proj = Mat4::Perspective(DegToRad(45.0f), (float)windowState.rect.width / (float)windowState.rect.height, 0.01f, 1000.0f),
+			.ambient = { 0.1f, 0.1, 0.1, 1.0f },
+		};
+		MemCpy(sceneStagingBufferPtr, &sceneData, sizeof(sceneData));
+		renderApi->CmdCopyBuffer(sceneStagingBuffer, sceneBuffer);
+		renderApi->CmdBarrier(sceneBuffer, transfer/write -> vs+fs/read);
+		renderApi->CmdBeginRendering(drawImage);
 
-		if (Res<> r = renderApi->EndFrame(); !r) {
+		renderApi->CmdBindPipeline(renderPipeline);
+		for (u64 i = 0; i < entities.len; i++) {
+			Entity* const entity = &entities[i];
+			renderApi->CmdBindIndexBuffer(entity->mesh.indexBuffer);
+			EntityPushConstants entityPushConstants = {
+			};
+			renderApi->CmdPushConstants(&entityPushConstants, sizeof(entityPushConstants));
+			renderApi->CmdDraw(...);
+		}
+		renderApi->CmdEndRendering();
+
+		if (Res<> r = renderApi->EndFrame(drawImage); !r) {
 			if (r.err->ec == RenderApi::Err_Resize) {
 				WindowState windowState = windowApi->GetState();
-				proj = Mat4::Perspective(DegToRad(45.0f), (float)windowState.rect.width / (float)windowState.rect.height, 0.01f, 1000.0f);
 				if (r = renderApi->ResizeSwapchain(windowState.rect.width, windowState.rect.height); r) {
 					continue;
 				}
 			}
 			return r;
 		}
-
-
-
-
-
-beginFrame()
-	vkBeginCommandBuffer(frame.cmdBuf)
-	waitfence(frame.renderfence)
-
-upload scene buffer
-membarrier
-
-// mesh draw
-vkCmdBeginRendering
-	vkCmdBindPipeline
-	vkCmdBindDescriptorSets(bindless desc set)
-	vkCmdSetViewport
-	vkCmdSetScissor
-	for each mesh
-		frustum cull
-		vkCmdBindIndexBuffer
-		vkCmdPushConstants
-		vkCmdDrawIndexed
-vkCmdEndRendering
-
-endframe
-	vkAcquireNextImageKHR(signal=frame.swapchainSem)
-	resetfence frame.renderfence
-	transitionimage frame.swapchainimage -> VK_IMAGE_LAYOUT_GENERAL
-	vkCmdClearColorImage
-	tranition drawImage VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL->VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
-	tranition frame.swapchainimage swapchainLayout->VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-	swapchainLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-	vkCmdBlitImage2 drawimage -> swapchainimage whole rect
-	transition swapchainimage -> VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-	drawimgui
-	transition swapchainimage -> VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-	end command buffer
-	vkQueueSubmit(signal=frame.renderFence)
-	vkQueuePresentKHR(wait=frame.renderSem)
-
-
-
 
 
 
