@@ -43,7 +43,7 @@ struct ApiObj : Api {
 
 	struct DeviceMem {
 		VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
-		u64            offset         = 0;
+		u64            size           = 0;
 	};
 
 	static constexpr u32   MaxFrames                 = 2;
@@ -784,8 +784,7 @@ struct ApiObj : Api {
 
 		return DeviceMem {
 			.vkDeviceMemory = vkDeviceMemory,
-			.offset         = 0,
-			.type           = memType,
+			.size           = vkMemoryRequirements.size,
 		};
 	}
 
@@ -799,26 +798,7 @@ struct ApiObj : Api {
 
 	//-------------------------------------------------------------------------------------------------
 
-	Res<DeviceMem> AllocateBufferDeviceMem(VkBuffer vkBuffer, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkMemoryAllocateFlags vkMemoryAllocateFlags) {
-		VkMemoryRequirements vkMemoryRequirements = {};
-		vkGetBufferMemoryRequirements(vkDevice, vkBuffer, &vkMemoryRequirements);
-
-		DeviceMem deviceMem = {};
-		if (Res<> r = AllocateDeviceMem(vkMemoryRequirements, vkMemoryPropertyFlags, vkMemoryAllocateFlags).To(deviceMem); !r) {
-			return r.err;
-		}
-
-		if (const VkResult r = vkBindBufferMemory(vkDevice, vkBuffer, deviceMem.vkDeviceMemory, 0); r != VK_SUCCESS) {
-			FreeDeviceMem(deviceMem);
-			return MakeVkErr(r, vkBindBufferMemory);
-		}
-		
-		return deviceMem;
-	}
-
-	//-------------------------------------------------------------------------------------------------
-
-	Res<DeviceMem> AllocateImageDeviceMem(VkImage vkImage, VkMemoryPropertyFlags vkMemoryPropertyFlags) {
+	Res<DeviceMem> AllocateImage(VkImage vkImage, VkMemoryPropertyFlags vkMemoryPropertyFlags) {
 		VkMemoryRequirements vkMemoryRequirements = {};
 		vkGetImageMemoryRequirements(vkDevice, vkImage, &vkMemoryRequirements);
 
@@ -833,59 +813,6 @@ struct ApiObj : Api {
 		}
 	
 		return deviceMem;
-	}
-
-	//-------------------------------------------------------------------------------------------------
-
-	Res<> UploadBuffer(Buffer buffer, const void* data, u64 size) {
-		Buffer stagingBuffer;
-		if (Res<> r = CreateBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT).To(stagingBuffer); !r) {
-			return r;
-		}
-		Defer { DestroyBuffer(stagingBuffer); };
-
-		u8* ptr = 0;
-		CheckVk(vkMapMemory(vkDevice, stagingBuffer.deviceMem.vkDeviceMemory, stagingBuffer.deviceMem.offset, size, 0, (void**)&ptr));
-		MemCpy(ptr + stagingBuffer.deviceMem.offset, data, size);
-		vkUnmapMemory(vkDevice, stagingBuffer.deviceMem.vkDeviceMemory);
-
-		constexpr VkCommandBufferBeginInfo vkCommandBufferBeginInfo = {
-			.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-			.pNext            = 0,
-			.flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-			.pInheritanceInfo = 0,
-		};
-		CheckVk(vkBeginCommandBuffer(vkResourceCommandBuffer, &vkCommandBufferBeginInfo));
-
-		const VkBufferCopy vkBufferCopy = {
-			.srcOffset = buffer.deviceMem.offset,
-			.dstOffset = stagingBuffer.deviceMem.offset,
-			.size      = size,
-		};
-		vkCmdCopyBuffer(vkResourceCommandBuffer, stagingBuffer.vkBuffer, buffer.vkBuffer, 1, &vkBufferCopy);
-
-		vkEndCommandBuffer(vkResourceCommandBuffer);
-
-		const VkCommandBufferSubmitInfo vkCommandBufferSubmitInfo = {
-			.sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-			.pNext         = 0,
-			.commandBuffer = vkResourceCommandBuffer,
-			.deviceMask    = 0,
-		};
-		const VkSubmitInfo2 vkSubmitInfo2 = {
-			.sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-			.pNext                    = 0,
-			.flags                    = 0,
-			.waitSemaphoreInfoCount   = 0,
-			.pWaitSemaphoreInfos      = 0,
-			.commandBufferInfoCount   = 1,
-			.pCommandBufferInfos      = &vkCommandBufferSubmitInfo,
-			.signalSemaphoreInfoCount = 0,
-			.pSignalSemaphoreInfos    = 0,
-		};
-		CheckVk(vkQueueSubmit2(vkQueue, 1, &vkSubmitInfo2, vkResourceFence));
-	
-		return Ok();
 	}
 
 	//-------------------------------------------------------------------------------------------------
@@ -1375,57 +1302,35 @@ struct ApiObj : Api {
 
 	//----------------------------------------------------------------------------------------------
 
-	template <class T> struct ResourceArray {
-		struct Link {
-			Link* next;
-		};
-
-		Array<T> arr  = {};
-		Link*    free = 0;
-
-		void Init(Mem* mem) { arr.Init(mem); }
-
-		      T& operator[](u64 i)       { return arr[i]; }
-		const T& operator[](u64 i) const { return arr[i]; }
-
-		T* Alloc() {
-			Assert(free);
-			T* obj = (T*)free;
-			free = free ->next;
-			return obj;
-		}
-
-		void Free(T* obj) {
-			((Link*)obj)->next = free;
-			free = (Link*)free;
-		}
-	};
-
-	//----------------------------------------------------------------------------------------------
-
+	
 	struct BufferObj {
 		VkBuffer  vkBuffer  = VK_NULL_HANDLE;
 		DeviceMem deviceMem = {};
+		u64       addr      = 0;
 	};
 
-	Res<Buffer> CreateBuffer(u64 size, u64 flags) override {
+	ResourceArray<BufferObj> bufferObjs = {};
+
+	Res<Buffer> CreateBuffer(u64 size, BufferUsage usage) override {
 		Buffer buffer = {};
 
-		VkBufferUsageFlags vkBufferUsageFlags = 0;
+		VkBufferUsageFlags    vkBufferUsageFlags    = 0;
+		VkMemoryPropertyFlags vkMemoryPropertyFlags = 0;
 		VkMemoryAllocateFlags vkMemoryAllocateFlags = 0;
-		if (flags & BufferFlags::Uniform) { vkBufferUsageFlags |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT; }
-		if (flags & BufferFlags::Vertex) { vkBufferUsageFlags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT; }
-		if (flags & BufferFlags::Index) { vkBufferUsageFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT; }
-		if (flags & BufferFlags::Storage) { vkBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; }
-		if (flags & BufferFlags::TransferSrc) { vkBufferUsageFlags |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT; }
-		if (flags & BufferFlags::TransferDst) { vkBufferUsageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT; }
-		if (flags & BufferFlags::ShaderAddressable) {
-			vkBufferUsageFlags |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		switch (usage) {
+			case BufferUsage::Uniform: vkBufferUsageFlags |= VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT; break;
+			case BufferUsage::Vertex:  vkBufferUsageFlags |= VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;  break;
+			case BufferUsage::Index:   vkBufferUsageFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT;   break;
+			case BufferUsage::Storage: vkBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break;
+			case BufferUsage::Staging: vkBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; break;
+		};
+		if (usage != BufferUsage::Staging) {
+			vkBufferUsageFlags    |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+			vkMemoryPropertyFlags |= VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			vkMemoryAllocateFlags |= VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+		} else {
+			vkMemoryPropertyFlags |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 		}
-
-		//if (flags & BufferFlags::Static           ) { vkBufferUsageFlags |= VK_BUFFER_USAGE_
-		//if (flags & BufferFlags::Staging          ) { vkBufferUsageFlags |= VK_BUFFER_USAGE_
 
 		const VkBufferCreateInfo vkBufferCreateInfo = {
 			.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -1440,29 +1345,74 @@ struct ApiObj : Api {
 		VkBuffer vkBuffer = VK_NULL_HANDLE;
 		CheckVk(vkCreateBuffer(vkDevice, &vkBufferCreateInfo, vkAllocationCallbacks, &vkBuffer));
 
+		VkMemoryRequirements vkMemoryRequirements = {};
+		vkGetBufferMemoryRequirements(vkDevice, vkBuffer, &vkMemoryRequirements);
+
 		DeviceMem deviceMem = {};
-		if (Res<> r = AllocateBufferDeviceMem(vkBuffer, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vkMemoryAllocateFlags).To(deviceMem); !r) {
+		if (Res<> r = AllocateDeviceMem(vkMemoryRequirements, vkMemoryPropertyFlags, vkMemoryAllocateFlags).To(deviceMem); !r) {
 			vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
 			return r.err;
 		}
 
+		if (const VkResult r = vkBindBufferMemory(vkDevice, vkBuffer, deviceMem.vkDeviceMemory, 0); r != VK_SUCCESS) {
+			vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
+			FreeDeviceMem(deviceMem);
+			return MakeVkErr(r, vkBindBufferMemory);
+		}
+
+		u64 addr    = 0;
 		if (vkBufferUsageFlags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
 			const VkBufferDeviceAddressInfo vkBufferDeviceAddressInfo = {
 				.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
 				.pNext = 0,
-				.buffer = buffer.vkBuffer,
+				.buffer = vkBuffer,
 			};
-			buffer.address = vkGetBufferDeviceAddress(vkDevice, &vkBufferDeviceAddressInfo);
+			addr    = vkGetBufferDeviceAddress(vkDevice, &vkBufferDeviceAddressInfo);
 		}
 
-		return buffer;
+		BufferObj* const bufferObj = bufferObjs.Alloc();
+		bufferObj->vkBuffer  = vkBuffer;
+		bufferObj->deviceMem = deviceMem;
+		bufferObj->addr      = addr;
+
+		return Buffer { .handle = (u64)(bufferObj - bufferObjs.arr.data) };
 	}
 	
 	void DestroyBuffer(Buffer buffer) override {
-		FreeDeviceMem(buffer.deviceMem);
-		if (buffer.vkBuffer != VK_NULL_HANDLE) {
-			vkDestroyBuffer(vkDevice, buffer.vkBuffer, vkAllocationCallbacks);
+		if (buffer.handle) {
+			Assert(buffer.handle < bufferObjs.arr.len);
+			BufferObj* const bufferObj = &bufferObjs[buffer.handle];
+			FreeDeviceMem(bufferObj->deviceMem);
+			if (bufferObj->vkBuffer != VK_NULL_HANDLE) {
+				vkDestroyBuffer(vkDevice, bufferObj->vkBuffer, vkAllocationCallbacks);
+			}
 		}
+	}
+
+	u64 GetBufferAddr(Buffer buffer) {
+		Assert(buffer.handle && buffer.handle < bufferObjs.arr.len);
+		BufferObj* const bufferObj = &bufferObjs[buffer.handle];
+		Assert(bufferObj->vkBuffer != VK_NULL_HANDLE);
+		Assert(bufferObj->addr);
+		return bufferObj->addr;
+	}
+
+	Res<void*> MapBuffer(Buffer buffer) {
+		Assert(buffer.handle && buffer.handle < bufferObjs.arr.len);
+		BufferObj* const bufferObj = &bufferObjs[buffer.handle];
+		Assert(bufferObj->vkBuffer != VK_NULL_HANDLE);
+
+		u8* ptr = 0;
+		CheckVk(vkMapMemory(vkDevice, bufferObj->deviceMem.vkDeviceMemory, 0, bufferObj->deviceMem.size, 0, (void**)&ptr));
+
+		return ptr;
+	}
+
+	void UnmapBuffer(Buffer buffer) override {
+		Assert(buffer.handle && buffer.handle < bufferObjs.arr.len);
+		BufferObj* const bufferObj = &bufferObjs[buffer.handle];
+		Assert(bufferObj->vkBuffer != VK_NULL_HANDLE);
+		vkUnmapMemory(vkDevice, bufferObj->deviceMem.vkDeviceMemory);
 	}
 
 	//-------------------------------------------------------------------------------------------------

@@ -119,6 +119,7 @@
     <ClInclude Include="JC\Event.h" />
     <ClInclude Include="JC\File.h" />
     <ClInclude Include="JC\Fmt.h" />
+    <ClInclude Include="JC\HandleArray.h" />
     <ClInclude Include="JC\Hash.h" />
     <ClInclude Include="JC\Log.h" />
     <ClInclude Include="JC\Map.h" />
@@ -141,6 +142,7 @@
     <ClCompile Include="JC\Bit.cpp" />
     <ClCompile Include="JC\Event.cpp" />
     <ClCompile Include="JC\Fmt.cpp" />
+    <ClCompile Include="JC\HandleArray.cpp" />
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Log.cpp" />
     <ClCompile Include="JC\Map.cpp" />

@@ -168,11 +168,11 @@ Res<> Run(int argc, const char** argv) {
 	}
 
 	struct PushConstants {
-		Mat4 model              = {};
-		u64  vertexBufferPtr    = 0;
-		u64  sceneBufferPtr     = 0;
-		u64  materialsBufferPtr = 0;
-		u32  materialIdx        = 0;
+		Mat4 model               = {};
+		u64  vertexBufferAddr    = 0;
+		u64  sceneBufferAddr     = 0;
+		u64  materialsBufferAddr = 0;
+		u32  materialIdx         = 0;
 	};
 
 	struct SceneData {
@@ -191,16 +191,11 @@ Res<> Run(int argc, const char** argv) {
 	if (Res<> r = renderApi->CreatePipeline(vertexShader, fragmentShader, sizeof(PushConstants)).To(pipeline); !r) { return r; }
 
 	Render::Buffer sceneBuffer = {};
-	if (Res<> r = renderApi->CreateBuffer(
-		sizeof(SceneData),
-		Render::BufferFlags::Index | Render::BufferFlags::Static | Render::BufferFlags::ShaderAddressable
-	).To(sceneBuffer); !r) { return r; }
+	if (Res<> r = renderApi->CreateBuffer(sizeof(SceneData), Render::BufferUsage::Storage).To(sceneBuffer); !r) { return r; }
 
+	const u64 sceneBufferAddr = renderApi->GetBufferAddr(sceneBuffer);
 	Render::Buffer sceneStagingBuffer = {};
-	if (Res<> r = renderApi->CreateBuffer(
-		sizeof(SceneData),
-		Render::BufferFlags::Staging
-	).To(sceneStagingBuffer); !r) { return r; }
+	if (Res<> r = renderApi->CreateBuffer(sizeof(SceneData), Render::BufferUsage::Staging).To(sceneStagingBuffer); !r) { return r; }
 
 	void* sceneStagingBufferPtr = 0;
 	if (Res<> r = renderApi->MapBuffer(sceneStagingBuffer).To(sceneStagingBufferPtr); !r) { return r; }

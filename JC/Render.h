@@ -24,16 +24,12 @@ struct ApiInit {
 	WindowPlatformData* windowPlatformData = {};
 };
 
-namespace BufferFlags {
-	constexpr u64 Uniform           = 1 << 0;
-	constexpr u64 Vertex            = 1 << 0;
-	constexpr u64 Index             = 1 << 1;
-	constexpr u64 Storage           = 1 << 2;
-	constexpr u64 Static            = 1 << 3;
-	constexpr u64 Staging           = 1 << 4;
-	constexpr u64 TransferSrc       = 1 << 5;
-	constexpr u64 TransferDst       = 1 << 6;
-	constexpr u64 ShaderAddressable = 1 << 7;
+enum struct BufferUsage {
+	Uniform,
+	Vertex,
+	Index,
+	Storage,
+	Staging,
 };
 
 struct Buffer   { u64 handle = 0; };
@@ -53,8 +49,9 @@ struct Api {
 	virtual Res<>    Draw(const Mat4* view, const Mat4* proj) = 0;
 	virtual Res<>    ResizeSwapchain(u32 width, u32 height) = 0;
 
-	virtual Res<Buffer>   CreateBuffer(u64 size, u64 flags) = 0;
+	virtual Res<Buffer>   CreateBuffer(u64 size, BufferUsage usage) = 0;
 	virtual void          DestroyBuffer(Buffer buffer) = 0;
+	virtual u64           GetBufferAddr(Buffer buffer) = 0;
 	virtual Res<void*>    MapBuffer(Buffer buffer) = 0;
 	virtual void          UnmapBuffer(Buffer buffer) = 0;
 

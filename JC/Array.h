@@ -159,13 +159,10 @@ struct Array {
 		len = 0;
 	}
 
-	void Free() {
+	void Shutdown() {
 		if (mem && data) {
 			mem->Free(data, cap * sizeof(T));
 		}
-		data = 0;
-		cap = 0;
-		len = 0;
 	}
 };
 
