@@ -1142,7 +1142,7 @@ struct ApiObj : Api {
 			return MakeVkErr(r, vkCreatePipelineLayout);
 		}
 
-		VkPipelineShaderStageCreateInfo* const vkPipelineShaderStageCreateInfos = (VkPipelineShaderStageCreateInfo*)tempMem-L
+		VkPipelineShaderStageCreateInfo* const vkPipelineShaderStageCreateInfos = (VkPipelineShaderStageCreateInfo*)tempMem->Alloc(
 			{
 				.sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 				.pNext               = 0,

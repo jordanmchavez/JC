@@ -4,23 +4,23 @@
 
 namespace JC {
 
-struct Mem;
+struct Arena;
 
 //--------------------------------------------------------------------------------------------------
 
 template <class T> struct Array {
-	Mem* mem  = 0;
-	T*   data = 0;
-	u64  len  = 0;
-	u64  cap  = 0;
+	Arena* arena  = 0;
+	T*     data   = 0;
+	u64    len    = 0;
+	u64    cap    = 0;
 
 	Array() = default;
-	Array(Mem* mem_) { mem = mem_; }
+	Array(Arena* arenaIn) { arena = arenaIn; }
 
-	void Init(Mem* mem_) { mem = mem_; }
+	void Init(Arena* arenaIn) { arena = arenaIn; }
 
-	void Init(Mem* mem_, u64 initLen) {
-		mem = mem_;
+	void Init(Arena arenaIn, u64 initLen) {
+		arena = arenaIn;
 		Resize(initLen);
 	}
 
@@ -145,10 +145,9 @@ template <class T> struct Array {
 	void Grow(u64 newCap, SrcLoc sl = SrcLoc::Here()) {
 		Assert(newCap > cap);
 		newCap = Max(Max((u64)16, newCap), cap + (cap >> 1));
-		if (!mem->Extend(data, cap * sizeof(T), newCap * sizeof(T), sl)) {
-			T* newData = (T*)mem->Alloc(newCap * sizeof(T), sl);
+		if (!arena->Extend(data, cap * sizeof(T), newCap * sizeof(T), sl)) {
+			T* newData = (T*)arena->Alloc(newCap * sizeof(T), sl);
 			MemCpy(newData, data, len * sizeof(T));
-			mem->Free(data, cap * sizeof(T));
 			data = newData;
 		}
 		cap = newCap;
@@ -156,12 +155,6 @@ template <class T> struct Array {
 
 	void Clear() {
 		len = 0;
-	}
-
-	void Shutdown() {
-		if (mem && data) {
-			mem->Free(data, cap * sizeof(T));
-		}
 	}
 };
 
