@@ -1,11 +1,11 @@
 #pragma once
 
-#include "JC/RenderVk.h"
+#include "JC/Render_Vk.h"
 
 #include "JC/Array.h"
 #include "JC/Fmt.h"
 
-namespace JC::Vk {
+namespace JC::Render {
 
 static void Add(Array<char>* a, s8 s) { a->Add(s.data, s.len); }
 
@@ -432,4 +432,19 @@ s8 VersionStr(Arena* arena, u32 v) {
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Vk
+s8 SizeStr(Arena* arena, u64 size) {
+	if (size > 1024 * 1024 * 1024) {
+		return Fmt(arena, "{.1}gb", (double)size / (1024.0 * 1024.0 * 1024.0));
+	}
+	if (size > 1024 * 1024) {
+		return Fmt(arena, "{.1}mb", (double)size / (1024.0 * 1024.0));
+	}
+	if (size > 1024) {
+		return Fmt(arena, "{.1}kb", (double)size / 1024.0);
+	}
+	return Fmt(arena, "{}", size);
+}
+
+//-------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Render

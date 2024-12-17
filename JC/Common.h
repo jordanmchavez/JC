@@ -445,7 +445,7 @@ Err* VMakeErr(Arena* arena, Err* prev, SrcLoc sl, ErrCode ec, VArgs args);
 
 template <class... A> Err* MakeErr(ArenaSrcLoc arenaSl, ErrCode ec, A... args) {
 	static_assert(sizeof...(A) % 2 == 0);
-	return VMakeErr(arenaSl.arena, 0, arenaSl.sl, ec, MakeVArgs(args...));
+	return VMake(arenaSl.arena, 0, arenaSl.sl, ec, MakeVArgs(args...));
 }
 
 //--------------------------------------------------------------------------------------------------

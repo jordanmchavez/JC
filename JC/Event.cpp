@@ -125,50 +125,41 @@ s8 KeyStr(Key k) {
 }
 
 
-struct ApiObj : Api {
-	static constexpr u32 MaxEvents = 64 * 1024;
+static constexpr u32 MaxEvents = 64 * 1024;
+static Log*   log;
+static Arena* temp;
+static Event  events[MaxEvents];
+static u32    eventsLen;
 
-	Log*   log               = 0;
-	Arena* temp              = 0;
-	Event  events[MaxEvents] = {};
-	u32    eventsLen         = 0;
+void Init(Log* logIn, Arena* tempIn) {
+	log       = logIn;
+	temp      = tempIn;
+	eventsLen = 0;
+}
 
-	void Init(Log* logIn, Arena* tempIn) override{
-		log       = logIn;
-		temp      = tempIn;
-		eventsLen = 0;
+s8 EventStr(Event e) {
+	switch (e.type) {
+		case Type::Exit:  return Fmt(temp, "ExitEvent");
+		case Type::Focus: return Fmt(temp, "FocusEvent(focused={})", e.focus.focused);
+		default:          Panic("Unhandled EventType {}", e.type);
 	}
+}
 
-	s8 EventStr(Event e) {
-		switch (e.type) {
-			case Type::Exit:  return Fmt(temp, "ExitEvent");
-			case Type::Focus: return Fmt(temp, "FocusEvent(focused={})", e.focus.focused);
-			default:          Panic("Unhandled EventType {}", e.type);
-		}
+void Add(Event e) {
+	if (eventsLen >= MaxEvents) {
+		Errorf("Dropped event: {}", EventStr(e));
+		return;
 	}
+	events[eventsLen] = e;
+	eventsLen++;
+}
 
-	void AddEvent(Event e) override{
-		if (eventsLen >= MaxEvents) {
-			Errorf("Dropped event: {}", EventStr(e));
-			return;
-		}
-		events[eventsLen] = e;
-		eventsLen++;
-	}
+Span<Event> Get()  {
+	return Span<Event>(events, eventsLen);
+}
 
-	Span<Event> GetEvents() override {
-		return Span<Event>(events, eventsLen);
-	}
-
-	void ClearEvents() override {
-		eventsLen = 0;
-	}
-};
-
-static ApiObj apiObj;
-
-Api* GetApi() {
-	return &apiObj;
+void Clear()  {
+	eventsLen = 0;
 }
 
 //--------------------------------------------------------------------------------------------------

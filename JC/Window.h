@@ -25,9 +25,7 @@ struct Display {
 	f32  dpiScale = 0.0f;
 };
 
-Res<Span<Display>> EnumDisplays();
-
-enum struct WindowMode {
+enum struct Style {
 	Bordered,
 	BorderedResizable,
 	Borderless,
@@ -50,21 +48,20 @@ namespace StateFlags {
 struct State {
 	Rect       rect       = {};
 	u64        flags      = 0;
-	WindowMode windowMode = {};
+	Style      style      = {};
 	CursorMode cursorMode = {};
 };
 
-struct ApiInit {
-	Event::Api*   eventApi          = 0;
-	Log*          log               = 0;
-	Arena*        temp              = 0;
-	s8            title             = {};
-	WindowMode    windowMode        = {};
-	Rect          rect              = {};
-	u32           fullscreenDisplay = 0;
+struct InitInfo {
+	Arena* temp              = 0;
+	Log*   log               = 0;
+	s8     title             = {};
+	Style  style             = {};
+	Rect   rect              = {};
+	u32    fullscreenDisplay = 0;
 };
 
-struct PlatformData {
+struct PlatformInfo {
 	#if defined Platform_Windows
 		void* hinstance = 0;
 		void* hwnd      = 0;
@@ -73,16 +70,16 @@ struct PlatformData {
 	#endif	// Platform_
 };
 
-struct Api {
-	virtual Res<>        Init(const ApiInit* init) = 0;
-	virtual void         Shutdown() = 0;
-	virtual void         PumpMessages() = 0;
-	virtual State        GetState() = 0;
-	virtual void         SetRect(Rect rect) = 0;
-	virtual void         SetWindowMode(WindowMode windowMode) = 0;
-	virtual void         SetCursorMode(CursorMode cursorMode) = 0;
-	virtual PlatformData GetPlatformData() = 0;
-	virtual bool         IsExitRequested() = 0;
+Res<>              Init(const InitInfo* init);
+void               Shutdown();
+Res<Span<Display>> EnumDisplays();
+void               PumpMessages();
+State              GetState();
+void               SetRect(Rect rect);
+void               SetStyle(Style style);
+void               SetCursorMode(CursorMode cursorMode);
+PlatformInfo       GetPlatformInfo();
+bool               IsExitRequested();
 
 /*	get rect
 	set rect
@@ -99,10 +96,5 @@ struct Api {
 	theming
 	theme change as event
 	*/
-};
-
-Api* GetApi();
-
-//--------------------------------------------------------------------------------------------------
 
 }	// namespace JC::Window

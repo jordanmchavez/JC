@@ -17,7 +17,7 @@ template <class T> struct Array {
 
 	void Init(Arena* arenaIn) { arena = arenaIn; }
 
-	void Init(Arena arenaIn, u64 initLen) {
+	void Init(Arena* arenaIn, u64 initLen) {
 		arena = arenaIn;
 		Resize(initLen);
 	}

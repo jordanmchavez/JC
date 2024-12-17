@@ -5,36 +5,29 @@
 namespace JC {
 	struct Log;
 	struct Mat4;
-	namespace Window { struct PlatformData; }
+	namespace Window { struct PlatformInfo; }
 }
 
 namespace JC::Render {
 
 //--------------------------------------------------------------------------------------------------
 
-struct ApiInit {
-	Log*                  log                = 0;
+struct InitInfo {
 	Arena*                perm               = 0;
 	Arena*                temp               = 0;
+	Log*                  log                = 0;
 	u32                   width              = 0;
 	u32                   height             = 0;
-	Window::PlatformData* windowPlatformData = {};
-};
-
-enum struct MemUsage {
-	Device,
-	HostWrite,
-	HostRead,
+	Window::PlatformInfo* windowPlatformInfo = {};
 };
 
 enum struct BufferUsage {
-	Uniform,
 	Vertex,
 	Index,
+	Uniform,
 	Storage,
 	Indirect,
-	TransferSrc,
-	TransferDst,
+	Readback,
 };
 
 enum struct ImageUsage {
@@ -51,7 +44,6 @@ enum struct ImageLayout {
 	General,
 	ColorAttachmentOptimal,
 	DepthStencilAttachmentOptimal,
-
 };
 
 struct Buffer   { u64 handle = 0; };
@@ -59,6 +51,12 @@ struct Sampler  { u64 handle = 0; };
 struct Image    { u64 handle = 0; };
 struct Shader   { u64 handle = 0; };
 struct Pipeline { u64 handle = 0; };
+
+struct BufferUpdate {
+	u64    handle = 0;
+	Buffer buffer = {};
+	void*  ptr    = 0;
+};
 
 struct Viewport {
 };
@@ -97,44 +95,40 @@ struct Pass {
 	PushConstants    pushConstants          = {};
 };
 
-struct Api {
-	static constexpr ErrCode Err_Version  = { .ns = "render", .code = 1 };
-	static constexpr ErrCode Err_NoLayer  = { .ns = "render", .code = 2 };
-	static constexpr ErrCode Err_NoDevice = { .ns = "render", .code = 3 };
-	static constexpr ErrCode Err_NoMem    = { .ns = "render", .code = 4 };
-	static constexpr ErrCode Err_Resize   = { .ns = "render", .code = 5 };
+static constexpr ErrCode Err_Version  = { .ns = "render", .code = 1 };
+static constexpr ErrCode Err_NoLayer  = { .ns = "render", .code = 2 };
+static constexpr ErrCode Err_NoDevice = { .ns = "render", .code = 3 };
+static constexpr ErrCode Err_NoMem    = { .ns = "render", .code = 4 };
+static constexpr ErrCode Err_Resize   = { .ns = "render", .code = 5 };
 
-	virtual Res<>         Init(const ApiInit* init) = 0;
-	virtual void          Shutdown() = 0;
+Res<>         Init(const InitInfo* initInfo);
+void          Shutdown();
 
-	virtual Res<>         ResizeSwapchain(u32 width, u32 height) = 0;
+Res<>         ResizeSwapchain(u32 width, u32 height);
 
-	virtual Res<Buffer>   CreateBuffer(u64 size, BufferUsage usage) = 0;
-	virtual void          DestroyBuffer(Buffer buffer) = 0;
-	virtual u64           GetBufferAddr(Buffer buffer) = 0;
-	virtual void*         BeginBufferUpdate(Buffer buffer) = 0;
-	virtual void          EndBufferUpdate(Buffer buffer) = 0;
-	virtual void          BufferBarrier(Buffer buffer, ...) = 0;	// src/dst stage/access
+Res<Buffer>   CreateBuffer(u64 size, BufferUsage usage);
+void          DestroyBuffer(Buffer buffer);
+u64           GetBufferAddr(Buffer buffer);
+Res<BufferUpdate> BeginBufferUpdate(Buffer buffer);
+void              EndBufferUpdate(BufferUpdate bufferUpdate);
+void              BufferBarrier(Buffer buffer, ...);	// src/dst stage/access
 
-	virtual Res<Image>    CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usage, Sampler sampler, void* data) = 0;
-	virtual void          DestroyImage(Image image) = 0;
-	virtual void          ImageBarrier(Image image, ...) = 0;	// src/dst layout/stage/access
+Res<Image>    CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usage, Sampler sampler, void* data);
+void          DestroyImage(Image image);
+void          ImageBarrier(Image image, ...);	// src/dst layout/stage/access
 
-	virtual Res<Shader>   CreateShader(const void* data, u64 len, s8 entry) = 0;
-	virtual void          DestroyShader(Shader shader) = 0;
+Res<Shader>   CreateShader(const void* data, u64 len, s8 entry);
+void          DestroyShader(Shader shader);
 
-	virtual Res<Pipeline> CreateGraphicsPipeline(...) = 0;
-	virtual Res<Pipeline> CreateComputePipeline(...) = 0;
-	virtual void          DestroyPipeline(Pipeline pipeline);
+Res<Pipeline> CreateGraphicsPipeline(...);
+Res<Pipeline> CreateComputePipeline(...);
+void          DestroyPipeline(Pipeline pipeline);
 
-	virtual Res<>         BeginFrame() = 0;
-	virtual Res<>         EndFrame() = 0;
+Res<>         BeginFrame();
+Res<>         EndFrame();
 
-	virtual Res<>         BeginPass() = 0;
-	virtual void          EndPass() = 0;
-};
-
-Api* GetApi();
+Res<>         BeginPass();
+void          EndPass();
 
 //--------------------------------------------------------------------------------------------------
 

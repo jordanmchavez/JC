@@ -16,41 +16,40 @@
 	#include "vulkan/vulkan_win32.h"
 #endif	// Platform_
 
-namespace JC {
+namespace JC::Render {
 
 //--------------------------------------------------------------------------------------------------
 
-#define MakeVkErr(vkRes, Fn) \
-	MakeErr(ErrCode { .ns = "vk", .code = (i64)vkRes }, "fn", #Fn, "desc", Vk::ResultStr(vkRes))
+#define MakeVkErr(arena, vkRes, Fn) \
+	MakeErr(arena, ErrCode { .ns = "vk", .code = (i64)vkRes }, "fn", #Fn, "desc", ResultStr(vkRes))
 
 #define CheckVk(expr) { \
 	if (const VkResult r = expr; r != VK_SUCCESS) { \
-		return MakeVkErr(r, #expr); \
+		return MakeVkErr(temp, r, #expr); \
 	} \
 }
 
 //--------------------------------------------------------------------------------------------------
 
-namespace Vk {
-	#if defined Platform_Windows
-		constexpr ErrCode Err_Dll = { .ns = "vk", .code = 1 };
-	#endif	// Platform_
+#if defined Platform_Windows
+	constexpr ErrCode Err_Dll = { .ns = "vk", .code = 1 };
+#endif	// Platform_
 
-	Res<> LoadRootFns();
-	void  LoadInstanceFns(VkInstance vkInstance);
-	void  LoadDeviceFns(VkDevice vkDevice);
-	void  FreeFns();
+void  LoadRootFns();
+void  LoadInstanceFns(VkInstance vkInstance);
+void  LoadDeviceFns(VkDevice vkDevice);
+void  FreeFns();
 
-	s8 ColorSpaceStr(VkColorSpaceKHR c);
-	s8 FormatStr(VkFormat f);
-	s8 MemoryHeapFlagsStr(VkMemoryHeapFlags f);
-	s8 MemoryPropertyFlagsStr(VkMemoryPropertyFlags f);
-	s8 QueueFlagsStr(VkQueueFlags f);
-	s8 PresentModeStr(VkPresentModeKHR m);
-	s8 ResultStr(VkResult r);
-	s8 PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
-	s8 VersionStr(u32 v);
-}
+s8 ColorSpaceStr(VkColorSpaceKHR c);
+s8 FormatStr(VkFormat f);
+s8 MemoryHeapFlagsStr(Arena* arena, VkMemoryHeapFlags f);
+s8 MemoryPropertyFlagsStr(Arena* arena, VkMemoryPropertyFlags f);
+s8 QueueFlagsStr(Arena* arena, VkQueueFlags f);
+s8 PresentModeStr(VkPresentModeKHR m);
+s8 ResultStr(VkResult r);
+s8 PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
+s8 VersionStr(Arena* arena, u32 v);
+s8 SizeStr(Arena* arena, u64 size);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -305,4 +304,4 @@ extern PFN_vkQueuePresentKHR vkQueuePresentKHR;
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC
+}	// namespace JC::Render

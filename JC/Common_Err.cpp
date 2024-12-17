@@ -7,6 +7,7 @@ namespace JC {
 Err* VMakeErr(Arena* arena, Err* prev, SrcLoc sl, ErrCode ec, VArgs args) {
 	Assert(args.len % 2 == 0);
 	Err* err     = (Err*)arena->Alloc(sizeof(Err) + (args.len > 0 ? (args.len / 2) - 1 : 0) * sizeof(ErrArg));
+	err->arena   = arena;
 	err->prev    = prev;
 	err->sl      = sl;
 	err->ec      = ec;

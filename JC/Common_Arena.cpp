@@ -1,11 +1,11 @@
-#include "JC/Mem.h"
+#include "JC/Common.h"
 
 #include "JC/Array.h"
 #include "JC/Bit.h"
 #include "JC/Map.h"
 #include "JC/Sys.h"
 
-namespace JC::Mem {
+namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -16,6 +16,10 @@ struct Trace {
 };
 
 static constexpr u64 AlignSize = 8;
+
+static Array<Trace>     traces;
+static Map<u64, u64>    slToTrace;
+static Map<void*, u64>  ptrToTrace;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -71,31 +75,31 @@ bool Arena::Extend(void* p, u64 oldSize, u64 newSize, SrcLoc) {
 
 //--------------------------------------------------------------------------------------------------
 
-struct ApiObj : Api {
+Arena CreateArena(u64 reserveSize) {
+	u8* const begin = (u8*)Sys::VirtualReserve(reserveSize);
+	return Arena {
+		.begin      = begin,
+		.end        = begin,
+		.endCommit  = begin,
+		.endReserve = begin + reserveSize,
+	};
+}
 
-	Array<Trace>     traces            = {};
-	Map<u64, u64>    slToTrace         = {};
-	Map<void*, u64>  ptrToTrace        = {};
-
-	Arena CreateArena(u64 reserveSize) override {
-		u8* const begin = (u8*)Sys::VirtualReserve(reserveSize);
-		return Arena {
-			.begin      = begin,
-			.end        = begin,
-			.endCommit  = begin,
-			.endReserve = begin + reserveSize,
-		};
-	}
-
-	void DestroyArena(Arena arena) override {
-		Sys::VirtualFree(arena.begin);
-	}
-};
-
-static ApiObj apiObj;
-
-Api* GetApi() { return &apiObj; }
+void DestroyArena(Arena arena) {
+	Sys::VirtualFree(arena.begin);
+}
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Mem
+u64 Arena::Mark() {
+	return (u64)(end - begin);
+}
+
+void Arena::Reset(u64 mark) {
+	Assert(mark < (u64)(endCommit - begin));
+	end = begin + mark;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC

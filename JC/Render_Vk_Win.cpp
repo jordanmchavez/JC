@@ -1,4 +1,4 @@
-#include "JC/RenderVk.h"
+#include "JC/Render_Vk.h"
 
 #if defined Platform_Windows
 	typedef __int64 (__stdcall *FARPROC)();
@@ -10,16 +10,14 @@
 	static void* vulkanDll = nullptr;
 #endif	// Platform_
 
-namespace JC {
+namespace JC::Render {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Vk::LoadRootFns() {
+void LoadRootFns() {
 	#if defined Platform_Windows
 		vulkanDll = LoadLibraryW(L"vulkan-1.dll");
-		if (!vulkanDll) {
-			return MakeErr(Err_Dll);
-		}
+		Assert(vulkanDll);
 		vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)GetProcAddress(vulkanDll, "vkGetInstanceProcAddr");
 		vkCreateInstance = (PFN_vkCreateInstance)vkGetInstanceProcAddr(nullptr, "vkCreateInstance");
 		vkEnumerateInstanceExtensionProperties = (PFN_vkEnumerateInstanceExtensionProperties)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceExtensionProperties");
@@ -31,7 +29,7 @@ Res<> Vk::LoadRootFns() {
 
 //--------------------------------------------------------------------------------------------------
 
-void Vk::LoadInstanceFns(VkInstance vkInstance) {
+void LoadInstanceFns(VkInstance vkInstance) {
 	vkCreateDevice = (PFN_vkCreateDevice)vkGetInstanceProcAddr(vkInstance, "vkCreateDevice");
 	vkDestroyInstance = (PFN_vkDestroyInstance)vkGetInstanceProcAddr(vkInstance, "vkDestroyInstance");
 	vkEnumerateDeviceExtensionProperties = (PFN_vkEnumerateDeviceExtensionProperties)vkGetInstanceProcAddr(vkInstance, "vkEnumerateDeviceExtensionProperties");
@@ -85,7 +83,7 @@ void Vk::LoadInstanceFns(VkInstance vkInstance) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Vk::LoadDeviceFns(VkDevice vkDevice) {
+void LoadDeviceFns(VkDevice vkDevice) {
 	vkAllocateCommandBuffers = (PFN_vkAllocateCommandBuffers)vkGetDeviceProcAddr(vkDevice, "vkAllocateCommandBuffers");
 	vkAllocateDescriptorSets = (PFN_vkAllocateDescriptorSets)vkGetDeviceProcAddr(vkDevice, "vkAllocateDescriptorSets");
 	vkAllocateMemory = (PFN_vkAllocateMemory)vkGetDeviceProcAddr(vkDevice, "vkAllocateMemory");
@@ -282,10 +280,10 @@ void Vk::LoadDeviceFns(VkDevice vkDevice) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Vk::FreeFns() {
-	#if defined Os_Windows
+void FreeFns() {
+	#if defined Platform_Windows
 		FreeLibrary(vulkanDll);
-	#endif	// Os_Windows
+	#endif	// Platform_Windows
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -539,4 +537,4 @@ PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR vkGetPhysicalDeviceWin32Prese
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC
+}	// namespace JC::Render

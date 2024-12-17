@@ -117,7 +117,7 @@
     <ClInclude Include="JC\Bit.h" />
     <ClInclude Include="JC\Common.h" />
     <ClInclude Include="JC\Event.h" />
-    <ClInclude Include="JC\File.h" />
+    <ClInclude Include="JC\FS.h" />
     <ClInclude Include="JC\Fmt.h" />
     <ClInclude Include="JC\HandleArray.h" />
     <ClInclude Include="JC\Hash.h" />
@@ -126,6 +126,7 @@
     <ClInclude Include="JC\Math.h" />
     <ClInclude Include="JC\MinimalWindows.h" />
     <ClInclude Include="JC\Render.h" />
+    <ClInclude Include="JC\Render_Vk.h" />
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Tlsf.h" />
     <ClInclude Include="JC\Unicode.h" />
@@ -134,7 +135,7 @@
     <ClInclude Include="Scratch.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="JC\FileWin.cpp" />
+    <ClCompile Include="JC\FS_Win.cpp" />
     <ClCompile Include="JC\Common_Panic.cpp" />
     <ClCompile Include="JC\Common_Err.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
@@ -144,6 +145,9 @@
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Log.cpp" />
     <ClCompile Include="JC\Map.cpp" />
+    <ClCompile Include="JC\Render_Vk.cpp" />
+    <ClCompile Include="JC\Render_Vk_Util.cpp" />
+    <ClCompile Include="JC\Render_Vk_Win.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
     <ClCompile Include="JC\Tlsf.cpp" />
     <ClCompile Include="JC\Unicode.cpp" />

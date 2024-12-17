@@ -154,14 +154,10 @@ struct Event {
 	};
 };
 
-struct Api {
-	virtual void        Init(Log* log, Arena* temp) = 0;
-	virtual void        AddEvent(Event e) = 0;
-	virtual Span<Event> GetEvents() = 0;
-	virtual void        ClearEvents();
-};
-
-Api* GetApi();
+void        Init(Log* log, Arena* temp);
+void        Add(Event e);
+Span<Event> Get();
+void        Clear();
 
 //--------------------------------------------------------------------------------------------------
 

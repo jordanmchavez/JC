@@ -1,7 +1,7 @@
 #include "JC/Array.h"
 #include "JC/Event.h"
-#include "JC/File.h"
 #include "JC/Fmt.h"
+#include "JC/FS.h"
 #include "JC/Log.h"
 #include "JC/Math.h"
 #include "JC/Render.h"
@@ -53,34 +53,8 @@ struct SceneData {
 
 //--------------------------------------------------------------------------------------------------
 
-static DisplayApi*     displayApi;
-static EventApi*       eventApi;
-static FileApi*        fileApi;
-static LogApi*         logApi;
-static Log*            log;
-static LogLeakReporter logLeakReporter;
-static MemApi*         memApi;
-static Render::Api*    renderApi;
-static TempMem*        tempMem;
-static WindowApi*      windowApi;
-
-//--------------------------------------------------------------------------------------------------
-
-struct LogLeakReporter : MemLeakReporter {
-	Log* log = 0;
-
-	void LeakedScope(s8 name, u64 leakedBytes, u32 leakedAllocs, u32 leakedChildren) override {
-		Errorf("Leaked scope: name={}, leakedBytes={}, leakedAllocs={}, leakedChildren={}", name, leakedBytes, leakedAllocs, leakedChildren);
-	}
-
-	void LeakedAlloc(SrcLoc sl, u64 leakedBytes, u32 leakedAllocs) override {
-		Errorf("  {}({}): leakedBytes={}, leakedAllocs={}", sl.file, sl.line, leakedBytes, leakedAllocs);
-	}
-
-	void LeakedChild(s8 name, u64 leakedBytes, u32 leakedAllocs) override {
-		Errorf("  Leaked child: name={}, leakedBytes={}, leakedAllocs={}", name, leakedBytes, leakedAllocs);
-	}
-};
+static Arena* temp;
+static Log*   log;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -95,46 +69,44 @@ constexpr s8 FileNameOnly(s8 path) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Mesh> CreateCubeMesh() {
-}
+//Res<Mesh> CreateCubeMesh() {
+//}
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Render::Shader> LoadShader(s8 path) {
-	Span<u8> data;
-	if (Res<> r = fileApi->ReadAll(tempMem, path).To(data); !r) {
-		return r.err->Push(Err_LoadShader, "path", path);
-	}
-
-	Render::Shader shader;
-	if (Res<> r = renderApi->CreateShader(data.data, data.len).To(shader); !r) {
-		return r.err->Push(Err_LoadShader, "path", path);
-	}
-
-	return shader;
-}
+//Res<Render::Shader> LoadShader(s8 path) {
+//	Span<u8> data;
+//	if (Res<> r = FS::ReadAll(temp, path).To(data); !r) {
+//		return r.err->Push(Err_LoadShader, "path", path);
+//	}
+//
+//	Render::Shader shader;
+//	if (Res<> r = Render::CreateShader(data.data, data.len).To(shader); !r) {
+//		return r.err->Push(Err_LoadShader, "path", path);
+//	}
+//
+//	return shader;
+//}
 
 //--------------------------------------------------------------------------------------------------
 
 Res<> Run(int argc, const char** argv) {
-	memApi = GetMemApi();
-	memApi->Init();
-	tempMem = memApi->Temp();
+	Arena tempInst = CreateArena((u64)4 * 1024 * 1024 * 1024);
+	temp = &tempInst;
 
-	logApi = GetLogApi();
-	logApi->Init(tempMem);
-	logApi->AddFn([](const char* msg, u64 len) {
+	Arena permInst = CreateArena((u64)16 * 1024 * 1024 * 1024);
+	Arena* perm = &permInst;
+
+	log = GetLog();
+	log->Init(temp);
+	log->AddFn([](const char* msg, u64 len) {
 		fwrite(msg, 1, len, stdout);
 		if (Sys::IsDebuggerPresent()) {
 			Sys::DebuggerPrint(msg);
 		}
 	});
-	log = logApi->GetLog();
 
-	logLeakReporter.log = log;
-	memApi->SetLeakReporter(&logLeakReporter);
-
-	SetPanicFn([](SrcLoc sl, s8 expr, s8 fmt, Args args) {
+	SetPanicFn([](SrcLoc sl, s8 expr, s8 fmt, VArgs args) {
 		char msg[1024];
 		char* iter = msg;
 		char* end = msg + sizeof(msg) - 1;
@@ -158,53 +130,40 @@ Res<> Run(int argc, const char** argv) {
 	});
 
 	if (argc == 2 && argv[1] == s8("test")) {
-		UnitTest::Run(log, memApi);
+		UnitTest::Run(log);
 		return Ok();
 	}
 
-	fileApi = GetFileApi();
-	fileApi->Init(tempMem);
-
-	eventApi = GetEventApi();
-	eventApi->Init(log, tempMem);
-
-	displayApi = GetDisplayApi();
-	if (Res<> r = displayApi->Init(log); !r) {
-		return r;
-	}
+	FS::Init(temp);
+	Event::Init(log, temp);
 
 	u32 windowWidth = 800;
 	u32 windowHeight = 600;
-	windowApi = GetWindowApi();
-	WindowApiInit windowApiInit = {
-		.displayApi        = displayApi,
-		.eventApi          = eventApi,
+	Window::InitInfo windowInitInfo = {
+		.temp              = temp,
 		.log               = log,
-		.tempMem           = tempMem,
 		.title             = "test window",
-		.windowMode        = WindowMode::BorderedResizable,
+		.style             = Window::Style::BorderedResizable,
 		.rect              = Rect { .x = 100, .y = 100, .width = (i32)windowWidth, .height = (i32)windowHeight },
 		.fullscreenDisplay = 0,
 	};
-	if (Res<> r = windowApi->Init(&windowApiInit); !r) {
+	if (Res<> r = Window::Init(&windowInitInfo); !r) {
 		return r;
 	}
 
-	Mem* renderMem = memApi->Create("Mem", 0);
-	renderApi = Render::GetApi();
-	WindowPlatformData windowPlatformData = windowApi->GetPlatformData();
-	Render::ApiInit renderApiInit = {
+	Window::PlatformInfo windowPlatformInfo = Window::GetPlatformInfo();
+	Render::InitInfo renderInitInfo = {
+		.perm               = perm,
+		.temp               = temp,
 		.log                = log,
-		.mem                = renderMem,
-		.tempMem            = tempMem,
 		.width              = windowWidth,
 		.height             = windowHeight,
-		.windowPlatformData = &windowPlatformData,
+		.windowPlatformInfo = &windowPlatformInfo,
 	};
-	if (Res<> r = renderApi->Init(&renderApiInit); !r) {
+	if (Res<> r = Render::Init(&renderInitInfo); !r) {
 		return r;
 	}
-
+	/*
 	Mesh cubeMesh = {};
 	if (Res<> r = CreateCubeMesh().To(cubeMesh); !r) { return r; }
 
@@ -215,17 +174,17 @@ Res<> Run(int argc, const char** argv) {
 	if (Res<> r = LoadShader("Shaders/mesh.frag.spv").To(fragmentShader); !r) { return r; }
 
 	Render::Pipeline pipeline = {};
-	if (Res<> r = renderApi->CreatePipeline(vertexShader, fragmentShader, sizeof(PushConstants)).To(pipeline); !r) { return r; }
+	if (Res<> r = Render::CreatePipeline(vertexShader, fragmentShader, sizeof(PushConstants)).To(pipeline); !r) { return r; }
 
 	Render::Buffer sceneBuffer = {};
-	if (Res<> r = renderApi->CreateBuffer(sizeof(SceneData), Render::BufferUsage::Storage).To(sceneBuffer); !r) { return r; }
+	if (Res<> r = Render::CreateBuffer(sizeof(SceneData), Render::BufferUsage::Storage).To(sceneBuffer); !r) { return r; }
 
-	const u64 sceneBufferAddr = renderApi->GetBufferAddr(sceneBuffer);
+	const u64 sceneBufferAddr = Render::GetBufferAddr(sceneBuffer);
 	Render::Buffer sceneStagingBuffer = {};
-	if (Res<> r = renderApi->CreateBuffer(sizeof(SceneData), Render::BufferUsage::Staging).To(sceneStagingBuffer); !r) { return r; }
+	if (Res<> r = Render::CreateBuffer(sizeof(SceneData), Render::BufferUsage::Staging).To(sceneStagingBuffer); !r) { return r; }
 
 	void* sceneStagingBufferPtr = 0;
-	if (Res<> r = renderApi->MapBuffer(sceneStagingBuffer).To(sceneStagingBufferPtr); !r) { return r; }
+	if (Res<> r = Render::MapBuffer(sceneStagingBuffer).To(sceneStagingBufferPtr); !r) { return r; }
 
 	u64 frame = 0;
 	bool exitRequested = false;
@@ -276,7 +235,7 @@ Res<> Run(int argc, const char** argv) {
 		eye = Vec3::AddScaled(eye, rotatedLookOrtho, eyeVelocity.x);
 		const Vec3 at = Vec3::Add(eye, rotatedLook);
 
-		if (Res<> r = renderApi->BeginFrame(); !r) { return r; }
+		if (Res<> r = Render::BeginFrame(); !r) { return r; }
 
 		SceneData sceneData = {
 			.view = Mat4::LookAt(eye, at, up),
@@ -285,32 +244,32 @@ Res<> Run(int argc, const char** argv) {
 		};
 		MemCpy(sceneStagingBufferPtr, &sceneData, sizeof(sceneData));
 	
-		renderApi->CmdCopyBuffer(sceneStagingBuffer, sceneBuffer);
-		renderApi->CmdBarrier(sceneBuffer, transfer/write -> vs+fs/read);
-		renderApi->CmdBeginRendering(drawImage);
+		Render::CmdCopyBuffer(sceneStagingBuffer, sceneBuffer);
+		Render::CmdBarrier(sceneBuffer, transfer/write -> vs+fs/read);
+		Render::CmdBeginRendering(drawImage);
 
-		renderApi->CmdBindPipeline(renderPipeline);
+		Render::CmdBindPipeline(renderPipeline);
 		for (u64 i = 0; i < entities.len; i++) {
 			Entity* const entity = &entities[i];
-			renderApi->CmdBindIndexBuffer(entity->mesh.indexBuffer);
+			Render::CmdBindIndexBuffer(entity->mesh.indexBuffer);
 			EntityPushConstants entityPushConstants = {
 			};
-			renderApi->CmdPushConstants(&entityPushConstants, sizeof(entityPushConstants));
-			renderApi->CmdDraw(...);
+			Render::CmdPushConstants(&entityPushConstants, sizeof(entityPushConstants));
+			Render::CmdDraw(...);
 		}
-		renderApi->CmdEndRendering();
+		Render::CmdEndRendering();
 
-		if (Res<> r = renderApi->EndFrame(drawImage); !r) {
+		if (Res<> r = Render::EndFrame(drawImage); !r) {
 			if (r.err->ec == RenderApi::Err_Resize) {
 				WindowState windowState = windowApi->GetState();
-				if (r = renderApi->ResizeSwapchain(windowState.rect.width, windowState.rect.height); r) {
+				if (r = Render::ResizeSwapchain(windowState.rect.width, windowState.rect.height); r) {
 					continue;
 				}
 			}
 			return r;
 		}
 	}
-
+	*/
 	return Ok();
 }
 
