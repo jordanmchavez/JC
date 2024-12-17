@@ -2,7 +2,6 @@
 
 #include "JC/Array.h"
 #include "JC/Fmt.h"
-#include "JC/Mem.h"
 
 namespace JC {
 
@@ -11,12 +10,16 @@ namespace JC {
 struct LogObj : Log {
 	static constexpr u32 MaxLogFns = 32;
 
-	TempMem* tempMem = 0;
-	LogFn*   logFns[MaxLogFns] = {};
-	u32      logFnsLen         = 0;
+	Arena* temp              = 0;
+	LogFn* logFns[MaxLogFns] = {};
+	u32    logFnsLen         = 0;
 
-	void VPrint(SrcLoc sl, LogCategory category, s8 fmt, Args args) override {
-		Array<char> arr(tempMem);
+	void Init(Arena* tempIn) override {
+		temp = tempIn;
+	}
+
+	void VPrint(SrcLoc sl, LogCategory category, s8 fmt, VArgs args) override {
+		Array<char> arr(temp);
 		Fmt(
 			&arr,
 			"{}{}({}): ",
@@ -32,7 +35,7 @@ struct LogObj : Log {
 	}
 
 	void Error(Err* err, SrcLoc sl) override {
-		Array<char> arr(tempMem);
+		Array<char> arr(temp);
 		Fmt(
 			&arr,
 			"!!! {}({}): ",
@@ -70,27 +73,10 @@ struct LogObj : Log {
 	}
 };
 
-//--------------------------------------------------------------------------------------------------
+static LogObj logObj;
 
-struct LogApiObj : LogApi {
-	LogObj log = {};
-
-	void Init(TempMem* tempMem) override {
-		log.tempMem = tempMem;
-	}
-
-	void AddFn   (LogFn* fn) override { log.AddFn(fn); }
-	void RemoveFn(LogFn* fn) override { log.RemoveFn(fn); }
-
-	Log* GetLog() override { return &log; }
-};
-
-static LogApiObj logApi = {};
-
-LogApi* GetLogApi() {
-	return &logApi;
-}
+Log* GetLog() { return &logObj; }
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC
+}	// namespace JC::Log

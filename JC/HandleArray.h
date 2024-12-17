@@ -4,8 +4,6 @@
 
 namespace JC {
 
-struct Mem;
-
 //--------------------------------------------------------------------------------------------------
 
 template <class T, class H> struct HandleArray {
@@ -15,16 +13,16 @@ template <class T, class H> struct HandleArray {
 		u32 idx = 0;
 	};
 
-	Mem*   mem     = 0;
+	Arena* arena   = 0;
 	Entry* entries = 0;
 	u32    len     = 0;
 	u32    cap     = 0;
 	u32    gen     = 1;
 	u32    free    = 0;
 
-	void Init(Mem* memIn) {
-		mem     = memIn;
-		entries = (Entry*)mem->Alloc(16 * sizeof(Entry));
+	void Init(Arena* arenaIn) {
+		arena   = arenaIn;
+		entries = (Entry*)arena->Alloc(16 * sizeof(Entry));
 		len     = 1;	// rserve index 0 for invalid
 		cap     = 16;
 		gen     = 1;
@@ -50,10 +48,9 @@ template <class T, class H> struct HandleArray {
 		} else {
 			if (len >= cap) {
 				const u32 newCap = cap * 2;
-				if (!mem->Extend(entries, cap * sizeof(Entry), newCap * sizeof(Entry), sl)) {
-					Entry* newEntries = (Entry*)mem->Alloc(newCap * sizeof(Entry), sl);
+				if (!arena->Extend(entries, cap * sizeof(Entry), newCap * sizeof(Entry), sl)) {
+					Entry* newEntries = (Entry*)arena->Alloc(newCap * sizeof(Entry), sl);
 					MemCpy(newEntries, entries, len * sizeof(Entry));
-					mem->Free(entries, cap * sizeof(Entry));
 					entries = newEntries;
 				}
 				cap = newCap;
@@ -87,17 +84,6 @@ template <class T, class H> struct HandleArray {
 	H GetHandle(const T* val) {
 		const Entry* const entry = (const Entry*)val;
 		return H { .handle = ((u64)entry->gen << 32) | entry->idx };
-	}
-
-	void Shutdown() {
-		if (mem && entries) {
-			mem->Free(entries, cap * sizeof(Entry));
-		}
-		entries = 0;
-		len     = 0;
-		cap     = 0;
-		gen     = 1;
-		free    = 0;
 	}
 };
 

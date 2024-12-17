@@ -4,8 +4,6 @@
 
 namespace JC {
 
-struct Mem;
-
 //--------------------------------------------------------------------------------------------------
 
 constexpr u64 StrLen16(const wchar_t* s) {
@@ -41,8 +39,8 @@ constexpr bool operator!=(s16z str1, s16z str2) { return str1.len != str2.len &&
 
 //--------------------------------------------------------------------------------------------------
 
-s16z Utf8ToWtf16z(Mem* mem, s8 s);
-s8   Wtf16zToUtf8(Mem* mem, s16z s);
+s16z Utf8ToWtf16z(Arena* arena, s8 s);
+s8   Wtf16zToUtf8(Arena* arena, s16z s);
 
 //--------------------------------------------------------------------------------------------------
 

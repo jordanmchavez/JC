@@ -1,7 +1,6 @@
 ﻿#include "JC/Fmt.h"
 
 #include "JC/Array.h"
-#include "JC/Mem.h"
 #include "JC/UnitTest.h"
 #include "dragonbox/dragonbox.h"
 #include <math.h>
@@ -378,7 +377,7 @@ void WritePtr(Out* out, const void* p, u32 flags, u32 width) {
 //--------------------------------------------------------------------------------------------------	
 
 template <class Out>
-void VFmtImpl(Out out, s8 fmt, Args args) {
+void VFmtImpl(Out out, s8 fmt, VArgs args) {
 	const char*       i       = fmt.data;
 	const char* const end     = i + fmt.len;
 	u32               nextArg = 0;
@@ -447,16 +446,16 @@ void VFmtImpl(Out out, s8 fmt, Args args) {
 
 		DoArg:
 		Assert(nextArg < args.len);
-		const Arg* arg = &args.args[nextArg++];
+		const VArg* arg = &args.args[nextArg++];
 		switch (arg->type)
 		{
-			case ArgType::Bool: WriteStr(out, arg->b ? "true" : "false",   flags, width, prec); break;
-			case ArgType::Char: WriteStr(out, s8(&arg->c, 1),              flags, width, prec); break;
-			case ArgType::I64:  WriteI64(out, arg->i,                      flags, width);       break;													   
-			case ArgType::U64:  WriteU64(out, arg->u,                      flags, width);       break;													   
-			case ArgType::F64:  WriteF64(out, arg->f,                      flags, width, prec); break;
-			case ArgType::S8:   WriteStr(out, s8(arg->s.data, arg->s.len), flags, width, prec); break;
-			case ArgType::Ptr:  WritePtr(out, arg->p,                      flags, width);       break;
+			case VArgType::Bool: WriteStr(out, arg->b ? "true" : "false",   flags, width, prec); break;
+			case VArgType::Char: WriteStr(out, s8(&arg->c, 1),              flags, width, prec); break;
+			case VArgType::I64:  WriteI64(out, arg->i,                      flags, width);       break;													   
+			case VArgType::U64:  WriteU64(out, arg->u,                      flags, width);       break;													   
+			case VArgType::F64:  WriteF64(out, arg->f,                      flags, width, prec); break;
+			case VArgType::S8:   WriteStr(out, s8(arg->s.data, arg->s.len), flags, width, prec); break;
+			case VArgType::Ptr:  WritePtr(out, arg->p,                      flags, width);       break;
 			default: Panic("Unhandled arg type {}", arg->type);
 		}
 	}
@@ -464,18 +463,18 @@ void VFmtImpl(Out out, s8 fmt, Args args) {
 
 //--------------------------------------------------------------------------------------------------
 
-char* VFmt(char* outBegin, char* outEnd, s8 fmt, Args args) {
+char* VFmt(char* outBegin, char* outEnd, s8 fmt, VArgs args) {
 	FixedOut out = { .begin = outBegin, .end = outEnd };
 	VFmtImpl(&out, fmt, args);
 	return out.begin;
 }
 
-void VFmt(Array<char>* out, s8 fmt, Args args) {
+void VFmt(Array<char>* out, s8 fmt, VArgs args) {
 	VFmtImpl(out, fmt, args);
 }
 	
-s8 VFmt(Mem* mem, s8 fmt, Args args) {
-	Array<char> out(mem);
+s8 VFmt(Arena* arena, s8 fmt, VArgs args) {
+	Array<char> out(arena);
 	VFmtImpl(&out, fmt, args);
 	return s8(out.data, out.len);
 }
@@ -483,7 +482,7 @@ s8 VFmt(Mem* mem, s8 fmt, Args args) {
 //--------------------------------------------------------------------------------------------------
 
 UnitTest("Fmt") {
-	#define CheckFmt(expect, fmt, ...) { CheckEq(expect, Fmt(tempMem, fmt, ##__VA_ARGS__)); }
+	#define CheckFmt(expect, fmt, ...) { CheckEq(expect, Fmt(temp, fmt, ##__VA_ARGS__)); }
 
 	// Escape sequences
 	CheckFmt("{", "{{");

@@ -2,150 +2,148 @@
 
 #include "JC/Fmt.h"
 #include "JC/Log.h"
-#include "JC/Mem.h"
 
-namespace JC {
+namespace JC::Event {
 
 //--------------------------------------------------------------------------------------------------
 
-
-s8 EventKeyStr(EventKey k) {
+s8 KeyStr(Key k) {
 	switch (k) {
-		case EventKey::MouseLeft:   return "MouseLeft";
-		case EventKey::MouseRight:  return "MouseRight";
-		case EventKey::Cancel:      return "Cancel";
-		case EventKey::MouseMiddle: return "MouseMiddle";
-		case EventKey::Mouse4:      return "Mouse4";
-		case EventKey::Mouse5:      return "Mouse5";
-		case EventKey::Backspace:   return "Backspace";
-		case EventKey::Tab:         return "Tab";
-		case EventKey::Enter:       return "Enter";
-		case EventKey::Pause:       return "Pause";
-		case EventKey::CapsLock:    return "CapsLock";
-		case EventKey::Escape:      return "Escape";
-		case EventKey::Space:       return "Space";
-		case EventKey::PageUp:      return "PageUp";
-		case EventKey::PageDown:    return "PageDown";
-		case EventKey::End:         return "End";
-		case EventKey::Home:        return "Home";
-		case EventKey::Left:        return "Left";
-		case EventKey::Up:          return "Up";
-		case EventKey::Right:       return "Right";
-		case EventKey::Down:        return "Down";
-		case EventKey::PrintScreen: return "PrintScreen";
-		case EventKey::Insert:      return "Insert";
-		case EventKey::Delete:      return "Delete";
-		case EventKey::Zero:        return "0";
-		case EventKey::One:         return "1";
-		case EventKey::Two:         return "2";
-		case EventKey::Three:       return "3";
-		case EventKey::Four:        return "4";
-		case EventKey::Five:        return "5";
-		case EventKey::Six:         return "6";
-		case EventKey::Seven:       return "7";
-		case EventKey::Eight:       return "8";
-		case EventKey::Nine:        return "9";
-		case EventKey::A:           return "A";
-		case EventKey::B:           return "B";
-		case EventKey::C:           return "C";
-		case EventKey::D:           return "D";
-		case EventKey::E:           return "E";
-		case EventKey::F:           return "F";
-		case EventKey::G:           return "G";
-		case EventKey::H:           return "H";
-		case EventKey::I:           return "I";
-		case EventKey::J:           return "J";
-		case EventKey::K:           return "K";
-		case EventKey::L:           return "L";
-		case EventKey::M:           return "M";
-		case EventKey::N:           return "N";
-		case EventKey::O:           return "O";
-		case EventKey::P:           return "P";
-		case EventKey::Q:           return "Q";
-		case EventKey::R:           return "R";
-		case EventKey::S:           return "S";
-		case EventKey::T:           return "T";
-		case EventKey::U:           return "U";
-		case EventKey::V:           return "V";
-		case EventKey::W:           return "W";
-		case EventKey::X:           return "X";
-		case EventKey::Y:           return "Y";
-		case EventKey::Z:           return "Z";
-		case EventKey::Winleft:     return "Winleft";
-		case EventKey::WinRight:    return "WinRight";
-		case EventKey::Menu:        return "Menu";
-		case EventKey::NumPad0:     return "NumPad0";
-		case EventKey::NumPad1:     return "NumPad1";
-		case EventKey::NumPad2:     return "NumPad2";
-		case EventKey::NumPad3:     return "NumPad3";
-		case EventKey::NumPad4:     return "NumPad4";
-		case EventKey::NumPad5:     return "NumPad5";
-		case EventKey::NumPad6:     return "NumPad6";
-		case EventKey::NumPad7:     return "NumPad7";
-		case EventKey::NumPad8:     return "NumPad8";
-		case EventKey::NumPad9:     return "NumPad9";
-		case EventKey::NumpadStar:  return "NumpadStar";
-		case EventKey::NumpadPlus:  return "NumpadPlus";
-		case EventKey::NumpadEnter: return "NumpadEnter";
-		case EventKey::NumpadMinus: return "NumpadMinus";
-		case EventKey::NumpadDot:   return "NumpadDot";
-		case EventKey::Slash:       return "Slash";
-		case EventKey::F1:          return "F1";
-		case EventKey::F2:          return "F2";
-		case EventKey::F3:          return "F3";
-		case EventKey::F4:          return "F4";
-		case EventKey::F5:          return "F5";
-		case EventKey::F6:          return "F6";
-		case EventKey::F7:          return "F7";
-		case EventKey::F8:          return "F8";
-		case EventKey::F9:          return "F9";
-		case EventKey::F10:         return "F10";
-		case EventKey::F11:         return "F11";
-		case EventKey::F12:         return "F12";
-		case EventKey::F13:         return "F13";
-		case EventKey::F14:         return "F14";
-		case EventKey::F15:         return "F15";
-		case EventKey::F16:         return "F16";
-		case EventKey::F17:         return "F17";
-		case EventKey::F18:         return "F18";
-		case EventKey::F19:         return "F19";
-		case EventKey::F20:         return "F20";
-		case EventKey::F21:         return "F21";
-		case EventKey::F22:         return "F22";
-		case EventKey::F23:         return "F23";
-		case EventKey::F24:         return "F24";
-		case EventKey::NumLock:     return "NumLock";
-		case EventKey::ScrollLock:  return "ScrollLock";
-		case EventKey::ShiftLeft:   return "ShiftLeft";
-		case EventKey::ShiftRight:  return "ShiftRight";
-		case EventKey::CtrlLeft:    return "CtrlLeft";
-		case EventKey::CtrlRight:   return "CtrlRight";
-		case EventKey::AltLeft:     return "AltLeft";
-		case EventKey::AltRight:    return "AltRight";
+		case Key::MouseLeft:   return "MouseLeft";
+		case Key::MouseRight:  return "MouseRight";
+		case Key::Cancel:      return "Cancel";
+		case Key::MouseMiddle: return "MouseMiddle";
+		case Key::Mouse4:      return "Mouse4";
+		case Key::Mouse5:      return "Mouse5";
+		case Key::Backspace:   return "Backspace";
+		case Key::Tab:         return "Tab";
+		case Key::Enter:       return "Enter";
+		case Key::Pause:       return "Pause";
+		case Key::CapsLock:    return "CapsLock";
+		case Key::Escape:      return "Escape";
+		case Key::Space:       return "Space";
+		case Key::PageUp:      return "PageUp";
+		case Key::PageDown:    return "PageDown";
+		case Key::End:         return "End";
+		case Key::Home:        return "Home";
+		case Key::Left:        return "Left";
+		case Key::Up:          return "Up";
+		case Key::Right:       return "Right";
+		case Key::Down:        return "Down";
+		case Key::PrintScreen: return "PrintScreen";
+		case Key::Insert:      return "Insert";
+		case Key::Delete:      return "Delete";
+		case Key::Zero:        return "0";
+		case Key::One:         return "1";
+		case Key::Two:         return "2";
+		case Key::Three:       return "3";
+		case Key::Four:        return "4";
+		case Key::Five:        return "5";
+		case Key::Six:         return "6";
+		case Key::Seven:       return "7";
+		case Key::Eight:       return "8";
+		case Key::Nine:        return "9";
+		case Key::A:           return "A";
+		case Key::B:           return "B";
+		case Key::C:           return "C";
+		case Key::D:           return "D";
+		case Key::E:           return "E";
+		case Key::F:           return "F";
+		case Key::G:           return "G";
+		case Key::H:           return "H";
+		case Key::I:           return "I";
+		case Key::J:           return "J";
+		case Key::K:           return "K";
+		case Key::L:           return "L";
+		case Key::M:           return "M";
+		case Key::N:           return "N";
+		case Key::O:           return "O";
+		case Key::P:           return "P";
+		case Key::Q:           return "Q";
+		case Key::R:           return "R";
+		case Key::S:           return "S";
+		case Key::T:           return "T";
+		case Key::U:           return "U";
+		case Key::V:           return "V";
+		case Key::W:           return "W";
+		case Key::X:           return "X";
+		case Key::Y:           return "Y";
+		case Key::Z:           return "Z";
+		case Key::Winleft:     return "Winleft";
+		case Key::WinRight:    return "WinRight";
+		case Key::Menu:        return "Menu";
+		case Key::NumPad0:     return "NumPad0";
+		case Key::NumPad1:     return "NumPad1";
+		case Key::NumPad2:     return "NumPad2";
+		case Key::NumPad3:     return "NumPad3";
+		case Key::NumPad4:     return "NumPad4";
+		case Key::NumPad5:     return "NumPad5";
+		case Key::NumPad6:     return "NumPad6";
+		case Key::NumPad7:     return "NumPad7";
+		case Key::NumPad8:     return "NumPad8";
+		case Key::NumPad9:     return "NumPad9";
+		case Key::NumpadStar:  return "NumpadStar";
+		case Key::NumpadPlus:  return "NumpadPlus";
+		case Key::NumpadEnter: return "NumpadEnter";
+		case Key::NumpadMinus: return "NumpadMinus";
+		case Key::NumpadDot:   return "NumpadDot";
+		case Key::Slash:       return "Slash";
+		case Key::F1:          return "F1";
+		case Key::F2:          return "F2";
+		case Key::F3:          return "F3";
+		case Key::F4:          return "F4";
+		case Key::F5:          return "F5";
+		case Key::F6:          return "F6";
+		case Key::F7:          return "F7";
+		case Key::F8:          return "F8";
+		case Key::F9:          return "F9";
+		case Key::F10:         return "F10";
+		case Key::F11:         return "F11";
+		case Key::F12:         return "F12";
+		case Key::F13:         return "F13";
+		case Key::F14:         return "F14";
+		case Key::F15:         return "F15";
+		case Key::F16:         return "F16";
+		case Key::F17:         return "F17";
+		case Key::F18:         return "F18";
+		case Key::F19:         return "F19";
+		case Key::F20:         return "F20";
+		case Key::F21:         return "F21";
+		case Key::F22:         return "F22";
+		case Key::F23:         return "F23";
+		case Key::F24:         return "F24";
+		case Key::NumLock:     return "NumLock";
+		case Key::ScrollLock:  return "ScrollLock";
+		case Key::ShiftLeft:   return "ShiftLeft";
+		case Key::ShiftRight:  return "ShiftRight";
+		case Key::CtrlLeft:    return "CtrlLeft";
+		case Key::CtrlRight:   return "CtrlRight";
+		case Key::AltLeft:     return "AltLeft";
+		case Key::AltRight:    return "AltRight";
 		default:                    return "<UnrecognizedEventKey>";
 	}
 }
 
 
-struct EventApiObj:  EventApi {
+struct ApiObj : Api {
 	static constexpr u32 MaxEvents = 64 * 1024;
 
-	Log*     log               = 0;
-	TempMem* tempMem           = 0;
-	Event    events[MaxEvents] = {};
-	u32      eventsLen         = 0;
+	Log*   log               = 0;
+	Arena* temp              = 0;
+	Event  events[MaxEvents] = {};
+	u32    eventsLen         = 0;
 
-	void Init(Log* log_, TempMem* tempMem_) override{
-		log       = log_;
-		tempMem   = tempMem_;
+	void Init(Log* logIn, Arena* tempIn) override{
+		log       = logIn;
+		temp      = tempIn;
 		eventsLen = 0;
 	}
 
 	s8 EventStr(Event e) {
 		switch (e.type) {
-			case EventType::Exit:  return Fmt(tempMem, "ExitEvent");
-			case EventType::Focus: return Fmt(tempMem, "FocusEvent(focused={})", e.focus.focused);
-			default:               Panic("Unhandled EventType {}", e.type);
+			case Type::Exit:  return Fmt(temp, "ExitEvent");
+			case Type::Focus: return Fmt(temp, "FocusEvent(focused={})", e.focus.focused);
+			default:          Panic("Unhandled EventType {}", e.type);
 		}
 	}
 
@@ -167,12 +165,12 @@ struct EventApiObj:  EventApi {
 	}
 };
 
-static EventApiObj eventApi;
+static ApiObj apiObj;
 
-EventApi* GetEventApi() {
-	return &eventApi;
+Api* GetApi() {
+	return &apiObj;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC
+}	// namespace JC::Event

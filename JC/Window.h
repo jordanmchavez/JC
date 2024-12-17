@@ -3,39 +3,29 @@
 #include "JC/Common.h"
 
 namespace JC {
+	struct Log;
+	namespace Event { struct Api; }
 
-struct EventApi;
-struct Log;
-struct Mem;
-struct TempMem;
+	struct Rect {
+		i32 x      = 0;
+		i32 y      = 0;
+		i32 width  = 0;
+		i32 height = 0;
+	};
+}
 
-struct Rect {
-	i32 x      = 0;
-	i32 y      = 0;
-	i32 width  = 0;
-	i32 height = 0;
-};
+namespace JC::Window {
 
 //--------------------------------------------------------------------------------------------------
 
-struct DisplayInfo {
+struct Display {
 	bool primary  = false;
 	Rect rect     = {};
 	u32  dpi      = 0;
 	f32  dpiScale = 0.0f;
 };
 
-struct DisplayApi {
-	static constexpr ErrCode Err_EnumDisplays = { .ns = "disp", .code = 1 };
-
-	virtual Res<>             Init(Log* log)    = 0;
-	virtual Res<>             Refresh()         = 0;
-	virtual Span<DisplayInfo> GetDisplayInfos() = 0;
-};
-
-DisplayApi* GetDisplayApi();
-
-//--------------------------------------------------------------------------------------------------
+Res<Span<Display>> EnumDisplays();
 
 enum struct WindowMode {
 	Bordered,
@@ -50,32 +40,31 @@ enum CursorMode {
 	HiddenLocked,	// ->visible: reappear at position hidden, same with alt+tabbing
 };
 
-namespace WindowStateFlags {
+namespace StateFlags {
 	constexpr u64 Minimized = 1 << 0;
 	constexpr u64 Maximized = 1 << 1;
 	constexpr u64 Focused   = 1 << 2;
 	constexpr u64 Hidden    = 1 << 3;
 };
 
-struct WindowState {
+struct State {
 	Rect       rect       = {};
 	u64        flags      = 0;
 	WindowMode windowMode = {};
 	CursorMode cursorMode = {};
 };
 
-struct WindowApiInit {
-	DisplayApi* displayApi        = 0;
-	EventApi*   eventApi          = 0;
-	Log*        log               = 0;
-	TempMem*    tempMem           = 0;
-	s8          title             = {};
-	WindowMode  windowMode        = {};
-	Rect        rect              = {};
-	u32         fullscreenDisplay = 0;
+struct ApiInit {
+	Event::Api*   eventApi          = 0;
+	Log*          log               = 0;
+	Arena*        temp              = 0;
+	s8            title             = {};
+	WindowMode    windowMode        = {};
+	Rect          rect              = {};
+	u32           fullscreenDisplay = 0;
 };
 
-struct WindowPlatformData {
+struct PlatformData {
 	#if defined Platform_Windows
 		void* hinstance = 0;
 		void* hwnd      = 0;
@@ -84,16 +73,16 @@ struct WindowPlatformData {
 	#endif	// Platform_
 };
 
-struct WindowApi {
-	virtual Res<>              Init(const WindowApiInit* init) = 0;
-	virtual void               Shutdown() = 0;
-	virtual void               PumpMessages() = 0;
-	virtual WindowState        GetState() = 0;
-	virtual void               SetRect(Rect rect) = 0;
-	virtual void               SetWindowMode(WindowMode windowMode) = 0;
-	virtual void               SetCursorMode(CursorMode cursorMode) = 0;
-	virtual WindowPlatformData GetPlatformData() = 0;
-	virtual bool               IsExitRequested() = 0;
+struct Api {
+	virtual Res<>        Init(const ApiInit* init) = 0;
+	virtual void         Shutdown() = 0;
+	virtual void         PumpMessages() = 0;
+	virtual State        GetState() = 0;
+	virtual void         SetRect(Rect rect) = 0;
+	virtual void         SetWindowMode(WindowMode windowMode) = 0;
+	virtual void         SetCursorMode(CursorMode cursorMode) = 0;
+	virtual PlatformData GetPlatformData() = 0;
+	virtual bool         IsExitRequested() = 0;
 
 /*	get rect
 	set rect
@@ -112,8 +101,8 @@ struct WindowApi {
 	*/
 };
 
-WindowApi* GetWindowApi();
+Api* GetApi();
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC
+}	// namespace JC::Window

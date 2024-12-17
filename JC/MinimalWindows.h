@@ -53,15 +53,15 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-s8 MakeWinErrorDesc(u32 code);
+s8 MakeWinErrorDesc(Arena* arena, u32 code);
 
-template <class... A> Err* _MakeWinErr (SrcLoc sl, u32 code, s8 fn, A... args) {
+template <class... A> Err* _MakeWinErr(Arena* arena, SrcLoc sl, u32 code, s8 fn, A... args) {
 	static_assert(sizeof...(A) % 2 == 0);
-	return VMakeErr(0, sl, ErrCode { .ns = "win", .code = code }, MakeArgs("fn", fn, "desc", MakeWinErrorDesc(code), args...));
+	return VMakeErr(arena, 0, sl, ErrCode { .ns = "win", .code = code }, MakeVArgs("fn", fn, "desc", MakeWinErrorDesc(arena, code), args...));
 }
 
-#define MakeWinErr( fn, code, ...) _MakeWinErr(SrcLoc::Here(), code,           #fn, ##__VA_ARGS__)
-#define MakeLastErr(fn,       ...) _MakeWinErr(SrcLoc::Here(), GetLastError(), #fn, ##__VA_ARGS__)
+#define MakeLastErr(arena, fn, ...)      _MakeWinErr(arena, SrcLoc::Here(), GetLastError(), #fn, ##__VA_ARGS__)
+#define MakeWinErr(arena, code, fn, ...) _MakeWinErr(arena, SrcLoc::Here(), code, #fn, ##__VA_ARGS__)
 
 constexpr bool IsInvalidHandle(HANDLE h) {
 	return h == (HANDLE)0 || h == INVALID_HANDLE_VALUE;

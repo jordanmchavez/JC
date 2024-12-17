@@ -1,15 +1,14 @@
 ﻿#include "JC/Unicode.h"
 
 #include "JC/Array.h"
-#include "JC/Mem.h"
 #include "JC/UnitTest.h"
 
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-s16z Utf8ToWtf16z(Mem* mem, s8 s) {
-	Array<wchar_t> out(mem);
+s16z Utf8ToWtf16z(Arena* arena, s8 s) {
+	Array<wchar_t> out(arena);
 
 	const u8* p = (const u8*)s.data;
 	const u8* end = p + s.len;
@@ -91,7 +90,7 @@ s16z Utf8ToWtf16z(Mem* mem, s8 s) {
 
 #define CheckUtf8ToWtf16z(from8, to16z) \
 	{ \
-		CheckTrue(Utf8ToWtf16z(tempMem, from8) == to16z); \
+		CheckTrue(Utf8ToWtf16z(temp, from8) == to16z); \
 	}
 
 UnitTest("Utf8ToWtf16z") {
@@ -160,8 +159,8 @@ UnitTest("Utf8ToWtf16z") {
 
 //--------------------------------------------------------------------------------------------------
 
-s8 Wtf16zToUtf8(Mem* mem, s16z s) {
-	Array<char> out(mem);
+s8 Wtf16zToUtf8(Arena* arena, s16z s) {
+	Array<char> out(arena);
 
 	const wchar_t* end = s.data + s.len;
 	const wchar_t* p = s.data;
@@ -205,7 +204,7 @@ s8 Wtf16zToUtf8(Mem* mem, s16z s) {
 	// 1101111111111111 dfff
 
 UnitTest("Unicode::Wtf16zToUtf8") {
-	#define CheckWtf16zToUtf8(from16z, to8) { CheckEq(Wtf16zToUtf8(tempMem, from16z), to8);  }
+	#define CheckWtf16zToUtf8(from16z, to8) { CheckEq(Wtf16zToUtf8(temp, from16z), to8);  }
 
 	// General 
 	CheckWtf16zToUtf8(L"", "");

@@ -2,23 +2,19 @@
 
 #include "JC/Common.h"
 
-namespace JC {
-
-struct Mem;
+namespace JC::Sys {
 
 //--------------------------------------------------------------------------------------------------
 
-namespace Sys {
-	void Abort();
-	bool IsDebuggerPresent();
-	void DebuggerPrint(const char* msg);
+void Abort();
+bool IsDebuggerPresent();
+void DebuggerPrint(const char* msg);
 
-	void* VirtualAlloc(u64 size);
-	void* VirtualReserve(u64 size);
-	void  VirtualCommit(void* p, u64 size);
-	void  VirtualFree(void* p);
-	void  VirtualDecommit(void* p, u64 size);
-};
+void* VirtualAlloc(u64 size);
+void* VirtualReserve(u64 size);
+void  VirtualCommit(void* p, u64 size);
+void  VirtualFree(void* p);
+void  VirtualDecommit(void* p, u64 size);
 
 #if defined Compiler_Msvc
 	#define Sys_DebuggerBreak() __debugbreak()
@@ -27,4 +23,5 @@ namespace Sys {
 #endif	// Compiler_
 
 //--------------------------------------------------------------------------------------------------
-}	// namespace JC
+
+}	// namespace JC::Sys

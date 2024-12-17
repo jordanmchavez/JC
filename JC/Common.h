@@ -155,7 +155,7 @@ template <class...>           inline constexpr bool AlwaysFalse                 
 
 //--------------------------------------------------------------------------------------------------
 
-enum struct ArgType {
+enum struct VArgType {
 	Bool,
 	Char,
 	I64,
@@ -165,73 +165,73 @@ enum struct ArgType {
 	S8,
 };
 
-struct ArgStr {
+struct VArgStr {
 	const char* data;
 	u64         len;
 };
 
-struct Args;
+struct VArgs;
 
-struct Arg {
-	ArgType type;
+struct VArg {
+	VArgType type;
 	union {
 		bool        b;
 		char        c;
 		i64         i;
 		u64         u;
 		f64         f;
-		ArgStr      s;
+		VArgStr     s;
 		const void* p;
 	};
 };
 
 template <class T>
-static Arg MakeArg(T val) {
+static VArg MakeVArg(T val) {
 	using Underlying = typename RemoveConst<typename RemoveVolatile<typename RemoveRef<T>::Type>::Type>::Type;
-	     if constexpr (IsSameType<Underlying, bool>)               { return { .type = ArgType::Bool, .b = val }; }
-	else if constexpr (IsSameType<Underlying, char>)               { return { .type = ArgType::Char, .c = val }; }
-	else if constexpr (IsSameType<Underlying, signed char>)        { return { .type = ArgType::I64,  .i = val }; }
-	else if constexpr (IsSameType<Underlying, signed short>)       { return { .type = ArgType::U64,  .i = val }; }
-	else if constexpr (IsSameType<Underlying, signed int>)         { return { .type = ArgType::I64,  .i = val }; }
-	else if constexpr (IsSameType<Underlying, signed long>)        { return { .type = ArgType::I64,  .i = val }; }
-	else if constexpr (IsSameType<Underlying, signed long long>)   { return { .type = ArgType::I64,  .i = val }; }
-	else if constexpr (IsSameType<Underlying, unsigned char>)      { return { .type = ArgType::U64,  .u = val }; }
-	else if constexpr (IsSameType<Underlying, unsigned short>)     { return { .type = ArgType::U64,  .u = val }; }
-	else if constexpr (IsSameType<Underlying, unsigned int>)       { return { .type = ArgType::U64,  .u = val }; }
-	else if constexpr (IsSameType<Underlying, unsigned long>)      { return { .type = ArgType::U64,  .u = val }; }
-	else if constexpr (IsSameType<Underlying, unsigned long long>) { return { .type = ArgType::U64,  .u = val }; }
-	else if constexpr (IsSameType<Underlying, float>)              { return { .type = ArgType::F64,  .f = val }; }
-	else if constexpr (IsSameType<Underlying, double>)             { return { .type = ArgType::F64,  .f = val }; }
-	else if constexpr (IsSameType<Underlying, s8>)                 { return { .type = ArgType::S8,   .s = { .data = val.data, .len = val.len } }; }
-	else if constexpr (IsSameType<Underlying, Str>)                { return { .type = ArgType::S8,   .s = { .data = val.data, .len = val.Len() } }; }
-	else if constexpr (IsSameType<Underlying, char*>)              { return { .type = ArgType::S8,   .s = { .data = val,      .len = StrLen8(val) } }; }
-	else if constexpr (IsSameType<Underlying, const char*>)        { return { .type = ArgType::S8,   .s = { .data = val,      .len = StrLen8(val) } }; }
-	else if constexpr (IsPointer<Underlying>)                      { return { .type = ArgType::Ptr,  .p = val }; }
-	else if constexpr (IsSameType<Underlying, decltype(nullptr)>)  { return { .type = ArgType::Ptr,  .p = nullptr }; }
-	else if constexpr (IsEnum<Underlying>)                         { return { .type = ArgType::U64,  .u = (u64)val }; }
-	else if constexpr (IsSameType<Underlying, Arg>)                { return val; }
-	else if constexpr (IsSameType<Underlying, Args>)               { static_assert(AlwaysFalse<T>, "You passed Args as a placeholder variable: you probably meant to call VFmt() instead of Fmt()"); }
+	     if constexpr (IsSameType<Underlying, bool>)               { return { .type = VArgType::Bool, .b = val }; }
+	else if constexpr (IsSameType<Underlying, char>)               { return { .type = VArgType::Char, .c = val }; }
+	else if constexpr (IsSameType<Underlying, signed char>)        { return { .type = VArgType::I64,  .i = val }; }
+	else if constexpr (IsSameType<Underlying, signed short>)       { return { .type = VArgType::U64,  .i = val }; }
+	else if constexpr (IsSameType<Underlying, signed int>)         { return { .type = VArgType::I64,  .i = val }; }
+	else if constexpr (IsSameType<Underlying, signed long>)        { return { .type = VArgType::I64,  .i = val }; }
+	else if constexpr (IsSameType<Underlying, signed long long>)   { return { .type = VArgType::I64,  .i = val }; }
+	else if constexpr (IsSameType<Underlying, unsigned char>)      { return { .type = VArgType::U64,  .u = val }; }
+	else if constexpr (IsSameType<Underlying, unsigned short>)     { return { .type = VArgType::U64,  .u = val }; }
+	else if constexpr (IsSameType<Underlying, unsigned int>)       { return { .type = VArgType::U64,  .u = val }; }
+	else if constexpr (IsSameType<Underlying, unsigned long>)      { return { .type = VArgType::U64,  .u = val }; }
+	else if constexpr (IsSameType<Underlying, unsigned long long>) { return { .type = VArgType::U64,  .u = val }; }
+	else if constexpr (IsSameType<Underlying, float>)              { return { .type = VArgType::F64,  .f = val }; }
+	else if constexpr (IsSameType<Underlying, double>)             { return { .type = VArgType::F64,  .f = val }; }
+	else if constexpr (IsSameType<Underlying, s8>)                 { return { .type = VArgType::S8,   .s = { .data = val.data, .len = val.len } }; }
+	else if constexpr (IsSameType<Underlying, Str>)                { return { .type = VArgType::S8,   .s = { .data = val.data, .len = val.Len() } }; }
+	else if constexpr (IsSameType<Underlying, char*>)              { return { .type = VArgType::S8,   .s = { .data = val,      .len = StrLen8(val) } }; }
+	else if constexpr (IsSameType<Underlying, const char*>)        { return { .type = VArgType::S8,   .s = { .data = val,      .len = StrLen8(val) } }; }
+	else if constexpr (IsPointer<Underlying>)                      { return { .type = VArgType::Ptr,  .p = val }; }
+	else if constexpr (IsSameType<Underlying, decltype(nullptr)>)  { return { .type = VArgType::Ptr,  .p = nullptr }; }
+	else if constexpr (IsEnum<Underlying>)                         { return { .type = VArgType::U64,  .u = (u64)val }; }
+	else if constexpr (IsSameType<Underlying, VArg>)               { return val; }
+	else if constexpr (IsSameType<Underlying, VArgs>)              { static_assert(AlwaysFalse<T>, "You passed Args as a placeholder variable: you probably meant to call VFmt() instead of Fmt()"); }
 	else                                                           { static_assert(AlwaysFalse<T>, "Unsupported arg type"); }
 }
-template <u64 N> static constexpr Arg MakeArg(char (&val)[N])       { return { .type = ArgType::S8, .s = { .data = val, .len = StrLen8(val) } }; }
-template <u64 N> static constexpr Arg MakeArg(const char (&val)[N]) { return { .type = ArgType::S8, .s = { .data = val, .len = StrLen8(val) } }; }
+template <u64 N> static constexpr VArg MakeVArg(char (&val)[N])       { return { .type = VArgType::S8, .s = { .data = val, .len = StrLen8(val) } }; }
+template <u64 N> static constexpr VArg MakeVArg(const char (&val)[N]) { return { .type = VArgType::S8, .s = { .data = val, .len = StrLen8(val) } }; }
 
-template <u32 N> struct ArgStore {
-	Arg args[N > 0 ? N : 1] = {};
+template <u32 N> struct VArgStore {
+	VArg args[N > 0 ? N : 1] = {};
 };
 
-struct Args {
-	const Arg* args = 0;
+struct VArgs {
+	const VArg* args = 0;
 	u32        len  = 0;
 
-	template <u32 N> constexpr Args(ArgStore<N> argStore) {
+	template <u32 N> constexpr VArgs(VArgStore<N> argStore) {
 		args = argStore.args;
 		len  = N;
 	}
 };
 
-template <class... A> constexpr ArgStore<sizeof...(A)> MakeArgs(A... args) {
-	return ArgStore<sizeof...(A)> { MakeArg(args)... };
+template <class... A> constexpr VArgStore<sizeof...(A)> MakeVArgs(A... args) {
+	return VArgStore<sizeof...(A)> { MakeVArg(args)... };
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -334,13 +334,13 @@ template <class... A> using FmtStrSrcLoc = _FmtStrSrcLoc<typename TypeIdentity<A
 
 //--------------------------------------------------------------------------------------------------
 
-                      [[noreturn]] void VPanic(SrcLoc sl, s8 expr, s8 fmt, Args args);
-template <class... A> [[noreturn]] void Panic(FmtStrSrcLoc<A...> fmtSl, A... args) { VPanic(fmtSl.sl, 0, fmtSl.fmt, MakeArgs(args...)); }
+                      [[noreturn]] void VPanic(SrcLoc sl, s8 expr, s8 fmt, VArgs args);
+template <class... A> [[noreturn]] void Panic(FmtStrSrcLoc<A...> fmtSl, A... args) { VPanic(fmtSl.sl, 0, fmtSl.fmt, MakeVArgs(args...)); }
 
-                      [[noreturn]] inline void _AssertFail(SrcLoc sl, s8 expr)                              { VPanic(sl, expr, "",   MakeArgs()); }
-template <class... A> [[noreturn]]        void _AssertFail(SrcLoc sl, s8 expr, FmtStr<A...> fmt, A... args) { VPanic(sl, expr, fmt,  MakeArgs(args...)); }
+                      [[noreturn]] inline void _AssertFail(SrcLoc sl, s8 expr)                              { VPanic(sl, expr, "",   MakeVArgs()); }
+template <class... A> [[noreturn]]        void _AssertFail(SrcLoc sl, s8 expr, FmtStr<A...> fmt, A... args) { VPanic(sl, expr, fmt,  MakeVArgs(args...)); }
 
-using PanicFn = void (SrcLoc sl, s8 expr, s8 fmt, Args args);
+using PanicFn = void (SrcLoc sl, s8 expr, s8 fmt, VArgs args);
 PanicFn* SetPanicFn(PanicFn* panicFn);
 
 #define Assert(expr, ...) \
@@ -382,6 +382,23 @@ constexpr bool operator!=(s8 str1, s8 str2) { return str1.len != str2.len && Mem
 
 //--------------------------------------------------------------------------------------------------
 
+struct Arena {
+	u8* begin      = 0;
+	u8* end        = 0;
+	u8* endCommit  = 0;
+	u8* endReserve = 0;
+
+	void* Alloc(u64 size, SrcLoc sl = SrcLoc::Here());
+	bool  Extend(void* p, u64 oldSize, u64 newSize, SrcLoc sl = SrcLoc::Here());
+	u64   Mark();
+	void  Reset(u64 mark);
+};
+
+Arena CreateArena(u64 reserveSize);
+void  DestroyArena(Arena arena);
+
+//--------------------------------------------------------------------------------------------------
+
 struct [[nodiscard]] ErrCode {
 	s8  ns   = {};
 	i64 code = 0;
@@ -389,35 +406,46 @@ struct [[nodiscard]] ErrCode {
 constexpr bool operator==(ErrCode ec1, ErrCode ec2) { return ec1.code == ec2.code && ec1.ns == ec2.ns; }
 constexpr bool operator!=(ErrCode ec1, ErrCode ec2) { return ec1.code != ec2.code || ec1.ns != ec2.ns; }
 
-struct ErrCodeSrcLoc {
-	ErrCode ec;
-	SrcLoc  sl;
-	constexpr ErrCodeSrcLoc(ErrCode ec_, SrcLoc sl_ = SrcLoc::Here()) { ec = ec_; sl = sl_; }
+//--------------------------------------------------------------------------------------------------
+
+struct ArenaSrcLoc {
+	Arena* arena = 0;
+	SrcLoc sl    = {};
+	constexpr ArenaSrcLoc(Arena* arenaIn, SrcLoc slIn = SrcLoc::Here()) { arena = arenaIn; sl = slIn; }
 };
 
+struct ErrCodeSrcLoc {
+	ErrCode ec = {};
+	SrcLoc  sl = {};
+	constexpr ErrCodeSrcLoc(ErrCode ecIn, SrcLoc slIn = SrcLoc::Here()) { ec = ecIn; sl = slIn; }
+};
+
+//--------------------------------------------------------------------------------------------------
+
 struct [[nodiscard]] ErrArg {
-	s8  name;
-	Arg arg;
+	s8   name = {};
+	VArg arg  = {};
 };
 
 struct [[nodiscard]] Err {
-	Err*    prev;
-	SrcLoc  sl;
-	ErrCode ec;
-	u32     argsLen;
-	ErrArg  args[1];	// variable length
+	Arena*  arena   = 0;
+	Err*    prev    = 0;
+	SrcLoc  sl      = {};
+	ErrCode ec      = {};
+	u32     argsLen = 0;
+	ErrArg  args[1] = {};	// variable length
 
 	template <class... A> Err* Push(ErrCodeSrcLoc ecSl, A... args) {
 		static_assert(sizeof...(A) % 2 == 0);
-		return VMakeErr(this, ecSl.sl, ecSl.ec, MakeArgs(args...));
+		return VMakeErr(this, ecSl.sl, ecSl.ec, MakeVArgs(args...));
 	}
 };
 
-Err* VMakeErr(Err* prev, SrcLoc sl, ErrCode ec, Args args);
+Err* VMakeErr(Arena* arena, Err* prev, SrcLoc sl, ErrCode ec, VArgs args);
 
-template <class... A> Err* MakeErr(ErrCodeSrcLoc ecSl, A... args) {
+template <class... A> Err* MakeErr(ArenaSrcLoc arenaSl, ErrCode ec, A... args) {
 	static_assert(sizeof...(A) % 2 == 0);
-	return VMakeErr(0, ecSl.sl, ecSl.ec, MakeArgs(args...));
+	return VMakeErr(arenaSl.arena, 0, arenaSl.sl, ec, MakeVArgs(args...));
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -475,8 +503,8 @@ template <class T> struct [[nodiscard]] Opt {
 } namespace std {
 	template <class T>
 	struct initializer_list {
-		const T* _begin;
-		const T* _end;
+		const T* _begin = 0;
+		const T* _end   = 0;
 
 		constexpr initializer_list(const T* b, const T* e) { _begin = b; _end = e; }
 		constexpr const T* begin() const { return _begin; }

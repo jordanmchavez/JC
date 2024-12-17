@@ -4,8 +4,6 @@
 
 namespace JC {
 
-struct Arena;
-
 //--------------------------------------------------------------------------------------------------
 
 template <class T> struct Array {
@@ -144,7 +142,7 @@ template <class T> struct Array {
 
 	void Grow(u64 newCap, SrcLoc sl = SrcLoc::Here()) {
 		Assert(newCap > cap);
-		newCap = Max(Max((u64)16, newCap), cap + (cap >> 1));
+		newCap = Max(Max((u64)16, newCap), cap * 2);
 		if (!arena->Extend(data, cap * sizeof(T), newCap * sizeof(T), sl)) {
 			T* newData = (T*)arena->Alloc(newCap * sizeof(T), sl);
 			MemCpy(newData, data, len * sizeof(T));

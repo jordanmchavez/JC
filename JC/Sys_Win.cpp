@@ -1,6 +1,5 @@
 #include "JC/Sys.h"
 
-#include "JC/Mem.h"
 #include "JC/MinimalWindows.h"
 #include "JC/Unicode.h"
 
@@ -8,7 +7,7 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-s8 MakeWinErrorDesc(u32 code) {
+s8 MakeWinErrorDesc(Arena* arena, u32 code) {
 	const ErrCode ec = { .ns = "win", .code = (u64)code };
 	wchar_t* desc = nullptr;
 	DWORD descLen = FormatMessageW(
@@ -27,7 +26,7 @@ s8 MakeWinErrorDesc(u32 code) {
 	while (descLen > 0 && desc[descLen] == L'\n' || desc[descLen] == L'\r' || desc[descLen] == L'.') {
 		--descLen;
 	}
-	s8 msg = Wtf16zToUtf8(GetMemApi()->Temp(), s16z(desc, descLen));
+	s8 msg = Wtf16zToUtf8(arena, s16z(desc, descLen));
 	LocalFree(desc);
 	return msg;
 }

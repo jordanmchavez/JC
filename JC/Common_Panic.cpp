@@ -15,7 +15,7 @@ PanicFn* SetPanicFn(PanicFn* newPanicFn) {
 	return oldPanicFn;
 }
 
-void VPanic(SrcLoc sl, s8 expr, s8 fmt, Args args) {
+void VPanic(SrcLoc sl, s8 expr, s8 fmt, VArgs args) {
 	static bool recursive = false;
 	if (recursive) {
 		Sys::Abort();

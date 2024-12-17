@@ -2,25 +2,20 @@
 
 #include "JC/Common.h"
 
-namespace JC {
+namespace JC { struct Log; }
 
-struct Log;
-struct TempMem;
+namespace JC::Event {
 
 //--------------------------------------------------------------------------------------------------
 
-enum struct EventType {
+enum struct Type {
 	Exit,
 	Focus,
 	Key,
 	MouseMove,
 };
 
-struct FocusEvent {
-	bool focused;
-};
-
-enum struct EventKey {
+enum struct Key {
 	MouseLeft   = 0x01,
 	MouseRight  = 0x02,
 	Cancel      = 0x03,
@@ -134,11 +129,15 @@ enum struct EventKey {
 	AltRight    = 0xa5,
 };
 
-s8 EventKeyStr(EventKey k);
+s8 KeyStr(Key k);
+
+struct FocusEvent {
+	bool focused;
+};
 
 struct KeyEvent {
-	bool     down;
-	EventKey key;
+	bool down;
+	Key  key;
 };
 
 struct MouseMoveEvent {
@@ -147,7 +146,7 @@ struct MouseMoveEvent {
 };
 
 struct Event {
-	EventType type;
+	Type type;
 	union {
 		FocusEvent     focus;
 		KeyEvent       key;
@@ -155,15 +154,15 @@ struct Event {
 	};
 };
 
-struct EventApi {
-	virtual void        Init(Log* log, TempMem* tempMem) = 0;
+struct Api {
+	virtual void        Init(Log* log, Arena* temp) = 0;
 	virtual void        AddEvent(Event e) = 0;
 	virtual Span<Event> GetEvents() = 0;
 	virtual void        ClearEvents();
 };
 
-EventApi* GetEventApi();
+Api* GetApi();
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC
+}	// namespace JC::Event

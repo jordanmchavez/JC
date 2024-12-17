@@ -9,7 +9,6 @@
 #include "JC/HandleArray.h"
 #include "JC/Log.h"
 #include "JC/Math.h"
-#include "JC/Mem.h"
 #include "JC/RenderVk.h"
 #include "JC/Window.h"
 

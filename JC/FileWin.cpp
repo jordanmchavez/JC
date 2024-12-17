@@ -1,25 +1,23 @@
 #include "JC/File.h"
 
-#include "JC/Mem.h"
 #include "JC/Unicode.h"
-
 #include "JC/MinimalWindows.h"
 
-namespace JC {
+namespace JC::File {
 
 //--------------------------------------------------------------------------------------------------
 
-struct FileApiObj : FileApi {
-	TempMem* tempMem = 0;
+struct ApiObj : Api {
+	Arena* temp = 0;
 
-	void Init(TempMem* tempMemIn) override {
-		tempMem = tempMemIn;
+	void Init(Arena* tempIn) override {
+		temp = tempIn;
 	}
 
 	Res<File> Open(s8 path) override {
-		HANDLE h = CreateFileW(Utf8ToWtf16z(tempMem, path).data, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+		HANDLE h = CreateFileW(Utf8ToWtf16z(temp, path).data, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 		if (IsInvalidHandle(h)) {
-			return MakeLastErr(CreateFileW, "path", path);
+			return MakeLastErr(temp, CreateFileW, "path", path);
 		}
 		return File { .handle = (u64)h };
 	}
@@ -27,7 +25,7 @@ struct FileApiObj : FileApi {
 	Res<u64> Len(File file) override {
 		LARGE_INTEGER fileSize;
 		if (GetFileSizeEx((HANDLE)file.handle, &fileSize) == 0) {
-			return MakeLastErr(GetFileSizeEx);
+			return MakeLastErr(temp, GetFileSizeEx);
 		}
 		return fileSize.QuadPart;
 	}
@@ -39,11 +37,31 @@ struct FileApiObj : FileApi {
 			const u32 bytesToRead = rem > U32Max ? U32Max : (u32)rem;
 			DWORD bytesRead = 0;
 			if (ReadFile((HANDLE)file.handle, (u8*)out + offset, bytesToRead, &bytesRead, 0) == FALSE) {
-				return MakeLastErr(ReadFile);
+				return MakeLastErr(temp, ReadFile);
 			}
 			offset += bytesRead;
 		}
 		return Ok();
+	}
+
+	Res<Span<u8>> ReadAll(s8 path) override {
+		File file;
+		if (Res<> r = Open(path).To(file); !r) {
+			return r.err;
+		}
+		Defer { Close(file); };
+
+		u64 len = 0;
+		if (Res<> r = Len(file).To(len); !r) {
+			return r.err;
+		}
+
+		u8* buf = (u8*)temp->Alloc(len);
+		if (Res<> r = Read(file, buf, len); !r) {
+			return r.err;
+		}
+
+		return Span<u8>(buf, len);
 	}
 
 	void Close(File file) override {
@@ -55,34 +73,12 @@ struct FileApiObj : FileApi {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Span<u8>> FileApi::ReadAll(Mem* mem, s8 path) {
-	File file;
-	if (Res<> r = Open(path).To(file); !r) {
-		return r.err;
-	}
-	Defer { Close(file); };
+static ApiObj apiObj;
 
-	u64 len = 0;
-	if (Res<> r = Len(file).To(len); !r) {
-		return r.err;
-	}
-
-	u8* buf = (u8*)mem->Alloc(len);
-	if (Res<> r = Read(file, buf, len); !r) {
-		return r.err;
-	}
-
-	return Span<u8>(buf, len);
+Api* GetApi() {
+	return &apiObj;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static FileApiObj fileApiObj;
-
-FileApi* GetFileApi() {
-	return &fileApiObj;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC
+}	// namespace JC::File

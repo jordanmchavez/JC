@@ -3,7 +3,6 @@
 #include "JC/Array.h"
 #include "JC/Fmt.h"
 #include "JC/Log.h"
-#include "JC/Mem.h"
 #include <stdio.h>
 
 namespace JC {
@@ -88,13 +87,12 @@ namespace UnitTest {
 		}
 	}
 
-	bool Run(Log* log_, MemApi* memApi) {
+	bool Run(Log* log_) {
 		log = log_;
 
-		TempMem* tempMem = memApi->Temp();
+		Arena temp = CreateArena((u64)16 * 1024 * 1024 * 1024);
 		u32 passedTests = 0;
 		u32 failedTests = 0;
-		u64 frame = 0;
 		for (u32 i = 0; i < testsLen; i++)  {
 			nextLen = 0;
 			do {
@@ -104,9 +102,11 @@ namespace UnitTest {
 				lastLen    = 1;
 				checkFails = 0;
 
-				tests[i].fn(tempMem);
+				const u64 mark = temp.Mark();
 
-				Array<char> lastStr(tempMem);
+				tests[i].fn(&temp);
+
+				Array<char> lastStr(&temp);
 				for (u32 j = 0; j < lastLen; j++) {
 					lastStr.Add(last[j].name.data, last[j].name.len);
 					lastStr.Add("::", 2);
@@ -121,7 +121,8 @@ namespace UnitTest {
 					passedTests++;
 				}
 
-				memApi->Frame(frame++);
+				temp.Reset(mark);
+
 			} while (nextLen > 0);
 		}
 
@@ -145,7 +146,7 @@ namespace UnitTest {
 		return false;
 	}
 
-	bool CheckRelFail(SrcLoc sl, s8 expr, Arg x, Arg y) {
+	bool CheckRelFail(SrcLoc sl, s8 expr, VArg x, VArg y) {
 		Logf("***CHECK FAILED***");
 		Logf("{}({})", sl.file, sl.line);
 		Logf("  {}", expr);
@@ -165,7 +166,7 @@ namespace UnitTest {
 		return false;
 	}
 
-	bool CheckSpanEqFail_Elem(SrcLoc sl, s8 expr, u64 i, Arg x, Arg y) {
+	bool CheckSpanEqFail_Elem(SrcLoc sl, s8 expr, u64 i, VArg x, VArg y) {
 		Logf("***CHECK FAILED***");
 		Logf("{}({})", sl.file, sl.line);
 		Logf("  {}", expr);

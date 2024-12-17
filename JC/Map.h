@@ -4,8 +4,6 @@
 
 namespace JC {
 
-struct Mem;
-
 //-------------------------------------------------------------------------------------------------
 
 template <class K, class V> struct Map {
@@ -19,7 +17,7 @@ template <class K, class V> struct Map {
 		V val = {};
 	};
 
-	Mem*    mem        = 0;
+	Arena*  arena      = 0;
 	Bucket* buckets    = 0;
 	u64     bucketsLen = 0;
 	Elem*   elems      = 0;
@@ -29,36 +27,19 @@ template <class K, class V> struct Map {
 
 	Map() = default;
 
-	Map(Mem* memIn, SrcLoc sl = SrcLoc::Here()) {
-		Init(memIn, sl);
+	Map(Arena* arena, SrcLoc sl = SrcLoc::Here()) {
+		Init(arena, sl);
 	}
 
-	void Init(Mem* memIn, SrcLoc sl = SrcLoc::Here()) {
-		mem        = memIn;
-		buckets    = (Bucket*)mem->Alloc(16 * sizeof(Bucket), sl);
+	void Init(Arena* arenaIn, SrcLoc sl = SrcLoc::Here()) {
+		arena        = arenaIn;
+		buckets    = (Bucket*)arena->Alloc(16 * sizeof(Bucket), sl);
 		bucketsLen = 16;
 		elems      = 0;
 		elemsLen   = 0;
 		elemsCap   = 0;
 		mask       = 0xf;
 		MemSet(buckets, 0, 16 * sizeof(Bucket));
-	}
-
-	void Free() {
-		if (mem) {
-			if (buckets) {
-				mem->Free(buckets);
-				buckets = 0;
-			}
-			if (elems) {
-				mem->Free(elems);
-				elems = 0;
-			}
-		}
-		bucketsLen = 0;
-		elemsLen   = 0;
-		elemsCap   = 0;
-		mask       = 0;
 	}
 
 	Opt<V> Find(K k) const {
@@ -108,10 +89,9 @@ template <class K, class V> struct Map {
 			} else if (df > bucket->df) {
 				if (elemsLen >= elemsCap) {
 					u64 newCap = Max(16ull, elemsCap * 2u);
-					if (!mem->Extend(elems, elemsCap * sizeof(Elem), newCap * sizeof(Elem), sl)) {
-						Elem* newElems = (Elem*)mem->Alloc(newCap * sizeof(Elem), sl);
+					if (!arena->Extend(elems, elemsCap * sizeof(Elem), newCap * sizeof(Elem), sl)) {
+						Elem* newElems = (Elem*)arena->Alloc(newCap * sizeof(Elem), sl);
 						MemCpy(newElems, elems, elemsLen);
-						mem->Free(elems, elemsCap * sizeof(Elem));
 						elems = newElems;
 					}
 					elemsCap = newCap;
@@ -119,9 +99,8 @@ template <class K, class V> struct Map {
 				elems[elemsLen++] = Elem { .key = k, .val = v };
 				if (elemsLen > (7 * (bucketsLen >> 3))) {	// max load factor = 7/8 = 87.5%
 					u64 newBucketsLen = bucketsLen << 1;
-					if (!mem->Extend(buckets, bucketsLen * sizeof(Bucket), newBucketsLen * sizeof(Bucket), sl)) {
-						mem->Free(buckets, bucketsLen * sizeof(Bucket));
-						buckets = (Bucket*)mem->Alloc(newBucketsLen * sizeof(Bucket), sl);
+					if (!arena->Extend(buckets, bucketsLen * sizeof(Bucket), newBucketsLen * sizeof(Bucket), sl)) {
+						buckets = (Bucket*)arena->Alloc(newBucketsLen * sizeof(Bucket), sl);
 					}
 					MemSet(buckets, 0, newBucketsLen * sizeof(Bucket));
 					bucketsLen = newBucketsLen;
@@ -200,6 +179,7 @@ template <class K, class V> struct Map {
 
 		return;
 	}
+
 	void Clear() {
 		if (buckets != nullptr) {
 			MemSet(buckets, 0, bucketsLen * sizeof(Bucket));

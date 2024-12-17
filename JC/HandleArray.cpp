@@ -1,5 +1,4 @@
 #include "JC/HandleArray.h"
-#include "JC/Mem.h"
 #include "JC/UnitTest.h"
 
 namespace JC {
@@ -11,7 +10,7 @@ struct FooHandle { u64 handle = 0; };
 
 UnitTest("HandleArray") {
 	HandleArray<Foo, FooHandle> ha;
-	ha.Init(tempMem);
+	ha.Init(temp);
 
 	Foo* const f1 = ha.Alloc(); CheckEq(f1, &ha.entries[1].val); CheckEq(ha.GetHandle(f1).handle, ((u64)1 << 32) | 1);
 	Foo* const f2 = ha.Alloc(); CheckEq(f2, &ha.entries[2].val); CheckEq(ha.GetHandle(f2).handle, ((u64)2 << 32) | 2);
@@ -35,8 +34,6 @@ UnitTest("HandleArray") {
 	CheckEq(ha.entries[5].gen, 6u); CheckEq(ha.entries[5].idx, 5u);
 
 	CheckEq(ha.free, 1u);
-
-	ha.Shutdown();
 }
 
 //--------------------------------------------------------------------------------------------------

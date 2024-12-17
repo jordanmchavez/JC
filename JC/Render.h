@@ -3,25 +3,22 @@
 #include "JC/Common.h"
 
 namespace JC {
+	struct Log;
+	struct Mat4;
+	namespace Window { struct PlatformData; }
+}
 
-struct FileApi;
-struct Log;
-struct Mem;
-struct Mat4;
-struct TempMem;
-struct WindowPlatformData;
-
-namespace Render {
+namespace JC::Render {
 
 //--------------------------------------------------------------------------------------------------
 
 struct ApiInit {
-	Log*                log                = 0;
-	Mem*                mem                = 0;
-	TempMem*            tempMem            = 0;
-	u32                 width              = 0;
-	u32                 height             = 0;
-	WindowPlatformData* windowPlatformData = {};
+	Log*                  log                = 0;
+	Arena*                perm               = 0;
+	Arena*                temp               = 0;
+	u32                   width              = 0;
+	u32                   height             = 0;
+	Window::PlatformData* windowPlatformData = {};
 };
 
 enum struct MemUsage {
@@ -141,5 +138,4 @@ Api* GetApi();
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace Render
-}	// namespace JC
+}	// namespace JC::Render

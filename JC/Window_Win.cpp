@@ -3,7 +3,6 @@
 #include "JC/Array.h"
 #include "JC/Event.h"
 #include "JC/Log.h"
-#include "JC/Mem.h"
 #include "JC/Unicode.h"
 
 #include "JC/MinimalWindows.h"
@@ -11,84 +10,45 @@
 
 #pragma comment(lib, "shcore.lib")
 
-namespace JC {
+namespace JC::Window {
 
 //--------------------------------------------------------------------------------------------------
 
-struct DisplayApiObj : DisplayApi {
-	static constexpr u32 MaxDisplayInfos = 64;
+static BOOL MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM userData) {
+	ApiObj* api = (ApiObj*)userData;
 
-	Log*        log                           = 0;
-	DisplayInfo displayInfos[MaxDisplayInfos] = {};
-	u32         displayInfosLen               = 0;
+	MONITORINFOEX monitorInfoEx = {};
+	monitorInfoEx.cbSize = sizeof(monitorInfoEx);
+	GetMonitorInfoW(hmonitor, &monitorInfoEx);
 
-	//----------------------------------------------------------------------------------------------
+	UINT dpi    = 0;
+	UINT unused = 0;
+	GetDpiForMonitor(hmonitor, MDT_EFFECTIVE_DPI, &dpi, &unused);
 
-	static BOOL MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM userData) {
-		DisplayApiObj* displayApi = (DisplayApiObj*)userData;
+	Assert(displayApi->displayInfosLen < MaxDisplayInfos);
+	displayApi->displayInfos[displayApi->displayInfosLen] = {
+		.primary    = (monitorInfoEx.dwFlags & MONITORINFOF_PRIMARY) != 0,
+		.rect       = {
+			.x      = (i32)rect->left,
+			.y      = (i32)rect->top,
+			.width  = (i32)(rect->right - rect->left),
+			.height = (i32)(rect->bottom - rect->top),
+		},
+		.dpi       = dpi,
+		.dpiScale  = (float)dpi / (float)USER_DEFAULT_SCREEN_DPI,
+	};
 
-		MONITORINFOEX monitorInfoEx = {};
-		monitorInfoEx.cbSize = sizeof(monitorInfoEx);
-		GetMonitorInfoW(hmonitor, &monitorInfoEx);
+	displayApi->displayInfosLen++;
 
-		UINT dpi    = 0;
-		UINT unused = 0;
-		GetDpiForMonitor(hmonitor, MDT_EFFECTIVE_DPI, &dpi, &unused);
+	return TRUE;
+}
 
-		Assert(displayApi->displayInfosLen < MaxDisplayInfos);
-		displayApi->displayInfos[displayApi->displayInfosLen] = {
-			.primary    = (monitorInfoEx.dwFlags & MONITORINFOF_PRIMARY) != 0,
-			.rect       = {
-				.x      = (i32)rect->left,
-				.y      = (i32)rect->top,
-				.width  = (i32)(rect->right - rect->left),
-				.height = (i32)(rect->bottom - rect->top),
-			},
-			.dpi       = dpi,
-			.dpiScale  = (float)dpi / (float)USER_DEFAULT_SCREEN_DPI,
-		};
-
-		const DisplayInfo* di = &displayApi->displayInfos[displayApi->displayInfosLen];
-		displayApi->log->Print(
-			"  Display {}: pos={}x{}, size={}x{}, dpi={}, dpiScale={}{}", 
-			displayApi->displayInfosLen,
-			di->rect.x,
-			di->rect.y,
-			di->rect.width,
-			di->rect.height,
-			di->dpi,
-			di->dpiScale,
-			di->primary ? " ***PRIMARY***" : ""
-		);
-
-		displayApi->displayInfosLen++;
-
-		return TRUE;
+Res<Span<Display>> EnumDisplays(Arena* arena) {
+	if (EnumDisplayMonitors(0, 0, MonitorEnumFn, (LPARAM)this) == FALSE) {
+		return MakeLastErr(EnumDisplayMonitors)->Push(Err_EnumDisplays);
 	}
-
-	//----------------------------------------------------------------------------------------------
-
-	Res<> Init(Log* log_) override {
-		log = log_;
-		return Refresh();
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	Res<> Refresh() override {
-		Logf("Refreshing displays:");
-		if (EnumDisplayMonitors(0, 0, MonitorEnumFn, (LPARAM)this) == FALSE) {
-			return MakeLastErr(EnumDisplayMonitors)->Push(Err_EnumDisplays);
-		}
-		return Ok();
-	}
-
-	//----------------------------------------------------------------------------------------------
-
-	Span<DisplayInfo> GetDisplayInfos() override {
-		return displayInfos;
-	}
-};
+	return Ok();
+}
 
 //--------------------------------------------------------------------------------------------------
 

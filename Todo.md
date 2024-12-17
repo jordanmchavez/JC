@@ -157,7 +157,7 @@ all uses of dbgPrint should probably not need to check dbg() first: just always 
 similarly, disable dbgBreak in shipping builds
 extract the non-parameterized map code into .cpp
 prefix/static fmt helper fns
-MakeArg -> Arg_Make?
+MakeVArg -> Arg_Make?
 mem_scratch should be in std.h and delete all references to include jc/mem.h
 panic includes all err ctx info in log print
 panic includes stack trace
