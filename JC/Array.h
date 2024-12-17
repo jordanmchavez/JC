@@ -8,8 +8,7 @@ struct Mem;
 
 //--------------------------------------------------------------------------------------------------
 
-template <class T>
-struct Array {
+template <class T> struct Array {
 	Mem* mem  = 0;
 	T*   data = 0;
 	u64  len  = 0;

@@ -20,6 +20,53 @@ constexpr ErrCode Err_LoadShader = { .ns = "app", .code = 1 };
 
 //--------------------------------------------------------------------------------------------------
 
+struct Mesh {
+	Render::Buffer vertexBuffer     = {};
+	u64            vertexBufferAddr = 0;
+	u32            vertexCount      = 0;
+	Render::Buffer indexBuffer      = {};
+	u32            indexCount       = 0;
+};
+
+struct BindlessImage {
+	Render::Image image       = {};
+	u32           bindlessIdx = 0;
+};
+
+struct Material {
+	BindlessImage bindlessImage;
+	Vec4 color;
+};
+
+struct PushConstants {
+	Mat4 model               = {};
+	u64  vertexBufferAddr    = 0;
+	u64  sceneBufferAddr     = 0;
+	u64  materialsBufferAddr = 0;
+	u32  materialIdx         = 0;
+};
+
+struct SceneData {
+	Mat4 view;
+	Mat4 proj;
+	Vec4 ambient;
+};
+
+//--------------------------------------------------------------------------------------------------
+
+static DisplayApi*     displayApi;
+static EventApi*       eventApi;
+static FileApi*        fileApi;
+static LogApi*         logApi;
+static Log*            log;
+static LogLeakReporter logLeakReporter;
+static MemApi*         memApi;
+static Render::Api*    renderApi;
+static TempMem*        tempMem;
+static WindowApi*      windowApi;
+
+//--------------------------------------------------------------------------------------------------
+
 struct LogLeakReporter : MemLeakReporter {
 	Log* log = 0;
 
@@ -38,19 +85,6 @@ struct LogLeakReporter : MemLeakReporter {
 
 //--------------------------------------------------------------------------------------------------
 
-static DisplayApi*     displayApi;
-static EventApi*       eventApi;
-static FileApi*        fileApi;
-static LogApi*         logApi;
-static Log*            log;
-static LogLeakReporter logLeakReporter;
-static MemApi*         memApi;
-static Render::Api*    renderApi;
-static TempMem*        tempMem;
-static WindowApi*      windowApi;
-
-//--------------------------------------------------------------------------------------------------
-
 constexpr s8 FileNameOnly(s8 path) {
 	for (const char* i = path.data + path.len - 1; i >= path.data; i--) {
 		if (*i == '/' || *i == '\\') {
@@ -58,6 +92,11 @@ constexpr s8 FileNameOnly(s8 path) {
 		}
 	}
 	return path;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<Mesh> CreateCubeMesh() {
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -167,37 +206,8 @@ Res<> Run(int argc, const char** argv) {
 		return r;
 	}
 
-	struct Mesh {
-		Render::Buffer vertexBuffer;
-		Render::Buffer indexBuffer;
-		u32 vertexCount;
-		u32 indexCount;
-	};
-
-	struct BindlessImage {
-		Render::Image image;
-		u32  bindlessIdx;
-	};
-	BindlessImage 
-
-	struct Material {
-		BindlessImage bindlessImage;
-		Vec4 color;
-	};
-
-	struct PushConstants {
-		Mat4 model               = {};
-		u64  vertexBufferAddr    = 0;
-		u64  sceneBufferAddr     = 0;
-		u64  materialsBufferAddr = 0;
-		u32  materialIdx         = 0;
-	};
-
-	struct SceneData {
-		Mat4 view;
-		Mat4 proj;
-		Vec4 ambient;
-	};
+	Mesh cubeMesh = {};
+	if (Res<> r = CreateCubeMesh().To(cubeMesh); !r) { return r; }
 
 	Render::Shader vertexShader = {};
 	if (Res<> r = LoadShader("Shaders/mesh.vert.spv").To(vertexShader); !r) { return r; }

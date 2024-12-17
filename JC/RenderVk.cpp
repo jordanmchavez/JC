@@ -20,6 +20,12 @@ namespace JC::Render {
 //--------------------------------------------------------------------------------------------------
 
 struct ApiObj : Api {
+	static constexpr u32   MaxFrames                 = 2;
+	static constexpr u32   MaxBindlessSampledImages  = 64 * 1024;
+	static constexpr u32   MaxBindlessSamplers       = 8;
+	static constexpr u32   MaxBindlessDescriptorSets = 32;
+	static constexpr float MaxAnisotropy             = 8.0f;
+
 	struct QueueFamily {
 		VkQueueFamilyProperties vkQueueFamilyProperties = {};
 		bool                    supportsPresent         = false;
@@ -48,34 +54,43 @@ struct ApiObj : Api {
 	};
 
 	struct BufferObj {
-		VkBuffer  vkBuffer  = VK_NULL_HANDLE;
-		DeviceMem deviceMem = {};
-		u64       addr      = 0;
+		VkBuffer    vkBuffer  = VK_NULL_HANDLE;
+		DeviceMem   deviceMem = {};
+		u64         size      = 0;
+		BufferUsage usage     = {};
+		u64         addr      = 0;
+		void*       mappedPtr = 0;
+	};
+
+	struct SamplerObj {
+		VkSampler vkSampler = VK_NULL_HANDLE;
 	};
 
 	struct ImageObj {
-		VkImage     vkImage     = VK_NULL_HANDLE;
-		VkImageView vkImageView = VK_NULL_HANDLE;
-		u32         width       = 0;
-		u32         height      = 0;
-		VkFormat    vkFormat    = VK_FORMAT_UNDEFINED;
-		DeviceMem   deviceMem   = {};
+		VkImage       vkImage       = VK_NULL_HANDLE;
+		VkImageView   vkImageView   = VK_NULL_HANDLE;
+		DeviceMem     deviceMem     = {};
+		u32           width         = 0;
+		u32           height        = 0;
+		VkFormat      vkFormat      = VK_FORMAT_UNDEFINED;
+		VkImageLayout vkImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		Sampler       sampler       = {};
 	};
 
 	struct ShaderObj {
-		VkShaderModule vkShaderModule = VK_NULL_HANDLE;
+		VkShaderModule      vkShaderModule      = VK_NULL_HANDLE;
+		VkShaderStageFlags  vkShaderStageFlags  = 0;
+		u32                 pushConstantsOffset = 0;
+		u32                 pushConstantsSize   = 0;
 	};
 
 	struct PipelineObj {
-		VkPipeline       vkPipeline       = VK_NULL_HANDLE;
-		VkPipelineLayout vkPipelineLayout = VK_NULL_HANDLE;
+		VkPipeline            vkPipeline            = VK_NULL_HANDLE;
+		VkPipelineLayout      vkPipelineLayout      = VK_NULL_HANDLE;
+		VkPipelineBindPoint   vkPipelineBindPoint   = {};
+		VkDescriptorSetLayout vkDescriptorSetLayout = {};
+		VkPushConstantRange   vkPushConstantRange   = {};
 	};
-
-	static constexpr u32   MaxFrames                 = 2;
-	static constexpr u32   MaxBindlessSampledImages  = 64 * 1024;
-	static constexpr u32   MaxBindlessSamplers       = 8;
-	static constexpr u32   MaxBindlessDescriptorSets = 32;
-	static constexpr float MaxAnisotropy             = 8.0f;
 
 	Log*                               log                           = 0;
 	Mem*                               mem                           = 0;
@@ -102,8 +117,6 @@ struct ApiObj : Api {
 	VkCommandPool                      vkCommandPool                 = VK_NULL_HANDLE;
 	Array<VkCommandBuffer>             vkFrameCommandBuffers         = {};
 	VkDescriptorPool                   vkDescriptorPool              = VK_NULL_HANDLE;
-	VkDescriptorSetLayout              vkBindlessDescriptorSetLayout = VK_NULL_HANDLE;
-	VkDescriptorSet                    vkBindlessDescriptorSet       = VK_NULL_HANDLE;
 	Array<VkSampler>                   vkBindlessSamplers            = {};
 	u64                                frameIndex                    = 0;
 
@@ -673,39 +686,6 @@ struct ApiObj : Api {
 		};
 		CheckVk(vkCreateDescriptorPool(vkDevice, &vkDescriptorPoolCreateInfo, vkAllocationCallbacks, &vkDescriptorPool));
 
-		constexpr VkDescriptorBindingFlags vkDescriptorBindingFlags[] = {
-			VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT,
-		};
-		const VkDescriptorSetLayoutBindingFlagsCreateInfo vkDescriptorSetLayoutBindingFlagsCreateInfo = {
-			.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-			.pNext         = 0,
-			.bindingCount  = 1,
-			.pBindingFlags = vkDescriptorBindingFlags,
-		};
-		constexpr VkDescriptorSetLayoutBinding vkMeshDescriptorSetLayoutBindings[] = {
-			{
-				.binding            = 0,
-				.descriptorType     = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-				.descriptorCount    = MaxBindlessSampledImages,
-				.stageFlags         = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-				.pImmutableSamplers = 0,
-			},
-			{
-				.binding            = 1,
-				.descriptorType     = VK_DESCRIPTOR_TYPE_SAMPLER,
-				.descriptorCount    = MaxBindlessSamplers,
-				.stageFlags         = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-				.pImmutableSamplers = 0,
-			},
-		};
-		const VkDescriptorSetLayoutCreateInfo vkDescriptorSetLayoutCreateInfo = {
-			.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-			.pNext        = &vkDescriptorSetLayoutBindingFlagsCreateInfo,
-			.flags        = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
-			.bindingCount = LenOf(vkMeshDescriptorSetLayoutBindings),
-			.pBindings    = vkMeshDescriptorSetLayoutBindings,
-		};
-		CheckVk(vkCreateDescriptorSetLayout(vkDevice, &vkDescriptorSetLayoutCreateInfo, vkAllocationCallbacks, &vkBindlessDescriptorSetLayout));
 
 		const VkDescriptorSetAllocateInfo vkDescriptorSetAllocateInfo = {
 			.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -1092,27 +1072,77 @@ struct ApiObj : Api {
 
 	//----------------------------------------------------------------------------------------------
 
-	Res<Pipeline> CreatePipeline(Shader vertexShader, Shader fragmentShader, u32 pushConstantsSize) override {
-		const VkPushConstantRange vkPushConstantRange = {
-			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-			.offset     = 0,
-			.size       = pushConstantsSize,
+	Res<Pipeline> CreatePipeline(Span<Shader> shaders) override {
+		Assert(shaders.len > 0);
+
+		VkShaderStageFlags vkShaderStageFlags = 0;
+		VkPushConstantRange vkPushConstantRange = {};
+		for (u64 i = 0; i < shaders.len; i++) {
+			ShaderObj* const shaderObj = shaderObjs.Get(shaders[i]);
+			vkShaderStageFlags |= shaderObj->vkShaderStageFlags;
+			if (shaderObj->pushConstantsSize) {
+				vkPushConstantRange.stageFlags |= shaderObj->vkShaderStageFlags;
+				if (!vkPushConstantRange.size) {
+					vkPushConstantRange.offset = shaderObj->pushConstantsOffset;
+					vkPushConstantRange.size   = shaderObj->pushConstantsSize;
+				} else {
+					Assert(vkPushConstantRange.offset == shaderObj->pushConstantsOffset);
+					Assert(vkPushConstantRange.size   == shaderObj->pushConstantsSize);
+				}
+			}
+		}
+
+		constexpr VkDescriptorBindingFlags vkDescriptorBindingFlags[] = {
+			VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT,
 		};
+		const VkDescriptorSetLayoutBindingFlagsCreateInfo vkDescriptorSetLayoutBindingFlagsCreateInfo = {
+			.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+			.pNext         = 0,
+			.bindingCount  = 1,
+			.pBindingFlags = vkDescriptorBindingFlags,
+		};
+		const VkDescriptorSetLayoutBinding vkMeshDescriptorSetLayoutBindings[] = {
+			{
+				.binding            = 0,
+				.descriptorType     = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+				.descriptorCount    = MaxBindlessSampledImages,
+				.stageFlags         = vkShaderStageFlags,
+				.pImmutableSamplers = 0,
+			},
+			{
+				.binding            = 1,
+				.descriptorType     = VK_DESCRIPTOR_TYPE_SAMPLER,
+				.descriptorCount    = MaxBindlessSamplers,
+				.stageFlags         = vkShaderStageFlags,
+				.pImmutableSamplers = 0,
+			},
+		};
+		const VkDescriptorSetLayoutCreateInfo vkDescriptorSetLayoutCreateInfo = {
+			.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+			.pNext        = &vkDescriptorSetLayoutBindingFlagsCreateInfo,
+			.flags        = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
+			.bindingCount = LenOf(vkMeshDescriptorSetLayoutBindings),
+			.pBindings    = vkMeshDescriptorSetLayoutBindings,
+		};
+		VkDescriptorSetLayout vkDescriptorSetLayout = VK_NULL_HANDLE;
+		CheckVk(vkCreateDescriptorSetLayout(vkDevice, &vkDescriptorSetLayoutCreateInfo, vkAllocationCallbacks, &vkDescriptorSetLayout));
+
 		const VkPipelineLayoutCreateInfo vkPipelineLayoutCreateInfo = {
 			.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 			.pNext                  = 0,
 			.flags                  = 0,
 			.setLayoutCount         = 1,
-			.pSetLayouts            = &vkBindlessDescriptorSetLayout,
+			.pSetLayouts            = &vkDescriptorSetLayout,
 			.pushConstantRangeCount = 1,
 			.pPushConstantRanges    = &vkPushConstantRange,
 		};
 		VkPipelineLayout vkPipelineLayout;
-		CheckVk(vkCreatePipelineLayout(vkDevice, &vkPipelineLayoutCreateInfo, vkAllocationCallbacks, &vkPipelineLayout));
+		if (const VkResult r = vkCreatePipelineLayout(vkDevice, &vkPipelineLayoutCreateInfo, vkAllocationCallbacks, &vkPipelineLayout); r != VK_SUCCESS) {
+			vkDestroyDescriptorSetLayout(vkDevice, vkDescriptorSetLayout, vkAllocationCallbacks);
+			return MakeVkErr(r, vkCreatePipelineLayout);
+		}
 
-		ShaderObj* const vertexShaderObj   = shaderObjs.Get(vertexShader);
-		ShaderObj* const fragmentShaderObj = shaderObjs.Get(fragmentShader);
-		const VkPipelineShaderStageCreateInfo vkPipelineShaderStageCreateInfos[2] = {
+		VkPipelineShaderStageCreateInfo* const vkPipelineShaderStageCreateInfos = (VkPipelineShaderStageCreateInfo*)tempMem-L
 			{
 				.sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
 				.pNext               = 0,

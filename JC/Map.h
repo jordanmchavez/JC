@@ -8,8 +8,7 @@ struct Mem;
 
 //-------------------------------------------------------------------------------------------------
 
-template <class K, class V>
-struct Map {
+template <class K, class V> struct Map {
 	struct Bucket {
 		u32 df  = 0;	// top 3 bytes are distance, bottom byte is fingerprint
 		u64 idx = 0;
