@@ -5,13 +5,6 @@
 namespace JC {
 	struct Log;
 	namespace Event { struct Api; }
-
-	struct Rect {
-		i32 x      = 0;
-		i32 y      = 0;
-		i32 width  = 0;
-		i32 height = 0;
-	};
 }
 
 namespace JC::Window {

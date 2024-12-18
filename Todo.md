@@ -252,3 +252,4 @@ Interested in calculating avg wasted temp mem when we jump to a new block and le
 ability to begin multiple buffer transfers and wait on all of their fences
 window rect is signed
 de-line Map.h
+go through win, fs, event, render and replace errors with real error codes

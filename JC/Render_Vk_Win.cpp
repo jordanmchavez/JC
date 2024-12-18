@@ -24,7 +24,6 @@ void LoadRootFns() {
 		vkEnumerateInstanceLayerProperties = (PFN_vkEnumerateInstanceLayerProperties)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceLayerProperties");
 		vkEnumerateInstanceVersion = (PFN_vkEnumerateInstanceVersion)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion");
 	#endif	// Platform_
-	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------

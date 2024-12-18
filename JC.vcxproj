@@ -98,7 +98,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\SPIRV-Reflect\spirv_reflect.h" />
     <ClInclude Include="3rd\dragonbox\dragonbox.h" />
+    <ClInclude Include="3rd\spirv_reflect\spirv_reflect.h" />
     <ClInclude Include="3rd\stb\stb_image.h" />
     <ClInclude Include="3rd\vk_video\vulkan_video_codecs_common.h" />
     <ClInclude Include="3rd\vk_video\vulkan_video_codec_av1std.h" />
@@ -135,6 +137,8 @@
     <ClInclude Include="Scratch.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\SPIRV-Reflect\spirv_reflect.c" />
+    <ClCompile Include="3rd\spirv_reflect\spirv_reflect.c" />
     <ClCompile Include="JC\FS_Win.cpp" />
     <ClCompile Include="JC\Common_Panic.cpp" />
     <ClCompile Include="JC\Common_Err.cpp" />

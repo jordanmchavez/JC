@@ -69,24 +69,155 @@ constexpr s8 FileNameOnly(s8 path) {
 
 //--------------------------------------------------------------------------------------------------
 
-//Res<Mesh> CreateCubeMesh() {
-//}
+struct Vertex {
+	Vec3  pos    = {};
+	Vec3  normal = {};
+	Vec2  uv     = {};
+};
+
+/*
+      Y+
+      |
+      |
+      |
+      |
+      |
+      |
+      +------------------X+
+     /
+    /
+   /
+  /
+ /
+Z+
+*/
+
+Res<Mesh> CreateCubeMesh() {
+	Render::Buffer vertexBuffer = {};
+	if (Res<> r = Render::CreateBuffer(24 * sizeof(Vertex), Render::BufferUsage::Storage).To(vertexBuffer); !r) {
+		return r.err;
+	}
+
+	Render::BufferUpdate update;
+	if (Res<> r = Render::BeginBufferUpdate(vertexBuffer).To(update); !r) {
+		Render::DestroyBuffer(vertexBuffer);
+		return r.err;
+	}
+	Vertex* const vertices = (Vertex*)update.ptr;
+	// +Z
+	vertices[ 0] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 0.0, 0.0f } };
+	vertices[ 1] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 1.0, 0.0f } };
+	vertices[ 2] = { .pos = {  1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 0.0, 1.0f } };
+	vertices[ 3] = { .pos = { -1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 1.0, 1.0f } };
+	// -Z
+	vertices[ 4] = { .pos = {  1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 0.0, 0.0f } };
+	vertices[ 5] = { .pos = { -1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 1.0, 0.0f } };
+	vertices[ 6] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 0.0, 1.0f } };
+	vertices[ 7] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 1.0, 1.0f } };
+	// +X
+	vertices[ 8] = { .pos = {  1.0f,  1.0f,  1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 0.0, 0.0f } };
+	vertices[ 9] = { .pos = {  1.0f,  1.0f, -1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 1.0, 0.0f } };
+	vertices[10] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 0.0, 1.0f } };
+	vertices[11] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 1.0, 1.0f } };
+	// -X
+	vertices[12] = { .pos = { -1.0f,  1.0f, -1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 0.0, 0.0f } };
+	vertices[13] = { .pos = { -1.0f,  1.0f,  1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 1.0, 0.0f } };
+	vertices[14] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 0.0, 1.0f } };
+	vertices[15] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 1.0, 1.0f } };
+	// +Y
+	vertices[16] = { .pos = { -1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 0.0, 0.0f } };
+	vertices[17] = { .pos = {  1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 1.0, 0.0f } };
+	vertices[18] = { .pos = {  1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 0.0, 1.0f } };
+	vertices[29] = { .pos = { -1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 1.0, 1.0f } };
+	// -Y
+	vertices[20] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 0.0, 0.0f } };
+	vertices[21] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 1.0, 0.0f } };
+	vertices[22] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 0.0, 1.0f } };
+	vertices[23] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 1.0, 1.0f } };
+
+	Render::EndBufferUpdate(update);
+
+	Render::Buffer indexBuffer = {};
+	if (Res<> r = Render::CreateBuffer(36 * sizeof(u32), Render::BufferUsage::Index).To(indexBuffer); !r) {
+		Render::DestroyBuffer(vertexBuffer);
+		return r.err;
+	}
+
+	if (Res<> r = Render::BeginBufferUpdate(indexBuffer).To(update); !r) {
+		Render::DestroyBuffer(vertexBuffer);
+		Render::DestroyBuffer(indexBuffer);
+	}
+
+	u32* const indices = (u32*)update.ptr;
+	// +Z
+	indices[ 0] =  0;
+	indices[ 1] =  1;
+	indices[ 2] =  2;
+	indices[ 3] =  0;
+	indices[ 4] =  2;
+	indices[ 5] =  3;
+	// -Z
+	indices[ 6] =  4;
+	indices[ 7] =  5;
+	indices[ 8] =  6;
+	indices[ 9] =  4;
+	indices[10] =  6;
+	indices[11] =  7;
+	// +X
+	indices[12] =  8;
+	indices[13] =  9;
+	indices[14] = 10;
+	indices[15] =  8;
+	indices[16] = 10;
+	indices[17] = 11;
+	// -X
+	indices[18] = 12;
+	indices[19] = 13;
+	indices[20] = 14;
+	indices[21] = 12;
+	indices[22] = 14;
+	indices[23] = 15;
+	// +Y
+	indices[24] = 16;
+	indices[25] = 17;
+	indices[26] = 18;
+	indices[27] = 16;
+	indices[28] = 18;
+	indices[29] = 19;
+	// -Y
+	indices[30] = 20;
+	indices[31] = 21;
+	indices[32] = 22;
+	indices[33] = 20;
+	indices[34] = 22;
+	indices[35] = 23;
+
+	Render::EndBufferUpdate(update);
+
+	return Mesh {
+		.vertexBuffer     = vertexBuffer,
+		.vertexBufferAddr = Render::GetBufferAddr(vertexBuffer),
+		.vertexCount      = 24,
+		.indexBuffer      = indexBuffer,
+		.indexCount       = 36,
+	};
+}
 
 //--------------------------------------------------------------------------------------------------
 
-//Res<Render::Shader> LoadShader(s8 path) {
-//	Span<u8> data;
-//	if (Res<> r = FS::ReadAll(temp, path).To(data); !r) {
-//		return r.err->Push(Err_LoadShader, "path", path);
-//	}
-//
-//	Render::Shader shader;
-//	if (Res<> r = Render::CreateShader(data.data, data.len).To(shader); !r) {
-//		return r.err->Push(Err_LoadShader, "path", path);
-//	}
-//
-//	return shader;
-//}
+Res<Render::Shader> LoadShader(s8 path, s8 entry) {
+	Span<u8> data;
+	if (Res<> r = FS::ReadAll(temp, path).To(data); !r) {
+		return r.err->Push(Err_LoadShader, "path", path);
+	}
+
+	Render::Shader shader;
+	if (Res<> r = Render::CreateShader(data.data, data.len, "main").To(shader); !r) {
+		return r.err->Push(Err_LoadShader, "path", path);
+	}
+
+	return shader;
+}
 
 //--------------------------------------------------------------------------------------------------
 
@@ -163,7 +294,7 @@ Res<> Run(int argc, const char** argv) {
 	if (Res<> r = Render::Init(&renderInitInfo); !r) {
 		return r;
 	}
-	/*
+
 	Mesh cubeMesh = {};
 	if (Res<> r = CreateCubeMesh().To(cubeMesh); !r) { return r; }
 
@@ -269,7 +400,7 @@ Res<> Run(int argc, const char** argv) {
 			return r;
 		}
 	}
-	*/
+
 	return Ok();
 }
 

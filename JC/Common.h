@@ -392,6 +392,9 @@ struct Arena {
 	bool  Extend(void* p, u64 oldSize, u64 newSize, SrcLoc sl = SrcLoc::Here());
 	u64   Mark();
 	void  Reset(u64 mark);
+
+	template <class T> T* AllocT(u64 n, SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(n * sizeof(T), sl); }
+	template <class T> bool ExtendT(T* p, u64 oldN, u64 newN, SrcLoc sl = SrcLoc::Here()) { return Extend(p, oldN * sizeof(T), newN * sizeof(T), sl); }
 };
 
 Arena CreateArena(u64 reserveSize);
@@ -437,7 +440,7 @@ struct [[nodiscard]] Err {
 
 	template <class... A> Err* Push(ErrCodeSrcLoc ecSl, A... args) {
 		static_assert(sizeof...(A) % 2 == 0);
-		return VMakeErr(this, ecSl.sl, ecSl.ec, MakeVArgs(args...));
+		return VMakeErr(arena, this, ecSl.sl, ecSl.ec, MakeVArgs(args...));
 	}
 };
 
@@ -445,7 +448,7 @@ Err* VMakeErr(Arena* arena, Err* prev, SrcLoc sl, ErrCode ec, VArgs args);
 
 template <class... A> Err* MakeErr(ArenaSrcLoc arenaSl, ErrCode ec, A... args) {
 	static_assert(sizeof...(A) % 2 == 0);
-	return VMake(arenaSl.arena, 0, arenaSl.sl, ec, MakeVArgs(args...));
+	return VMakeErr(arenaSl.arena, 0, arenaSl.sl, ec, MakeVArgs(args...));
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -539,6 +542,15 @@ struct Span {
 template <class T> constexpr T Min(T x, T y) { return x < y ? x : y; }
 template <class T> constexpr T Max(T x, T y) { return x > y ? x : y; }
 template <class T> constexpr T Clamp(T x, T lo, T hi) { return x < lo ? lo : (x > hi ? hi : x); }
+
+//--------------------------------------------------------------------------------------------------
+
+struct Rect {
+	i32 x      = 0;
+	i32 y      = 0;
+	i32 width  = 0;
+	i32 height = 0;
+};
 
 //--------------------------------------------------------------------------------------------------
 
