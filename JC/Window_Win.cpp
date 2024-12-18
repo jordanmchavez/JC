@@ -20,34 +20,37 @@ static constexpr u32 HID_USAGE_PAGE_GENERIC     = 0x01;
 static constexpr u32 HID_USAGE_GENERIC_MOUSE    = 0x02;
 static constexpr u32 HID_USAGE_GENERIC_KEYBOARD = 0x06;
 
+struct Window {
+	HWND        hwnd       = 0;
+	DWORD       winStyle   = 0;
+	Style       style      = {};
+	Rect        windowRect = {};
+	Rect        clientRect = {};
+	u32         dpi        = 0;
+	f32         dpiScale   = 0.0f;
+	u64         stateFlags = 0;
+	CursorMode  cursorMode = {};
+};
 static Arena*      temp;
 static Log*        log;
 static Display     displays[MaxDisplays];
 static u32         displaysLen;
+static Window      window;
 static bool        exitRequested;
-static HWND        hwnd;
-static DWORD       winStyle;
-static Style       style;
-static Rect        windowRect;
-static Rect        clientRect;
-static u32         dpi;
-static float       dpiScale;
-static u64         stateFlags;
-static CursorMode  cursorMode;
 
 //----------------------------------------------------------------------------------------------
 
-static LRESULT CALLBACK WndProc(HWND, UINT msg, WPARAM wparam, LPARAM lparam) {
+static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	switch (msg) {
 		case WM_ACTIVATE:
 			if (wparam == WA_INACTIVE) {
-				stateFlags &= ~StateFlags::Focused;
-				if (cursorMode != CursorMode::VisibleFree) {
+				window.stateFlags &= ~StateFlags::Focused;
+				if (window.cursorMode != CursorMode::VisibleFree) {
 					ClipCursor(0);
 				}
 			} else {
-				stateFlags |= StateFlags::Focused;
-				if (cursorMode != CursorMode::VisibleFree) {
+				window.stateFlags |= StateFlags::Focused;
+				if (window.cursorMode != CursorMode::VisibleFree) {
 					RECT r;
 					GetWindowRect(hwnd, &r);
 					ClipCursor(&r);
@@ -60,12 +63,12 @@ static LRESULT CALLBACK WndProc(HWND, UINT msg, WPARAM wparam, LPARAM lparam) {
 			break;
 
 		case WM_DPICHANGED:
-			dpi      = LOWORD(wparam);
-			dpiScale = (float)LOWORD(wparam) / (float)USER_DEFAULT_SCREEN_DPI;
+			window.dpi      = LOWORD(wparam);
+			window.dpiScale = (f32)LOWORD(wparam) / (f32)USER_DEFAULT_SCREEN_DPI;
 			break;
 
 		case WM_EXITSIZEMOVE:
-			if (cursorMode != CursorMode::VisibleFree && hwnd == GetActiveWindow()) {
+			if (window.cursorMode != CursorMode::VisibleFree && hwnd == GetActiveWindow()) {
 				RECT r;
 				GetWindowRect(hwnd, &r);
 				ClipCursor(&r);
@@ -138,11 +141,11 @@ static LRESULT CALLBACK WndProc(HWND, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 		case WM_SIZE:
 			if (wparam == SIZE_MAXIMIZED) {
-				stateFlags |= StateFlags::Maximized;
+				window.stateFlags |= StateFlags::Maximized;
 			} else if (wparam == SIZE_MINIMIZED) {
-				stateFlags |= StateFlags::Minimized;
+				window.stateFlags |= StateFlags::Minimized;
 			} else if (wparam == SIZE_RESTORED) {
-				stateFlags &= ~(StateFlags::Maximized | StateFlags::Minimized);
+				window.stateFlags &= ~(StateFlags::Maximized | StateFlags::Minimized);
 			}
 			break;
 
@@ -155,16 +158,16 @@ static LRESULT CALLBACK WndProc(HWND, UINT msg, WPARAM wparam, LPARAM lparam) {
 
 		case WM_WINDOWPOSCHANGED: {
 			const WINDOWPOS* wp = (WINDOWPOS*)lparam;
-			windowRect.x      = wp->x;
-			windowRect.y      = wp->y;
-			windowRect.width  = wp->cx;
-			windowRect.height = wp->cy;
+			window.windowRect.x      = wp->x;
+			window.windowRect.y      = wp->y;
+			window.windowRect.width  = wp->cx;
+			window.windowRect.height = wp->cy;
 			RECT cr = {};
 			GetClientRect(hwnd, &cr);
-			clientRect.x      = cr.left;
-			clientRect.y      = cr.top;
-			clientRect.width  = cr.right - cr.left;
-			clientRect.height = cr.bottom - cr.top;
+			window.clientRect.x      = cr.left;
+			window.clientRect.y      = cr.top;
+			window.clientRect.width  = cr.right - cr.left;
+			window.clientRect.height = cr.bottom - cr.top;
 
 			//if (windowApi->cursorMode != WindowCursorMode::VisibleFree && GetActiveWindow() == windowApi->hwnd) {
 			//	RECT r;
@@ -193,7 +196,7 @@ static BOOL MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
 	monitorInfoEx.cbSize = sizeof(monitorInfoEx);
 	GetMonitorInfoW(hmonitor, &monitorInfoEx);
 
-	UINT monitorDpi    = 0;
+	UINT dpi    = 0;
 	UINT unused = 0;
 	GetDpiForMonitor(hmonitor, MDT_EFFECTIVE_DPI, &dpi, &unused);
 
@@ -206,8 +209,8 @@ static BOOL MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
 			.width  = (i32)(rect->right - rect->left),
 			.height = (i32)(rect->bottom - rect->top),
 		},
-		.dpi       = monitorDpi,
-		.dpiScale  = (float)monitorDpi / (float)USER_DEFAULT_SCREEN_DPI,
+		.dpi       = dpi,
+		.dpiScale  = (f32)dpi / (f32)USER_DEFAULT_SCREEN_DPI,
 	};
 	displaysLen++;
 
@@ -248,24 +251,25 @@ Res<> Init(const InitInfo* initInfo) {
 
 	const s16z titlew = Utf8ToWtf16z(temp, initInfo->title);
 
-	winStyle = 0;
-	switch (initInfo->style) {
+	window.style = initInfo->style;
+	window.winStyle = 0;
+	switch (window.style) {
 		case Style::Bordered:
-			winStyle = WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU;
+			window.winStyle = WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU;
 			break;
 		case Style::BorderedResizable:
-			winStyle = WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU | WS_THICKFRAME;
+			window.winStyle = WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU | WS_THICKFRAME;
 			break;
 		case Style::Borderless:
-			winStyle = WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_POPUP | WS_SYSMENU;
+			window.winStyle = WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_POPUP | WS_SYSMENU;
 			break;
 		case Style::Fullscreen:
-			winStyle = WS_POPUP;
+			window.winStyle = WS_POPUP;
 			break;
 	}
 
 	Rect rect = initInfo->rect;
-	if (style == Style::Fullscreen) {
+	if (initInfo->style == Style::Fullscreen) {
 		Assert(initInfo->fullscreenDisplay <= displaysLen);
 		rect = displays[initInfo->fullscreenDisplay].rect;
 	}
@@ -274,42 +278,42 @@ Res<> Init(const InitInfo* initInfo) {
 
 	HMONITOR hmonitor = MonitorFromRect(&r, MONITOR_DEFAULTTONEAREST);
 	UINT unused = 0;
-	GetDpiForMonitor(hmonitor, MDT_EFFECTIVE_DPI, &dpi, &unused);
-	AdjustWindowRectExForDpi(&r, winStyle, FALSE, 0, dpi);
+	GetDpiForMonitor(hmonitor, MDT_EFFECTIVE_DPI, &window.dpi, &unused);
+	AdjustWindowRectExForDpi(&r, window.winStyle, FALSE, 0, window.dpi);
 
-	hwnd = CreateWindowExW(
+	window.hwnd = CreateWindowExW(
 		0,
 		L"JC",
 		titlew.data,
-		winStyle,
+		window.winStyle,
 		r.left,
 		r.top,
 		r.right - r.left,
 		r.bottom - r.top,
 		0,
 		0,
-		GetModuleHandle(0),
+		GetModuleHandleW(0),
 		0
 	);
-	if (!hwnd) {
-		return MakeLastErr(temp, CreateWindowEx);
+	if (!window.hwnd) {
+		return MakeLastErr(temp, CreateWindowExW);
 	}
 
-	windowRect.x      = r.left;
-	windowRect.y      = r.bottom;
-	windowRect.width  = r.right - r.left;
-	windowRect.height = r.bottom - r.top;
-	dpiScale          = (float)dpi / (float)USER_DEFAULT_SCREEN_DPI;
+	window.windowRect.x      = r.left;
+	window.windowRect.y      = r.bottom;
+	window.windowRect.width  = r.right - r.left;
+	window.windowRect.height = r.bottom - r.top;
+	window.dpiScale          = (f32)window.dpi / (f32)USER_DEFAULT_SCREEN_DPI;
 
-	SetFocus(hwnd);
-	ShowWindow(hwnd, SW_SHOW);
-	UpdateWindow(hwnd);
+	SetFocus(window.hwnd);
+	ShowWindow(window.hwnd, SW_SHOW);
+	UpdateWindow(window.hwnd);
 	RAWINPUTDEVICE rawInputDevices[2] = {
 		{
 			.usUsagePage = (USHORT)HID_USAGE_PAGE_GENERIC,
 			.usUsage     = (USHORT)HID_USAGE_GENERIC_KEYBOARD,
 			.dwFlags     = RIDEV_INPUTSINK,
-			.hwndTarget  = hwnd,
+			.hwndTarget  = window.hwnd,
 		},
 		{
 			.usUsagePage = (USHORT)HID_USAGE_PAGE_GENERIC,
@@ -326,7 +330,7 @@ Res<> Init(const InitInfo* initInfo) {
 //----------------------------------------------------------------------------------------------
 
 void Shutdown() {
-	if (hwnd) {
+	if (window.hwnd) {
 		RAWINPUTDEVICE rawInputDevices[2] = {
 			{
 				.usUsagePage = (USHORT)HID_USAGE_PAGE_GENERIC,
@@ -342,8 +346,8 @@ void Shutdown() {
 			},
 		};
 		RegisterRawInputDevices(rawInputDevices, 2, sizeof(rawInputDevices[0]));
-		DestroyWindow(hwnd);
-		hwnd = 0;
+		DestroyWindow(window.hwnd);
+		window.hwnd = 0;
 	}
 }
 
@@ -362,14 +366,14 @@ void PumpMessages() {
 State GetState() {
 	return State {
 		.rect       = {
-			.x      = windowRect.y,
-			.y      = windowRect.x,
-			.width  = clientRect.width,
-			.height = clientRect.height,
+			.x      = window.windowRect.y,
+			.y      = window.windowRect.x,
+			.width  = window.clientRect.width,
+			.height = window.clientRect.height,
 		},
-		.flags      = stateFlags,
-		.style      = style,
-		.cursorMode = cursorMode,
+		.flags      = window.stateFlags,
+		.style      = window.style,
+		.cursorMode = window.cursorMode,
 	};
 }
 
@@ -378,8 +382,8 @@ State GetState() {
 void SetRect(Rect newRect) {
 	RECT r;
 	::SetRect(&r, newRect.x, newRect.y, newRect.x + newRect.width, newRect.y + newRect.height);
-	AdjustWindowRectExForDpi(&r, winStyle, FALSE, 0, dpi);
-	SetWindowPos(hwnd, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOZORDER | SWP_NOACTIVATE);
+	AdjustWindowRectExForDpi(&r, window.winStyle, FALSE, 0, window.dpi);
+	SetWindowPos(window.hwnd, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
 //----------------------------------------------------------------------------------------------
@@ -392,15 +396,15 @@ void SetStyle(Style newStyle) {
 //----------------------------------------------------------------------------------------------
 
 void SetCursorMode(CursorMode newCursorMode) {
-	if (cursorMode != CursorMode::VisibleFree) {
+	if (window.cursorMode != CursorMode::VisibleFree) {
 		ClipCursor(0);
 	}
 	if (newCursorMode != CursorMode::VisibleFree) {
 		RECT r;
-		GetWindowRect(hwnd, &r);
+		GetWindowRect(window.hwnd, &r);
 		ClipCursor(&r);
 	}
-	cursorMode = newCursorMode;
+	window.cursorMode = newCursorMode;
 }
 
 //----------------------------------------------------------------------------------------------
@@ -408,7 +412,7 @@ void SetCursorMode(CursorMode newCursorMode) {
 PlatformInfo GetPlatformInfo() {
 	return PlatformInfo {
 		.hinstance = GetModuleHandleW(0),
-		.hwnd      = hwnd,
+		.hwnd      = window.hwnd,
 	};
 }
 

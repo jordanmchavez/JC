@@ -43,7 +43,16 @@ enum struct ImageUsage {
 };
 
 enum struct ImageFormat {
-	Undefined = 0
+	Undefined = 0,
+	B8G8R8_N,
+	B8G8R8_U,
+	R8G8B8_N,
+	R8G8B8_U,
+	B8G8R8A8_N,
+	B8G8R8A8_U,
+	R8G8B8A8_N,
+	R8G8B8A8_U,
+	D32_F,
 };
 
 enum struct ImageLayout {
@@ -51,28 +60,21 @@ enum struct ImageLayout {
 };
 
 struct BufferUpdate {
-	u64    handle = 0;
 	Buffer buffer = {};
 	void*  ptr    = 0;
 };
 
 struct ImageUpdate {
-	u64   handle = 0;
 	Image image  = {};
-	void* ptr    = 0;
 	u32   rowLen = 0;
+	void* ptr    = 0;
 };
 
 struct Viewport {
-	float x      = 0.0f;
-	float y      = 0.0f;
-	float width  = 0.0f;
-	float height = 0.0f;
-};
-
-struct PushConstants {
-	void* data = 0;
-	u64   len  = 0;
+	f32 x      = 0.0f;
+	f32 y      = 0.0f;
+	f32 width  = 0.0f;
+	f32 height = 0.0f;
 };
 
 struct Pass {
@@ -81,7 +83,6 @@ struct Pass {
 	Image         depthAttachment  = {};
 	Viewport      viewport         = {};
 	Rect          scissor          = {};
-	PushConstants pushConstants    = {};
 };
 
 struct InitInfo {
@@ -96,32 +97,46 @@ struct InitInfo {
 Res<>             Init(const InitInfo* initInfo);
 void              Shutdown();
 Res<>             ResizeSwapchain(u32 width, u32 height);
+Image             GetCurrentSwapchainImage();
+ImageFormat       GetSwapchainImageFormat();
 
 Res<Buffer>       CreateBuffer(u64 size, BufferUsage usage);
 void              DestroyBuffer(Buffer buffer);
 u64               GetBufferAddr(Buffer buffer);
-Res<BufferUpdate> BeginBufferUpdate(Buffer buffer);
-void              EndBufferUpdate(BufferUpdate bufferUpdate);
-void              BufferBarrier(Buffer buffer, u64 srcStage, u64 srcAccess, u64 dstStage, u64 dstAccess);
 
 Res<Image>        CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usage, Sampler sampler);
 void              DestroyImage(Image image);
 void              BindImage(Image image, u32 idx, ImageLayout layout);
-Res<ImageUpdate>  BeginImageUpdate(Image image, u32 rowLen);
-void              EndImageUpdate(ImageUpdate imageUpdate);
-void              ImageBarrier(Image image, u64 srcStage, u64 srcAccess, u64 dstLayout, u64 dstStage, u64 dstAccess);
 
 Res<Shader>       CreateShader(const void* data, u64 len);
 void              DestroyShader(Shader shader);
 
-Res<Pipeline>     CreateGraphicsPipeline(Span<Shader> shaders);
+Res<Pipeline>     CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> colorAttachmentFormats, ImageFormat depthFormat);
 void              DestroyPipeline(Pipeline pipeline);
 
 Res<>             BeginFrame();
 Res<>             EndFrame();
 
-void              BeginPass();
-void              EndPass();
+Res<>             BeginCmds();
+Res<>             EndCmds();
+Res<>             ImmediateSubmitCmds();
+
+BufferUpdate      CmdBeginBufferUpdate(Buffer buffer);
+void              CmdEndBufferUpdate(BufferUpdate bufferUpdate);
+void              CmdBufferBarrier(Buffer buffer, u64 srcStage, u64 srcAccess, u64 dstStage, u64 dstAccess);
+
+ImageUpdate       CmdBeginImageUpdate(Image image, u32 rowLen);
+void              CmdEndImageUpdate(ImageUpdate);
+void              CmdImageBarrier(Image image, u64 srcStage, u64 srcAccess, u64 dstLayout, u64 dstStage, u64 dstAccess);
+
+void              CmdBeginPass(const Pass* pass);
+void              CmdEndPass();
+
+void              CmdBindIndexBuffer(Buffer buffer);
+
+void              CmdPushConstants(Pipeline pipeline, const void* ptr, u64 len);
+
+void              CmdDrawIndexed(u32 indexCount);
 
 //--------------------------------------------------------------------------------------------------
 

@@ -50,6 +50,8 @@ s8 ResultStr(VkResult r);
 s8 PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
 s8 VersionStr(Arena* arena, u32 v);
 s8 SizeStr(Arena* arena, u64 size);
+u32 FormatSize(VkFormat vkFormat);
+bool IsDepthFormat(VkFormat vkFormat);
 
 //--------------------------------------------------------------------------------------------------
 

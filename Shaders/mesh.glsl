@@ -4,9 +4,11 @@
 
 struct Vertex {
 	vec3  pos;
-	float u;
+	uint pad1;
 	vec3  normal;
-	float v;
+	uint pad2;
+	vec2  uv;
+	uint pad3[2];
 	vec4  color;
 };
 
@@ -20,21 +22,13 @@ layout (buffer_reference, scalar) readonly buffer SceneBuffer {
 	vec4 ambient;
 };
 
-struct Material {
-	uint bindlessTextureIdx;
-	vec4 color;
-};
-
-layout (buffer_reference, scalar) readonly buffer MaterialBuffer {
-	Material materials[];
-};
-
 layout (push_constant, scalar) uniform constants {
 	mat4           model;
 	VertexBuffer   vertexBufferPtr;
 	SceneBuffer    scene;
-	MaterialBuffer materialsPtr;
-	uint           materialIdx;
+	vec4           color;
+	uint           bindlessTextureIdx;
+	uint           pad[3];
 } pushConstants;
 
 layout (set = 0, binding = 0) uniform texture2D bindlessTextures[];

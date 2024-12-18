@@ -1,12 +1,13 @@
+#pragma once
+
 #include "JC/Common.h"
 
-#include "JC/Array.h"
-#include "JC/Math.h"
-
-namespace JC {
+namespace JC::Random {
 
 //--------------------------------------------------------------------------------------------------
 
+
+
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC
+}	// namespace JC::Random

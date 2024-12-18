@@ -13,12 +13,19 @@ template <class T> struct Array {
 	u64    cap    = 0;
 
 	Array() = default;
-	Array(Arena* arenaIn) { arena = arenaIn; }
+	Array(Arena* arenaIn) {
+		arena = arenaIn;
+		len = 0;
+	}
 
-	void Init(Arena* arenaIn) { arena = arenaIn; }
+	void Init(Arena* arenaIn) {
+		arena = arenaIn;
+		len = 0;
+	}
 
 	void Init(Arena* arenaIn, u64 initLen) {
 		arena = arenaIn;
+		len = 0;
 		Resize(initLen);
 	}
 

@@ -10,6 +10,7 @@
 #include "JC/Window.h"
 #include <stdio.h>
 #include "JC/MinimalWindows.h"
+#include "JC/Render_Vk.h"
 
 using namespace JC;
 
@@ -18,6 +19,16 @@ using namespace JC;
 constexpr ErrCode Err_LoadShader = { .ns = "app", .code = 1 };
 
 //--------------------------------------------------------------------------------------------------
+
+struct Vertex {
+	Vec3  pos    = {};
+	u32   pad1;
+	Vec3  normal = {};
+	u32   pad2;
+	Vec2  uv     = {};
+	u32   pad3[2];
+	Vec4  color  = {};
+};
 
 struct Mesh {
 	Render::Buffer vertexBuffer     = {};
@@ -32,23 +43,26 @@ struct BindlessImage {
 	u32           bindlessIdx = 0;
 };
 
-struct Material {
-	BindlessImage bindlessImage;
-	Vec4 color;
-};
-
 struct PushConstants {
 	Mat4 model               = {};
 	u64  vertexBufferAddr    = 0;
 	u64  sceneBufferAddr     = 0;
-	u64  materialsBufferAddr = 0;
-	u32  materialIdx         = 0;
+	Vec4 color               = {};
+	u32  imageIdx            = 0;
+	u32  pad[3];
 };
 
-struct SceneData {
+struct Scene {
 	Mat4 view;
 	Mat4 proj;
 	Vec4 ambient;
+};
+
+struct Entity {
+	Mesh mesh     = {};
+	Vec3 pos      = {};
+	Vec3 rotAxis  = {};
+	f32  rotAngle = 0;
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -69,73 +83,74 @@ constexpr s8 FileNameOnly(s8 path) {
 
 //--------------------------------------------------------------------------------------------------
 
-struct Vertex {
-	Vec3  pos    = {};
-	Vec3  normal = {};
-	Vec2  uv     = {};
-};
+Res<Render::Image> CreateDepthImage(u32 width, u32 height) {
+	Render::Image depthImage = {};
+	if (Res<> r = Render::CreateImage(width, height, Render::ImageFormat::D32_F, Render::ImageUsage::DepthStencilAttachment, Render::Sampler{}).To(depthImage); !r) {
+		return r.err;
+	}
 
-/*
-      Y+
-      |
-      |
-      |
-      |
-      |
-      |
-      +------------------X+
-     /
-    /
-   /
-  /
- /
-Z+
-*/
+	if (Res<> r = Render::BeginCmds(); !r) {
+		Render::DestroyImage(depthImage);
+		return r.err;
+	}
+
+	Render::CmdImageBarrier(
+		depthImage, 
+		VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+		VK_ACCESS_2_NONE,
+		VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+		VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+		VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
+	);
+
+	if (Res<> r = Render::EndCmds(); !r) {
+		Render::DestroyImage(depthImage);
+		return r.err;
+	}
+
+	return depthImage;
+}
+
+//--------------------------------------------------------------------------------------------------
 
 Res<Mesh> CreateCubeMesh() {
 	Render::Buffer vertexBuffer = {};
-	if (Res<> r = Render::CreateBuffer(24 * sizeof(Vertex), Render::BufferUsage::Storage).To(vertexBuffer); !r) {
-		return r.err;
-	}
+	if (Res<> r = Render::CreateBuffer(24 * sizeof(Vertex), Render::BufferUsage::Storage).To(vertexBuffer); !r) { return r.err; }
+	if (Res<> r = Render::BeginCmds(); !r) { return r.err; }
 
-	Render::BufferUpdate update;
-	if (Res<> r = Render::BeginBufferUpdate(vertexBuffer).To(update); !r) {
-		Render::DestroyBuffer(vertexBuffer);
-		return r.err;
-	}
+	Render::BufferUpdate update = Render::CmdBeginBufferUpdate(vertexBuffer);
 	Vertex* const vertices = (Vertex*)update.ptr;
 	// +Z
-	vertices[ 0] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 0.0, 0.0f } };
-	vertices[ 1] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 1.0, 0.0f } };
-	vertices[ 2] = { .pos = {  1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 0.0, 1.0f } };
-	vertices[ 3] = { .pos = { -1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 1.0, 1.0f } };
+	vertices[ 0] = { .pos = { -1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
+	vertices[ 1] = { .pos = {  1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
+	vertices[ 2] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
+	vertices[ 3] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
 	// -Z
-	vertices[ 4] = { .pos = {  1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 0.0, 0.0f } };
-	vertices[ 5] = { .pos = { -1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 1.0, 0.0f } };
-	vertices[ 6] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 0.0, 1.0f } };
-	vertices[ 7] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 1.0, 1.0f } };
+	vertices[ 4] = { .pos = {  1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
+	vertices[ 5] = { .pos = { -1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
+	vertices[ 6] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
+	vertices[ 7] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
 	// +X
-	vertices[ 8] = { .pos = {  1.0f,  1.0f,  1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 0.0, 0.0f } };
-	vertices[ 9] = { .pos = {  1.0f,  1.0f, -1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 1.0, 0.0f } };
-	vertices[10] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 0.0, 1.0f } };
-	vertices[11] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 1.0, 1.0f } };
+	vertices[ 8] = { .pos = {  1.0f,  1.0f,  1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 0.0, 0.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
+	vertices[ 9] = { .pos = {  1.0f,  1.0f, -1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 1.0, 0.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
+	vertices[10] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
+	vertices[11] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
 	// -X
-	vertices[12] = { .pos = { -1.0f,  1.0f, -1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 0.0, 0.0f } };
-	vertices[13] = { .pos = { -1.0f,  1.0f,  1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 1.0, 0.0f } };
-	vertices[14] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 0.0, 1.0f } };
-	vertices[15] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 1.0, 1.0f } };
+	vertices[12] = { .pos = { -1.0f,  1.0f, -1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 0.0, 0.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
+	vertices[13] = { .pos = { -1.0f,  1.0f,  1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 1.0, 0.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
+	vertices[14] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
+	vertices[15] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
 	// +Y
-	vertices[16] = { .pos = { -1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 0.0, 0.0f } };
-	vertices[17] = { .pos = {  1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 1.0, 0.0f } };
-	vertices[18] = { .pos = {  1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 0.0, 1.0f } };
-	vertices[29] = { .pos = { -1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 1.0, 1.0f } };
+	vertices[16] = { .pos = { -1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 0.0, 0.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
+	vertices[17] = { .pos = {  1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 1.0, 0.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
+	vertices[18] = { .pos = {  1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
+	vertices[19] = { .pos = { -1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
 	// -Y
-	vertices[20] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 0.0, 0.0f } };
-	vertices[21] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 1.0, 0.0f } };
-	vertices[22] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 0.0, 1.0f } };
-	vertices[23] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 1.0, 1.0f } };
-
-	Render::EndBufferUpdate(update);
+	vertices[20] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 0.0, 0.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
+	vertices[21] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 1.0, 0.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
+	vertices[22] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
+	vertices[23] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
+	Render::CmdEndBufferUpdate(update);
 
 	Render::Buffer indexBuffer = {};
 	if (Res<> r = Render::CreateBuffer(36 * sizeof(u32), Render::BufferUsage::Index).To(indexBuffer); !r) {
@@ -143,11 +158,7 @@ Res<Mesh> CreateCubeMesh() {
 		return r.err;
 	}
 
-	if (Res<> r = Render::BeginBufferUpdate(indexBuffer).To(update); !r) {
-		Render::DestroyBuffer(vertexBuffer);
-		Render::DestroyBuffer(indexBuffer);
-	}
-
+	update = Render::CmdBeginBufferUpdate(indexBuffer);
 	u32* const indices = (u32*)update.ptr;
 	// +Z
 	indices[ 0] =  0;
@@ -191,8 +202,10 @@ Res<Mesh> CreateCubeMesh() {
 	indices[33] = 20;
 	indices[34] = 22;
 	indices[35] = 23;
+	Render::CmdEndBufferUpdate(update);
 
-	Render::EndBufferUpdate(update);
+	if (Res<> r = Render::EndCmds(); !r) { return r.err; }
+	if (Res<> r = Render::ImmediateSubmitCmds(); !r ) { return r.err; }
 
 	return Mesh {
 		.vertexBuffer     = vertexBuffer,
@@ -268,8 +281,8 @@ Res<> Run(int argc, const char** argv) {
 	FS::Init(temp);
 	Event::Init(log, temp);
 
-	u32 windowWidth = 800;
-	u32 windowHeight = 600;
+	u32 windowWidth = 1600;
+	u32 windowHeight = 1200;
 	Window::InitInfo windowInitInfo = {
 		.temp              = temp,
 		.log               = log,
@@ -295,6 +308,9 @@ Res<> Run(int argc, const char** argv) {
 		return r;
 	}
 
+	Render::Image depthImage = {};
+	if (Res<> r = CreateDepthImage(windowWidth, windowHeight).To(depthImage); !r) { return r; }
+
 	Mesh cubeMesh = {};
 	if (Res<> r = CreateCubeMesh().To(cubeMesh); !r) { return r; }
 
@@ -305,20 +321,28 @@ Res<> Run(int argc, const char** argv) {
 	if (Res<> r = LoadShader("Shaders/mesh.frag.spv").To(fragmentShader); !r) { return r; }
 
 	Render::Pipeline pipeline = {};
-	if (Res<> r = Render::CreateGraphicsPipeline({ vertexShader, fragmentShader }).To(pipeline); !r) { return r; }
+	if (Res<> r = Render::CreateGraphicsPipeline(
+		{ vertexShader, fragmentShader },
+		{ Render::GetSwapchainImageFormat() },
+		Render::ImageFormat::D32_F
+	).To(pipeline); !r) { return r; }
 
 	Render::Buffer sceneBuffer = {};
-	if (Res<> r = Render::CreateBuffer(sizeof(SceneData), Render::BufferUsage::Storage).To(sceneBuffer); !r) { return r; }
+	if (Res<> r = Render::CreateBuffer(sizeof(Scene), Render::BufferUsage::Storage).To(sceneBuffer); !r) { return r; }
 	const u64 sceneBufferAddr = Render::GetBufferAddr(sceneBuffer);
 
-	u64 frame = 0;
+	Entity entities[100] = {};
+	for (u32 i = 0; i < LenOf(entities); i++) {
+		entities[i] = CreateEntity();
+	}
+
 	bool exitRequested = false;
-	Vec3 eye = { .x = 0.0f, .y = 0.0f, .z = 5.0f };
-	Vec3 look = { .x = 0.0f, .y = 0.0f, .z = -1.0f };
-	Vec3 eyeVelocity = {};
-	float eyeRotY = 0.0f;
-	constexpr float camVelocity = 0.002f;
-	Mat4 proj = Mat4::Perspective(DegToRad(45.0f), (float)windowWidth / (float)windowHeight, 0.01f, 1000.0f);
+	Vec3 camPos = { .x = 0.0f, .y = 0.0f, .z = 20.0f };
+	Vec3 camVelocity = {};
+	f32 camRotX = 0.0f;
+	f32 camRotY = 0.0f;
+	constexpr f32 camSpeed = 0.002f;
+	Mat4 proj = Mat4::Perspective(DegToRad(45.0f), (f32)windowWidth / (f32)windowHeight, 0.01f, 1000.0f);
 	while (!exitRequested) {
 		temp->Reset(0);
 
@@ -334,64 +358,111 @@ Res<> Run(int argc, const char** argv) {
 					exitRequested = true;
 					break;
 				case Event::Type::Key:
-					if (e->key.key == Event::Key::W) {
-						eyeVelocity.z = e->key.down ? camVelocity : 0.0f;
-					} else if (e->key.key == Event::Key::S) {
-						eyeVelocity.z = e->key.down ? -camVelocity : 0.0f;
-					} else if (e->key.key == Event::Key::A) {
-						eyeVelocity.x = e->key.down ? camVelocity : 0.0f;
-					} else if (e->key.key == Event::Key::D) {
-						eyeVelocity.x = e->key.down ? -camVelocity : 0.0f;
-					} else if (e->key.key == Event::Key::Escape) {
-						exitRequested = true;
-					}
+					       if (e->key.key == Event::Key::A)     { camVelocity.x = e->key.down ? -camSpeed : 0.0f;
+					} else if (e->key.key == Event::Key::D)     { camVelocity.x = e->key.down ?  camSpeed : 0.0f;
+					} else if (e->key.key == Event::Key::Space) { camVelocity.y = e->key.down ?  camSpeed : 0.0f;
+					} else if (e->key.key == Event::Key::C)     { camVelocity.y = e->key.down ? -camSpeed : 0.0f;
+					} else if (e->key.key == Event::Key::W)     { camVelocity.z = e->key.down ? -camSpeed : 0.0f;
+					} else if (e->key.key == Event::Key::S)     { camVelocity.z = e->key.down ?  camSpeed : 0.0f;
+
+					} else if (e->key.key == Event::Key::Escape) { exitRequested = true; }
 					break;
 				case Event::Type::MouseMove:
-					eyeRotY += (float)e->mouseMove.x * -0.001f;
+					camRotX += (f32)e->mouseMove.y *  0.0008f;
+					camRotY += (f32)e->mouseMove.x * -0.0008f;
 					break;
 			}
 		}
 		Event::Clear();
 
-		constexpr Vec3 up = { .x = 0.0f, .y = 1.0f, .z = 0.0f };
-		const Vec3 rotatedLook = Mat4::Mul(Mat4::RotateY(eyeRotY), look);
-		const Vec3 rotatedLookOrtho = Vec3::Cross(up, rotatedLook);
-		eye = Vec3::AddScaled(eye, rotatedLook, eyeVelocity.z);
-		eye = Vec3::AddScaled(eye, rotatedLookOrtho, eyeVelocity.x);
-		const Vec3 at = Vec3::Add(eye, rotatedLook);
+		Vec3 camX = { .x = 1.0f, .y = 0.0f, .z = 0.0f };
+		Vec3 camY = { .x = 0.0f, .y = 1.0f, .z = 0.0f };
+		Vec3 camZ = { .x = 0.0f, .y = 0.0f, .z = 1.0f };
+
+		camZ = Mat3::Mul(Mat3::RotateY(camRotY), camZ);
+		camX = Vec3::Cross(camY, camZ);
+
+		camPos = Vec3::AddScaled(camPos, camX, camVelocity.x);
+		camPos = Vec3::AddScaled(camPos, camY, camVelocity.y);
+		camPos = Vec3::AddScaled(camPos, camZ, camVelocity.z);
+
+		camZ = Mat3::Mul(Mat3::AxisAngle(camX, camRotX), camZ);
+		camY = Vec3::Cross(camZ, camX);
 
 		if (Res<> r = Render::BeginFrame(); !r) { return r; }
+		if (Res<> r = Render::BeginCmds(); !r) { return r; }
 
-		SceneData sceneData = {
-			.view = Mat4::LookAt(eye, at, up),
-			.proj = Mat4::Perspective(DegToRad(45.0f), (float)windowWidth / (float)windowHeight, 0.01f, 1000.0f),
-			.ambient = { 0.1f, 0.1, 0.1, 1.0f },
+		const Render::Image swapchainImage = Render::GetCurrentSwapchainImage();
+
+		Render::CmdImageBarrier(
+			swapchainImage,
+			VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+			VK_ACCESS_2_NONE,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+			VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT
+		);
+
+		Render::BufferUpdate update = Render::CmdBeginBufferUpdate(sceneBuffer);
+		Scene* const scene = (Scene*)update.ptr;
+		scene->view    = Mat4::Look(camPos, camX, camY, camZ);
+		scene->proj    = Mat4::Perspective(DegToRad(45.0f), (f32)windowWidth / (f32)windowHeight, 0.01f, 1000.0f);
+		scene->ambient = { 0.1f, 0.1f, 0.1f, 1.0f };
+		Render::CmdEndBufferUpdate(update);
+		Render::CmdBufferBarrier(
+			sceneBuffer,
+			VK_PIPELINE_STAGE_2_COPY_BIT,
+			VK_ACCESS_2_TRANSFER_WRITE_BIT, 
+			VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+			VK_ACCESS_2_SHADER_STORAGE_READ_BIT
+		);
+
+		Render::Pass pass = {
+			.pipeline         = pipeline,
+			.colorAttachments = { swapchainImage },
+			.depthAttachment  = depthImage,
+			.viewport         = { .x = 0.0f, .y = 0.0f, .width = (f32)windowWidth, .height = (f32)windowHeight },
+			.scissor          = { .x = 0, .y = 0, .width = (i32)windowWidth, .height = (i32)windowHeight },
 		};
-		MemCpy(sceneStagingBufferPtr, &sceneData, sizeof(sceneData));
-	
-		Render::CmdCopyBuffer(sceneStagingBuffer, sceneBuffer);
-		Render::CmdBarrier(sceneBuffer, transfer/write -> vs+fs/read);
-		Render::CmdBeginRendering(drawImage);
 
-		Render::CmdBindPipeline(renderPipeline);
-		for (u64 i = 0; i < entities.len; i++) {
-			Entity* const entity = &entities[i];
-			Render::CmdBindIndexBuffer(entity->mesh.indexBuffer);
-			EntityPushConstants entityPushConstants = {
-			};
-			Render::CmdPushConstants(&entityPushConstants, sizeof(entityPushConstants));
-			Render::CmdDraw(...);
-		}
-		Render::CmdEndRendering();
+		Render::CmdBeginPass(&pass);
 
-		if (Res<> r = Render::EndFrame(drawImage); !r) {
-			if (r.err->ec == RenderApi::Err_Resize) {
-				WindowState windowState = Window::GetState();
-				if (r = Render::ResizeSwapchain(windowState.rect.width, windowState.rect.height); r) {
-					continue;
-				}
+		Render::CmdBindIndexBuffer(cubeMesh.indexBuffer);
+
+		PushConstants pushConstants = {
+			.model               = Mat4::Identity(),
+			.vertexBufferAddr    = cubeMesh.vertexBufferAddr,
+			.sceneBufferAddr     = sceneBufferAddr,
+			.color               = {},
+			.imageIdx            = 0,
+		};
+		Render::CmdPushConstants(pipeline, &pushConstants, sizeof(pushConstants));
+		Render::CmdDrawIndexed(cubeMesh.indexCount);
+
+		Render::CmdEndPass();
+
+		Render::CmdImageBarrier(
+			swapchainImage,
+			VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+			VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+			VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+			VK_ACCESS_2_NONE
+		);
+
+		if (Res<> r = Render::EndCmds(); !r) { return r; }
+
+		if (Res<> r = Render::EndFrame(); !r) {
+			if (r.err->ec == Render::Err_Resize) {
+				Window::State windowState = Window::GetState();
+				windowWidth  = windowState.rect.width;
+				windowHeight = windowState.rect.height;
+				if (r = Render::ResizeSwapchain(windowWidth, windowHeight); !r) { return r; }
+				Render::DestroyImage(depthImage);
+				if (r = CreateDepthImage(windowWidth, windowHeight).To(depthImage); !r) { return r; }
+			} else {
+				return r;
 			}
-			return r;
 		}
 	}
 

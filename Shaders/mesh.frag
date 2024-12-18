@@ -4,18 +4,19 @@
 #include "mesh.glsl"
 
 layout (location = 0) in vec2 uvIn;
+layout (location = 1) in vec4 colorIn;
 layout (location = 0) out vec4 colorOut;
 
 void main() {
-	Material material = pushConstants.materialsPtr.materials[pushConstants.materialIdx];
-	vec4 textureColor = texture(
+/*	vec4 textureColor = texture(
 		nonuniformEXT(
 			sampler2D(
-				bindlessTextures[material.bindlessTextureIdx],
+				bindlessTextures[pushConstants.bindlessTextureIdx],
 				bindlessSamplers[LINEAR_SAMPLER_IDX]
 			)
 		),
 		uvIn
-	);
-    colorOut = textureColor * material.color;
+	);*/
+    //colorOut = vec4(1.0f, 1.0f, 1.0f, 1.0f);//textureColor * pushConstants.color;
+    colorOut = colorIn;
 }

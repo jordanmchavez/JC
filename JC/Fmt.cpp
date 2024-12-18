@@ -651,13 +651,13 @@ UnitTest("Fmt") {
 	CheckFmt("12.34", "{}", 1234e-2);
 	CheckFmt("0.001234", "{}", 1234e-6);
 	CheckFmt("0.10000000149011612", "{}", 0.1f);
-	CheckFmt("0.10000000149011612", "{}", (double)0.1f);
+	CheckFmt("0.10000000149011612", "{}", (f64)0.1f);
 	CheckFmt("1.3563156426940112e-19", "{}", 1.35631564e-19f);
 
 	// NaN
 	// The standard allows implementation-specific suffixes following nan, for example as -nan formats as nan(ind) in MSVC.
 	// These tests may need to be changed when porting to different platforms.
-	constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+	constexpr f64 nan = std::numeric_limits<f64>::quiet_NaN();
 	CheckFmt("nan", "{}", nan);
 	CheckFmt("+nan", "{+}", nan);
 	CheckFmt("  +nan", "{+6}", nan);
@@ -670,7 +670,7 @@ UnitTest("Fmt") {
 	CheckFmt("    nan", "{7}", nan);
 
 	// Inf
-	constexpr double inf = std::numeric_limits<double>::infinity();
+	constexpr f64 inf = std::numeric_limits<f64>::infinity();
 	CheckFmt("inf", "{}", inf);
 	CheckFmt("+inf", "{+}", inf);
 	CheckFmt("-inf", "{}", -inf);

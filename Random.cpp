@@ -1,12 +1,17 @@
-#include "JC/Common.h"
+#include "JC/Random.h"
 
-#include "JC/Array.h"
-#include "JC/Math.h"
-
-namespace JC {
+namespace JC::Random {
 
 //--------------------------------------------------------------------------------------------------
 
+static u64 Next(u64 x, u32 k) {
+	return (x << k) | (x >> (64 - k));
+}
+
+static u64 Next(u64 s[2]) {
+	
+}
+
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC
+}	// namespace JC::Random
