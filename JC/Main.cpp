@@ -205,14 +205,14 @@ Res<Mesh> CreateCubeMesh() {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Render::Shader> LoadShader(s8 path, s8 entry) {
+Res<Render::Shader> LoadShader(s8 path) {
 	Span<u8> data;
 	if (Res<> r = FS::ReadAll(temp, path).To(data); !r) {
 		return r.err->Push(Err_LoadShader, "path", path);
 	}
 
 	Render::Shader shader;
-	if (Res<> r = Render::CreateShader(data.data, data.len, "main").To(shader); !r) {
+	if (Res<> r = Render::CreateShader(data.data, data.len).To(shader); !r) {
 		return r.err->Push(Err_LoadShader, "path", path);
 	}
 
@@ -305,17 +305,11 @@ Res<> Run(int argc, const char** argv) {
 	if (Res<> r = LoadShader("Shaders/mesh.frag.spv").To(fragmentShader); !r) { return r; }
 
 	Render::Pipeline pipeline = {};
-	if (Res<> r = Render::CreatePipeline(vertexShader, fragmentShader, sizeof(PushConstants)).To(pipeline); !r) { return r; }
+	if (Res<> r = Render::CreateGraphicsPipeline({ vertexShader, fragmentShader }).To(pipeline); !r) { return r; }
 
 	Render::Buffer sceneBuffer = {};
 	if (Res<> r = Render::CreateBuffer(sizeof(SceneData), Render::BufferUsage::Storage).To(sceneBuffer); !r) { return r; }
-
 	const u64 sceneBufferAddr = Render::GetBufferAddr(sceneBuffer);
-	Render::Buffer sceneStagingBuffer = {};
-	if (Res<> r = Render::CreateBuffer(sizeof(SceneData), Render::BufferUsage::Staging).To(sceneStagingBuffer); !r) { return r; }
-
-	void* sceneStagingBufferPtr = 0;
-	if (Res<> r = Render::MapBuffer(sceneStagingBuffer).To(sceneStagingBufferPtr); !r) { return r; }
 
 	u64 frame = 0;
 	bool exitRequested = false;
@@ -326,38 +320,38 @@ Res<> Run(int argc, const char** argv) {
 	constexpr float camVelocity = 0.002f;
 	Mat4 proj = Mat4::Perspective(DegToRad(45.0f), (float)windowWidth / (float)windowHeight, 0.01f, 1000.0f);
 	while (!exitRequested) {
-		memApi->Frame(frame);
+		temp->Reset(0);
 
-		windowApi->PumpMessages();
-		if (windowApi->IsExitRequested()) {
-			eventApi->AddEvent({ .type = EventType::Exit });
+		Window::PumpMessages();
+		if (Window::IsExitRequested()) {
+			Event::Add({ .type = Event::Type::Exit });
 		}
 
-		Span<Event> events = eventApi->GetEvents();
-		for (const Event* e = events.Begin(); e != events.End(); e++) {
+		Span<Event::Event> events = Event::Get();
+		for (const Event::Event* e = events.Begin(); e != events.End(); e++) {
 			switch (e->type) {
-				case EventType::Exit:
+				case Event::Type::Exit:
 					exitRequested = true;
 					break;
-				case EventType::Key:
-					if (e->key.key == EventKey::W) {
+				case Event::Type::Key:
+					if (e->key.key == Event::Key::W) {
 						eyeVelocity.z = e->key.down ? camVelocity : 0.0f;
-					} else if (e->key.key == EventKey::S) {
+					} else if (e->key.key == Event::Key::S) {
 						eyeVelocity.z = e->key.down ? -camVelocity : 0.0f;
-					} else if (e->key.key == EventKey::A) {
+					} else if (e->key.key == Event::Key::A) {
 						eyeVelocity.x = e->key.down ? camVelocity : 0.0f;
-					} else if (e->key.key == EventKey::D) {
+					} else if (e->key.key == Event::Key::D) {
 						eyeVelocity.x = e->key.down ? -camVelocity : 0.0f;
-					} else if (e->key.key == EventKey::Escape) {
+					} else if (e->key.key == Event::Key::Escape) {
 						exitRequested = true;
 					}
 					break;
-				case EventType::MouseMove:
+				case Event::Type::MouseMove:
 					eyeRotY += (float)e->mouseMove.x * -0.001f;
 					break;
 			}
 		}
-		eventApi->ClearEvents();
+		Event::Clear();
 
 		constexpr Vec3 up = { .x = 0.0f, .y = 1.0f, .z = 0.0f };
 		const Vec3 rotatedLook = Mat4::Mul(Mat4::RotateY(eyeRotY), look);
@@ -392,7 +386,7 @@ Res<> Run(int argc, const char** argv) {
 
 		if (Res<> r = Render::EndFrame(drawImage); !r) {
 			if (r.err->ec == RenderApi::Err_Resize) {
-				WindowState windowState = windowApi->GetState();
+				WindowState windowState = Window::GetState();
 				if (r = Render::ResizeSwapchain(windowState.rect.width, windowState.rect.height); r) {
 					continue;
 				}

@@ -12,7 +12,7 @@
 #include "JC/Math.h"
 #include "JC/Window.h"
 
-#include "spirv_reflect/spirv_reflect.h"
+#include "spirv-reflect/spirv_reflect.h"
 
 #define Render_Debug
 
@@ -1408,6 +1408,19 @@ void ImageBarrier(Image image, u64 srcStage, u64 srcAccess, u64 dstLayout, u64 d
 
 
 Res<Shader> CreateShader(const void* data, u64 len) {
+	SpvReflectShaderModule spvReflectShaderModule = {};
+	if (const SpvReflectResult r = spvReflectCreateShaderModule2(SPV_REFLECT_MODULE_FLAG_NO_COPY, len, data, &spvReflectShaderModule); r != SPV_REFLECT_RESULT_SUCCESS) {
+		return MakeErr(temp, ErrCode { .ns = "spirv", .code = (i64)r });
+	}
+
+	if (spvReflectShaderModule.push_constant_block_count > 1) {
+		spvReflectDestroyShaderModule(&spvReflectShaderModule);
+		return MakeErr(temp, Err_ShaderTooManyPushConstantBlocks);
+	}
+
+	spvReflectShaderModule.descriptor_bindings;
+	spvReflectShaderModule.descriptor_binding_count;
+
 	const VkShaderModuleCreateInfo vkShaderModuleCreateInfo = {
 		.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
 		.pNext    = 0,
@@ -1417,24 +1430,18 @@ Res<Shader> CreateShader(const void* data, u64 len) {
 
 	};
 	VkShaderModule vkShaderModule = VK_NULL_HANDLE;
-	CheckVk(vkCreateShaderModule(vkDevice, &vkShaderModuleCreateInfo, vkAllocationCallbacks, &vkShaderModule));
-
-	SpvReflectShaderModule spvReflectShaderModule = {};
-	if (const SpvReflectResult r = spvReflectCreateShaderModule(len, data, &spvReflectShaderModule); r != SPV_REFLECT_RESULT_SUCCESS) {
-		return MakeErr(temp, ErrCode { .ns = "spirv", .code = (i64)r });
+	if (const VkResult r = vkCreateShaderModule(vkDevice, &vkShaderModuleCreateInfo, vkAllocationCallbacks, &vkShaderModule); r != VK_SUCCESS) {
+		spvReflectDestroyShaderModule(&spvReflectShaderModule);
+		return MakeVkErr(temp, r, vkCreateShaderModule);
 	}
 
-	
-	if (spvReflectShaderModule.push_constant_block_count > 1) {
-		return MakeErr(temp, Err_ShaderTooManyPushConstantBlocks
-	}
-
-	spvReflectShaderModule.push_constant_blocks
 	ShaderObj* const shaderObj = shaderObjs.Alloc();
 	shaderObj->vkShaderModule      = vkShaderModule;
 	shaderObj->vkShaderStageFlags  = (VkShaderStageFlags)spvReflectShaderModule.shader_stage;	// SPV flags defined 1:1 with VK flags
-	shaderObj->pushConstantsOffset = ;
-	shaderObj->pushConstantsSize   = ;
+	shaderObj->pushConstantsOffset = spvReflectShaderModule.push_constant_blocks[0].offset;
+	shaderObj->pushConstantsSize   = spvReflectShaderModule.push_constant_blocks[0].size;
+
+	spvReflectDestroyShaderModule(&spvReflectShaderModule);
 
 	return shaderObjs.GetHandle(shaderObj);
 }
@@ -1479,7 +1486,7 @@ Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders) {
 			.flags               = 0,
 			.stage               = VK_SHADER_STAGE_VERTEX_BIT,
 			.module              = shaderObj->vkShaderModule,
-			.pName               = shaderObj->entry,
+			.pName               = "main",
 			.pSpecializationInfo = 0,
 		};
 	}

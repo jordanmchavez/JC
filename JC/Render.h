@@ -111,7 +111,7 @@ Res<ImageUpdate>  BeginImageUpdate(Image image, u32 rowLen);
 void              EndImageUpdate(ImageUpdate imageUpdate);
 void              ImageBarrier(Image image, u64 srcStage, u64 srcAccess, u64 dstLayout, u64 dstStage, u64 dstAccess);
 
-Res<Shader>       CreateShader(const void* data, u64 len, s8 entry);
+Res<Shader>       CreateShader(const void* data, u64 len);
 void              DestroyShader(Shader shader);
 
 Res<Pipeline>     CreateGraphicsPipeline(Span<Shader> shaders);
