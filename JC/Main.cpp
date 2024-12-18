@@ -349,13 +349,14 @@ Res<> Run(int argc, const char** argv) {
 		};
 	};
 
-	Entity entities[1000] = {};
-	for (u32 i = 0; i < LenOf(entities); i++) {
+	constexpr u32 MaxEntities = 20000;
+	Entity* entities = perm->AllocT<Entity>(MaxEntities);
+	for (u32 i = 0; i < MaxEntities; i++) {
 		entities[i].mesh       = cubeMesh;
-		entities[i].pos        = RandomVec3(100.0f);
+		entities[i].pos        = RandomVec3(200.0f);
 		entities[i].axis       = RandomNormal();
 		entities[i].angle      = 0.0f;
-		entities[i].angleSpeed = Random::NextF32() / 100.0f;
+		entities[i].angleSpeed = Random::NextF32() / 5.0f;
 	}
 
 	bool exitRequested = false;
@@ -363,8 +364,8 @@ Res<> Run(int argc, const char** argv) {
 	Vec3 camVelocity = {};
 	f32 camRotX = 0.0f;
 	f32 camRotY = 0.0f;
-	constexpr f32 camSpeed = 0.006f;
-	Mat4 proj = Mat4::Perspective(DegToRad(45.0f), (f32)windowWidth / (f32)windowHeight, 0.01f, 1000.0f);
+	constexpr f32 camSpeed = 10.0f;
+	Mat4 proj = Mat4::Perspective(DegToRad(45.0f), (f32)windowWidth / (f32)windowHeight, 0.01f, 100000000.0f);
 	while (!exitRequested) {
 		temp->Reset(0);
 
@@ -390,8 +391,8 @@ Res<> Run(int argc, const char** argv) {
 					} else if (e->key.key == Event::Key::Escape) { exitRequested = true; }
 					break;
 				case Event::Type::MouseMove:
-					camRotX += (f32)e->mouseMove.y *  0.0008f;
-					camRotY += (f32)e->mouseMove.x * -0.0008f;
+					camRotX += (f32)e->mouseMove.y *  0.001f;
+					camRotY += (f32)e->mouseMove.x * -0.001f;
 					break;
 			}
 		}
@@ -451,10 +452,13 @@ Res<> Run(int argc, const char** argv) {
 
 		Render::CmdBindIndexBuffer(cubeMesh.indexBuffer);
 
-		for (u64 i = 0; i < LenOf(entities); i++) {
+		for (u64 i = 0; i < MaxEntities; i++) {
 			PushConstants pushConstants = {
 				//.model               = Mat4::Mul(Mat4::AxisAngle(entities[i].axis, entities[i].angle), Mat4::Translate(entities[i].pos)),
-				.model               = Mat4::Mul(Mat4::RotateY( entities[i].angle), Mat4::Translate(entities[i].pos)),
+				//.model               = Mat4::Mul(Mat4::RotateY(entities[i].angle), Mat4::Translate(entities[i].pos)),
+				.model               = Mat4::Mul(Mat4::RotateX(entities[i].angle), 
+					Mat4::Mul(Mat4::RotateY(entities[i].angle), Mat4::Translate(entities[i].pos))
+				),
 				.vertexBufferAddr    = cubeMesh.vertexBufferAddr,
 				.sceneBufferAddr     = sceneBufferAddr,
 				.color               = {},
