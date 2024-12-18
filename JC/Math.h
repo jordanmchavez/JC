@@ -57,7 +57,11 @@ struct Mat4 {
 	static Mat4 Identity();
 	static Mat4 Mul(Mat4 m1, Mat4 m2);
 	static Vec4 Mul(Mat4 m, Vec4 v);
-	static Mat4 AngleAxis(f32 a, Vec3 v);
+	static Mat4 Translate(Vec3 v);
+	static Mat4 RotateX(f32 a);
+	static Mat4 RotateY(f32 a);
+	static Mat4 RotateZ(f32 a);
+	static Mat4 AxisAngle(Vec3 v, f32 a);
 	static Mat4 Look(Vec3 pos, Vec3 x, Vec3 y, Vec3 z);
 	static Mat4 Perspective(f32 fovy, f32 aspect, f32 zn, f32 zf);
 };

@@ -4,6 +4,7 @@
 #include "JC/FS.h"
 #include "JC/Log.h"
 #include "JC/Math.h"
+#include "JC/Random.h"
 #include "JC/Render.h"
 #include "JC/Unicode.h"
 #include "JC/UnitTest.h"
@@ -59,10 +60,11 @@ struct Scene {
 };
 
 struct Entity {
-	Mesh mesh     = {};
-	Vec3 pos      = {};
-	Vec3 rotAxis  = {};
-	f32  rotAngle = 0;
+	Mesh mesh       = {};
+	Vec3 pos        = {};
+	Vec3 axis       = {};
+	f32  angle      = 0.0f;
+	f32  angleSpeed = 0.0f;
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -331,9 +333,29 @@ Res<> Run(int argc, const char** argv) {
 	if (Res<> r = Render::CreateBuffer(sizeof(Scene), Render::BufferUsage::Storage).To(sceneBuffer); !r) { return r; }
 	const u64 sceneBufferAddr = Render::GetBufferAddr(sceneBuffer);
 
-	Entity entities[100] = {};
+	auto RandomNormal = []() {
+		return Vec3::Normalize(Vec3 {
+			.x = 0.1f * Random::NextF32(),
+			.y = 0.1f + Random::NextF32(),
+			.z = 0.1f + Random::NextF32(),
+		});
+	};
+
+	auto RandomVec3 = [](f32 max) {
+		return Vec3 {
+			.x = (1.0f - 2.0f * Random::NextF32()) * max,
+			.y = (1.0f - 2.0f * Random::NextF32()) * max,
+			.z = (1.0f - 2.0f * Random::NextF32()) * max,
+		};
+	};
+
+	Entity entities[1000] = {};
 	for (u32 i = 0; i < LenOf(entities); i++) {
-		entities[i] = CreateEntity();
+		entities[i].mesh       = cubeMesh;
+		entities[i].pos        = RandomVec3(100.0f);
+		entities[i].axis       = RandomNormal();
+		entities[i].angle      = 0.0f;
+		entities[i].angleSpeed = Random::NextF32() / 100.0f;
 	}
 
 	bool exitRequested = false;
@@ -341,7 +363,7 @@ Res<> Run(int argc, const char** argv) {
 	Vec3 camVelocity = {};
 	f32 camRotX = 0.0f;
 	f32 camRotY = 0.0f;
-	constexpr f32 camSpeed = 0.002f;
+	constexpr f32 camSpeed = 0.006f;
 	Mat4 proj = Mat4::Perspective(DegToRad(45.0f), (f32)windowWidth / (f32)windowHeight, 0.01f, 1000.0f);
 	while (!exitRequested) {
 		temp->Reset(0);
@@ -422,22 +444,26 @@ Res<> Run(int argc, const char** argv) {
 			.colorAttachments = { swapchainImage },
 			.depthAttachment  = depthImage,
 			.viewport         = { .x = 0.0f, .y = 0.0f, .width = (f32)windowWidth, .height = (f32)windowHeight },
-			.scissor          = { .x = 0, .y = 0, .width = (i32)windowWidth, .height = (i32)windowHeight },
+			.scissor          = { .x = 0,    .y = 0,    .width = (i32)windowWidth, .height = (i32)windowHeight },
 		};
 
 		Render::CmdBeginPass(&pass);
 
 		Render::CmdBindIndexBuffer(cubeMesh.indexBuffer);
 
-		PushConstants pushConstants = {
-			.model               = Mat4::Identity(),
-			.vertexBufferAddr    = cubeMesh.vertexBufferAddr,
-			.sceneBufferAddr     = sceneBufferAddr,
-			.color               = {},
-			.imageIdx            = 0,
-		};
-		Render::CmdPushConstants(pipeline, &pushConstants, sizeof(pushConstants));
-		Render::CmdDrawIndexed(cubeMesh.indexCount);
+		for (u64 i = 0; i < LenOf(entities); i++) {
+			PushConstants pushConstants = {
+				//.model               = Mat4::Mul(Mat4::AxisAngle(entities[i].axis, entities[i].angle), Mat4::Translate(entities[i].pos)),
+				.model               = Mat4::Mul(Mat4::RotateY( entities[i].angle), Mat4::Translate(entities[i].pos)),
+				.vertexBufferAddr    = cubeMesh.vertexBufferAddr,
+				.sceneBufferAddr     = sceneBufferAddr,
+				.color               = {},
+				.imageIdx            = 0,
+			};
+			entities[i].angle += entities[i].angleSpeed;
+			Render::CmdPushConstants(pipeline, &pushConstants, sizeof(pushConstants));
+			Render::CmdDrawIndexed(cubeMesh.indexCount);
+		}
 
 		Render::CmdEndPass();
 

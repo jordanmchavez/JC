@@ -127,6 +127,7 @@
     <ClInclude Include="JC\Map.h" />
     <ClInclude Include="JC\Math.h" />
     <ClInclude Include="JC\MinimalWindows.h" />
+    <ClInclude Include="JC\Random.h" />
     <ClInclude Include="JC\Render.h" />
     <ClInclude Include="JC\Render_Vk.h" />
     <ClInclude Include="JC\Sys.h" />
@@ -159,6 +160,7 @@
     <ClCompile Include="JC\Common_Arena.cpp" />
     <ClCompile Include="JC\Window_Win.cpp" />
     <ClCompile Include="JC\Math.cpp" />
+    <ClCompile Include="JC\Random.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Game Notes.md" />
