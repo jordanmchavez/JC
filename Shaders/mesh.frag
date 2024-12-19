@@ -8,7 +8,7 @@ layout (location = 1) in vec4 colorIn;
 layout (location = 0) out vec4 colorOut;
 
 void main() {
-/*	vec4 textureColor = texture(
+	vec4 textureColor = texture(
 		nonuniformEXT(
 			sampler2D(
 				bindlessTextures[pushConstants.bindlessTextureIdx],
@@ -16,7 +16,8 @@ void main() {
 			)
 		),
 		uvIn
-	);*/
-    //colorOut = vec4(1.0f, 1.0f, 1.0f, 1.0f);//textureColor * pushConstants.color;
-    colorOut = colorIn;
+	);
+	//colorOut = vec4(1.0f, 1.0f, 1.0f, 1.0f);//textureColor * pushConstants.color;
+	//colorOut = colorIn;
+	colorOut = vec4(0.1f, 0.1f, 0.1f, 0.1f) + textureColor * colorIn;
 }

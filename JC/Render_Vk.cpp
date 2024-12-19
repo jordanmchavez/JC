@@ -43,9 +43,9 @@ VkImageSubresourceRange MakeVkSubresourceRange(VkImageAspectFlags vkImageAspectF
 	return VkImageSubresourceRange {
 		.aspectMask      = vkImageAspectFlags,
 		.baseMipLevel    = 0,
-		.levelCount      = VK_REMAINING_MIP_LEVELS,
+		.levelCount      = 1,
 		.baseArrayLayer  = 0,
-		.layerCount      = VK_REMAINING_ARRAY_LAYERS,
+		.layerCount      = 1,
 	};
 }
 
@@ -54,7 +54,7 @@ VkImageSubresourceLayers MakeVkImageSubresourceLayers(VkImageAspectFlags vkImage
 		.aspectMask      = vkImageAspectFlags,
 		.mipLevel        = 0,
 		.baseArrayLayer  = 0,
-		.layerCount      = VK_REMAINING_ARRAY_LAYERS,
+		.layerCount      = 1,
 	};
 }
 
@@ -1114,7 +1114,7 @@ u64 GetBufferAddr(Buffer buffer) {
 	VkMemoryPropertyFlags vkMemoryPropertyFlags = 0;
 	switch (usage) {
 		case ImageUsage::Sampled:
-			vkImageUsageFlags     = VK_IMAGE_USAGE_SAMPLED_BIT;
+			vkImageUsageFlags     = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 			vkMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			break;
 
@@ -1209,36 +1209,35 @@ void DestroyImage(Image image) {
 
 //-------------------------------------------------------------------------------------------------
 
-static VkImageLayout ImageLayoutToVkLayout(ImageLayout layout) {
-	switch (layout) {
-		case ImageLayout::Undefined: return VK_IMAGE_LAYOUT_UNDEFINED;
-		default: Panic("Unhandled ImageLayout {}", layout);
-	}
-}
+//static VkImageLayout ImageLayoutToVkLayout(ImageLayout layout) {
+//	switch (layout) {
+//		case ImageLayout::Undefined: return VK_IMAGE_LAYOUT_UNDEFINED;
+//		default: Panic("Unhandled ImageLayout {}", layout);
+//	}
+//}
 
 //-------------------------------------------------------------------------------------------------
 
-void BindImage(Image image, u32 idx, ImageLayout layout) {
+void BindImage(Image image, u32 idx, u64 vkImageLayout) {
 	ImageObj* const imageObj = imageObjs.Get(image);
 	const VkDescriptorImageInfo vkDescriptorImageInfo = {
 		.sampler     = 0,
 		.imageView   = imageObj->vkImageView,
-		.imageLayout = ImageLayoutToVkLayout(layout),
+		.imageLayout = (VkImageLayout)vkImageLayout,
 	};
 	const VkWriteDescriptorSet vkWriteDescriptorSet = {
 		.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 		.pNext            = 0,
 		.dstSet           = vkBindlessDescriptorSet,
-		.dstBinding       = 1,
+		.dstBinding       = 0,
 		.dstArrayElement  = idx,
 		.descriptorCount  = 1,
-		.descriptorType   = VK_DESCRIPTOR_TYPE_SAMPLER,
+		.descriptorType   = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
 		.pImageInfo       = &vkDescriptorImageInfo,
 		.pBufferInfo      = 0,
 		.pTexelBufferView = 0,
 	};
 	vkUpdateDescriptorSets(vkDevice, 1, &vkWriteDescriptorSet, 0, 0);
-
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1763,8 +1762,8 @@ void CmdEndImageUpdate(ImageUpdate imageUpdate) {
 		.sType             = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2,
 		.pNext             = 0,
 		.bufferOffset      = (VkDeviceSize)((u8*)imageUpdate.ptr - stagingBufferMappedPtr),
-		.bufferRowLength   = imageUpdate.rowLen,
-		.bufferImageHeight = imageObj->height,
+		.bufferRowLength   = 0,
+		.bufferImageHeight = 0,
 		.imageSubresource  = MakeVkImageSubresourceLayers(IsDepthFormat(imageObj->vkFormat) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT),
 		.imageOffset       = { .x = 0, .y = 0, .z = 0 },
 		.imageExtent       = { .width = imageObj->width, .height = imageObj->height, .depth = 1 },

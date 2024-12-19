@@ -10,8 +10,11 @@
 #include "JC/UnitTest.h"
 #include "JC/Window.h"
 #include <stdio.h>
+#include "stb/stb_image.h"
 #include "JC/MinimalWindows.h"
 #include "JC/Render_Vk.h"
+
+#undef LoadImage
 
 using namespace JC;
 
@@ -125,33 +128,33 @@ Res<Mesh> CreateCubeMesh() {
 	// +Z
 	vertices[ 0] = { .pos = { -1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
 	vertices[ 1] = { .pos = {  1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
-	vertices[ 2] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
-	vertices[ 3] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
+	vertices[ 2] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
+	vertices[ 3] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
 	// -Z
 	vertices[ 4] = { .pos = {  1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
 	vertices[ 5] = { .pos = { -1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
-	vertices[ 6] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
-	vertices[ 7] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
+	vertices[ 6] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
+	vertices[ 7] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
 	// +X
 	vertices[ 8] = { .pos = {  1.0f,  1.0f,  1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 0.0, 0.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
 	vertices[ 9] = { .pos = {  1.0f,  1.0f, -1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 1.0, 0.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
-	vertices[10] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
-	vertices[11] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
+	vertices[10] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
+	vertices[11] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
 	// -X
 	vertices[12] = { .pos = { -1.0f,  1.0f, -1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 0.0, 0.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
 	vertices[13] = { .pos = { -1.0f,  1.0f,  1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 1.0, 0.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
-	vertices[14] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
-	vertices[15] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
+	vertices[14] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
+	vertices[15] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
 	// +Y
 	vertices[16] = { .pos = { -1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 0.0, 0.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
 	vertices[17] = { .pos = {  1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 1.0, 0.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
-	vertices[18] = { .pos = {  1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
-	vertices[19] = { .pos = { -1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
+	vertices[18] = { .pos = {  1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
+	vertices[19] = { .pos = { -1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
 	// -Y
 	vertices[20] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 0.0, 0.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
 	vertices[21] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 1.0, 0.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
-	vertices[22] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
-	vertices[23] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
+	vertices[22] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
+	vertices[23] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
 	Render::CmdEndBufferUpdate(update);
 
 	Render::Buffer indexBuffer = {};
@@ -216,6 +219,68 @@ Res<Mesh> CreateCubeMesh() {
 		.indexBuffer      = indexBuffer,
 		.indexCount       = 36,
 	};
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<Render::Image> LoadImage(s8 path) {
+	Span<u8> data;
+	if (Res<> r = FS::ReadAll(temp, path).To(data); !r) { return r.err; }
+
+	int width = 0;
+	int height = 0;
+	int channels = 0;
+	u8* imageData = (u8*)stbi_load_from_memory(data.data, (int)data.len, &width, &height, &channels, 0);
+	if (!imageData) {
+		Panic("bad");
+	}
+	Assert(channels == 3 || channels == 4);
+	Defer { stbi_image_free(imageData); };
+
+	Render::Image image;
+	if (Res<> r = Render::CreateImage(width, height, Render::ImageFormat::R8G8B8A8_N, Render::ImageUsage::Sampled, Render::Sampler{}).To(image); !r) { return r.err; }
+
+	if (Res<> r = Render::BeginCmds(); !r) { return r.err; }
+	Render::CmdImageBarrier(
+		image,
+		VK_PIPELINE_STAGE_2_NONE,
+		VK_ACCESS_2_NONE,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+		VK_ACCESS_2_TRANSFER_WRITE_BIT
+	);
+
+	Render::ImageUpdate update = Render::CmdBeginImageUpdate(image, width * 4);
+	if (channels == 4) {
+		MemCpy(update.ptr, imageData, width * height * channels);
+	} else {
+		u8* in = imageData;
+		u8* out = (u8*)update.ptr;
+		for (int y = 0; y < height; y++) {
+			for (int x = 0; x < width; x++) {
+				*out++ = *in++;
+				*out++ = *in++;
+				*out++ = *in++;
+				*out++ = 0xff;
+			}
+		}
+	}
+	Render::CmdEndImageUpdate(update);
+
+	Render::CmdImageBarrier(
+		image,
+		VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+		VK_ACCESS_2_TRANSFER_WRITE_BIT,
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+		VK_ACCESS_2_SHADER_SAMPLED_READ_BIT
+	);
+	if (Res<> r = Render::EndCmds(); !r) { return r.err; }
+	if (Res<> r = Render::ImmediateSubmitCmds(); !r ) { return r.err; }
+
+	Render::BindImage(image, 0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	return image;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -316,6 +381,9 @@ Res<> Run(int argc, const char** argv) {
 	Mesh cubeMesh = {};
 	if (Res<> r = CreateCubeMesh().To(cubeMesh); !r) { return r; }
 
+	Render::Image texture = {};
+	if (Res<> r = LoadImage("Assets/texture.jpg").To(texture); !r) { return r; }
+
 	Render::Shader vertexShader = {};
 	if (Res<> r = LoadShader("Shaders/mesh.vert.spv").To(vertexShader); !r) { return r; }
 
@@ -353,7 +421,7 @@ Res<> Run(int argc, const char** argv) {
 	Entity* entities = perm->AllocT<Entity>(MaxEntities);
 	for (u32 i = 0; i < MaxEntities; i++) {
 		entities[i].mesh       = cubeMesh;
-		entities[i].pos        = RandomVec3(1000);
+		entities[i].pos        = RandomVec3(100.0f);
 		entities[i].axis       = RandomNormal();
 		entities[i].angle      = 0.0f;
 		entities[i].angleSpeed = Random::NextF32() / 15.0f;
@@ -364,7 +432,7 @@ Res<> Run(int argc, const char** argv) {
 	Vec3 camVelocity = {};
 	f32 camRotX = 0.0f;
 	f32 camRotY = 0.0f;
-	constexpr f32 camSpeed = 1.0f;
+	constexpr f32 camSpeed = 0.3f;
 	Mat4 proj = Mat4::Perspective(DegToRad(45.0f), (f32)windowWidth / (f32)windowHeight, 0.01f, 100000000.0f);
 	while (!exitRequested) {
 		temp->Reset(0);

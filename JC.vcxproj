@@ -139,6 +139,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
+    <ClCompile Include="3rd\stb\stb_image.cpp" />
     <ClCompile Include="JC\FS_Win.cpp" />
     <ClCompile Include="JC\Common_Panic.cpp" />
     <ClCompile Include="JC\Common_Err.cpp" />

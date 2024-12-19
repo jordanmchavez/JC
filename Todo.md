@@ -253,3 +253,8 @@ ability to begin multiple buffer transfers and wait on all of their fences
 window rect is signed
 de-line Map.h
 go through win, fs, event, render and replace errors with real error codes
+! crashes if window is bigger than desktop
+! start maximized
+! profiling
+! vulkan memory allocation
+! configuration
