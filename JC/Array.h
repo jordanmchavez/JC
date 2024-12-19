@@ -15,17 +15,23 @@ template <class T> struct Array {
 	Array() = default;
 	Array(Arena* arenaIn) {
 		arena = arenaIn;
-		len = 0;
+		data  = 0;
+		len   = 0;
+		cap   = 0;
 	}
 
 	void Init(Arena* arenaIn) {
 		arena = arenaIn;
-		len = 0;
+		data  = 0;
+		len   = 0;
+		cap   = 0;
 	}
 
 	void Init(Arena* arenaIn, u64 initLen) {
 		arena = arenaIn;
-		len = 0;
+		data  = 0;
+		len   = 0;
+		cap   = 0;
 		Resize(initLen);
 	}
 

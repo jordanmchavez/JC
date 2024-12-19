@@ -40,6 +40,7 @@ void* Arena::Alloc(u64 size, SrcLoc) {
 	void* p = end;
 	end += size;
 	Assert(end <= endCommit);
+	MemSet(p, 0x00, size);
 	return p;
 }
 

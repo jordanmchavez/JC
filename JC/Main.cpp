@@ -283,8 +283,8 @@ Res<> Run(int argc, const char** argv) {
 	FS::Init(temp);
 	Event::Init(log, temp);
 
-	u32 windowWidth = 1600;
-	u32 windowHeight = 1200;
+	u32 windowWidth = 800;
+	u32 windowHeight = 600;
 	Window::InitInfo windowInitInfo = {
 		.temp              = temp,
 		.log               = log,
@@ -349,14 +349,14 @@ Res<> Run(int argc, const char** argv) {
 		};
 	};
 
-	constexpr u32 MaxEntities = 20000;
+	constexpr u32 MaxEntities = 10000;
 	Entity* entities = perm->AllocT<Entity>(MaxEntities);
 	for (u32 i = 0; i < MaxEntities; i++) {
 		entities[i].mesh       = cubeMesh;
-		entities[i].pos        = RandomVec3(200.0f);
+		entities[i].pos        = RandomVec3(1000);
 		entities[i].axis       = RandomNormal();
 		entities[i].angle      = 0.0f;
-		entities[i].angleSpeed = Random::NextF32() / 5.0f;
+		entities[i].angleSpeed = Random::NextF32() / 15.0f;
 	}
 
 	bool exitRequested = false;
@@ -364,7 +364,7 @@ Res<> Run(int argc, const char** argv) {
 	Vec3 camVelocity = {};
 	f32 camRotX = 0.0f;
 	f32 camRotY = 0.0f;
-	constexpr f32 camSpeed = 10.0f;
+	constexpr f32 camSpeed = 1.0f;
 	Mat4 proj = Mat4::Perspective(DegToRad(45.0f), (f32)windowWidth / (f32)windowHeight, 0.01f, 100000000.0f);
 	while (!exitRequested) {
 		temp->Reset(0);
@@ -415,10 +415,8 @@ Res<> Run(int argc, const char** argv) {
 		if (Res<> r = Render::BeginFrame(); !r) { return r; }
 		if (Res<> r = Render::BeginCmds(); !r) { return r; }
 
-		const Render::Image swapchainImage = Render::GetCurrentSwapchainImage();
-
 		Render::CmdImageBarrier(
-			swapchainImage,
+			Render::GetCurrentSwapchainImage(),
 			VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
 			VK_ACCESS_2_NONE,
 			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -442,7 +440,7 @@ Res<> Run(int argc, const char** argv) {
 
 		Render::Pass pass = {
 			.pipeline         = pipeline,
-			.colorAttachments = { swapchainImage },
+			.colorAttachments = { Render::GetCurrentSwapchainImage() },
 			.depthAttachment  = depthImage,
 			.viewport         = { .x = 0.0f, .y = 0.0f, .width = (f32)windowWidth, .height = (f32)windowHeight },
 			.scissor          = { .x = 0,    .y = 0,    .width = (i32)windowWidth, .height = (i32)windowHeight },
@@ -454,11 +452,7 @@ Res<> Run(int argc, const char** argv) {
 
 		for (u64 i = 0; i < MaxEntities; i++) {
 			PushConstants pushConstants = {
-				//.model               = Mat4::Mul(Mat4::AxisAngle(entities[i].axis, entities[i].angle), Mat4::Translate(entities[i].pos)),
-				//.model               = Mat4::Mul(Mat4::RotateY(entities[i].angle), Mat4::Translate(entities[i].pos)),
-				.model               = Mat4::Mul(Mat4::RotateX(entities[i].angle), 
-					Mat4::Mul(Mat4::RotateY(entities[i].angle), Mat4::Translate(entities[i].pos))
-				),
+				.model               = Mat4::Mul(Mat4::RotateX(entities[i].angle), Mat4::Mul(Mat4::RotateY(entities[i].angle), Mat4::Translate(entities[i].pos))),
 				.vertexBufferAddr    = cubeMesh.vertexBufferAddr,
 				.sceneBufferAddr     = sceneBufferAddr,
 				.color               = {},
@@ -472,7 +466,7 @@ Res<> Run(int argc, const char** argv) {
 		Render::CmdEndPass();
 
 		Render::CmdImageBarrier(
-			swapchainImage,
+			Render::GetCurrentSwapchainImage(),
 			VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
 			VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
 			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
