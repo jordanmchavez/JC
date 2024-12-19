@@ -91,12 +91,12 @@ constexpr s8 FileNameOnly(s8 path) {
 Res<Render::Image> CreateDepthImage(u32 width, u32 height) {
 	Render::Image depthImage = {};
 	if (Res<> r = Render::CreateImage(width, height, Render::ImageFormat::D32_F, Render::ImageUsage::DepthStencilAttachment, Render::Sampler{}).To(depthImage); !r) {
-		return r.err;
+		return r;
 	}
 
 	if (Res<> r = Render::BeginCmds(); !r) {
 		Render::DestroyImage(depthImage);
-		return r.err;
+		return r;
 	}
 
 	Render::CmdImageBarrier(
@@ -110,7 +110,7 @@ Res<Render::Image> CreateDepthImage(u32 width, u32 height) {
 
 	if (Res<> r = Render::EndCmds(); !r) {
 		Render::DestroyImage(depthImage);
-		return r.err;
+		return r;
 	}
 
 	return depthImage;
@@ -120,8 +120,8 @@ Res<Render::Image> CreateDepthImage(u32 width, u32 height) {
 
 Res<Mesh> CreateCubeMesh() {
 	Render::Buffer vertexBuffer = {};
-	if (Res<> r = Render::CreateBuffer(24 * sizeof(Vertex), Render::BufferUsage::Storage).To(vertexBuffer); !r) { return r.err; }
-	if (Res<> r = Render::BeginCmds(); !r) { return r.err; }
+	if (Res<> r = Render::CreateBuffer(24 * sizeof(Vertex), Render::BufferUsage::Storage).To(vertexBuffer); !r) { return r; }
+	if (Res<> r = Render::BeginCmds(); !r) { return r; }
 
 	Render::BufferUpdate update = Render::CmdBeginBufferUpdate(vertexBuffer);
 	Vertex* const vertices = (Vertex*)update.ptr;
@@ -160,7 +160,7 @@ Res<Mesh> CreateCubeMesh() {
 	Render::Buffer indexBuffer = {};
 	if (Res<> r = Render::CreateBuffer(36 * sizeof(u32), Render::BufferUsage::Index).To(indexBuffer); !r) {
 		Render::DestroyBuffer(vertexBuffer);
-		return r.err;
+		return r;
 	}
 
 	update = Render::CmdBeginBufferUpdate(indexBuffer);
@@ -209,8 +209,8 @@ Res<Mesh> CreateCubeMesh() {
 	indices[35] = 23;
 	Render::CmdEndBufferUpdate(update);
 
-	if (Res<> r = Render::EndCmds(); !r) { return r.err; }
-	if (Res<> r = Render::ImmediateSubmitCmds(); !r ) { return r.err; }
+	if (Res<> r = Render::EndCmds(); !r) { return r; }
+	if (Res<> r = Render::ImmediateSubmitCmds(); !r ) { return r; }
 
 	return Mesh {
 		.vertexBuffer     = vertexBuffer,
@@ -225,7 +225,7 @@ Res<Mesh> CreateCubeMesh() {
 
 Res<Render::Image> LoadImage(s8 path) {
 	Span<u8> data;
-	if (Res<> r = FS::ReadAll(temp, path).To(data); !r) { return r.err; }
+	if (Res<> r = FS::ReadAll(temp, path).To(data); !r) { return r; }
 
 	int width = 0;
 	int height = 0;
@@ -238,9 +238,9 @@ Res<Render::Image> LoadImage(s8 path) {
 	Defer { stbi_image_free(imageData); };
 
 	Render::Image image;
-	if (Res<> r = Render::CreateImage(width, height, Render::ImageFormat::R8G8B8A8_N, Render::ImageUsage::Sampled, Render::Sampler{}).To(image); !r) { return r.err; }
+	if (Res<> r = Render::CreateImage(width, height, Render::ImageFormat::R8G8B8A8_N, Render::ImageUsage::Sampled, Render::Sampler{}).To(image); !r) { return r; }
 
-	if (Res<> r = Render::BeginCmds(); !r) { return r.err; }
+	if (Res<> r = Render::BeginCmds(); !r) { return r; }
 	Render::CmdImageBarrier(
 		image,
 		VK_PIPELINE_STAGE_2_NONE,
@@ -275,8 +275,8 @@ Res<Render::Image> LoadImage(s8 path) {
 		VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
 		VK_ACCESS_2_SHADER_SAMPLED_READ_BIT
 	);
-	if (Res<> r = Render::EndCmds(); !r) { return r.err; }
-	if (Res<> r = Render::ImmediateSubmitCmds(); !r ) { return r.err; }
+	if (Res<> r = Render::EndCmds(); !r) { return r; }
+	if (Res<> r = Render::ImmediateSubmitCmds(); !r ) { return r; }
 
 	Render::BindImage(image, 0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
@@ -301,80 +301,9 @@ Res<Render::Shader> LoadShader(s8 path) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Run(int argc, const char** argv) {
-	Arena tempInst = CreateArena((u64)4 * 1024 * 1024 * 1024);
-	temp = &tempInst;
+Res<> Run() {
 
-	Arena permInst = CreateArena((u64)16 * 1024 * 1024 * 1024);
-	Arena* perm = &permInst;
-
-	log = GetLog();
-	log->Init(temp);
-	log->AddFn([](const char* msg, u64 len) {
-		fwrite(msg, 1, len, stdout);
-		if (Sys::IsDebuggerPresent()) {
-			Sys::DebuggerPrint(msg);
-		}
-	});
-
-	SetPanicFn([](SrcLoc sl, s8 expr, s8 fmt, VArgs args) {
-		char msg[1024];
-		char* iter = msg;
-		char* end = msg + sizeof(msg) - 1;
-		iter = Fmt(iter, end, "\n***PANIC***\n");
-		iter = Fmt(iter, end, "{}({})\n", sl.file, sl.line);
-		if (expr.len > 0) {
-			iter = Fmt(iter, end, "expr: '{}'\n", expr);
-		}
-		if (fmt.len > 0) {
-			iter = VFmt(iter, end, fmt, args);
-			iter = Fmt(iter, end, "\n");
-		}
-		iter--;
-		Logf("{}", s8(msg, (u64)(iter - msg)));
-
-		if (Sys::IsDebuggerPresent()) {
-			Sys_DebuggerBreak();
-		}
-
-		Sys::Abort();
-	});
-
-	if (argc == 2 && argv[1] == s8("test")) {
-		UnitTest::Run(log);
-		return Ok();
-	}
-
-	FS::Init(temp);
-	Event::Init(log, temp);
-
-	u32 windowWidth = 800;
-	u32 windowHeight = 600;
-	Window::InitInfo windowInitInfo = {
-		.temp              = temp,
-		.log               = log,
-		.title             = "test window",
-		.style             = Window::Style::BorderedResizable,
-		.rect              = Rect { .x = 100, .y = 100, .width = (i32)windowWidth, .height = (i32)windowHeight },
-		.fullscreenDisplay = 0,
-	};
-	if (Res<> r = Window::Init(&windowInitInfo); !r) {
-		return r;
-	}
-
-	Window::PlatformInfo windowPlatformInfo = Window::GetPlatformInfo();
-	Render::InitInfo renderInitInfo = {
-		.perm               = perm,
-		.temp               = temp,
-		.log                = log,
-		.width              = windowWidth,
-		.height             = windowHeight,
-		.windowPlatformInfo = &windowPlatformInfo,
-	};
-	if (Res<> r = Render::Init(&renderInitInfo); !r) {
-		return r;
-	}
-
+/*
 	Render::Image depthImage = {};
 	if (Res<> r = CreateDepthImage(windowWidth, windowHeight).To(depthImage); !r) { return r; }
 
@@ -557,7 +486,7 @@ Res<> Run(int argc, const char** argv) {
 			}
 		}
 	}
-
+	*/
 	return Ok();
 }
 
@@ -569,7 +498,8 @@ void Shutdown() {
 //--------------------------------------------------------------------------------------------------
 
 int main(int argc, const char** argv) {
-	if (Res<> r = Run(argc, argv); !r) {
+	argc;argv;
+	if (Res<> r = Run(); !r) {
 		if (log) {
 			Errorf(r.err);
 		}

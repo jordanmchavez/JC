@@ -118,6 +118,7 @@
     <ClInclude Include="JC\Array.h" />
     <ClInclude Include="JC\Bit.h" />
     <ClInclude Include="JC\Common.h" />
+    <ClInclude Include="JC\Config.h" />
     <ClInclude Include="JC\Event.h" />
     <ClInclude Include="JC\FS.h" />
     <ClInclude Include="JC\Fmt.h" />
@@ -131,6 +132,7 @@
     <ClInclude Include="JC\Render.h" />
     <ClInclude Include="JC\Render_Vk.h" />
     <ClInclude Include="JC\Sys.h" />
+    <ClInclude Include="JC\Time.h" />
     <ClInclude Include="JC\Tlsf.h" />
     <ClInclude Include="JC\Unicode.h" />
     <ClInclude Include="JC\UnitTest.h" />
@@ -140,6 +142,8 @@
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
+    <ClCompile Include="JC\App.cpp" />
+    <ClCompile Include="JC\Config.cpp" />
     <ClCompile Include="JC\FS_Win.cpp" />
     <ClCompile Include="JC\Common_Panic.cpp" />
     <ClCompile Include="JC\Common_Err.cpp" />
@@ -162,6 +166,7 @@
     <ClCompile Include="JC\Window_Win.cpp" />
     <ClCompile Include="JC\Math.cpp" />
     <ClCompile Include="JC\Random.cpp" />
+    <ClCompile Include="JC\Time.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Game Notes.md" />

@@ -1,30 +1,3 @@
-https://vulkan-tutorial.com/
-https://vkguide.dev/
-mastering vulkan book
-compare with love2d
-https://jorenjoestar.github.io/post/modern_sprite_batch/
-
-https://www.sctheblog.com/blog/vulkan-initialization/
-https://www.sctheblog.com/blog/vulkan-synchronization/
-https://www.sctheblog.com/blog/vulkan-resources/
-https://www.sctheblog.com/blog/vulkan-frame/
-
-Sync:
-https://www.khronos.org/blog/understanding-vulkan-synchronization
-https://themaister.net/blog/2019/08/14/yet-another-blog-explaining-vulkan-synchronization/
-https://cpp-rendering.io/barriers-vulkan-not-difficult/
-https://docs.vulkan.org/samples/latest/samples/performance/pipeline_barriers/README.html
-
-Render Graphics:
-https://themaister.net/blog/2017/08/
-
-Implementation:
-https://zeux.io/2020/02/27/writing-an-efficient-vulkan-renderer/
-https://github.com/Themaister/Granite
-https://themaister.net/blog/2019/04/
-https://themaister.net/blog/2019/05/
-
-
 memtrace
 windowing based on sdl2
 simple 2d renderer api based on, maybe, love.2d
@@ -258,3 +231,4 @@ go through win, fs, event, render and replace errors with real error codes
 ! profiling
 ! vulkan memory allocation
 ! configuration
+memstats / tracing

@@ -12,10 +12,12 @@ namespace JC::Window {
 //--------------------------------------------------------------------------------------------------
 
 struct Display {
-	bool primary  = false;
-	Rect rect     = {};
-	u32  dpi      = 0;
-	f32  dpiScale = 0.0f;
+	i32 x        = 0;
+	i32 y        = 0;
+	u32 width    = 0;
+	u32 height   = 0;
+	u32 dpi      = 0;
+	f32 dpiScale = 0.0f;
 };
 
 enum struct Style {
@@ -46,12 +48,15 @@ struct State {
 };
 
 struct InitInfo {
-	Arena* temp              = 0;
-	Log*   log               = 0;
-	s8     title             = {};
-	Style  style             = {};
-	Rect   rect              = {};
-	u32    fullscreenDisplay = 0;
+	Arena* temp                 = 0;
+	Log*   log                  = 0;
+	s8     title                = {};
+	Style  style                = {};
+	u32    x                    = 0;
+	u32    y                    = 0;
+	u32    width                = 0;
+	u32    height               = 0;
+	u32    fullscreenDisplayIdx = 0;
 };
 
 struct PlatformInfo {
@@ -63,16 +68,16 @@ struct PlatformInfo {
 	#endif	// Platform_
 };
 
-Res<>              Init(const InitInfo* init);
-void               Shutdown();
-Res<Span<Display>> EnumDisplays();
-void               PumpMessages();
-State              GetState();
-void               SetRect(Rect rect);
-void               SetStyle(Style style);
-void               SetCursorMode(CursorMode cursorMode);
-PlatformInfo       GetPlatformInfo();
-bool               IsExitRequested();
+Res<>         Init(const InitInfo* init);
+void          Shutdown();
+Span<Display> GetDisplays();
+void          PumpMessages();
+State         GetState();
+void          SetRect(Rect rect);
+void          SetStyle(Style style);
+void          SetCursorMode(CursorMode cursorMode);
+PlatformInfo  GetPlatformInfo();
+bool          IsExitRequested();
 
 /*	get rect
 	set rect

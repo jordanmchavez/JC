@@ -4,8 +4,6 @@
 	#include <string.h>	// memset/memmove/memcpy
 #endif
 
-#define MemTraceEnabled
-
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
@@ -59,7 +57,7 @@ template <class F> DeferInvoker<F> operator+(DeferHelper, F&& fn) { return Defer
 
 //--------------------------------------------------------------------------------------------------
 
-constexpr u64 StrLen8(const char* s) {
+constexpr u64 CxStrLen8(const char* s) {
 	if (s == nullptr) {
 		return 0;
 	}
@@ -76,7 +74,7 @@ constexpr u64 StrLen8(const char* s) {
 
 //--------------------------------------------------------------------------------------------------
 
-constexpr u64 MemCmp(const void* p1, const void* p2, u64 len) {
+constexpr u64 CxMemCmp(const void* p1, const void* p2, u64 len) {
 	IfConsteval {
 		const u8* i1 = (const u8*)p1;
 		const u8* i2 = (const u8*)p2;
@@ -109,19 +107,6 @@ struct s8 {
 
 	constexpr char operator[](u64 i) const;
 };
-
-//--------------------------------------------------------------------------------------------------
-
-struct Str {
-	const char* data = "";
-
-	u64 Len() const;
-
-	static void Init();
-	static Str  Make(s8 s);
-};
-
-inline bool operator==(Str s1, Str s2) { return s1.data == s2.data; }
 
 //--------------------------------------------------------------------------------------------------
 
@@ -203,9 +188,8 @@ static VArg MakeVArg(T val) {
 	else if constexpr (IsSameType<Underlying, float>)              { return { .type = VArgType::F64,  .f = val }; }
 	else if constexpr (IsSameType<Underlying, double>)             { return { .type = VArgType::F64,  .f = val }; }
 	else if constexpr (IsSameType<Underlying, s8>)                 { return { .type = VArgType::S8,   .s = { .data = val.data, .len = val.len } }; }
-	else if constexpr (IsSameType<Underlying, Str>)                { return { .type = VArgType::S8,   .s = { .data = val.data, .len = val.Len() } }; }
-	else if constexpr (IsSameType<Underlying, char*>)              { return { .type = VArgType::S8,   .s = { .data = val,      .len = StrLen8(val) } }; }
-	else if constexpr (IsSameType<Underlying, const char*>)        { return { .type = VArgType::S8,   .s = { .data = val,      .len = StrLen8(val) } }; }
+	else if constexpr (IsSameType<Underlying, char*>)              { return { .type = VArgType::S8,   .s = { .data = val,      .len = CxStrLen8(val) } }; }
+	else if constexpr (IsSameType<Underlying, const char*>)        { return { .type = VArgType::S8,   .s = { .data = val,      .len = CxStrLen8(val) } }; }
 	else if constexpr (IsPointer<Underlying>)                      { return { .type = VArgType::Ptr,  .p = val }; }
 	else if constexpr (IsSameType<Underlying, decltype(nullptr)>)  { return { .type = VArgType::Ptr,  .p = nullptr }; }
 	else if constexpr (IsEnum<Underlying>)                         { return { .type = VArgType::U64,  .u = (u64)val }; }
@@ -213,8 +197,8 @@ static VArg MakeVArg(T val) {
 	else if constexpr (IsSameType<Underlying, VArgs>)              { static_assert(AlwaysFalse<T>, "You passed Args as a placeholder variable: you probably meant to call VFmt() instead of Fmt()"); }
 	else                                                           { static_assert(AlwaysFalse<T>, "Unsupported arg type"); }
 }
-template <u64 N> static constexpr VArg MakeVArg(char (&val)[N])       { return { .type = VArgType::S8, .s = { .data = val, .len = StrLen8(val) } }; }
-template <u64 N> static constexpr VArg MakeVArg(const char (&val)[N]) { return { .type = VArgType::S8, .s = { .data = val, .len = StrLen8(val) } }; }
+template <u64 N> static constexpr VArg MakeVArg(char (&val)[N])       { return { .type = VArgType::S8, .s = { .data = val, .len = CxStrLen8(val) } }; }
+template <u64 N> static constexpr VArg MakeVArg(const char (&val)[N]) { return { .type = VArgType::S8, .s = { .data = val, .len = CxStrLen8(val) } }; }
 
 template <u32 N> struct VArgStore {
 	VArg args[N > 0 ? N : 1] = {};
@@ -354,7 +338,7 @@ PanicFn* SetPanicFn(PanicFn* panicFn);
 
 constexpr s8::s8(const char* s) {
 	data = s;
-	len  = StrLen8(s);
+	len  = CxStrLen8(s);
 }
 
 constexpr s8::s8(const char* d, u64 l) {
@@ -368,7 +352,7 @@ constexpr s8::s8(const char* b, const char* e) {
 }
 constexpr s8& s8::operator=(const char* s) {
 	data = s;
-	len = StrLen8(s);
+	len = CxStrLen8(s);
 	return *this;
 }
 
@@ -402,7 +386,7 @@ void  DestroyArena(Arena arena);
 
 //--------------------------------------------------------------------------------------------------
 
-struct [[nodiscard]] ErrCode {
+struct ErrCode {
 	s8  ns   = {};
 	i64 code = 0;
 };
@@ -453,7 +437,27 @@ template <class... A> Err* MakeErr(ArenaSrcLoc arenaSl, ErrCode ec, A... args) {
 
 //--------------------------------------------------------------------------------------------------
 
-template <class T = void> struct [[nodiscard]] Res {
+template <class T = void> struct [[nodiscard]] Res;
+
+template <> struct [[nodiscard]] Res<void> {
+	Err* err = 0;
+
+	constexpr Res() = default;
+	constexpr Res(Err* e) { err = e; }	// implicit
+	template <class T> constexpr Res(Res<T> r) { Assert(!r.hasVal); err = r.err; }
+
+	constexpr operator bool() const { return err == 0; }
+
+	constexpr void Ignore() const {}
+
+	template <class... A> Err* Push(ErrCodeSrcLoc ecSl, A... args) {
+		static_assert(sizeof...(A) % 2 == 0);
+		Assert(err);
+		return VMakeErr(err->arena, err, ecSl.sl, ecSl.ec, MakeVArgs(args...));
+	}
+};
+
+template <class T> struct [[nodiscard]] Res {
 	union {
 		T    val;
 		Err* err;
@@ -463,22 +467,20 @@ template <class T = void> struct [[nodiscard]] Res {
 	constexpr Res()       {          hasVal = false; }
 	constexpr Res(T v)    { val = v; hasVal = true;  }
 	constexpr Res(Err* e) { err = e; hasVal = false; }
+	constexpr Res(const Res&) = default;
+	constexpr Res(Res<void> r) { Assert(r.err); err = r.err; hasVal = false; }
+	template <class U> Res(Res<U> r) { Assert(!r.hasVal); err = r.err; hasVal = false; }
 
 	constexpr operator bool() const { return hasVal; }
 
 	constexpr Err* To(T& out) { if (hasVal) { out = val; return 0; } else { return err; } }
 	constexpr T    Or(T def) { return hasVal ? val : def; }
-};
 
-template <> struct [[nodiscard]] Res<void> {
-	Err* err = 0;
-
-	constexpr Res() = default;
-	constexpr Res(Err* e) { err = e; }	// implicit
-
-	constexpr operator bool() const { return err == 0; }
-
-	constexpr void Ignore() const {}
+	template <class... A> Err* Push(ErrCodeSrcLoc ecSl, A... args) {
+		static_assert(sizeof...(A) % 2 == 0);
+		Assert(!hasVal);
+		return VMakeErr(err->arena, err, ecSl.sl, ecSl.ec, MakeVArgs(args...));
+	}
 };
 
 constexpr Res<> Ok() { return Res<>(); }
@@ -531,7 +533,7 @@ struct Span {
 
 	constexpr Span& operator=(const Span&) = default;
 	
-	constexpr T operator[](u64 i) const { return data[i]; }
+	constexpr const T& operator[](u64 i) const { return data[i]; }
 
 	constexpr const T* Begin() const { return data; }
 	constexpr const T* End()   const { return data + len; }

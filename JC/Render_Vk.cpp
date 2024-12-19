@@ -20,6 +20,15 @@ namespace JC::Render {
 
 //--------------------------------------------------------------------------------------------------
 
+static constexpr ErrCode Err_Version                         = { .ns = "render", .code = 1 };
+static constexpr ErrCode Err_NoLayer                         = { .ns = "render", .code = 2 };
+static constexpr ErrCode Err_NoDevice                        = { .ns = "render", .code = 3 };
+static constexpr ErrCode Err_NoMem                           = { .ns = "render", .code = 4 };
+static constexpr ErrCode Err_Resize                          = { .ns = "render", .code = 5 };
+static constexpr ErrCode Err_ShaderTooManyPushConstantBlocks = { .ns = "render", .code = 6 };
+
+//--------------------------------------------------------------------------------------------------
+
 #define DestroyVk(h, DestroyFn) \
 	if (h != VK_NULL_HANDLE) { \
 		DestroyFn(vkDevice, h, vkAllocationCallbacks); \
@@ -299,7 +308,7 @@ Res<> InitInstance() {
 
 //-------------------------------------------------------------------------------------------------
 
-Res<> InitSurface(Window::PlatformInfo* windowPlatformInfo) {
+Res<> InitSurface(const Window::PlatformInfo* windowPlatformInfo) {
 	#if defined Platform_Windows
 		VkWin32SurfaceCreateInfoKHR win32SurfaceCreateInfo = {
 			.sType     = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
@@ -895,7 +904,7 @@ Res<BufferObj> CreateBufferInternal(
 	Mem mem = {};
 	if (Res<> r = AllocateMem(vkMemoryRequirements, vkMemoryPropertyFlags, vkMemoryAllocateFlags).To(mem); !r) {
 		vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
-		return r.err;
+		return r;
 	}
 
 	if (const VkResult r = vkBindBufferMemory(vkDevice, vkBuffer, mem.vkDeviceMemory, 0); r != VK_SUCCESS) {
@@ -932,7 +941,7 @@ Res<> InitStaging() {
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 		0
 	).To(stagingBufferObj); !r) {
-		return r.err;
+		return r;
 	}
 
 	CheckVk(vkMapMemory(vkDevice, stagingBufferObj.mem.vkDeviceMemory, 0, StagingBufferSize, 0, (void**)&stagingBufferMappedPtr));
@@ -1081,7 +1090,7 @@ Res<Buffer> CreateBuffer(u64 size, BufferUsage usage) {
 		vkMemoryAllocateFlags
 	).To(*bufferObj); !r) {
 		bufferObjs.Free(bufferObj);
-		return r.err;
+		return r;
 	}
 
 	return bufferObjs.GetHandle(bufferObj);
@@ -1157,7 +1166,7 @@ u64 GetBufferAddr(Buffer buffer) {
 	Mem mem = {};
 	if (Res<> r = AllocateMem(vkMemoryRequirements, vkMemoryPropertyFlags, 0).To(mem); !r) {
 		vkDestroyImage(vkDevice, vkImage, vkAllocationCallbacks);
-		return r.err;
+		return r;
 	}
 		
 	if (const VkResult r = vkBindImageMemory(vkDevice, vkImage, mem.vkDeviceMemory, 0); r != VK_SUCCESS) {

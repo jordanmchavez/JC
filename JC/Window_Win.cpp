@@ -202,17 +202,20 @@ static BOOL MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
 
 	Assert(displaysLen < MaxDisplays);
 	displays[displaysLen] = {
-		.primary    = (monitorInfoEx.dwFlags & MONITORINFOF_PRIMARY) != 0,
-		.rect       = {
-			.x      = (i32)rect->left,
-			.y      = (i32)rect->top,
-			.width  = (i32)(rect->right - rect->left),
-			.height = (i32)(rect->bottom - rect->top),
-		},
+		.x      = (i32)rect->left,
+		.y      = (i32)rect->top,
+		.width  = (u32)(rect->right - rect->left),
+		.height = (u32)(rect->bottom - rect->top),
 		.dpi       = dpi,
 		.dpiScale  = (f32)dpi / (f32)USER_DEFAULT_SCREEN_DPI,
 	};
 	displaysLen++;
+
+	if (monitorInfoEx.dwFlags & MONITORINFOF_PRIMARY) {
+		Display t = displays[0];
+		displays[0] = displays[displaysLen];
+		displays[displaysLen] = t;
+	}
 
 	return TRUE;
 }
@@ -268,13 +271,20 @@ Res<> Init(const InitInfo* initInfo) {
 			break;
 	}
 
-	Rect rect = initInfo->rect;
-	if (initInfo->style == Style::Fullscreen) {
-		Assert(initInfo->fullscreenDisplay <= displaysLen);
-		rect = displays[initInfo->fullscreenDisplay].rect;
-	}
 	RECT r = {};
-	::SetRect(&r, rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
+	if (initInfo->style == Style::Fullscreen) {
+		Assert(initInfo->fullscreenDisplayIdx <= displaysLen);
+		const Display* display = &displays[initInfo->fullscreenDisplayIdx];
+		::SetRect(
+			&r,
+			0,
+			0,
+			display->width,
+			display->height
+		);
+	} else {
+		::SetRect(&r, initInfo->x, initInfo->y, initInfo->x + initInfo->width, initInfo->y + initInfo->height);
+	}
 
 	HMONITOR hmonitor = MonitorFromRect(&r, MONITOR_DEFAULTTONEAREST);
 	UINT unused = 0;
@@ -349,6 +359,12 @@ void Shutdown() {
 		DestroyWindow(window.hwnd);
 		window.hwnd = 0;
 	}
+}
+
+//----------------------------------------------------------------------------------------------
+
+Span<Display> GetDisplays() {
+	return Span<Display>(displays, displaysLen);
 }
 
 //----------------------------------------------------------------------------------------------

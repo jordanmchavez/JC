@@ -2,11 +2,16 @@
 
 #include "JC/Common.h"
 
+namespace JC::Event { struct Event; }
+
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
 struct App {
+	virtual void Events(Span<Event::Event> events) = 0;
+	virtual void Update(double secs) = 0;
+	virtual void Draw() = 0;
 /*
 Config Files	Game configuration settings.		
 love.draw	Callback function used to draw on the screen every frame.		
@@ -35,6 +40,8 @@ love.mousereleased	Callback function triggered when a mouse button is released.
 love.wheelmoved	Callback function triggered when the mouse wheel is moved.	Added since 0.10.0	
 */
 };
+
+void RunApp(App* app);
 
 //--------------------------------------------------------------------------------------------------
 

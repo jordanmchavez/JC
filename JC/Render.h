@@ -3,21 +3,11 @@
 #include "JC/Common.h"
 
 namespace JC {
-	struct Log;
-	struct Mat4;
-	namespace Window { struct PlatformInfo; }
-}
 
-namespace JC::Render {
+struct Log;
+namespace Window { struct PlatformInfo; }
 
-//--------------------------------------------------------------------------------------------------
-
-static constexpr ErrCode Err_Version  = { .ns = "render", .code = 1 };
-static constexpr ErrCode Err_NoLayer  = { .ns = "render", .code = 2 };
-static constexpr ErrCode Err_NoDevice = { .ns = "render", .code = 3 };
-static constexpr ErrCode Err_NoMem    = { .ns = "render", .code = 4 };
-static constexpr ErrCode Err_Resize   = { .ns = "render", .code = 5 };
-static constexpr ErrCode Err_ShaderTooManyPushConstantBlocks = { .ns = "render", .code = 6 };
+namespace Render {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -86,12 +76,12 @@ struct Pass {
 };
 
 struct InitInfo {
-	Arena*                perm               = 0;
-	Arena*                temp               = 0;
-	Log*                  log                = 0;
-	u32                   width              = 0;
-	u32                   height             = 0;
-	Window::PlatformInfo* windowPlatformInfo = {};
+	Arena*                      perm               = 0;
+	Arena*                      temp               = 0;
+	Log*                        log                = 0;
+	u32                         width              = 0;
+	u32                         height             = 0;
+	const Window::PlatformInfo* windowPlatformInfo = {};
 };
 
 Res<>             Init(const InitInfo* initInfo);
@@ -140,4 +130,5 @@ void              CmdDrawIndexed(u32 indexCount);
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Render
+}	// namespace Render
+}	// namespace JC

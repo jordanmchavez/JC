@@ -46,18 +46,18 @@ Res<> Read(File file, void* out, u64 outLen) {
 Res<Span<u8>> ReadAll(Arena* arena, s8 path) {
 	File file;
 	if (Res<> r = Open(path).To(file); !r) {
-		return r.err;
+		return r;
 	}
 	Defer { Close(file); };
 
 	u64 len = 0;
 	if (Res<> r = Len(file).To(len); !r) {
-		return r.err;
+		return r;
 	}
 
 	u8* buf = (u8*)arena->Alloc(len);
 	if (Res<> r = Read(file, buf, len); !r) {
-		return r.err;
+		return r;
 	}
 
 	return Span<u8>(buf, len);

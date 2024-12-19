@@ -85,6 +85,46 @@ void Sys::VirtualDecommit(void* p, u64 size) {
 	# pragma warning(pop)
 }
 
+
+
+
+
+
+	static constexpr u64 JulianDaysBetween0001And1601 = static_cast<u64>(JulianDays(1, 1, 1601) - JulianDays(1, 1, 0001));
+	static constexpr u64 TicksBetween0001And1601 = JulianDaysBetween0001And1601 * TicksPerDay;
+
+	FTime FromWinFILETIME(FILETIME FileTime)
+	{
+		u64 Ticks = (static_cast<u64>(FileTime.dwHighDateTime) << 32) | static_cast<u64>(FileTime.dwLowDateTime);
+		Ticks += TicksBetween0001And1601;
+		return FTime(Ticks);
+	}
+
+	// FILETIME contains a 64-bit value representing the number of 100-nanosecond intervals (same as our ticks) since January 1, 1601 (UTC)
+	// To convert, we just adjust to start at 1/1/0001
+	struct FWindowsTimeApi : ITimeApi
+	{
+		FTime Now() override
+		{
+			FILETIME FileTime;
+			// When we drop support for Windows 7 we should switch to GetSystemTimePreciseAsFileTime(&FileTime), which requires Windows 8+
+			// This is more accurate, but slightly slower.
+			// Alternatively we could have some dynamic check and load from kernel32.dll, but that's more complex
+			GetSystemTimeAsFileTime(&FileTime);
+			return FromWinFILETIME(FileTime);
+		}
+	};
+
+
+
+
+
+Time Now() {
+	FILETIME fileTime;
+	GetSystemTimePreciseAsFileTime();
+	return Time { .ticks =  };
+}
+
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC

@@ -1,5 +1,8 @@
 #include "JC/Common.h"
 
+#include "JC/Config.h"
+#include "JC/Sys.h"
+
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
@@ -17,6 +20,13 @@ Err* VMakeErr(Arena* arena, Err* prev, SrcLoc sl, ErrCode ec, VArgs args) {
 		err->args[i].name = s8(args.args[i * 2].s.data, args.args[i * 2].s.len);
 		err->args[i].arg  = args.args[i * 2 + 1];
 	}
+
+	#if defined DebugBreakOnErr
+	if (!prev && Sys::IsDebuggerPresent()) {
+		Sys_DebuggerBreak();
+	}
+	#endif	// DebugBreakOnErr
+
 	return err;
 }
 
