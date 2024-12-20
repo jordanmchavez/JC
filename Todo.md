@@ -232,3 +232,4 @@ go through win, fs, event, render and replace errors with real error codes
 ! vulkan memory allocation
 ! configuration
 memstats / tracing
+window::stateflgs::hidden never being used

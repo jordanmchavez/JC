@@ -11,6 +11,15 @@ namespace Render {
 
 //--------------------------------------------------------------------------------------------------
 
+static constexpr ErrCode Err_Version                         = { .ns = "render", .code = 1 };
+static constexpr ErrCode Err_NoLayer                         = { .ns = "render", .code = 2 };
+static constexpr ErrCode Err_NoDevice                        = { .ns = "render", .code = 3 };
+static constexpr ErrCode Err_NoMem                           = { .ns = "render", .code = 4 };
+static constexpr ErrCode Err_Resize                          = { .ns = "render", .code = 5 };
+static constexpr ErrCode Err_ShaderTooManyPushConstantBlocks = { .ns = "render", .code = 6 };
+
+//--------------------------------------------------------------------------------------------------
+
 struct Buffer   { u64 handle = 0; };
 struct Sampler  { u64 handle = 0; };
 struct Image    { u64 handle = 0; };
@@ -86,7 +95,7 @@ struct InitInfo {
 
 Res<>             Init(const InitInfo* initInfo);
 void              Shutdown();
-Res<>             ResizeSwapchain(u32 width, u32 height);
+Res<>             RecreateSwapchain(u32 width, u32 height);
 Image             GetCurrentSwapchainImage();
 ImageFormat       GetSwapchainImageFormat();
 

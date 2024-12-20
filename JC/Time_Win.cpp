@@ -1,8 +1,45 @@
 #include "JC/Time.h"
 
-namespace JC::Tm {
+#include "JC/MinimalWindows.h"
+
+namespace JC::Time {
 
 //--------------------------------------------------------------------------------------------------
+
+static double ticksPerDay;
+static double ticksPerHour;
+static double ticksPerMin;
+static double ticksPerSec;
+static double ticksPerMil;
+
+void Init() {
+	LARGE_INTEGER freq = {};
+	QueryPerformanceFrequency(&freq);
+
+	ticksPerDay  = (double)freq.QuadPart * 60.0 * 60.0 * 24.0;
+	ticksPerHour = (double)freq.QuadPart * 60.0 * 60.0;
+	ticksPerMin  = (double)freq.QuadPart * 60.0;
+	ticksPerSec  = (double)freq.QuadPart;
+	ticksPerMil  = (double)freq.QuadPart / 1000.0;
+}
+
+u64 Now() {
+	LARGE_INTEGER count;
+	QueryPerformanceCounter(&count);
+	return (u64)count.QuadPart;
+}
+
+double Days (u64 ticks) { return (double)ticks / ticksPerDay;  }
+double Hours(u64 ticks) { return (double)ticks / ticksPerHour; }
+double Mins (u64 ticks) { return (double)ticks / ticksPerMin;  }
+double Secs (u64 ticks) { return (double)ticks / ticksPerSec;  }
+double Mils (u64 ticks) { return (double)ticks / ticksPerMil;  }
+
+u64 FromDays (double days)  { return (u64)(days  * ticksPerDay ); }
+u64 FromHours(double hours) { return (u64)(hours * ticksPerHour); }
+u64 FromMins (double mins)  { return (u64)(mins  * ticksPerMin ); }
+u64 FromSecs (double secs)  { return (u64)(secs  * ticksPerSec ); }
+u64 FromMils (double mils)  { return (u64)(mils  * ticksPerMil ); }
 
 /*
 	constexpr i64 JulianDays(i64 d, i32 m, i64 y)
@@ -42,9 +79,8 @@ namespace JC::Tm {
 		Milli = (Ticks / TicksPerMil ) % 1000;
 		return Date;
 	}
-
 */
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Tm
+}	// namespace JC::Time

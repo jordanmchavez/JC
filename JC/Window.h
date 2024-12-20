@@ -33,18 +33,16 @@ enum CursorMode {
 	HiddenLocked,	// ->visible: reappear at position hidden, same with alt+tabbing
 };
 
-namespace StateFlags {
-	constexpr u64 Minimized = 1 << 0;
-	constexpr u64 Maximized = 1 << 1;
-	constexpr u64 Focused   = 1 << 2;
-	constexpr u64 Hidden    = 1 << 3;
-};
-
 struct State {
+	i32        x          = 0;
+	i32        y          = 0;
+	u32        width      = 0;
+	u32        height     = 0;
 	Rect       rect       = {};
-	u64        flags      = 0;
 	Style      style      = {};
 	CursorMode cursorMode = {};
+	bool       minimized  = false;
+	bool       focused    = false;
 };
 
 struct InitInfo {
@@ -52,8 +50,8 @@ struct InitInfo {
 	Log*   log                  = 0;
 	s8     title                = {};
 	Style  style                = {};
-	u32    x                    = 0;
-	u32    y                    = 0;
+	i32    x                    = 0;
+	i32    y                    = 0;
 	u32    width                = 0;
 	u32    height               = 0;
 	u32    fullscreenDisplayIdx = 0;

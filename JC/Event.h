@@ -10,7 +10,10 @@ namespace JC::Event {
 
 enum struct Type {
 	Exit,
-	Focus,
+	WindowFocused,
+	WindowUnfocused,
+	WindowMinimized,
+	WindowRestored,
 	Key,
 	MouseMove,
 };
@@ -131,10 +134,6 @@ enum struct Key {
 
 s8 KeyStr(Key k);
 
-struct FocusEvent {
-	bool focused;
-};
-
 struct KeyEvent {
 	bool down;
 	Key  key;
@@ -148,7 +147,6 @@ struct MouseMoveEvent {
 struct Event {
 	Type type;
 	union {
-		FocusEvent     focus;
 		KeyEvent       key;
 		MouseMoveEvent mouseMove;
 	};

@@ -24,12 +24,13 @@ struct Window {
 	HWND        hwnd       = 0;
 	DWORD       winStyle   = 0;
 	Style       style      = {};
+	CursorMode  cursorMode = {};
 	Rect        windowRect = {};
 	Rect        clientRect = {};
 	u32         dpi        = 0;
 	f32         dpiScale   = 0.0f;
-	u64         stateFlags = 0;
-	CursorMode  cursorMode = {};
+	bool        minimized  = false;
+	bool        focused    = false;
 };
 static Arena*      temp;
 static Log*        log;
@@ -44,12 +45,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 	switch (msg) {
 		case WM_ACTIVATE:
 			if (wparam == WA_INACTIVE) {
-				window.stateFlags &= ~StateFlags::Focused;
+				window.focused = false;
 				if (window.cursorMode != CursorMode::VisibleFree) {
 					ClipCursor(0);
 				}
 			} else {
-				window.stateFlags |= StateFlags::Focused;
+				window.focused = true;
 				if (window.cursorMode != CursorMode::VisibleFree) {
 					RECT r;
 					GetWindowRect(hwnd, &r);
@@ -141,11 +142,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 
 		case WM_SIZE:
 			if (wparam == SIZE_MAXIMIZED) {
-				window.stateFlags |= StateFlags::Maximized;
+				window.minimized = false;
 			} else if (wparam == SIZE_MINIMIZED) {
-				window.stateFlags |= StateFlags::Minimized;
+				window.minimized = true;
 			} else if (wparam == SIZE_RESTORED) {
-				window.stateFlags &= ~(StateFlags::Maximized | StateFlags::Minimized);
+				window.minimized = false;
 			}
 			break;
 
@@ -381,15 +382,14 @@ void PumpMessages() {
 
 State GetState() {
 	return State {
-		.rect       = {
-			.x      = window.windowRect.y,
-			.y      = window.windowRect.x,
-			.width  = window.clientRect.width,
-			.height = window.clientRect.height,
-		},
-		.flags      = window.stateFlags,
+		.x          = window.windowRect.y,
+		.y          = window.windowRect.x,
+		.width      = (u32)window.clientRect.width,
+		.height     = (u32)window.clientRect.height,
 		.style      = window.style,
 		.cursorMode = window.cursorMode,
+		.minimized  = window.minimized,
+		.focused   = window.focused,
 	};
 }
 

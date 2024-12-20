@@ -7,6 +7,7 @@
 #include "JC/Log.h"
 #include "JC/Render.h"
 #include "JC/Sys.h"
+#include "JC/Time.h"
 #include "JC/UnitTest.h"
 #include "JC/Window.h"
 
@@ -58,6 +59,8 @@ Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		Sys::Abort();
 	});
 
+	Time::Init();
+
 	if (argc == 2 && argv[1] == s8("test")) {
 		UnitTest::Run(log);
 		return Ok();
@@ -76,8 +79,8 @@ Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	}
 	const Window::Display* const display = &displays[displayIdx];
 
-	u32 windowX      = 0;
-	u32 windowY      = 0;
+	i32 windowX      = 0;
+	i32 windowY      = 0;
 	u32 windowWidth  = 0;
 	u32 windowHeight = 0;
 	if (windowStyle != Window::Style::Fullscreen) {
@@ -86,15 +89,15 @@ Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	} else {
 		if (windowWidth  > display->width)  { windowWidth  = display->width; }
 		if (windowHeight > display->height) { windowHeight = display->height; }
-		windowX = (display->width  - windowWidth)  / 2;
-		windowY = (display->height - windowHeight) / 2;
+		windowX = (i32)(display->width  - windowWidth)  / 2;
+		windowY = (i32)(display->height - windowHeight) / 2;
 	}
 
 	Window::InitInfo windowInitInfo = {
 		.temp                 = temp,
 		.log                  = log,
 		.title                = "test window",
-		.style                = Window::Style::BorderedResizable,
+		.style                = windowStyle,
 		.x                    = windowX,
 		.y                    = windowY,
 		.width                = windowWidth,
@@ -105,45 +108,74 @@ Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		return r.Push(Err_Init);
 	}
 
+	Window::PumpMessages();
+	Window::State windowState = Window::GetState();
+
 	const Window::PlatformInfo windowPlatformInfo = Window::GetPlatformInfo();
 	Render::InitInfo renderInitInfo = {
 		.perm               = perm,
 		.temp               = temp,
 		.log                = log,
-		.width              = windowWidth,
-		.height             = windowHeight,
+		.width              = windowState.width,
+		.height             = windowState.height,
 		.windowPlatformInfo = &windowPlatformInfo,
 	};
 	if (Res<> r = Render::Init(&renderInitInfo); !r) {
 		return r;
 	}
 
-	Time time = Sys::Now();
+	const u64 startTicks = Time::Now();
 	for(;;) {
 		temp->Reset(0);
+
+		const u64 ticks = Time::Now();
+		const double secs = Time::Secs(ticks - startTicks);
 
 		Window::PumpMessages();
 		if (Window::IsExitRequested()) {
 			Event::Add({ .type = Event::Type::Exit });
 		}
 
+		const Window::State prevWindowState = windowState;
+		windowState = Window::GetState();
+		if (!prevWindowState.minimized && windowState.minimized) {
+			Event::Add(Event::Event { .type = Event::Type::WindowMinimized });
+		} else if (prevWindowState.minimized && !windowState.minimized) {
+			Event::Add(Event::Event { .type = Event::Type::WindowRestored});
+		}
+		if (!prevWindowState.focused && windowState.focused) {
+			Event::Add(Event::Event { .type = Event::Type::WindowFocused });
+		} else if (prevWindowState.focused && !windowState.focused) {
+			Event::Add(Event::Event { .type = Event::Type::WindowUnfocused});
+		}
+
 		Span<Event::Event> events = Event::Get();
-		app->Events(events);
+		if (Res<> r = app->Events(events); !r) { return r; }
 		Event::Clear();
 
-		if (Res<> r = Render::BeginFrame(); !r) { return r; }
+		if (Res<> r = app->Update(secs); !r) { return r; }
 
-		if (Res<> r = Render::EndFrame(); !r) {
-			/*if (r.err->ec == Render::Err_Resize) {
-				Window::State windowState = Window::GetState();
-				windowWidth  = windowState.rect.width;
-				windowHeight = windowState.rect.height;
-				if (r = Render::ResizeSwapchain(windowWidth, windowHeight); !r) { return r; }
-				Render::DestroyImage(depthImage);
-				if (r = CreateDepthImage(windowWidth, windowHeight).To(depthImage); !r) { return r; }
+		if (!windowState.minimized && w
+		if (Res<> r = Render::BeginFrame(); !r) {
+			if (r.err->ec == Render::Err_Resize) {
+				if (r = Render::RecreateSwapchain(windowWidth, windowHeight); !r) {
+					return r;
+				}
 			} else {
 				return r;
-			}*/
+			}
+		}
+
+		if (Res<> r = app->Draw(); !r) { return r; }
+		
+		if (Res<> r = Render::EndFrame(); !r) {
+			if (r.err->ec == Render::Err_Resize) {
+				if (r = Render::RecreateSwapchain(windowWidth, windowHeight); !r) {
+					return r;
+				}
+			} else {
+				return r;
+			}
 		}
 	}
 

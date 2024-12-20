@@ -20,15 +20,6 @@ namespace JC::Render {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr ErrCode Err_Version                         = { .ns = "render", .code = 1 };
-static constexpr ErrCode Err_NoLayer                         = { .ns = "render", .code = 2 };
-static constexpr ErrCode Err_NoDevice                        = { .ns = "render", .code = 3 };
-static constexpr ErrCode Err_NoMem                           = { .ns = "render", .code = 4 };
-static constexpr ErrCode Err_Resize                          = { .ns = "render", .code = 5 };
-static constexpr ErrCode Err_ShaderTooManyPushConstantBlocks = { .ns = "render", .code = 6 };
-
-//--------------------------------------------------------------------------------------------------
-
 #define DestroyVk(h, DestroyFn) \
 	if (h != VK_NULL_HANDLE) { \
 		DestroyFn(vkDevice, h, vkAllocationCallbacks); \
@@ -1009,7 +1000,7 @@ void Shutdown() {
 
 //----------------------------------------------------------------------------------------------
 
-Res<> ResizeSwapchain(u32 width, u32 height) {
+Res<> RecreateSwapchain(u32 width, u32 height) {
 	vkDeviceWaitIdle(vkDevice);
 
 	for (u64 i = 0; i < swapchainImages.len; i++) {

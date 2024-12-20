@@ -133,7 +133,6 @@
     <ClInclude Include="JC\Render_Vk.h" />
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Time.h" />
-    <ClInclude Include="JC\Tlsf.h" />
     <ClInclude Include="JC\Unicode.h" />
     <ClInclude Include="JC\UnitTest.h" />
     <ClInclude Include="JC\Window.h" />
@@ -158,7 +157,6 @@
     <ClCompile Include="JC\Render_Vk_Util.cpp" />
     <ClCompile Include="JC\Render_Vk_Win.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
-    <ClCompile Include="JC\Tlsf.cpp" />
     <ClCompile Include="JC\Unicode.cpp" />
     <ClCompile Include="JC\UnitTest.cpp" />
     <ClCompile Include="JC\Main.cpp" />
@@ -166,7 +164,7 @@
     <ClCompile Include="JC\Window_Win.cpp" />
     <ClCompile Include="JC\Math.cpp" />
     <ClCompile Include="JC\Random.cpp" />
-    <ClCompile Include="JC\Time.cpp" />
+    <ClCompile Include="JC\Time_Win.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Game Notes.md" />
