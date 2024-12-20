@@ -24,7 +24,7 @@ static bool   exit;
 
 //--------------------------------------------------------------------------------------------------
 
-void Exit() { exit = true; }
+void App::Exit() { exit = true; }
 
 static void AppPanicFn(SrcLoc sl, s8 expr, s8 fmt, VArgs args) {
 	char msg[1024];
@@ -79,45 +79,17 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	Event::Init(log);
 
 	const Window::Style windowStyle = (Window::Style)Config::GetU32("App.WindowStyle", (u32)Window::Style::BorderedResizable);
-
-	u32 displayIdx  = Config::GetU32("App.DisplayIdx", 0);
-	Span<Window::Display> displays = Window::GetDisplays();
-	if (displayIdx >= displays.len) {
-		displayIdx = 0;
-	}
-	const Window::Display* const display = &displays[displayIdx];
-
-	i32 windowX      = 0;
-	i32 windowY      = 0;
-	u32 windowWidth  = 0;
-	u32 windowHeight = 0;
-	if (windowStyle != Window::Style::Fullscreen) {
-		windowWidth  = Config::GetU32("App.WindowWidth", 1600);
-		windowHeight = Config::GetU32("App.WindowHeight", 1200);
-	} else {
-		if (windowWidth  > display->width)  { windowWidth  = display->width; }
-		if (windowHeight > display->height) { windowHeight = display->height; }
-		windowX = (i32)(display->width  - windowWidth)  / 2;
-		windowY = (i32)(display->height - windowHeight) / 2;
-	}
-
 	Window::InitInfo windowInitInfo = {
-		.temp                 = temp,
-		.log                  = log,
-		.title                = "test window",
-		.style                = windowStyle,
-		.x                    = windowX,
-		.y                    = windowY,
-		.width                = windowWidth,
-		.height               = windowHeight,
-		.fullscreenDisplayIdx = displayIdx,
+		.temp       = temp,
+		.log        = log,
+		.title      = Config::GetS8("App.WindowTitlye", "test window"),
+		.style      = windowStyle,
+		.width      = windowStyle == Window::Style::Fullscreen ? 0 : Config::GetU32("App.WindowWidth",  1600),
+		.height     = windowStyle == Window::Style::Fullscreen ? 0 : Config::GetU32("App.WindowHeight", 1200),
+		.displayIdx = Config::GetU32("App.DisplayIdx", 0),
 	};
 	if (Res<> r = Window::Init(&windowInitInfo); !r) {
 		return r.Push(Err_Init);
-	}
-
-	if (Res<> r = app->Init(perm, temp); !r) {
-		return r;
 	}
 
 	Window::PumpMessages();
@@ -136,12 +108,17 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		return r;
 	}
 
-	const u64 startTicks = Time::Now();
+	if (Res<> r = app->Init(perm, temp, log, &windowState); !r) {
+		return r;
+	}
+
+	u64 lastTicks = Time::Now();
 	for (exit = false; !exit ;) {
 		temp->Reset(0);
 
 		const u64 ticks = Time::Now();
-		const double secs = Time::Secs(ticks - startTicks);
+		const double secs = Time::Secs(ticks - lastTicks);
+		lastTicks = ticks;
 
 		Window::PumpMessages();
 		if (Window::IsExitRequested()) {
@@ -150,6 +127,10 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 
 		const Window::State prevWindowState = windowState;
 		windowState = Window::GetState();
+		if (windowState.minimized || !windowState.width || !windowState.height) {
+			continue;
+		}
+
 		if (!prevWindowState.minimized && windowState.minimized) {
 			Event::Add(Event::Event { .type = Event::Type::WindowMinimized });
 		} else if (prevWindowState.minimized && !windowState.minimized) {
@@ -161,33 +142,54 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 			Event::Add(Event::Event { .type = Event::Type::WindowUnfocused});
 		}
 
+		if (prevWindowState.width != windowState.width || prevWindowState.height != windowState.height) {
+			Event::Add(Event::Event {
+				.type = Event::Type::WindowResized,
+				.windowResized = {
+					.width  = windowState.width,
+					.height = windowState.height,
+				},
+			});
+		}
+
 		Span<Event::Event> events = Event::Get();
 		if (Res<> r = app->Events(events); !r) { return r; }
 		Event::Clear();
 
 		if (Res<> r = app->Update(secs); !r) { return r; }
 
-		if (!windowState.minimized && windowState.width != 0 && windowState.height != 0) {
-			if (Res<> r = Render::BeginFrame(); !r) {
-				if (r.err->ec == Render::Err_Resize) {
-					if (r = Render::RecreateSwapchain(windowWidth, windowHeight); !r) {
-						return r;
-					}
-				} else {
-					return r;
-				}
-			}
+		if (windowState.minimized || !windowState.width || !windowState.height) {
+			continue;
+		}
 
-			if (Res<> r = app->Draw(); !r) { return r; }
-		
-			if (Res<> r = Render::EndFrame(); !r) {
-				if (r.err->ec == Render::Err_Resize) {
-					if (r = Render::RecreateSwapchain(windowWidth, windowHeight); !r) {
-						return r;
-					}
-				} else {
+		if (prevWindowState.width != windowState.width || prevWindowState.height != windowState.height) {
+			if (Res<> r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
+				return r;
+			}
+			Logf("recreate swpachain after size mismatch");
+		}
+
+		if (Res<> r = Render::BeginFrame(); !r) {
+			if (r.err->ec == Render::Err_RecreateSwapchain) {
+				if (r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
+					Logf("recreate swap chain after beginframe");
 					return r;
 				}
+			} else {
+				return r;
+			}
+		}
+
+		if (Res<> r = app->Draw(); !r) { return r; }
+		
+		if (Res<> r = Render::EndFrame(); !r) {
+			if (r.err->ec == Render::Err_RecreateSwapchain) {
+				Logf("recreate swap chain after endframe");
+				if (r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
+					return r;
+				}
+			} else {
+				return r;
 			}
 		}
 	}
@@ -198,6 +200,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 //--------------------------------------------------------------------------------------------------
 
 void Shutdown(App* app) {
+	Render::WaitIdle();
 	app->Shutdown();
 	Render::Shutdown();
 	Window::Shutdown();

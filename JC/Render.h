@@ -15,7 +15,7 @@ static constexpr ErrCode Err_Version                         = { .ns = "render",
 static constexpr ErrCode Err_NoLayer                         = { .ns = "render", .code = 2 };
 static constexpr ErrCode Err_NoDevice                        = { .ns = "render", .code = 3 };
 static constexpr ErrCode Err_NoMem                           = { .ns = "render", .code = 4 };
-static constexpr ErrCode Err_Resize                          = { .ns = "render", .code = 5 };
+static constexpr ErrCode Err_RecreateSwapchain               = { .ns = "render", .code = 5 };
 static constexpr ErrCode Err_ShaderTooManyPushConstantBlocks = { .ns = "render", .code = 6 };
 
 //--------------------------------------------------------------------------------------------------
@@ -70,10 +70,10 @@ struct ImageUpdate {
 };
 
 struct Viewport {
-	f32 x      = 0.0f;
-	f32 y      = 0.0f;
-	f32 width  = 0.0f;
-	f32 height = 0.0f;
+	f32 x = 0.0f;
+	f32 y = 0.0f;
+	f32 w = 0.0f;
+	f32 h = 0.0f;
 };
 
 struct Pass {
@@ -95,6 +95,7 @@ struct InitInfo {
 
 Res<>             Init(const InitInfo* initInfo);
 void              Shutdown();
+void              WaitIdle();
 Res<>             RecreateSwapchain(u32 width, u32 height);
 Image             GetCurrentSwapchainImage();
 ImageFormat       GetSwapchainImageFormat();

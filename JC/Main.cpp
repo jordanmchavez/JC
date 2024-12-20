@@ -86,12 +86,12 @@ struct Entity {
 Res<Render::Image> CreateDepthImage(u32 width, u32 height) {
 	Render::Image depthImage = {};
 	if (Res<> r = Render::CreateImage(width, height, Render::ImageFormat::D32_F, Render::ImageUsage::DepthStencilAttachment, Render::Sampler{}).To(depthImage); !r) {
-		return r;
+		return r.err;
 	}
 
 	if (Res<> r = Render::BeginCmds(); !r) {
 		Render::DestroyImage(depthImage);
-		return r;
+		return r.err;
 	}
 
 	Render::CmdImageBarrier(
@@ -105,8 +105,10 @@ Res<Render::Image> CreateDepthImage(u32 width, u32 height) {
 
 	if (Res<> r = Render::EndCmds(); !r) {
 		Render::DestroyImage(depthImage);
-		return r;
+		return r.err;
 	}
+
+	//Render::WaitIdle();
 
 	return depthImage;
 }
@@ -115,8 +117,8 @@ Res<Render::Image> CreateDepthImage(u32 width, u32 height) {
 
 Res<Mesh> CreateCubeMesh() {
 	Render::Buffer vertexBuffer = {};
-	if (Res<> r = Render::CreateBuffer(24 * sizeof(Vertex), Render::BufferUsage::Storage).To(vertexBuffer); !r) { return r; }
-	if (Res<> r = Render::BeginCmds(); !r) { return r; }
+	if (Res<> r = Render::CreateBuffer(24 * sizeof(Vertex), Render::BufferUsage::Storage).To(vertexBuffer); !r) { return r.err; }
+	if (Res<> r = Render::BeginCmds(); !r) { return r.err; }
 
 	Render::BufferUpdate update = Render::CmdBeginBufferUpdate(vertexBuffer);
 	Vertex* const vertices = (Vertex*)update.ptr;
@@ -155,7 +157,7 @@ Res<Mesh> CreateCubeMesh() {
 	Render::Buffer indexBuffer = {};
 	if (Res<> r = Render::CreateBuffer(36 * sizeof(u32), Render::BufferUsage::Index).To(indexBuffer); !r) {
 		Render::DestroyBuffer(vertexBuffer);
-		return r;
+		return r.err;
 	}
 
 	update = Render::CmdBeginBufferUpdate(indexBuffer);
@@ -204,8 +206,8 @@ Res<Mesh> CreateCubeMesh() {
 	indices[35] = 23;
 	Render::CmdEndBufferUpdate(update);
 
-	if (Res<> r = Render::EndCmds(); !r) { return r; }
-	if (Res<> r = Render::ImmediateSubmitCmds(); !r ) { return r; }
+	if (Res<> r = Render::EndCmds(); !r) { return r.err; }
+	if (Res<> r = Render::ImmediateSubmitCmds(); !r ) { return r.err; }
 
 	return Mesh {
 		.vertexBuffer     = vertexBuffer,
@@ -218,9 +220,9 @@ Res<Mesh> CreateCubeMesh() {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Render::Image> LoadImage(s8 path) {
+Res<Render::Image> LoadImage(Arena* arena, s8 path) {
 	Span<u8> data;
-	if (Res<> r = FS::ReadAll(temp, path).To(data); !r) { return r; }
+	if (Res<> r = FS::ReadAll(arena, path).To(data); !r) { return r.err; }
 
 	int width = 0;
 	int height = 0;
@@ -233,9 +235,9 @@ Res<Render::Image> LoadImage(s8 path) {
 	Defer { stbi_image_free(imageData); };
 
 	Render::Image image;
-	if (Res<> r = Render::CreateImage(width, height, Render::ImageFormat::R8G8B8A8_N, Render::ImageUsage::Sampled, Render::Sampler{}).To(image); !r) { return r; }
+	if (Res<> r = Render::CreateImage(width, height, Render::ImageFormat::R8G8B8A8_N, Render::ImageUsage::Sampled, Render::Sampler{}).To(image); !r) { return r.err; }
 
-	if (Res<> r = Render::BeginCmds(); !r) { return r; }
+	if (Res<> r = Render::BeginCmds(); !r) { return r.err; }
 	Render::CmdImageBarrier(
 		image,
 		VK_PIPELINE_STAGE_2_NONE,
@@ -270,8 +272,8 @@ Res<Render::Image> LoadImage(s8 path) {
 		VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
 		VK_ACCESS_2_SHADER_SAMPLED_READ_BIT
 	);
-	if (Res<> r = Render::EndCmds(); !r) { return r; }
-	if (Res<> r = Render::ImmediateSubmitCmds(); !r ) { return r; }
+	if (Res<> r = Render::EndCmds(); !r) { return r.err; }
+	if (Res<> r = Render::ImmediateSubmitCmds(); !r ) { return r.err; }
 
 	Render::BindImage(image, 0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
@@ -280,9 +282,9 @@ Res<Render::Image> LoadImage(s8 path) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Render::Shader> LoadShader(s8 path) {
+Res<Render::Shader> LoadShader(Arena* arena, s8 path) {
 	Span<u8> data;
-	if (Res<> r = FS::ReadAll(temp, path).To(data); !r) {
+	if (Res<> r = FS::ReadAll(arena, path).To(data); !r) {
 		return r.err->Push(Err_LoadShader, "path", path);
 	}
 
@@ -297,40 +299,53 @@ Res<Render::Shader> LoadShader(s8 path) {
 //--------------------------------------------------------------------------------------------------
 
 struct CubeApp : App {
-	Vec3 camPos = { .x = 0.0f, .y = 0.0f, .z = 20.0f };
-	Vec3 camVelocity = {};
-	f32 camRotX = 0.0f;
-	f32 camRotY = 0.0f;
-	constexpr f32 camSpeed = 0.3f;
-	Mat4 proj = Mat4::Perspective(DegToRad(45.0f), (f32)windowWidth / (f32)windowHeight, 0.01f, 100000000.0f);
+	static constexpr u32 MaxEntities = 10000;
 
+	Arena*           temp            = 0;
+	Arena*           perm            = 0;
+	Log*             log             = 0;
+	u32              windowWidth     = 0;
+	u32              windowHeight    = 0;
+	Render::Image    depthImage      = {};
+	Mesh             cubeMesh        = {};
+	Render::Image    texture         = {};
+	Render::Shader   vertexShader    = {};
+	Render::Shader   fragmentShader  = {};
+	Render::Pipeline pipeline        = {};
+	Render::Buffer   sceneBuffer     = {};
+	u64              sceneBufferAddr = 0;
+	Entity*          entities        = 0;
+	Vec3             camPos          = { .x = 0.0f, .y = 0.0f, .z = 20.0f };
+	Vec3             camX            = {};
+	Vec3             camY            = {};
+	Vec3             camZ            = {};
 
-	Res<> Init(Arena* temp, Arena* perm) override {
-		Render::Image depthImage = {};
-		if (Res<> r = CreateDepthImage(windowWidth, windowHeight).To(depthImage); !r) { return r; }
+	Res<> Init(Arena* tempIn, Arena* permIn, Log* logIn, const Window::State* windowState) override {
+		temp = tempIn;
+		perm = permIn;
+		log = logIn;
+		windowWidth  = windowState->width;
+		windowHeight = windowState->height;
 
-		Mesh cubeMesh = {};
+		if (Res<> r = CreateDepthImage(windowState->width, windowState->height).To(depthImage); !r) { return r; }
+
 		if (Res<> r = CreateCubeMesh().To(cubeMesh); !r) { return r; }
 
-		Render::Image texture = {};
-		if (Res<> r = LoadImage("Assets/texture.jpg").To(texture); !r) { return r; }
+		if (Res<> r = LoadImage(temp, "Assets/texture.jpg").To(texture); !r) { return r; }
 
-		Render::Shader vertexShader = {};
-		if (Res<> r = LoadShader("Shaders/mesh.vert.spv").To(vertexShader); !r) { return r; }
+		if (Res<> r = LoadShader(temp, "Shaders/mesh.vert.spv").To(vertexShader); !r) { return r; }
 
-		Render::Shader fragmentShader = {};
-		if (Res<> r = LoadShader("Shaders/mesh.frag.spv").To(fragmentShader); !r) { return r; }
+		if (Res<> r = LoadShader(temp, "Shaders/mesh.frag.spv").To(fragmentShader); !r) { return r; }
 
-		Render::Pipeline pipeline = {};
 		if (Res<> r = Render::CreateGraphicsPipeline(
 			{ vertexShader, fragmentShader },
 			{ Render::GetSwapchainImageFormat() },
 			Render::ImageFormat::D32_F
 		).To(pipeline); !r) { return r; }
 
-		Render::Buffer sceneBuffer = {};
 		if (Res<> r = Render::CreateBuffer(sizeof(Scene), Render::BufferUsage::Storage).To(sceneBuffer); !r) { return r; }
-		const u64 sceneBufferAddr = Render::GetBufferAddr(sceneBuffer);
+
+		sceneBufferAddr = Render::GetBufferAddr(sceneBuffer);
 
 		auto RandomNormal = []() {
 			return Vec3::Normalize(Vec3 {
@@ -348,8 +363,7 @@ struct CubeApp : App {
 			};
 		};
 
-		constexpr u32 MaxEntities = 10000;
-		Entity* entities = perm->AllocT<Entity>(MaxEntities);
+		entities = perm->AllocT<Entity>(MaxEntities);
 		for (u32 i = 0; i < MaxEntities; i++) {
 			entities[i].mesh       = cubeMesh;
 			entities[i].pos        = RandomVec3(100.0f);
@@ -357,55 +371,97 @@ struct CubeApp : App {
 			entities[i].angle      = 0.0f;
 			entities[i].angleSpeed = Random::NextF32() / 15.0f;
 		}
+
+		return Ok();
 	}
 
 	void Shutdown() override {
+		Render::DestroyImage(depthImage);
+		Render::DestroyBuffer(cubeMesh.vertexBuffer);
+		Render::DestroyBuffer(cubeMesh.indexBuffer);
+		Render::DestroyImage(texture);
+		Render::DestroyShader(vertexShader);
+		Render::DestroyShader(fragmentShader);
+		Render::DestroyPipeline(pipeline);
+		Render::DestroyBuffer(sceneBuffer);
 	}
 
+	struct Input {
+		float xPos  = 0.0f;
+		float xNeg  = 0.0f;
+		float yPos  = 0.0f;
+		float yNeg  = 0.0f;
+		float zPos  = 0.0f;
+		float zNeg  = 0.0f;
+		float yaw   = 0.0f;
+		float pitch = 0.0f;
+	};
+	Input input = {};
+
 	Res<> Events(Span<Event::Event> events) override {
+		input.yaw = 0.0f;
+		input.pitch = 0.0f;
 		for (const Event::Event* e = events.Begin(); e != events.End(); e++) {
 			switch (e->type) {
 				case Event::Type::Exit:
 					Exit();
 					break;
 				case Event::Type::Key:
-					       if (e->key.key == Event::Key::A)     { camVelocity.x = e->key.down ? -camSpeed : 0.0f;
-					} else if (e->key.key == Event::Key::D)     { camVelocity.x = e->key.down ?  camSpeed : 0.0f;
-					} else if (e->key.key == Event::Key::Space) { camVelocity.y = e->key.down ?  camSpeed : 0.0f;
-					} else if (e->key.key == Event::Key::C)     { camVelocity.y = e->key.down ? -camSpeed : 0.0f;
-					} else if (e->key.key == Event::Key::W)     { camVelocity.z = e->key.down ? -camSpeed : 0.0f;
-					} else if (e->key.key == Event::Key::S)     { camVelocity.z = e->key.down ?  camSpeed : 0.0f;
-
-					} else if (e->key.key == Event::Key::Escape) { exitRequested = true; }
+					     if (e->key.key == Event::Key::D)      { input.xPos = e->key.down ? 1.0f : 0.0f; }
+					else if (e->key.key == Event::Key::A)      { input.xNeg = e->key.down ? 1.0f : 0.0f; }
+					else if (e->key.key == Event::Key::Space)  { input.yPos = e->key.down ? 1.0f : 0.0f; }
+					else if (e->key.key == Event::Key::C)      { input.yNeg = e->key.down ? 1.0f : 0.0f; }
+					else if (e->key.key == Event::Key::S)      { input.zPos = e->key.down ? 1.0f : 0.0f; }
+					else if (e->key.key == Event::Key::W)      { input.zNeg = e->key.down ? 1.0f : 0.0f; }
+					else if (e->key.key == Event::Key::Escape) { Exit(); }
 					break;
 				case Event::Type::MouseMove:
-					camRotX += (f32)e->mouseMove.y *  0.001f;
-					camRotY += (f32)e->mouseMove.x * -0.001f;
+					input.yaw   += -(float)e->mouseMove.x;
+					input.pitch +=  (float)e->mouseMove.y;
+					break;
+				case Event::Type::WindowResized:
+					Render::DestroyImage(depthImage);
+					windowWidth  = e->windowResized.width;
+					windowHeight = e->windowResized.height;
+					if (windowWidth && windowHeight) {
+						if (Res<> r = CreateDepthImage(windowWidth, windowHeight).To(depthImage); !r) {
+							return r;
+						}
+					}
 					break;
 			}
 		}
 
+		return Ok();
 	}
 
+	static constexpr float camRotPerSec  = 0.08f;
+	static constexpr float camMovePerSec = 20.0f;
+
+	float camYaw = 0.0f;
+	float camPitch = 0.0f;
 	Res<> Update(double secs) override {
+		const float fsecs = (float)secs;
+		const float camMove = fsecs * camMovePerSec;
+		const float camRot  = fsecs * camRotPerSec;
+
+		camYaw   += input.yaw   * camRot;
+		camPitch += input.pitch * camRot;
+
+		camZ = Mat3::Mul(Mat3::RotateY(camYaw), Vec3 { 0.0f, 0.0f, -1.0f });
+		camX = Vec3::Cross(Vec3 { 0.0f, 1.0f, 0.0f }, camZ);
+
+		camPos = Vec3::AddScaled(camPos, camX, input.xPos * camMove - input.xNeg * camMove);
+		camPos = Vec3::AddScaled(camPos, camY, input.yPos * camMove - input.yNeg * camMove);
+		camPos = Vec3::AddScaled(camPos, camZ, input.zPos * camMove - input.zNeg * camMove);
+
+		camZ = Mat3::Mul(Mat3::AxisAngle(camX, camPitch), camZ);
+		camY = Vec3::Cross(camZ, camX);
+
+		return Ok();
 	}
 
 	Res<> Draw() override {
-		Vec3 camX = { .x = 1.0f, .y = 0.0f, .z = 0.0f };
-		Vec3 camY = { .x = 0.0f, .y = 1.0f, .z = 0.0f };
-		Vec3 camZ = { .x = 0.0f, .y = 0.0f, .z = 1.0f };
-
-		camZ = Mat3::Mul(Mat3::RotateY(camRotY), camZ);
-		camX = Vec3::Cross(camY, camZ);
-
-		camPos = Vec3::AddScaled(camPos, camX, camVelocity.x);
-		camPos = Vec3::AddScaled(camPos, camY, camVelocity.y);
-		camPos = Vec3::AddScaled(camPos, camZ, camVelocity.z);
-
-		camZ = Mat3::Mul(Mat3::AxisAngle(camX, camRotX), camZ);
-		camY = Vec3::Cross(camZ, camX);
-
-		if (Res<> r = Render::BeginFrame(); !r) { return r; }
 		if (Res<> r = Render::BeginCmds(); !r) { return r; }
 
 		Render::CmdImageBarrier(
@@ -422,6 +478,8 @@ struct CubeApp : App {
 		scene->view    = Mat4::Look(camPos, camX, camY, camZ);
 		scene->proj    = Mat4::Perspective(DegToRad(45.0f), (f32)windowWidth / (f32)windowHeight, 0.01f, 1000.0f);
 		scene->ambient = { 0.1f, 0.1f, 0.1f, 1.0f };
+		Mat4 proj = Mat4::Perspective(DegToRad(45.0f), (f32)windowWidth / (f32)windowHeight, 0.01f, 100000000.0f);
+
 		Render::CmdEndBufferUpdate(update);
 		Render::CmdBufferBarrier(
 			sceneBuffer,
@@ -435,8 +493,8 @@ struct CubeApp : App {
 			.pipeline         = pipeline,
 			.colorAttachments = { Render::GetCurrentSwapchainImage() },
 			.depthAttachment  = depthImage,
-			.viewport         = { .x = 0.0f, .y = 0.0f, .width = (f32)windowWidth, .height = (f32)windowHeight },
-			.scissor          = { .x = 0,    .y = 0,    .width = (i32)windowWidth, .height = (i32)windowHeight },
+			.viewport         = { .x = 0.0f, .y = 0.0f, .w = (f32)windowWidth, .h = (f32)windowHeight },
+			.scissor          = { .x = 0,    .y = 0,    .w = windowWidth,      .h = windowHeight },
 		};
 
 		Render::CmdBeginPass(&pass);
@@ -468,6 +526,8 @@ struct CubeApp : App {
 		);
 
 		if (Res<> r = Render::EndCmds(); !r) { return r; }
+
+		return Ok();
 	}
 
 };
@@ -476,6 +536,6 @@ struct CubeApp : App {
 
 int main(int argc, const char** argv) {
 	CubeApp cubeApp;
-	RunApp(&cubeApp);
+	RunApp(&cubeApp, argc, argv);
 	return 0;
 }

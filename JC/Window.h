@@ -46,15 +46,13 @@ struct State {
 };
 
 struct InitInfo {
-	Arena* temp                 = 0;
-	Log*   log                  = 0;
-	s8     title                = {};
-	Style  style                = {};
-	i32    x                    = 0;
-	i32    y                    = 0;
-	u32    width                = 0;
-	u32    height               = 0;
-	u32    fullscreenDisplayIdx = 0;
+	Arena* temp       = 0;
+	Log*   log        = 0;
+	s8     title      = {};
+	Style  style      = {};
+	u32    width      = 0;
+	u32    height     = 0;
+	u32    displayIdx = 0;
 };
 
 struct PlatformInfo {

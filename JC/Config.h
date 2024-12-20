@@ -7,6 +7,7 @@ namespace JC::Config {
 //--------------------------------------------------------------------------------------------------
 
 #define DebugBreakOnErr
+#define RenderDebug
 
 void Init(Arena* perm);
 

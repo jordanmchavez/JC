@@ -99,5 +99,23 @@ void VirtualDecommit(void* p, u64 size) {
 
 //--------------------------------------------------------------------------------------------------
 
+void InitMutex(Mutex* mutex) {
+	*(SRWLOCK*)mutex = SRWLOCK_INIT;
+}
+
+void LockMutex(Mutex* mutex) {
+	AcquireSRWLockExclusive((SRWLOCK*)mutex);
+}
+
+void UnlockMutex(Mutex* mutex) {
+	ReleaseSRWLockExclusive((SRWLOCK*)mutex);
+}
+
+void ShutdownMutex(Mutex* ) {
+	// no-op on windows
+}
+
+//--------------------------------------------------------------------------------------------------
+
 }	// namespace Sys
 }	// namespace JC

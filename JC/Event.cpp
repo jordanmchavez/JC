@@ -154,6 +154,7 @@ void Clear()  {
 s8 Str(Event e, Arena* arena) {
 	switch (e.type) {
 		case Type::Exit:            return "ExitEvent";
+		case Type::WindowResized:   return "WindowResized";
 		case Type::WindowFocused:   return "WindowFocused";
 		case Type::WindowUnfocused: return "WindowUnfocused";
 		case Type::WindowMinimized: return "WindowMinimized";

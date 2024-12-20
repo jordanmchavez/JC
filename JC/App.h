@@ -2,14 +2,16 @@
 
 #include "JC/Common.h"
 
-namespace JC::Event { struct Event; }
-
 namespace JC {
+
+struct Log; 
+namespace Event { struct Event; }
+namespace Window { struct State; }
 
 //--------------------------------------------------------------------------------------------------
 
 struct App {
-	virtual Res<> Init(Arena* perm, Arena* temp) = 0;
+	virtual Res<> Init(Arena* perm, Arena* temp, Log* log, const Window::State* windowState) = 0;
 	virtual void  Shutdown() = 0;
 	virtual Res<> Events(Span<Event::Event> events) = 0;
 	virtual Res<> Update(double secs) = 0;
@@ -45,7 +47,7 @@ love.wheelmoved	Callback function triggered when the mouse wheel is moved.	Added
 */
 };
 
-void RunApp(App* app);
+void RunApp(App* app, int argc, const char** argv);
 
 //--------------------------------------------------------------------------------------------------
 

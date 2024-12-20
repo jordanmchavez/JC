@@ -156,7 +156,7 @@ template <class T> struct Array {
 	void Grow(u64 newCap, SrcLoc sl = SrcLoc::Here()) {
 		Assert(newCap > cap);
 		newCap = Max(Max((u64)16, newCap), cap * 2);
-		if (!arena->ExtendT<T>(data, cap * sizeof(T), newCap * sizeof(T), sl)) {
+		if (!arena->ExtendT<T>(data, cap, newCap, sl)) {
 			T* newData = arena->AllocT<T>(newCap, sl);
 			MemCpy(newData, data, len * sizeof(T));
 			data = newData;

@@ -22,14 +22,14 @@ template <class T, class H> struct HandleArray {
 
 	void Init(Arena* arenaIn) {
 		arena   = arenaIn;
-		entries = (Entry*)arena->Alloc(16 * sizeof(Entry));
+		entries = arena->AllocT<Entry>(16);
 		len     = 1;	// rserve index 0 for invalid
 		cap     = 16;
 		gen     = 1;
 		free    = 0;
 	}
 
-	T* Get(H h) {
+	Entry* GetEntry(H h) {
 		const u32 i = (u32)(h.handle & 0xffffffff);
 		const u32 g = (u32)(h.handle >> 32);
 		Assert(i > 0 && i < len);
@@ -37,10 +37,14 @@ template <class T, class H> struct HandleArray {
 		Entry* const entry = &entries[i];
 		Assert(entry->gen == g);
 		Assert(entry->idx == i);
-		return &entry->val;
+		return entry;
 	}
 
-	T* Alloc(SrcLoc sl = SrcLoc::Here()) {
+	T* Get(H h) {
+		return &GetEntry(h)->val;
+	}
+
+	H Alloc(SrcLoc sl = SrcLoc::Here()) {
 		u32 i = 0;
 		if (free) {
 			i = free;
@@ -48,8 +52,8 @@ template <class T, class H> struct HandleArray {
 		} else {
 			if (len >= cap) {
 				const u32 newCap = cap * 2;
-				if (!arena->Extend(entries, cap * sizeof(Entry), newCap * sizeof(Entry), sl)) {
-					Entry* newEntries = (Entry*)arena->Alloc(newCap * sizeof(Entry), sl);
+				if (!arena->ExtendT<Entry>(entries, cap, newCap, sl)) {
+					Entry* newEntries = arena->AllocT<Entry>(newCap, sl);
 					MemCpy(newEntries, entries, len * sizeof(Entry));
 					entries = newEntries;
 				}
@@ -69,21 +73,14 @@ template <class T, class H> struct HandleArray {
 			gen = 1;
 		}
 
-		return &entry->val;
+		return H { .handle = ((u64)entry->gen << 32) | i };
 	}
 
-	void Free(T* val) {
-		Entry* const entry = (Entry*)val;
-		Assert(entry > entries && entry < entries + len);
-		Assert(entry->gen);
+	void Free(H h) {
+		Entry* const entry = GetEntry(h);
 		entry->gen = 0;
 		entry->idx = free;
 		free = (u32)(entry - entries);
-	}
-
-	H GetHandle(const T* val) {
-		const Entry* const entry = (const Entry*)val;
-		return H { .handle = ((u64)entry->gen << 32) | entry->idx };
 	}
 };
 

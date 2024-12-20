@@ -230,6 +230,7 @@ Res<> Init(const InitInfo* initInfo) {
 	if (EnumDisplayMonitors(0, 0, MonitorEnumFn, 0) == FALSE) {
 		return MakeLastErr(temp, EnumDisplayMonitors);
 	}
+	Assert(displaysLen > 0);
 
 	if (SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) == FALSE) {
 		return MakeLastErr(temp, SetProcessDpiAwarenessContext);
@@ -272,19 +273,22 @@ Res<> Init(const InitInfo* initInfo) {
 			break;
 	}
 
+	const Display* const display = &displays[(initInfo->displayIdx >= displaysLen) ? 0 : initInfo->displayIdx];
 	RECT r = {};
 	if (initInfo->style == Style::Fullscreen) {
-		Assert(initInfo->fullscreenDisplayIdx <= displaysLen);
-		const Display* display = &displays[initInfo->fullscreenDisplayIdx];
-		::SetRect(
-			&r,
-			0,
-			0,
-			display->width,
-			display->height
-		);
+		r.left =   display->x;
+		r.top    = display->y;
+		r.right  = display->x + display->width;
+		r.bottom = display->y + display->height;
 	} else {
-		::SetRect(&r, initInfo->x, initInfo->y, initInfo->x + initInfo->width, initInfo->y + initInfo->height);
+		const u32 w = Min(initInfo->width,  display->width);
+		const u32 h = Min(initInfo->height, display->height);
+		const i32 x = display->x + (i32)(display->width  - w) / 2;
+		const i32 y = display->y + (i32)(display->height - h) / 2;
+		r.left =   x;
+		r.top    = y;
+		r.right  = x + w;
+		r.bottom = y + h;
 	}
 
 	HMONITOR hmonitor = MonitorFromRect(&r, MONITOR_DEFAULTTONEAREST);

@@ -7,7 +7,7 @@
 
 #if defined Platform_Windows
 	typedef unsigned long DWORD;
-	typedef const wchar_t* LPCWSTR;
+	typedef _Null_terminated_ const wchar_t* LPCWSTR;
 	typedef void* HANDLE;
 	typedef struct HINSTANCE__* HINSTANCE;
 	typedef struct HWND__* HWND;

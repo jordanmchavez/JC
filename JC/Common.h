@@ -444,7 +444,6 @@ template <> struct [[nodiscard]] Res<void> {
 
 	constexpr Res() = default;
 	constexpr Res(Err* e) { err = e; }	// implicit
-	template <class T> constexpr Res(Res<T> r) { Assert(!r.hasVal); err = r.err; }
 
 	constexpr operator bool() const { return err == 0; }
 
@@ -468,8 +467,6 @@ template <class T> struct [[nodiscard]] Res {
 	constexpr Res(T v)    { val = v; hasVal = true;  }
 	constexpr Res(Err* e) { err = e; hasVal = false; }
 	constexpr Res(const Res&) = default;
-	constexpr Res(Res<void> r) { Assert(r.err); err = r.err; hasVal = false; }
-	template <class U> Res(Res<U> r) { Assert(!r.hasVal); err = r.err; hasVal = false; }
 
 	constexpr operator bool() const { return hasVal; }
 
