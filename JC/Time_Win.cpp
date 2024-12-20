@@ -12,6 +12,8 @@ static double ticksPerMin;
 static double ticksPerSec;
 static double ticksPerMil;
 
+//--------------------------------------------------------------------------------------------------
+
 void Init() {
 	LARGE_INTEGER freq = {};
 	QueryPerformanceFrequency(&freq);
@@ -23,11 +25,15 @@ void Init() {
 	ticksPerMil  = (double)freq.QuadPart / 1000.0;
 }
 
+//--------------------------------------------------------------------------------------------------
+
 u64 Now() {
 	LARGE_INTEGER count;
 	QueryPerformanceCounter(&count);
 	return (u64)count.QuadPart;
 }
+
+//--------------------------------------------------------------------------------------------------
 
 double Days (u64 ticks) { return (double)ticks / ticksPerDay;  }
 double Hours(u64 ticks) { return (double)ticks / ticksPerHour; }
@@ -40,6 +46,8 @@ u64 FromHours(double hours) { return (u64)(hours * ticksPerHour); }
 u64 FromMins (double mins)  { return (u64)(mins  * ticksPerMin ); }
 u64 FromSecs (double secs)  { return (u64)(secs  * ticksPerSec ); }
 u64 FromMils (double mils)  { return (u64)(mils  * ticksPerMil ); }
+
+//--------------------------------------------------------------------------------------------------
 
 /*
 	constexpr i64 JulianDays(i64 d, i32 m, i64 y)

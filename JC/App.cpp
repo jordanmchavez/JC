@@ -20,10 +20,39 @@ static constexpr ErrCode Err_Init = { .ns = "app", .code = 1 };
 static Arena* temp;
 static Arena* perm;
 static Log*   log;
+static bool   exit;
 
-Res<> RunAppInternal(App* app, int argc, const char** argv) {
-	Arena tempInst = CreateArena(Config::GetU64("App.TempArenaSize"));
-	Arena permInst = CreateArena(Config::GetU64("App.PermArenaSize"));
+//--------------------------------------------------------------------------------------------------
+
+void Exit() { exit = true; }
+
+static void AppPanicFn(SrcLoc sl, s8 expr, s8 fmt, VArgs args) {
+	char msg[1024];
+	char* iter = msg;
+	char* end = msg + sizeof(msg) - 1;
+	iter = Fmt(iter, end, "\n***PANIC***\n");
+	iter = Fmt(iter, end, "{}({})\n", sl.file, sl.line);
+	if (expr.len > 0) {
+		iter = Fmt(iter, end, "expr: '{}'\n", expr);
+	}
+	if (fmt.len > 0) {
+		iter = VFmt(iter, end, fmt, args);
+		iter = Fmt(iter, end, "\n");
+	}
+	iter--;
+	Logf("{}", s8(msg, (u64)(iter - msg)));
+
+	if (Sys::IsDebuggerPresent()) {
+		Sys_DebuggerBreak();
+	}
+
+	Sys::Abort();
+}
+//--------------------------------------------------------------------------------------------------
+
+static Res<> RunAppInternal(App* app, int argc, const char** argv) {
+	Arena tempInst = CreateArena((u64) 4 * 1024 * 1024 * 1024);
+	Arena permInst = CreateArena((u64)16 * 1024 * 1024 * 1024);
 	temp = &tempInst;
 	perm = &permInst;
 
@@ -36,43 +65,22 @@ Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		}
 	});
 
-	SetPanicFn([](SrcLoc sl, s8 expr, s8 fmt, VArgs args) {
-		char msg[1024];
-		char* iter = msg;
-		char* end = msg + sizeof(msg) - 1;
-		iter = Fmt(iter, end, "\n***PANIC***\n");
-		iter = Fmt(iter, end, "{}({})\n", sl.file, sl.line);
-		if (expr.len > 0) {
-			iter = Fmt(iter, end, "expr: '{}'\n", expr);
-		}
-		if (fmt.len > 0) {
-			iter = VFmt(iter, end, fmt, args);
-			iter = Fmt(iter, end, "\n");
-		}
-		iter--;
-		Logf("{}", s8(msg, (u64)(iter - msg)));
-
-		if (Sys::IsDebuggerPresent()) {
-			Sys_DebuggerBreak();
-		}
-
-		Sys::Abort();
-	});
+	SetPanicFn(AppPanicFn);
 
 	Time::Init();
+	FS::Init(temp);
+	Config::Init(perm);
 
 	if (argc == 2 && argv[1] == s8("test")) {
 		UnitTest::Run(log);
 		return Ok();
 	}
 
-	FS::Init(temp);
+	Event::Init(log);
 
-	Event::Init(log, temp);
+	const Window::Style windowStyle = (Window::Style)Config::GetU32("App.WindowStyle", (u32)Window::Style::BorderedResizable);
 
-	const Window::Style windowStyle = (Window::Style)Config::GetU64("App.WindowStyle");
-
-	u32 displayIdx  = Config::GetU32("App.DisplayIdx");
+	u32 displayIdx  = Config::GetU32("App.DisplayIdx", 0);
 	Span<Window::Display> displays = Window::GetDisplays();
 	if (displayIdx >= displays.len) {
 		displayIdx = 0;
@@ -84,8 +92,8 @@ Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	u32 windowWidth  = 0;
 	u32 windowHeight = 0;
 	if (windowStyle != Window::Style::Fullscreen) {
-		windowWidth  = Config::GetU32("App.WindowWidth");;
-		windowHeight = Config::GetU32("App.WindowHeight");
+		windowWidth  = Config::GetU32("App.WindowWidth", 1600);
+		windowHeight = Config::GetU32("App.WindowHeight", 1200);
 	} else {
 		if (windowWidth  > display->width)  { windowWidth  = display->width; }
 		if (windowHeight > display->height) { windowHeight = display->height; }
@@ -108,6 +116,10 @@ Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		return r.Push(Err_Init);
 	}
 
+	if (Res<> r = app->Init(perm, temp); !r) {
+		return r;
+	}
+
 	Window::PumpMessages();
 	Window::State windowState = Window::GetState();
 
@@ -125,7 +137,7 @@ Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	}
 
 	const u64 startTicks = Time::Now();
-	for(;;) {
+	for (exit = false; !exit ;) {
 		temp->Reset(0);
 
 		const u64 ticks = Time::Now();
@@ -155,26 +167,27 @@ Res<> RunAppInternal(App* app, int argc, const char** argv) {
 
 		if (Res<> r = app->Update(secs); !r) { return r; }
 
-		if (!windowState.minimized && w
-		if (Res<> r = Render::BeginFrame(); !r) {
-			if (r.err->ec == Render::Err_Resize) {
-				if (r = Render::RecreateSwapchain(windowWidth, windowHeight); !r) {
+		if (!windowState.minimized && windowState.width != 0 && windowState.height != 0) {
+			if (Res<> r = Render::BeginFrame(); !r) {
+				if (r.err->ec == Render::Err_Resize) {
+					if (r = Render::RecreateSwapchain(windowWidth, windowHeight); !r) {
+						return r;
+					}
+				} else {
 					return r;
 				}
-			} else {
-				return r;
 			}
-		}
 
-		if (Res<> r = app->Draw(); !r) { return r; }
+			if (Res<> r = app->Draw(); !r) { return r; }
 		
-		if (Res<> r = Render::EndFrame(); !r) {
-			if (r.err->ec == Render::Err_Resize) {
-				if (r = Render::RecreateSwapchain(windowWidth, windowHeight); !r) {
+			if (Res<> r = Render::EndFrame(); !r) {
+				if (r.err->ec == Render::Err_Resize) {
+					if (r = Render::RecreateSwapchain(windowWidth, windowHeight); !r) {
+						return r;
+					}
+				} else {
 					return r;
 				}
-			} else {
-				return r;
 			}
 		}
 	}
@@ -184,7 +197,10 @@ Res<> RunAppInternal(App* app, int argc, const char** argv) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Shutdown() {
+void Shutdown(App* app) {
+	app->Shutdown();
+	Render::Shutdown();
+	Window::Shutdown();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -197,7 +213,7 @@ void RunApp(App* app, int argc, const char** argv) {
 		}
 	}
 
-	Shutdown();
+	Shutdown(app);
 }
 
 //--------------------------------------------------------------------------------------------------

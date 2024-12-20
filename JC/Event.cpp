@@ -127,27 +127,16 @@ s8 KeyStr(Key k) {
 
 static constexpr u32 MaxEvents = 64 * 1024;
 static Log*   log;
-static Arena* temp;
 static Event  events[MaxEvents];
 static u32    eventsLen;
 
-void Init(Log* logIn, Arena* tempIn) {
+void Init(Log* logIn) {
 	log       = logIn;
-	temp      = tempIn;
 	eventsLen = 0;
-}
-
-s8 EventStr(Event e) {
-	switch (e.type) {
-		case Type::Exit:  return Fmt(temp, "ExitEvent");
-		case Type::Focus: return Fmt(temp, "FocusEvent(focused={})", e.focus.focused);
-		default:          Panic("Unhandled EventType {}", e.type);
-	}
 }
 
 void Add(Event e) {
 	if (eventsLen >= MaxEvents) {
-		Errorf("Dropped event: {}", EventStr(e));
 		return;
 	}
 	events[eventsLen] = e;
@@ -160,6 +149,19 @@ Span<Event> Get()  {
 
 void Clear()  {
 	eventsLen = 0;
+}
+
+s8 Str(Event e, Arena* arena) {
+	switch (e.type) {
+		case Type::Exit:            return "ExitEvent";
+		case Type::WindowFocused:   return "WindowFocused";
+		case Type::WindowUnfocused: return "WindowUnfocused";
+		case Type::WindowMinimized: return "WindowMinimized";
+		case Type::WindowRestored:  return "WindowRestored";
+		case Type::Key:             return Fmt(arena, "Key(key={}, down={})", e.key.key, e.key.down);
+		case Type::MouseMove:       return Fmt(arena, "MouseMove(x={}, y={})", e.mouseMove.x, e.mouseMove.y);
+		default:                    Panic("Unhandled EventType {}", e.type);
+	}
 }
 
 //--------------------------------------------------------------------------------------------------

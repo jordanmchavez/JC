@@ -152,10 +152,11 @@ struct Event {
 	};
 };
 
-void        Init(Log* log, Arena* temp);
+void        Init(Log* log);
 void        Add(Event e);
 Span<Event> Get();
 void        Clear();
+s8          Str(Event e, Arena* arena);
 
 //--------------------------------------------------------------------------------------------------
 

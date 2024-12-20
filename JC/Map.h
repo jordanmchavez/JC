@@ -6,6 +6,8 @@ namespace JC {
 
 //-------------------------------------------------------------------------------------------------
 
+constexpr u64 AlignPow2(u64 u);
+
 template <class K, class V> struct Map {
 	struct Bucket {
 		u32 df  = 0;	// top 3 bytes are distance, bottom byte is fingerprint
@@ -19,27 +21,38 @@ template <class K, class V> struct Map {
 
 	Arena*  arena      = 0;
 	Bucket* buckets    = 0;
-	u64     bucketsLen = 0;
+	u64     bucketsCap = 0;
 	Elem*   elems      = 0;
 	u64     elemsLen   = 0;
 	u64     elemsCap   = 0;
-	u8      mask       = 0;
+	u64     mask       = 0;
 
 	Map() = default;
 
-	Map(Arena* arena, SrcLoc sl = SrcLoc::Here()) {
-		Init(arena, sl);
+	Map(Arena* arenaIn, SrcLoc sl = SrcLoc::Here()) {
+		Init(arenaIn, 16, 0, sl);
+	}
+
+	Map(Arena* arenaIn, u64 bucketsCapIn, u64 elemsCapIn, SrcLoc sl = SrcLoc::Here()) {
+		Init(arenaIn, bucketsCapIn, elemsCapIn, sl);
+		
 	}
 
 	void Init(Arena* arenaIn, SrcLoc sl = SrcLoc::Here()) {
-		arena        = arenaIn;
-		buckets    = (Bucket*)arena->Alloc(16 * sizeof(Bucket), sl);
-		bucketsLen = 16;
-		elems      = 0;
+		Init(arenaIn, 16, 0, sl);
+	}
+
+	void Init(Arena* arenaIn, u64 bucketsCapIn, u64 elemsCapIn, SrcLoc sl = SrcLoc::Here()) {
+		bucketsCapIn = AlignPow2(bucketsCapIn);
+
+		arena      = arenaIn;
+		buckets    = arena->AllocT<Bucket>(bucketsCapIn, sl);
+		bucketsCap = bucketsCapIn;
+		elems      = arena->AllocT<Elem>(elemsCapIn);
 		elemsLen   = 0;
-		elemsCap   = 0;
-		mask       = 0xf;
-		MemSet(buckets, 0, 16 * sizeof(Bucket));
+		elemsCap   = elemsCapIn;
+		mask       = elemsCapIn - 1;
+		MemSet(buckets, 0, bucketsCapIn * sizeof(Bucket));
 	}
 
 	Opt<V> Find(K k) const {
@@ -52,14 +65,14 @@ template <class K, class V> struct Map {
 		}
 
 		df += 0x100;
-		i = (i + 1 == bucketsLen) ? 0 : i + 1;
+		i = (i + 1 == bucketsCap) ? 0 : i + 1;
 		bucket = &buckets[i];
 		if (df == bucket->df && elems[bucket->idx].key == k) {
 			return elems[bucket->idx].val;
 		}
 
 		df += 0x100;
-		i = (i + 1 == bucketsLen) ? 0 : i + 1;
+		i = (i + 1 == bucketsCap) ? 0 : i + 1;
 		bucket = &buckets[i];
 		while (true) {
 			if (df == bucket->df) {
@@ -70,7 +83,7 @@ template <class K, class V> struct Map {
 				return nullOpt;
 			}
 			df += 0x100;
-			i = (i + 1 == bucketsLen) ? 0 : i + 1;
+			i = (i + 1 == bucketsCap) ? 0 : i + 1;
 			bucket = &buckets[i];
 		}
 	}
@@ -89,29 +102,29 @@ template <class K, class V> struct Map {
 			} else if (df > bucket->df) {
 				if (elemsLen >= elemsCap) {
 					u64 newCap = Max(16ull, elemsCap * 2u);
-					if (!arena->Extend(elems, elemsCap * sizeof(Elem), newCap * sizeof(Elem), sl)) {
-						Elem* newElems = (Elem*)arena->Alloc(newCap * sizeof(Elem), sl);
+					if (!arena->ExtendT(elems, elemsCap, newCap, sl)) {
+						Elem* newElems = arena->AllocT<Elem>(newCap , sl);
 						MemCpy(newElems, elems, elemsLen);
 						elems = newElems;
 					}
 					elemsCap = newCap;
 				}
 				elems[elemsLen++] = Elem { .key = k, .val = v };
-				if (elemsLen > (7 * (bucketsLen >> 3))) {	// max load factor = 7/8 = 87.5%
-					u64 newBucketsLen = bucketsLen << 1;
-					if (!arena->Extend(buckets, bucketsLen * sizeof(Bucket), newBucketsLen * sizeof(Bucket), sl)) {
-						buckets = (Bucket*)arena->Alloc(newBucketsLen * sizeof(Bucket), sl);
+				if (elemsLen > (7 * (bucketsCap >> 3))) {	// max load factor = 7/8 = 87.5%
+					u64 newBucketsCap = bucketsCap << 1;
+					if (!arena->ExtendT<Bucket>(buckets, bucketsCap, newBucketsCap, sl)) {
+						buckets = arena->AllocT<Bucket>(newBucketsCap, sl);
 					}
-					MemSet(buckets, 0, newBucketsLen * sizeof(Bucket));
-					bucketsLen = newBucketsLen;
-					mask = (1u << newBucketsLen) - 1u;
+					MemSet(buckets, 0, newBucketsCap * sizeof(Bucket));
+					bucketsCap = newBucketsCap;
+					mask = newBucketsCap - 1;
 					for (u64 j = 0; j < elemsLen; ++j) {
 						h = Hash(elems[j].key);
 						df = 0x100 | (h & 0xff);
 						i = h & mask;
 						while (df < buckets[i].df) {
 							df += 0x100;
-							i = (i + 1 == bucketsLen) ? 0 : i + 1;
+							i = (i + 1 == bucketsCap) ? 0 : i + 1;
 						}
 						Bucket b = { .df = df, .idx = j };
 						while (buckets[i].df != 0) {
@@ -119,7 +132,7 @@ template <class K, class V> struct Map {
 							buckets[i] = b;
 							b = t;
 							b.df += 0x100;
-							i = (i + 1 == bucketsLen) ? 0 : i + 1;
+							i = (i + 1 == bucketsCap) ? 0 : i + 1;
 						};
 						buckets[i] = b;
 					}
@@ -130,14 +143,14 @@ template <class K, class V> struct Map {
 						buckets[i] = b;
 						b = t;
 						b.df += 0x100;
-						i = (i + 1 == bucketsLen) ? 0 : i + 1;
+						i = (i + 1 == bucketsCap) ? 0 : i + 1;
 					};
 					buckets[i] = b;
 				}
 				return &elems[elemsLen - 1].val;
 			}
 			df += 0x100;
-			i = (i + 1 == bucketsLen) ? 0 : i + 1;
+			i = (i + 1 == bucketsCap) ? 0 : i + 1;
 		}
 	}
 
@@ -147,23 +160,23 @@ template <class K, class V> struct Map {
 		u64 i = h & mask;
 		while (df < buckets[i].df) {
 			df += 0x100;
-			i = (i + 1 == bucketsLen) ? 0 : i + 1;
+			i = (i + 1 == bucketsCap) ? 0 : i + 1;
 		}
 		while (df == buckets[i].df && k != elems[buckets[i].idx].key) {
 			df += 0x100;
-			i = (i + 1 == bucketsLen) ? 0 : i + 1;
+			i = (i + 1 == bucketsCap) ? 0 : i + 1;
 		}
 		if (df != buckets[i].df) {
 			return;
 		}
 
 		u64 ei = buckets[i].idx;
-		u64 next = (i + 1 == bucketsLen) ? 0 : i + 1;
+		u64 next = (i + 1 == bucketsCap) ? 0 : i + 1;
 		while (buckets[next].df >= 0x200) {
 			buckets[i].df = buckets[next].df - 0x100;
 			buckets[i].idx = buckets[next].idx;
 			i = next;
-			next = (next + 1 == bucketsLen) ? 0 : next + 1;
+			next = (next + 1 == bucketsCap) ? 0 : next + 1;
 		}
 		buckets[i] = {};
 
@@ -171,7 +184,7 @@ template <class K, class V> struct Map {
 			elems[ei] = elems[elemsLen - 1];
 			i = Hash(elems[ei].key) & mask;
 			while (buckets[i].idx != elemsLen - 1) {
-				i = (i + 1 == bucketsLen) ? 0 : i + 1;
+				i = (i + 1 == bucketsCap) ? 0 : i + 1;
 			}
 			buckets[i].idx = ei;
 		}
@@ -182,7 +195,7 @@ template <class K, class V> struct Map {
 
 	void Clear() {
 		if (buckets != nullptr) {
-			MemSet(buckets, 0, bucketsLen * sizeof(Bucket));
+			MemSet(buckets, 0, bucketsCap * sizeof(Bucket));
 		}
 		elemsLen = 0;
 	}

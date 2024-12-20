@@ -9,9 +9,13 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 struct App {
+	virtual Res<> Init(Arena* perm, Arena* temp) = 0;
+	virtual void  Shutdown() = 0;
 	virtual Res<> Events(Span<Event::Event> events) = 0;
 	virtual Res<> Update(double secs) = 0;
 	virtual Res<> Draw() = 0;
+
+	void Exit();
 /*
 Config Files	Game configuration settings.		
 love.draw	Callback function used to draw on the screen every frame.		

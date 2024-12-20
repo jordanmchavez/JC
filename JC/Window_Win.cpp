@@ -159,16 +159,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 
 		case WM_WINDOWPOSCHANGED: {
 			const WINDOWPOS* wp = (WINDOWPOS*)lparam;
-			window.windowRect.x      = wp->x;
-			window.windowRect.y      = wp->y;
-			window.windowRect.width  = wp->cx;
-			window.windowRect.height = wp->cy;
+			window.windowRect.x = wp->x;
+			window.windowRect.y = wp->y;
+			window.windowRect.w = wp->cx;
+			window.windowRect.h = wp->cy;
 			RECT cr = {};
 			GetClientRect(hwnd, &cr);
-			window.clientRect.x      = cr.left;
-			window.clientRect.y      = cr.top;
-			window.clientRect.width  = cr.right - cr.left;
-			window.clientRect.height = cr.bottom - cr.top;
+			window.clientRect.x = cr.left;
+			window.clientRect.y = cr.top;
+			window.clientRect.w = cr.right - cr.left;
+			window.clientRect.h = cr.bottom - cr.top;
 
 			//if (windowApi->cursorMode != WindowCursorMode::VisibleFree && GetActiveWindow() == windowApi->hwnd) {
 			//	RECT r;
@@ -310,11 +310,11 @@ Res<> Init(const InitInfo* initInfo) {
 		return MakeLastErr(temp, CreateWindowExW);
 	}
 
-	window.windowRect.x      = r.left;
-	window.windowRect.y      = r.bottom;
-	window.windowRect.width  = r.right - r.left;
-	window.windowRect.height = r.bottom - r.top;
-	window.dpiScale          = (f32)window.dpi / (f32)USER_DEFAULT_SCREEN_DPI;
+	window.windowRect.x = r.left;
+	window.windowRect.y = r.bottom;
+	window.windowRect.w = r.right - r.left;
+	window.windowRect.h = r.bottom - r.top;
+	window.dpiScale     = (f32)window.dpi / (f32)USER_DEFAULT_SCREEN_DPI;
 
 	SetFocus(window.hwnd);
 	ShowWindow(window.hwnd, SW_SHOW);
@@ -384,8 +384,8 @@ State GetState() {
 	return State {
 		.x          = window.windowRect.y,
 		.y          = window.windowRect.x,
-		.width      = (u32)window.clientRect.width,
-		.height     = (u32)window.clientRect.height,
+		.width      = window.clientRect.w,
+		.height     = window.clientRect.h,
 		.style      = window.style,
 		.cursorMode = window.cursorMode,
 		.minimized  = window.minimized,
@@ -397,7 +397,7 @@ State GetState() {
 
 void SetRect(Rect newRect) {
 	RECT r;
-	::SetRect(&r, newRect.x, newRect.y, newRect.x + newRect.width, newRect.y + newRect.height);
+	::SetRect(&r, newRect.x, newRect.y, newRect.x + newRect.w, newRect.y + newRect.h);
 	AdjustWindowRectExForDpi(&r, window.winStyle, FALSE, 0, window.dpi);
 	SetWindowPos(window.hwnd, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOZORDER | SWP_NOACTIVATE);
 }

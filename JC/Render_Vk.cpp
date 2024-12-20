@@ -1882,8 +1882,8 @@ void CmdBeginPass(const Pass* pass) {
 			.y      = pass->scissor.y,
 		},
 		.extent     = {
-			.width  = (u32)pass->scissor.width,
-			.height = (u32)pass->scissor.height
+			.width  = (u32)pass->scissor.w,
+			.height = (u32)pass->scissor.h
 		},
 	};
 	vkCmdSetScissor(vkFrameCommandBuffers[frameIndex], 0, 1, &vkScissorRect2D);

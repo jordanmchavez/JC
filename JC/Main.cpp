@@ -1,3 +1,4 @@
+#include "JC/App.h"
 #include "JC/Array.h"
 #include "JC/Event.h"
 #include "JC/Fmt.h"
@@ -17,6 +18,16 @@
 #undef LoadImage
 
 using namespace JC;
+
+constexpr s8 FileNameOnly(s8 path) {
+	for (const char* i = path.data + path.len - 1; i >= path.data; i--) {
+		if (*i == '/' || *i == '\\') {
+			return s8(i + 1, path.data + path.len);
+		}
+	}
+	return path;
+}
+
 
 //--------------------------------------------------------------------------------------------------
 
@@ -69,22 +80,6 @@ struct Entity {
 	f32  angle      = 0.0f;
 	f32  angleSpeed = 0.0f;
 };
-
-//--------------------------------------------------------------------------------------------------
-
-static Arena* temp;
-static Log*   log;
-
-//--------------------------------------------------------------------------------------------------
-
-constexpr s8 FileNameOnly(s8 path) {
-	for (const char* i = path.data + path.len - 1; i >= path.data; i--) {
-		if (*i == '/' || *i == '\\') {
-			return s8(i + 1, path.data + path.len);
-		}
-	}
-	return path;
-}
 
 //--------------------------------------------------------------------------------------------------
 
@@ -301,81 +296,77 @@ Res<Render::Shader> LoadShader(s8 path) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Run() {
-
-/*
-	Render::Image depthImage = {};
-	if (Res<> r = CreateDepthImage(windowWidth, windowHeight).To(depthImage); !r) { return r; }
-
-	Mesh cubeMesh = {};
-	if (Res<> r = CreateCubeMesh().To(cubeMesh); !r) { return r; }
-
-	Render::Image texture = {};
-	if (Res<> r = LoadImage("Assets/texture.jpg").To(texture); !r) { return r; }
-
-	Render::Shader vertexShader = {};
-	if (Res<> r = LoadShader("Shaders/mesh.vert.spv").To(vertexShader); !r) { return r; }
-
-	Render::Shader fragmentShader = {};
-	if (Res<> r = LoadShader("Shaders/mesh.frag.spv").To(fragmentShader); !r) { return r; }
-
-	Render::Pipeline pipeline = {};
-	if (Res<> r = Render::CreateGraphicsPipeline(
-		{ vertexShader, fragmentShader },
-		{ Render::GetSwapchainImageFormat() },
-		Render::ImageFormat::D32_F
-	).To(pipeline); !r) { return r; }
-
-	Render::Buffer sceneBuffer = {};
-	if (Res<> r = Render::CreateBuffer(sizeof(Scene), Render::BufferUsage::Storage).To(sceneBuffer); !r) { return r; }
-	const u64 sceneBufferAddr = Render::GetBufferAddr(sceneBuffer);
-
-	auto RandomNormal = []() {
-		return Vec3::Normalize(Vec3 {
-			.x = 0.1f * Random::NextF32(),
-			.y = 0.1f + Random::NextF32(),
-			.z = 0.1f + Random::NextF32(),
-		});
-	};
-
-	auto RandomVec3 = [](f32 max) {
-		return Vec3 {
-			.x = (1.0f - 2.0f * Random::NextF32()) * max,
-			.y = (1.0f - 2.0f * Random::NextF32()) * max,
-			.z = (1.0f - 2.0f * Random::NextF32()) * max,
-		};
-	};
-
-	constexpr u32 MaxEntities = 10000;
-	Entity* entities = perm->AllocT<Entity>(MaxEntities);
-	for (u32 i = 0; i < MaxEntities; i++) {
-		entities[i].mesh       = cubeMesh;
-		entities[i].pos        = RandomVec3(100.0f);
-		entities[i].axis       = RandomNormal();
-		entities[i].angle      = 0.0f;
-		entities[i].angleSpeed = Random::NextF32() / 15.0f;
-	}
-
-	bool exitRequested = false;
+struct CubeApp : App {
 	Vec3 camPos = { .x = 0.0f, .y = 0.0f, .z = 20.0f };
 	Vec3 camVelocity = {};
 	f32 camRotX = 0.0f;
 	f32 camRotY = 0.0f;
 	constexpr f32 camSpeed = 0.3f;
 	Mat4 proj = Mat4::Perspective(DegToRad(45.0f), (f32)windowWidth / (f32)windowHeight, 0.01f, 100000000.0f);
-	while (!exitRequested) {
-		temp->Reset(0);
 
-		Window::PumpMessages();
-		if (Window::IsExitRequested()) {
-			Event::Add({ .type = Event::Type::Exit });
+
+	Res<> Init(Arena* temp, Arena* perm) override {
+		Render::Image depthImage = {};
+		if (Res<> r = CreateDepthImage(windowWidth, windowHeight).To(depthImage); !r) { return r; }
+
+		Mesh cubeMesh = {};
+		if (Res<> r = CreateCubeMesh().To(cubeMesh); !r) { return r; }
+
+		Render::Image texture = {};
+		if (Res<> r = LoadImage("Assets/texture.jpg").To(texture); !r) { return r; }
+
+		Render::Shader vertexShader = {};
+		if (Res<> r = LoadShader("Shaders/mesh.vert.spv").To(vertexShader); !r) { return r; }
+
+		Render::Shader fragmentShader = {};
+		if (Res<> r = LoadShader("Shaders/mesh.frag.spv").To(fragmentShader); !r) { return r; }
+
+		Render::Pipeline pipeline = {};
+		if (Res<> r = Render::CreateGraphicsPipeline(
+			{ vertexShader, fragmentShader },
+			{ Render::GetSwapchainImageFormat() },
+			Render::ImageFormat::D32_F
+		).To(pipeline); !r) { return r; }
+
+		Render::Buffer sceneBuffer = {};
+		if (Res<> r = Render::CreateBuffer(sizeof(Scene), Render::BufferUsage::Storage).To(sceneBuffer); !r) { return r; }
+		const u64 sceneBufferAddr = Render::GetBufferAddr(sceneBuffer);
+
+		auto RandomNormal = []() {
+			return Vec3::Normalize(Vec3 {
+				.x = 0.1f * Random::NextF32(),
+				.y = 0.1f + Random::NextF32(),
+				.z = 0.1f + Random::NextF32(),
+			});
+		};
+
+		auto RandomVec3 = [](f32 max) {
+			return Vec3 {
+				.x = (1.0f - 2.0f * Random::NextF32()) * max,
+				.y = (1.0f - 2.0f * Random::NextF32()) * max,
+				.z = (1.0f - 2.0f * Random::NextF32()) * max,
+			};
+		};
+
+		constexpr u32 MaxEntities = 10000;
+		Entity* entities = perm->AllocT<Entity>(MaxEntities);
+		for (u32 i = 0; i < MaxEntities; i++) {
+			entities[i].mesh       = cubeMesh;
+			entities[i].pos        = RandomVec3(100.0f);
+			entities[i].axis       = RandomNormal();
+			entities[i].angle      = 0.0f;
+			entities[i].angleSpeed = Random::NextF32() / 15.0f;
 		}
+	}
 
-		Span<Event::Event> events = Event::Get();
+	void Shutdown() override {
+	}
+
+	Res<> Events(Span<Event::Event> events) override {
 		for (const Event::Event* e = events.Begin(); e != events.End(); e++) {
 			switch (e->type) {
 				case Event::Type::Exit:
-					exitRequested = true;
+					Exit();
 					break;
 				case Event::Type::Key:
 					       if (e->key.key == Event::Key::A)     { camVelocity.x = e->key.down ? -camSpeed : 0.0f;
@@ -393,8 +384,13 @@ Res<> Run() {
 					break;
 			}
 		}
-		Event::Clear();
 
+	}
+
+	Res<> Update(double secs) override {
+	}
+
+	Res<> Draw() override {
 		Vec3 camX = { .x = 1.0f, .y = 0.0f, .z = 0.0f };
 		Vec3 camY = { .x = 0.0f, .y = 1.0f, .z = 0.0f };
 		Vec3 camZ = { .x = 0.0f, .y = 0.0f, .z = 1.0f };
@@ -472,38 +468,14 @@ Res<> Run() {
 		);
 
 		if (Res<> r = Render::EndCmds(); !r) { return r; }
-
-		if (Res<> r = Render::EndFrame(); !r) {
-			if (r.err->ec == Render::Err_Resize) {
-				Window::State windowState = Window::GetState();
-				windowWidth  = windowState.rect.width;
-				windowHeight = windowState.rect.height;
-				if (r = Render::ResizeSwapchain(windowWidth, windowHeight); !r) { return r; }
-				Render::DestroyImage(depthImage);
-				if (r = CreateDepthImage(windowWidth, windowHeight).To(depthImage); !r) { return r; }
-			} else {
-				return r;
-			}
-		}
 	}
-	*/
-	return Ok();
-}
 
-//--------------------------------------------------------------------------------------------------
-
-void Shutdown() {
-}
+};
 
 //--------------------------------------------------------------------------------------------------
 
 int main(int argc, const char** argv) {
-	argc;argv;
-	if (Res<> r = Run(); !r) {
-		if (log) {
-			Errorf(r.err);
-		}
-	}
-	Shutdown();
+	CubeApp cubeApp;
+	RunApp(&cubeApp);
 	return 0;
 }

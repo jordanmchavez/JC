@@ -31,21 +31,33 @@ s8 MakeWinErrorDesc(Arena* arena, u32 code) {
 	return msg;
 }
 
+namespace Sys {
+
 //--------------------------------------------------------------------------------------------------
 
-void Sys::Abort() {
+void Abort() {
 	TerminateProcess(GetCurrentProcess(), 3);
 }
 
-bool Sys::IsDebuggerPresent() {
+//--------------------------------------------------------------------------------------------------
+
+void Print(s8 msg) {
+	WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), msg.data, (DWORD)msg.len, 0, 0);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+bool IsDebuggerPresent() {
 	return ::IsDebuggerPresent();
 }
 
-void Sys::DebuggerPrint(const char* msg) {
+void DebuggerPrint(const char* msg) {
 	OutputDebugStringA(msg);
 }
 
-void* Sys::VirtualAlloc(u64 size) {
+//--------------------------------------------------------------------------------------------------
+
+void* VirtualAlloc(u64 size) {
 	Assert(size % 4096 == 0);
 	void* p = ::VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	if (!p) {
@@ -54,7 +66,7 @@ void* Sys::VirtualAlloc(u64 size) {
 	return p;
 }
 
-void* Sys::VirtualReserve(u64 size) {
+void* VirtualReserve(u64 size) {
 	Assert(size % 65536 == 0);
 	void* p = ::VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
 	if (!p) {
@@ -63,7 +75,7 @@ void* Sys::VirtualReserve(u64 size) {
 	return p;
 }
 
-void Sys::VirtualCommit(void* p, u64 size) {
+void VirtualCommit(void* p, u64 size) {
 	Assert(p);
 	Assert((u64)p % 4096 == 0);
 	Assert(size % 4096 == 0);
@@ -72,59 +84,20 @@ void Sys::VirtualCommit(void* p, u64 size) {
 	}
 }
 
-void Sys::VirtualFree(void* p) {
+void VirtualFree(void* p) {
 	if (p) {
 		::VirtualFree(p, 0, MEM_RELEASE);
 	}
 }
 
-void Sys::VirtualDecommit(void* p, u64 size) {
+void VirtualDecommit(void* p, u64 size) {
 	# pragma warning(push )
 	# pragma warning(disable: 6250)
 	::VirtualFree(p, size, MEM_DECOMMIT);
 	# pragma warning(pop)
 }
 
-
-
-
-
-
-	static constexpr u64 JulianDaysBetween0001And1601 = static_cast<u64>(JulianDays(1, 1, 1601) - JulianDays(1, 1, 0001));
-	static constexpr u64 TicksBetween0001And1601 = JulianDaysBetween0001And1601 * TicksPerDay;
-
-	FTime FromWinFILETIME(FILETIME FileTime)
-	{
-		u64 Ticks = (static_cast<u64>(FileTime.dwHighDateTime) << 32) | static_cast<u64>(FileTime.dwLowDateTime);
-		Ticks += TicksBetween0001And1601;
-		return FTime(Ticks);
-	}
-
-	// FILETIME contains a 64-bit value representing the number of 100-nanosecond intervals (same as our ticks) since January 1, 1601 (UTC)
-	// To convert, we just adjust to start at 1/1/0001
-	struct FWindowsTimeApi : ITimeApi
-	{
-		FTime Now() override
-		{
-			FILETIME FileTime;
-			// When we drop support for Windows 7 we should switch to GetSystemTimePreciseAsFileTime(&FileTime), which requires Windows 8+
-			// This is more accurate, but slightly slower.
-			// Alternatively we could have some dynamic check and load from kernel32.dll, but that's more complex
-			GetSystemTimeAsFileTime(&FileTime);
-			return FromWinFILETIME(FileTime);
-		}
-	};
-
-
-
-
-
-Time Now() {
-	FILETIME fileTime;
-	GetSystemTimePreciseAsFileTime();
-	return Time { .ticks =  };
-}
-
 //--------------------------------------------------------------------------------------------------
 
+}	// namespace Sys
 }	// namespace JC
