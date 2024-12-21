@@ -114,7 +114,7 @@ Res<> Init(const InitInfo* initInfo) {
 	
 	for (u32 i = 0; i < 3; i++) {
 		CheckHr(dxgiSwapChain3->GetBuffer(i, IID_PPV_ARGS(&d3d12BackBufferResources[i])));
-		D3D12_RENDER_TARGET_VIEW_DESC d3d12RenderTargetViewDesc = {
+		const D3D12_RENDER_TARGET_VIEW_DESC d3d12RenderTargetViewDesc = {
 		};
 		d3d12Device->CreateRenderTargetView(d3d12BackBufferResources[i], 
 	}
