@@ -4,6 +4,7 @@
 
 #include "JC/Config.h"
 #include "JC/Log.h"
+#include "JC/Window.h"
 
 #include <d3d12.h>
 #include <dxgi1_6.h>
@@ -12,6 +13,8 @@ namespace JC::Render {
 
 //--------------------------------------------------------------------------------------------------
 
+static constexpr u32 Frames = 33;
+
 static Arena*                     temp;
 static Arena*                     perm;
 static Log*                       log;
@@ -19,11 +22,12 @@ static ID3D12Debug*               d3d12Debug;
 static ID3D12Device*              d3d12Device;
 static ID3D12CommandQueue*        d3d12CommandQueue;
 static IDXGISwapChain3*           dxgiSwapChain3;
-static ID3D12Resource*            ;
+static ID3D12DescriptorHeap*      d3d12DescriptorHeap;
+static ID3D12Resource*            d3d12BackBufferResources[Frames];
 static ID3D12CommandAllocator*    ;
-static ID3D12DescriptorHeap*      ;
 static ID3D12PipelineState*       ;
 static ID3D12GraphicsCommandList* ;
+static u32                        frameIdx;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -73,16 +77,47 @@ Res<> Init(const InitInfo* initInfo) {
 		.NodeMask = 0,
 	};
 	CheckHr(d3d12Device->CreateCommandQueue(&d3d12CommandQueueDesc, IID_PPV_ARGS(&d3d12CommandQueue)));
-
+	DXGI_SWAP_CHAIN_DESC1 dxgiSwapChainDesc1 = {
+		.Width       = initInfo->width,
+		.Height      = initInfo->height,
+		.Format      = DXGI_FORMAT_R8G8B8A8_UNORM,
+		.Stereo      = FALSE,
+		.SampleDesc  = { .Count = 1, .Quality = 0 },
+		.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT,
+		.BufferCount = 3,
+		.Scaling     = DXGI_SCALING_STRETCH,
+		.SwapEffect  = DXGI_SWAP_EFFECT_FLIP_DISCARD,
+		.AlphaMode   = DXGI_ALPHA_MODE_UNSPECIFIED,
+		.Flags       = 0,
+	};
+	IDXGISwapChain1* dxgiSwapChain1 = 0;
 	CheckHr(dxgiFactory6->CreateSwapChainForHwnd(
 		d3d12CommandQueue,
-		initInfo->hwnd,
-		&dxgiSwapChainDesc,
-		&dxgiSwapChainFullscreenDesc,
-		&dxgiSwapChain3
+		(HWND)initInfo->windowPlatformInfo->hwnd,
+		&dxgiSwapChainDesc1,
+		0,
+		0,
+		&dxgiSwapChain1
+	));
+	CheckHr(dxgiSwapChain1->QueryInterface(IID_PPV_ARGS(&dxgiSwapChain3)));
+	CheckHr(dxgiFactory6->MakeWindowAssociation((HWND)initInfo->windowPlatformInfo->hwnd, DXGI_MWA_NO_ALT_ENTER));
 
+	frameIdx = dxgiSwapChain3->GetCurrentBackBufferIndex();
 
+	const D3D12_DESCRIPTOR_HEAP_DESC d3d12DescriptorHeapDesc = {
+		.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
+		.NumDescriptors = 3,
+		.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_NONE,
+		.NodeMask       = 0,
+	};
+	CheckHr(d3d12Device->CreateDescriptorHeap(&d3d12DescriptorHeapDesc, IID_PPV_ARGS(&d3d12DescriptorHeap)));
 	
+	for (u32 i = 0; i < 3; i++) {
+		CheckHr(dxgiSwapChain3->GetBuffer(i, IID_PPV_ARGS(&d3d12BackBufferResources[i])));
+		D3D12_RENDER_TARGET_VIEW_DESC d3d12RenderTargetViewDesc = {
+		};
+		d3d12Device->CreateRenderTargetView(d3d12BackBufferResources[i], 
+	}
 	dxgiFactory6->Release();
 
 	return Ok();
