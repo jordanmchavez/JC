@@ -151,11 +151,11 @@
     <ClCompile Include="JC\HandleArray.cpp" />
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Log.cpp" />
+    <ClCompile Include="JC\Main.cpp" />
     <ClCompile Include="JC\Map.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
     <ClCompile Include="JC\Unicode.cpp" />
     <ClCompile Include="JC\UnitTest.cpp" />
-    <ClCompile Include="JC\Main.cpp" />
     <ClCompile Include="JC\Common_Arena.cpp" />
     <ClCompile Include="JC\Window_Win.cpp" />
     <ClCompile Include="JC\Math.cpp" />

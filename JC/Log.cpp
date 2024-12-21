@@ -36,12 +36,7 @@ struct LogObj : Log {
 
 	void Error(Err* err, SrcLoc sl) override {
 		Array<char> arr(temp);
-		Fmt(
-			&arr,
-			"!!! {}({}): ",
-			sl.file,
-			sl.line
-		);
+		Fmt(&arr, "!!! {}({}): ", sl.file, sl.line);
 		for (Err* e = err; e; e = e->prev) {
 			Fmt(&arr, "{}[{}]:", e->ec.ns, e->ec.code);
 		}

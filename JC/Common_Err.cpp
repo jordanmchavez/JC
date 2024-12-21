@@ -23,7 +23,7 @@ Err* VMakeErr(Arena* arena, Err* prev, SrcLoc sl, ErrCode ec, VArgs args) {
 
 	#if defined DebugBreakOnErr
 	if (!prev && Sys::IsDebuggerPresent()) {
-//		Sys_DebuggerBreak();
+		Sys_DebuggerBreak();
 	}
 	#endif	// DebugBreakOnErr
 

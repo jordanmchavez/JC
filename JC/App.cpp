@@ -17,6 +17,8 @@ namespace JC {
 
 static constexpr ErrCode Err_Init = { .ns = "app", .code = 1 };
 
+static Arena  tempInst;
+static Arena  permInst;
 static Arena* temp;
 static Arena* perm;
 static Log*   log;
@@ -51,8 +53,8 @@ static void AppPanicFn(SrcLoc sl, s8 expr, s8 fmt, VArgs args) {
 //--------------------------------------------------------------------------------------------------
 
 static Res<> RunAppInternal(App* app, int argc, const char** argv) {
-	Arena tempInst = CreateArena((u64) 4 * 1024 * 1024 * 1024);
-	Arena permInst = CreateArena((u64)16 * 1024 * 1024 * 1024);
+	tempInst = CreateArena((u64) 4 * 1024 * 1024 * 1024);
+	permInst = CreateArena((u64)16 * 1024 * 1024 * 1024);
 	temp = &tempInst;
 	perm = &permInst;
 
@@ -162,35 +164,35 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 			continue;
 		}
 
-		if (prevWindowState.width != windowState.width || prevWindowState.height != windowState.height) {
-			if (Res<> r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
-				return r;
-			}
-			Logf("recreate swpachain after size mismatch");
-		}
+		//if (prevWindowState.width != windowState.width || prevWindowState.height != windowState.height) {
+		//	if (Res<> r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
+		//		return r;
+		//	}
+		//	Logf("recreate swpachain after size mismatch");
+		//}
 
 		if (Res<> r = Render::BeginFrame(); !r) {
-			if (r.err->ec == Render::Err_RecreateSwapchain) {
-				if (r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
-					Logf("recreate swap chain after beginframe");
-					return r;
-				}
-			} else {
+			//if (r.err->ec == Render::Err_RecreateSwapchain) {
+			//	if (r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
+			//		Logf("recreate swap chain after beginframe");
+			//		return r;
+			//	}
+			//} else {
 				return r;
-			}
+			//}
 		}
 
 		if (Res<> r = app->Draw(); !r) { return r; }
 		
 		if (Res<> r = Render::EndFrame(); !r) {
-			if (r.err->ec == Render::Err_RecreateSwapchain) {
-				Logf("recreate swap chain after endframe");
-				if (r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
-					return r;
-				}
-			} else {
+			//if (r.err->ec == Render::Err_RecreateSwapchain) {
+			//	Logf("recreate swap chain after endframe");
+			//	if (r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
+			//		return r;
+			//	}
+			//} else {
 				return r;
-			}
+			//}
 		}
 	}
 
@@ -200,7 +202,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 //--------------------------------------------------------------------------------------------------
 
 void Shutdown(App* app) {
-	Render::WaitIdle();
+	//Render::WaitIdle();
 	app->Shutdown();
 	Render::Shutdown();
 	Window::Shutdown();
