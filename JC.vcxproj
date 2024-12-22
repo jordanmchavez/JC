@@ -151,7 +151,7 @@
     <ClCompile Include="JC\HandleArray.cpp" />
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Log.cpp" />
-    <ClCompile Include="JC\Main.cpp" />
+    <ClCompile Include="JC\Main_Entities.cpp" />
     <ClCompile Include="JC\Map.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
     <ClCompile Include="JC\Unicode.cpp" />

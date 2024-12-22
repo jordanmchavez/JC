@@ -8,7 +8,7 @@ namespace JC {
 
 template <class T, class H> struct HandleArray {
 	struct Entry {
-		T   val = {};
+		T   obj = {};
 		u32 gen = 0;
 		u32 idx = 0;
 	};
@@ -41,7 +41,7 @@ template <class T, class H> struct HandleArray {
 	}
 
 	T* Get(H h) {
-		return &GetEntry(h)->val;
+		return &GetEntry(h)->obj;
 	}
 
 	H Alloc(SrcLoc sl = SrcLoc::Here()) {

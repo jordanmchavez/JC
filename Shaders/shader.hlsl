@@ -1,22 +1,43 @@
-cbuffer SceneConstantBuffer : register(b0) {
-	float4x4 wvp;
+struct Vertex {
+	float2 position;
+	float2 uv;
+	float4 color;
 };
 
-struct PSIn {
-	float4 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
+struct RootConstants {
+	float2 offset;
+	uint   textureIndex;
 };
 
-Texture2D g_texture : register(t0);
-SamplerState g_sampler : register(s0);
+struct PassConstants {
+	uint vertexBufferIdx;
+};
 
-PSIn VSMain(float4 pos : POSITION, float2 uv: TEXCOORD) {
-	PSIn res;
-	res.pos = pos;//mul(pos, wvp);
-	res.uv = uv;
-	return res;
+ConstantBuffer<RootConstant> root : register(b0);
+ConstantBuffer<PassConstant> pass : register(b1);
+
+sampler samplerNearts : register(s0);
+
+void MainVs(
+	in  uint   inVertexIdx : SV_VertexID,
+	out float4 outPosition : SV_Position,
+	out float2 outUv       : TEXCOORD,
+	out float4 outColor    : COLOR
+) {
+	StructuredBuffer<Vertex> vertexBuffer = ResourceDescriptorHeap[pass.vertexBufferIdx];
+	Vertex vertex = vertexBuffer.Load(inVertexIdx);
+	outPosition = float4(vertex.position + root.offset, 0.0f, 1.0f);
+	outUv       = vertex.uv;
+	outColor    = vertex.color;
 }
 
-float4 PSMain(PSIn psIn) : SV_TARGET {
-	return g_texture.Sample(g_sampler, psIn.uv);
+float4 MainPs(
+	in float4 inPosition : SV_Position,
+	in float2 inUv       : TEXCOORD
+	in float4 inColor    : COLOR
+) : SV_Target {
+	Texture2D texture = ResourceDescriptorHeap[root.textureIndex];
+	color = texture.SampleLevel(samplerNearest, inUv, 0);
+	color *= inColor;
+	return color;
 }

@@ -13,21 +13,10 @@
 #include <stdio.h>
 #include "stb/stb_image.h"
 #include "JC/MinimalWindows.h"
-#include "JC/Render_Vk.h"
 
 #undef LoadImage
 
 using namespace JC;
-
-constexpr s8 FileNameOnly(s8 path) {
-	for (const char* i = path.data + path.len - 1; i >= path.data; i--) {
-		if (*i == '/' || *i == '\\') {
-			return s8(i + 1, path.data + path.len);
-		}
-	}
-	return path;
-}
-
 
 //--------------------------------------------------------------------------------------------------
 
@@ -37,11 +26,7 @@ constexpr ErrCode Err_LoadShader = { .ns = "app", .code = 1 };
 
 struct Vertex {
 	Vec3  pos    = {};
-	u32   pad1;
-	Vec3  normal = {};
-	u32   pad2;
 	Vec2  uv     = {};
-	u32   pad3[2];
 	Vec4  color  = {};
 };
 
@@ -82,7 +67,7 @@ struct Entity {
 };
 
 //--------------------------------------------------------------------------------------------------
-
+/*
 Res<Render::Image> CreateDepthImage(u32 width, u32 height) {
 	Render::Image depthImage = {};
 	if (Res<> r = Render::CreateImage(width, height, Render::ImageFormat::D32_F, Render::ImageUsage::DepthStencilAttachment, Render::Sampler{}).To(depthImage); !r) {
@@ -112,56 +97,55 @@ Res<Render::Image> CreateDepthImage(u32 width, u32 height) {
 
 	return depthImage;
 }
-
+*/
 //--------------------------------------------------------------------------------------------------
 
-Res<Mesh> CreateCubeMesh() {
+Res<Mesh> CreateMesh() {
 	Render::Buffer vertexBuffer = {};
-	if (Res<> r = Render::CreateBuffer(24 * sizeof(Vertex), Render::BufferUsage::Storage).To(vertexBuffer); !r) { return r.err; }
-	if (Res<> r = Render::BeginCmds(); !r) { return r.err; }
+	if (Res<> r = Render::CreateBuffer(24 * sizeof(Vertex), Render::BufferUsage::Static).To(vertexBuffer); !r) { return r.err; }
+	
+	Vertex* const vertices = (Vertex*)Render::BeginBufferUpload(vertexBuffer);
 
-	Render::BufferUpdate update = Render::CmdBeginBufferUpdate(vertexBuffer);
-	Vertex* const vertices = (Vertex*)update.ptr;
 	// +Z
-	vertices[ 0] = { .pos = { -1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
-	vertices[ 1] = { .pos = {  1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
-	vertices[ 2] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
-	vertices[ 3] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = {  0.0f,  0.0f,  1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
+	vertices[ 0] = { .pos = { -1.0f,  1.0f,  1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
+	vertices[ 1] = { .pos = {  1.0f,  1.0f,  1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
+	vertices[ 2] = { .pos = {  1.0f, -1.0f,  1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
+	vertices[ 3] = { .pos = { -1.0f, -1.0f,  1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
 	// -Z
-	vertices[ 4] = { .pos = {  1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
-	vertices[ 5] = { .pos = { -1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
-	vertices[ 6] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
-	vertices[ 7] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  0.0f,  0.0f, -1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
+	vertices[ 4] = { .pos = {  1.0f,  1.0f, -1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
+	vertices[ 5] = { .pos = { -1.0f,  1.0f, -1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
+	vertices[ 6] = { .pos = { -1.0f, -1.0f, -1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
+	vertices[ 7] = { .pos = {  1.0f, -1.0f, -1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
 	// +X
-	vertices[ 8] = { .pos = {  1.0f,  1.0f,  1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 0.0, 0.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
-	vertices[ 9] = { .pos = {  1.0f,  1.0f, -1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 1.0, 0.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
-	vertices[10] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
-	vertices[11] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  1.0f,  0.0f,  0.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
+	vertices[ 8] = { .pos = {  1.0f,  1.0f,  1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
+	vertices[ 9] = { .pos = {  1.0f,  1.0f, -1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
+	vertices[10] = { .pos = {  1.0f, -1.0f, -1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
+	vertices[11] = { .pos = {  1.0f, -1.0f,  1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
 	// -X
-	vertices[12] = { .pos = { -1.0f,  1.0f, -1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 0.0, 0.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
-	vertices[13] = { .pos = { -1.0f,  1.0f,  1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 1.0, 0.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
-	vertices[14] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
-	vertices[15] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = { -1.0f,  0.0f,  0.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
+	vertices[12] = { .pos = { -1.0f,  1.0f, -1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
+	vertices[13] = { .pos = { -1.0f,  1.0f,  1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
+	vertices[14] = { .pos = { -1.0f, -1.0f,  1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
+	vertices[15] = { .pos = { -1.0f, -1.0f, -1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
 	// +Y
-	vertices[16] = { .pos = { -1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 0.0, 0.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
-	vertices[17] = { .pos = {  1.0f,  1.0f, -1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 1.0, 0.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
-	vertices[18] = { .pos = {  1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
-	vertices[19] = { .pos = { -1.0f,  1.0f,  1.0f }, .normal = {  0.0f,  1.0f,  0.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
+	vertices[16] = { .pos = { -1.0f,  1.0f, -1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
+	vertices[17] = { .pos = {  1.0f,  1.0f, -1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
+	vertices[18] = { .pos = {  1.0f,  1.0f,  1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
+	vertices[19] = { .pos = { -1.0f,  1.0f,  1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
 	// -Y
-	vertices[20] = { .pos = { -1.0f, -1.0f,  1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 0.0, 0.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
-	vertices[21] = { .pos = {  1.0f, -1.0f,  1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 1.0, 0.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
-	vertices[22] = { .pos = {  1.0f, -1.0f, -1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
-	vertices[23] = { .pos = { -1.0f, -1.0f, -1.0f }, .normal = {  0.0f, -1.0f,  0.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
-	Render::CmdEndBufferUpdate(update);
+	vertices[20] = { .pos = { -1.0f, -1.0f,  1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
+	vertices[21] = { .pos = {  1.0f, -1.0f,  1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
+	vertices[22] = { .pos = {  1.0f, -1.0f, -1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
+	vertices[23] = { .pos = { -1.0f, -1.0f, -1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
+
+	Render::EndBufferUpload(vertexBuffer);
 
 	Render::Buffer indexBuffer = {};
-	if (Res<> r = Render::CreateBuffer(36 * sizeof(u32), Render::BufferUsage::Index).To(indexBuffer); !r) {
+	if (Res<> r = Render::CreateBuffer(36 * sizeof(u32), Render::BufferUsage::Static).To(indexBuffer); !r) {
 		Render::DestroyBuffer(vertexBuffer);
 		return r.err;
 	}
 
-	update = Render::CmdBeginBufferUpdate(indexBuffer);
-	u32* const indices = (u32*)update.ptr;
+	u32* const indices = (u32*)Render::BeginBufferUpload(indexBuffer);
 	// +Z
 	indices[ 0] =  0;
 	indices[ 1] =  1;
@@ -204,10 +188,7 @@ Res<Mesh> CreateCubeMesh() {
 	indices[33] = 20;
 	indices[34] = 22;
 	indices[35] = 23;
-	Render::CmdEndBufferUpdate(update);
-
-	if (Res<> r = Render::EndCmds(); !r) { return r.err; }
-	if (Res<> r = Render::ImmediateSubmitCmds(); !r ) { return r.err; }
+	Render::EndBufferUpload(indexBuffer);
 
 	return Mesh {
 		.vertexBuffer     = vertexBuffer,
@@ -462,16 +443,9 @@ struct CubeApp : App {
 	}
 
 	Res<> Draw() override {
-		if (Res<> r = Render::BeginCmds(); !r) { return r; }
+		const Render::Texture swapChainTexture = Render::GetSwapChainTexture();
 
-		Render::CmdImageBarrier(
-			Render::GetCurrentSwapchainImage(),
-			VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-			VK_ACCESS_2_NONE,
-			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-			VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-			VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT
-		);
+		Render::TextureBarrier(swapChainTexture, Render::ResourceState::Present, Render::ResourceState::RenderTarget);
 
 		Render::BufferUpdate update = Render::CmdBeginBufferUpdate(sceneBuffer);
 		Scene* const scene = (Scene*)update.ptr;
@@ -489,12 +463,12 @@ struct CubeApp : App {
 			VK_ACCESS_2_SHADER_STORAGE_READ_BIT
 		);
 
-		Render::Pass pass = {
-			.pipeline         = pipeline,
-			.colorAttachments = { Render::GetCurrentSwapchainImage() },
-			.depthAttachment  = depthImage,
-			.viewport         = { .x = 0.0f, .y = 0.0f, .w = (f32)windowWidth, .h = (f32)windowHeight },
-			.scissor          = { .x = 0,    .y = 0,    .w = windowWidth,      .h = windowHeight },
+		const Render::Pass pass = {
+			.pipeline      = pipeline,
+			.renderTargets = { swapChainTexture },
+			.depthStencil  = {},
+			.viewport      = { .x = 0.0f, .y = 0.0f, .w = (f32)windowWidth, .h = (f32)windowHeight },
+			.scissor       = { .x = 0,    .y = 0,    .w = windowWidth,      .h = windowHeight },
 		};
 
 		Render::CmdBeginPass(&pass);
@@ -524,8 +498,6 @@ struct CubeApp : App {
 			VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
 			VK_ACCESS_2_NONE
 		);
-
-		if (Res<> r = Render::EndCmds(); !r) { return r; }
 
 		return Ok();
 	}

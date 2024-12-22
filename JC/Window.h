@@ -55,7 +55,7 @@ struct InitInfo {
 	u32    displayIdx = 0;
 };
 
-struct PlatformInfo {
+struct PlatformDesc {
 	#if defined Platform_Windows
 		void* hinstance = 0;
 		void* hwnd      = 0;
