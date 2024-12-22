@@ -161,7 +161,7 @@
     <ClCompile Include="JC\Math.cpp" />
     <ClCompile Include="JC\Random.cpp" />
     <ClCompile Include="JC\Time_Win.cpp" />
-    <ClCompile Include="JC\Render_Dx.cpp" />
+    <ClCompile Include="JC\Render_D3D12.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Game Notes.md" />

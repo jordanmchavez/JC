@@ -2,8 +2,10 @@
 
 #include "JC/Render.h"
 
+#include "JC/Bit.h"
 #include "JC/Config.h"
 #include "JC/Log.h"
+#include "JC/Math.h"
 #include "JC/Window.h"
 
 #include <d3d12.h>
@@ -21,6 +23,10 @@ namespace JC::Render {
 
 //--------------------------------------------------------------------------------------------------
 
+struct Scene {
+	Mat4 wvp;
+};
+
 static constexpr u32 Frames = 3;
 
 static Arena*                     temp;
@@ -33,8 +39,9 @@ static IDXGISwapChain3*           dxgiSwapChain3;
 static u32                        swapChainWidth;
 static u32                        swapChainHeight;
 static ID3D12DescriptorHeap*      d3d12RtvDescriptorHeap;
-static ID3D12DescriptorHeap*      d3d12SrvDescriptorHeap;
 static UINT                       rtvDescriptorSize;
+static ID3D12DescriptorHeap*      d3d12SrvCbvDescriptorHeap;
+static UINT                       srvCbvDescriptorSize;
 static ID3D12Resource*            d3d12BackBuffers[Frames];
 static ID3D12CommandAllocator*    d3d12CommandAllocator;
 static ID3D12RootSignature*       d3d12RootSignature;
@@ -43,11 +50,13 @@ static ID3D12GraphicsCommandList* d3d12GraphicsCommandList;
 static ID3D12Resource*            d3d12VertexBuffer;
 static D3D12_VERTEX_BUFFER_VIEW   d3d12VertexBufferView;
 static ID3D12Resource*            d3d12Texture;
-
+static ID3D12Resource*            d3d12ConstantBuffer;
+static void*                      constantBufferMappedPtr;
 static ID3D12Fence*               d3d12Fence;
 static UINT                       fenceValue;
 static HANDLE                     fenceHandle;
 static u32                        frameIdx;
+static Scene                      scene;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -136,24 +145,25 @@ Res<> Init(const InitInfo* initInfo) {
 			.NodeMask       = 0,
 		};
 		CheckHr(d3d12Device->CreateDescriptorHeap(&d3d12DescriptorHeapDesc, IID_PPV_ARGS(&d3d12RtvDescriptorHeap)));
+		rtvDescriptorSize = d3d12Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	}
-	
+
 	{
 		const D3D12_DESCRIPTOR_HEAP_DESC d3d12DescriptorHeapDesc = {
 			.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-			.NumDescriptors = 1,
+			.NumDescriptors = 2,
 			.Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
 			.NodeMask       = 0,
 		};
-		CheckHr(d3d12Device->CreateDescriptorHeap(&d3d12DescriptorHeapDesc, IID_PPV_ARGS(&d3d12SrvDescriptorHeap)));
+		CheckHr(d3d12Device->CreateDescriptorHeap(&d3d12DescriptorHeapDesc, IID_PPV_ARGS(&d3d12SrvCbvDescriptorHeap)));
+		srvCbvDescriptorSize = d3d12Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	}
-	
-	rtvDescriptorSize = d3d12Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	D3D12_CPU_DESCRIPTOR_HANDLE d3d12CpuDescriptorHandle = d3d12RtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+
+	D3D12_CPU_DESCRIPTOR_HANDLE d3d12RtvCpuDescriptorHandle = d3d12RtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
 	for (u32 i = 0; i < Frames; i++) {
 		CheckHr(dxgiSwapChain3->GetBuffer(i, IID_PPV_ARGS(&d3d12BackBuffers[i])));
-		d3d12Device->CreateRenderTargetView(d3d12BackBuffers[i], 0, d3d12CpuDescriptorHandle);
-		d3d12CpuDescriptorHandle.ptr += rtvDescriptorSize;
+		d3d12Device->CreateRenderTargetView(d3d12BackBuffers[i], 0, d3d12RtvCpuDescriptorHandle);
+		d3d12RtvCpuDescriptorHandle.ptr += rtvDescriptorSize;
 	}
 
 	CheckHr(d3d12Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&d3d12CommandAllocator)));
@@ -165,7 +175,6 @@ Res<> Init(const InitInfo* initInfo) {
 
 
 	// LoadAssets() begins here
-
 	D3D12_FEATURE_DATA_ROOT_SIGNATURE d3d12FeatureDataRootSignature = { .HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1 };
 	if (FAILED(d3d12Device->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &d3d12FeatureDataRootSignature, sizeof(d3d12FeatureDataRootSignature)))) {
 		d3d12FeatureDataRootSignature.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
@@ -178,13 +187,24 @@ Res<> Init(const InitInfo* initInfo) {
 		.Flags                             = D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC,
 		.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND,	// 0xffffffff
 	};
-	const D3D12_ROOT_PARAMETER1 d3d12RootParameter1 = {
-		.ParameterType           = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
-		.DescriptorTable         = {
-			.NumDescriptorRanges = 1,
-			.pDescriptorRanges   = &d3d12DescriptorRange1,
+	const D3D12_ROOT_PARAMETER1 d3d12RootParameter1s[2] = {
+		{
+			.ParameterType           = D3D12_ROOT_PARAMETER_TYPE_CBV,
+			.Descriptor              = {
+				.ShaderRegister      = 0,
+				.RegisterSpace       = 0,
+				.Flags               = D3D12_ROOT_DESCRIPTOR_FLAG_NONE,
+			},
+			.ShaderVisibility        = D3D12_SHADER_VISIBILITY_ALL,
 		},
-		.ShaderVisibility        = D3D12_SHADER_VISIBILITY_ALL,
+		{
+			.ParameterType           = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
+			.DescriptorTable         = {
+				.NumDescriptorRanges = 1,
+				.pDescriptorRanges   = &d3d12DescriptorRange1,
+			},
+			.ShaderVisibility        = D3D12_SHADER_VISIBILITY_ALL,
+		},
 	};
 	const D3D12_STATIC_SAMPLER_DESC d3d12StaticSamplerDesc = {
 		.Filter           = D3D12_FILTER_MIN_MAG_MIP_POINT,
@@ -204,11 +224,11 @@ Res<> Init(const InitInfo* initInfo) {
 	const D3D12_VERSIONED_ROOT_SIGNATURE_DESC d3d12VersionedRootSignatureDesc = {
 		.Version                = D3D_ROOT_SIGNATURE_VERSION_1_1,
 		.Desc_1_1               = {
-			.NumParameters      = 1,
-			.pParameters        = &d3d12RootParameter1,
+			.NumParameters      = LenOf(d3d12RootParameter1s),
+			.pParameters        = d3d12RootParameter1s,
 			.NumStaticSamplers  = 1,
 			.pStaticSamplers    = &d3d12StaticSamplerDesc,
-			.Flags              = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT,
+			.Flags              = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT | D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS | D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS | D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS,
 		},
 	};
 	ID3DBlob* d3dSignatureBlob = 0;	// TODO: free me
@@ -400,7 +420,6 @@ Res<> Init(const InitInfo* initInfo) {
 			.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN,
 			.CreationNodeMask     = 0,
 			.VisibleNodeMask      = 0,
-
 		};
 		const D3D12_RESOURCE_DESC d3d12ResourceDesc = {
 			.Dimension        = D3D12_RESOURCE_DIMENSION_BUFFER,
@@ -576,7 +595,49 @@ Res<> Init(const InitInfo* initInfo) {
 			.ResourceMinLODClamp  = 0.0f,
 		},
 	};
-	d3d12Device->CreateShaderResourceView(d3d12Texture, &d3d12ShaderResourceViewDesc, d3d12SrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	D3D12_CPU_DESCRIPTOR_HANDLE d3d12SrvCbvCpuDescriptorHandle = d3d12SrvCbvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	d3d12Device->CreateShaderResourceView(d3d12Texture, &d3d12ShaderResourceViewDesc, d3d12SrvCbvCpuDescriptorHandle);
+	d3d12SrvCbvCpuDescriptorHandle.ptr += srvCbvDescriptorSize;
+
+	{
+		const D3D12_HEAP_PROPERTIES d3d12HeapProperties = {
+			.Type                 = D3D12_HEAP_TYPE_UPLOAD,
+			.CPUPageProperty      = D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+			.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN,
+			.CreationNodeMask     = 0,
+			.VisibleNodeMask      = 0,
+
+		};
+		const D3D12_RESOURCE_DESC d3d12ResourceDesc = {
+			.Dimension        = D3D12_RESOURCE_DIMENSION_BUFFER,
+			.Alignment        = 0,	// 64kb
+			.Width            = AlignUp(sizeof(Scene), 256),
+			.Height           = 1,
+			.DepthOrArraySize = 1,
+			.MipLevels        = 1,
+			.Format           = DXGI_FORMAT_UNKNOWN,
+			.SampleDesc       = { .Count = 1, .Quality = 0 },
+			.Layout           = D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+			.Flags            = D3D12_RESOURCE_FLAG_NONE,
+		};
+		CheckHr(d3d12Device->CreateCommittedResource(
+			&d3d12HeapProperties,
+			D3D12_HEAP_FLAG_NONE,
+			&d3d12ResourceDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			0,
+			IID_PPV_ARGS(&d3d12ConstantBuffer)
+		));
+
+		D3D12_CONSTANT_BUFFER_VIEW_DESC d3d12ConstantBufferViewDesc = {
+			.BufferLocation = d3d12ConstantBuffer->GetGPUVirtualAddress(),
+			.SizeInBytes    = (UINT)AlignUp(sizeof(Scene), 256),
+		};
+		d3d12Device->CreateConstantBufferView(&d3d12ConstantBufferViewDesc, d3d12SrvCbvCpuDescriptorHandle);
+		d3d12SrvCbvCpuDescriptorHandle.ptr += srvCbvDescriptorSize;
+		const D3D12_RANGE d3d12Range = { 0, 0 };
+		CheckHr(d3d12ConstantBuffer->Map(0, &d3d12Range, &constantBufferMappedPtr));
+	}
 
 	CheckHr(d3d12GraphicsCommandList->Close());
 
@@ -618,13 +679,16 @@ void Shutdown() {
 //--------------------------------------------------------------------------------------------------
 
 Res<> BeginFrame() {
+	scene.wvp = Mat4::Identity();
+	MemCpy(constantBufferMappedPtr, &scene, sizeof(scene));
+
 	CheckHr(d3d12CommandAllocator->Reset());
 	CheckHr(d3d12GraphicsCommandList->Reset(d3d12CommandAllocator, d3d12PipelineState));
 
 	d3d12GraphicsCommandList->SetGraphicsRootSignature(d3d12RootSignature);
 
-	d3d12GraphicsCommandList->SetDescriptorHeaps(1, &d3d12SrvDescriptorHeap);
-	d3d12GraphicsCommandList->SetGraphicsRootDescriptorTable(0, d3d12SrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	d3d12GraphicsCommandList->SetDescriptorHeaps(1, &d3d12SrvCbvDescriptorHeap);
+	d3d12GraphicsCommandList->SetGraphicsRootDescriptorTable(1, d3d12SrvCbvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 
 	const D3D12_VIEWPORT d3d12Viewport = {
 		.TopLeftX = 0.0f,
@@ -657,12 +721,12 @@ Res<> BeginFrame() {
 		d3d12GraphicsCommandList->ResourceBarrier(1, &d3d12ResourceBarrier);
 	}
 
-	D3D12_CPU_DESCRIPTOR_HANDLE d3d12CpuDescriptorHandle = d3d12RtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
-	d3d12CpuDescriptorHandle.ptr += frameIdx * rtvDescriptorSize;
-	d3d12GraphicsCommandList->OMSetRenderTargets(1, &d3d12CpuDescriptorHandle, FALSE, 0);
+	D3D12_CPU_DESCRIPTOR_HANDLE d3d12RtvCpuDescriptorHandle = d3d12RtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart();
+	d3d12RtvCpuDescriptorHandle.ptr += frameIdx * rtvDescriptorSize;
+	d3d12GraphicsCommandList->OMSetRenderTargets(1, &d3d12RtvCpuDescriptorHandle, FALSE, 0);
 
 	const f32 clearColor[4] = { 0.0f, 0.2f, 0.4f, 1.0f };
-	d3d12GraphicsCommandList->ClearRenderTargetView(d3d12CpuDescriptorHandle, clearColor, 0, 0);
+	d3d12GraphicsCommandList->ClearRenderTargetView(d3d12RtvCpuDescriptorHandle, clearColor, 0, 0);
 
 	d3d12GraphicsCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	d3d12GraphicsCommandList->IASetVertexBuffers(0, 1, &d3d12VertexBufferView);
