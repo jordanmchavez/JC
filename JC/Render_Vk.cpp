@@ -5,6 +5,7 @@
 
 #include "JC/Array.h"
 #include "JC/Bit.h"
+#include "JC/Config.h"
 #include "JC/Fmt.h"
 #include "JC/FS.h"
 #include "JC/HandleArray.h"
@@ -105,6 +106,7 @@ struct BufferObj {
 	u64                size               = 0;
 	VkBufferUsageFlags vkBufferUsageFlags = 0;
 	u64                addr               = 0;
+	void*              updatePtr          = 0;
 };
 
 struct SamplerObj {
@@ -117,9 +119,11 @@ struct ImageObj {
 	Mem           mem           = {};
 	u32           width         = 0;
 	u32           height        = 0;
+	ImageUsage    usage         = ImageUsage::Undefined;
 	VkFormat      vkFormat      = VK_FORMAT_UNDEFINED;
 	VkImageLayout vkImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	Sampler       sampler       = {};
+	void*         updatePtr     = 0;
 };
 
 struct ShaderObj {
@@ -157,7 +161,8 @@ static Array<Image>                       swapchainImages;
 static u32                                swapchainImageIdx;
 static Array<VkSemaphore>                 vkFrameAcquireImageSemaphores;
 static Array<VkSemaphore>                 vkFrameRenderSemaphores;
-static Array<VkFence>                     vkFrameCommandBufferSubmitFences;
+static Array<VkFence>                     vkFrameFences;
+static Array<bool>                        frameInUse;
 static VkCommandPool                      vkCommandPool;
 static Array<VkCommandBuffer>             vkFrameCommandBuffers;
 static VkDescriptorPool                   vkDescriptorPool;
@@ -168,7 +173,7 @@ static u32                                vkBindlessSamplersLen;
 static BufferObj                          stagingBufferObj;
 static u8*                                stagingBufferMappedPtr;
 static u64                                stagingBufferUsed;
-static u64                                frameIndex;
+static u64                                frameIdx;
 
 //-------------------------------------------------------------------------------------------------
 
@@ -177,6 +182,11 @@ static VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT 
 		Sys::LockMutex(&mutex);
 		if (severity & (VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)) {
 			log->Error("{}", data->pMessage);
+			#if defined DebugBreakOnErr
+				if (Sys::IsDebuggerPresent()) {
+					Sys_DebuggerBreak();
+				}
+			#endif	// DebugBreakOnErr
 		} else {
 			log->Print("{}", data->pMessage);
 		}
@@ -306,14 +316,14 @@ Res<> InitInstance() {
 
 //-------------------------------------------------------------------------------------------------
 
-Res<> InitSurface(const Window::PlatformInfo* windowPlatformInfo) {
+Res<> InitSurface(const Window::PlatformDesc* windowPlatformDesc) {
 	#if defined Platform_Windows
 		VkWin32SurfaceCreateInfoKHR win32SurfaceCreateInfo = {
 			.sType     = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
 			.pNext     = 0,
 			.flags     = 0,
-			.hinstance = (HINSTANCE)windowPlatformInfo->hinstance,
-			.hwnd      = (HWND)windowPlatformInfo->hwnd,
+			.hinstance = (HINSTANCE)windowPlatformDesc->hinstance,
+			.hwnd      = (HWND)windowPlatformDesc->hwnd,
 		};
 		CheckVk(vkCreateWin32SurfaceKHR(vkInstance, &win32SurfaceCreateInfo, vkAllocationCallbacks, &vkSurface));
 	#endif	// Platform_
@@ -650,8 +660,6 @@ Res<> InitSwapchain(u32 width, u32 height) {
 		imageObj->sampler       = {};
 	}
 
-	vkDeviceWaitIdle(vkDevice);
-
 	return Ok();
 }
 
@@ -672,7 +680,7 @@ Res<> InitFrameSyncObjects() {
 			.pNext = 0,
 			.flags = VK_FENCE_CREATE_SIGNALED_BIT,
 		};
-		CheckVk(vkCreateFence(vkDevice, &vkFenceCreateInfo, vkAllocationCallbacks, &vkFrameCommandBufferSubmitFences[i]));
+		CheckVk(vkCreateFence(vkDevice, &vkFenceCreateInfo, vkAllocationCallbacks, &vkFrameFences[i]));
 	}
 
 	return Ok();
@@ -930,6 +938,7 @@ Res<BufferObj> CreateBufferInternal(
 		.size               = size,
 		.vkBufferUsageFlags = vkBufferUsageFlags,
 		.addr               = addr,
+		.updatePtr          = 0,
 	};
 }
 
@@ -953,10 +962,10 @@ Res<> InitStaging() {
 
 //----------------------------------------------------------------------------------------------
 
-Res<> Init(const InitInfo* initInfo) {
-	perm = initInfo->perm;
-	temp = initInfo->temp;
-	log  = initInfo->log;
+Res<> Init(const InitDesc* initDesc) {
+	perm = initDesc->perm;
+	temp = initDesc->temp;
+	log  = initDesc->log;
 
 	bufferObjs.Init(perm);
 	imageObjs.Init(perm);
@@ -966,14 +975,16 @@ Res<> Init(const InitInfo* initInfo) {
 	swapchainImages.Init(perm);
 	vkFrameAcquireImageSemaphores.Init(perm, MaxFrames);
 	vkFrameRenderSemaphores.Init(perm, MaxFrames);
-	vkFrameCommandBufferSubmitFences.Init(perm, MaxFrames);
+	vkFrameFences.Init(perm, MaxFrames);
+	frameInUse.Init(perm, MaxFrames);
+	for (u32 i = 0; i < MaxFrames; i++) { frameInUse[i] = true; }
 	vkFrameCommandBuffers.Init(perm, MaxFrames);
 
 	LoadRootFns();
 	if (Res<> r = InitInstance();                                   !r) { return r; }
-	if (Res<> r = InitSurface(initInfo->windowPlatformInfo);        !r) { return r; }
+	if (Res<> r = InitSurface(initDesc->windowPlatformDesc);        !r) { return r; }
 	if (Res<> r = InitDevice();                                     !r) { return r; }
-	if (Res<> r = InitSwapchain(initInfo->width, initInfo->height); !r) { return r; }
+	if (Res<> r = InitSwapchain(initDesc->width, initDesc->height); !r) { return r; }
 	if (Res<> r = InitFrameSyncObjects();                           !r) { return r; }
 	if (Res<> r = InitCommandBuffers();                             !r) { return r; }
 	if (Res<> r = InitBindlessDescriptors();                        !r) { return r; }
@@ -986,6 +997,10 @@ Res<> Init(const InitInfo* initInfo) {
 //----------------------------------------------------------------------------------------------
 
 void Shutdown() {
+	if (vkDevice != VK_NULL_HANDLE) {
+		vkDeviceWaitIdle(vkDevice);
+	}
+
 	DestroyVk(stagingBufferObj.vkBuffer, vkDestroyBuffer);
 	FreeMem(stagingBufferObj.mem);
 	for (u64 i = 0; i < vkBindlessSamplersLen; i++) {
@@ -998,7 +1013,7 @@ void Shutdown() {
 	DestroyVk(vkCommandPool, vkDestroyCommandPool);
 	DestroyVkArray(vkFrameAcquireImageSemaphores, vkDestroySemaphore);
 	DestroyVkArray(vkFrameRenderSemaphores, vkDestroySemaphore);
-	DestroyVkArray(vkFrameCommandBufferSubmitFences, vkDestroyFence);
+	DestroyVkArray(vkFrameFences, vkDestroyFence);
 	for (u64 i = 0; i < swapchainImages.len; i++) {
 		ImageObj* const imageObj = imageObjs.Get(swapchainImages[i]);
 		DestroyVk(imageObj->vkImageView, vkDestroyImageView);
@@ -1034,12 +1049,16 @@ Res<> RecreateSwapchain(u32 width, u32 height) {
 	swapchainImages.len = 0;
 	DestroyVk(vkSwapchain, vkDestroySwapchainKHR);
 
-	return InitSwapchain(width, height);
+	Res<> r = InitSwapchain(width, height);
+
+	vkDeviceWaitIdle(vkDevice);
+
+	return r;
 }
 
 //----------------------------------------------------------------------------------------------
 
-Image GetCurrentSwapchainImage() {
+Image GetSwapchainImage() {
 	return swapchainImages[swapchainImageIdx];
 }
 
@@ -1056,40 +1075,16 @@ Res<Buffer> CreateBuffer(u64 size, BufferUsage usage) {
 	VkMemoryPropertyFlags vkMemoryPropertyFlags = 0;
 	VkMemoryAllocateFlags vkMemoryAllocateFlags = 0;
 	switch (usage) {
-		case BufferUsage::Vertex:
-			vkBufferUsageFlags    = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT  | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-			vkMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-			vkMemoryAllocateFlags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
-			break;
-
-		case BufferUsage::Index:
-			vkBufferUsageFlags    = VK_BUFFER_USAGE_INDEX_BUFFER_BIT   | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-			vkMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-			vkMemoryAllocateFlags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
-			break;
-
-		case BufferUsage::Uniform:
-			vkBufferUsageFlags    = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-			vkMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-			vkMemoryAllocateFlags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
-			break;
-
 		case BufferUsage::Storage:
 			vkBufferUsageFlags    = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 			vkMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			vkMemoryAllocateFlags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
 			break;
 
-		case BufferUsage::Indirect:
-			vkBufferUsageFlags    = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		case BufferUsage::Index:
+			vkBufferUsageFlags    = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 			vkMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			vkMemoryAllocateFlags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
-			break;
-
-		case BufferUsage::Readback:
-			vkBufferUsageFlags    = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-			vkMemoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
-			vkMemoryAllocateFlags = 0;
 			break;
 
 		default: Panic("Unhandled BufferUsage {}", usage);
@@ -1130,7 +1125,7 @@ u64 GetBufferAddr(Buffer buffer) {
 
 //----------------------------------------------------------------------------------------------
 
- Res<Image> CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usage, Sampler sampler) {
+Res<Image> CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usage, Sampler sampler) {
 	const VkFormat vkFormat = ImageFormatToVkFormat(format);
 
 	VkImageUsageFlags     vkImageUsageFlags     = 0;
@@ -1146,7 +1141,7 @@ u64 GetBufferAddr(Buffer buffer) {
 			vkMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			break;
 
-		case ImageUsage::DepthStencilAttachment:
+		case ImageUsage::DepthAttachment:
 			vkImageUsageFlags = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 			vkMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			break;
@@ -1213,9 +1208,11 @@ u64 GetBufferAddr(Buffer buffer) {
 	imageObj->mem           = mem;
 	imageObj->width         = width;
 	imageObj->height        = height;
+	imageObj->usage         = usage;
 	imageObj->vkFormat      = vkFormat;
 	imageObj->vkImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	imageObj->sampler       = sampler;
+	imageObj->updatePtr     = 0;
 
 	return image;
 
@@ -1230,15 +1227,6 @@ void DestroyImage(Image image) {
 		DestroyVk(imageObj->vkImage, vkDestroyImage);
 	}
 }
-
-//-------------------------------------------------------------------------------------------------
-
-//static VkImageLayout ImageLayoutToVkLayout(ImageLayout layout) {
-//	switch (layout) {
-//		case ImageLayout::Undefined: return VK_IMAGE_LAYOUT_UNDEFINED;
-//		default: Panic("Unhandled ImageLayout {}", layout);
-//	}
-//}
 
 //-------------------------------------------------------------------------------------------------
 
@@ -1570,9 +1558,20 @@ void DestroyPipeline(Pipeline pipeline) {
 
 //-------------------------------------------------------------------------------------------------
 
+static u64 frame = 0;
 Res<> BeginFrame() {
-	CheckVk(vkWaitForFences(vkDevice, 1, &vkFrameCommandBufferSubmitFences[frameIndex], VK_TRUE, U64Max));
-	if (VkResult r = vkAcquireNextImageKHR(vkDevice, vkSwapchain, U64Max, vkFrameAcquireImageSemaphores[frameIndex], 0, &swapchainImageIdx); r != VK_SUCCESS) {
+	frame++;
+	if (frameIdx == 0) {
+		stagingBufferUsed = 0;
+	}
+
+	if (frameInUse[frameIdx]) {
+		CheckVk(vkWaitForFences(vkDevice, 1, &vkFrameFences[frameIdx], VK_TRUE, U64Max));
+		CheckVk(vkResetFences(vkDevice, 1, &vkFrameFences[frameIdx]));
+		frameInUse[frameIdx] = false;
+	}
+
+	if (VkResult r = vkAcquireNextImageKHR(vkDevice, vkSwapchain, U64Max, vkFrameAcquireImageSemaphores[frameIdx], 0, &swapchainImageIdx); r != VK_SUCCESS) {
 		if (r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_OUT_OF_DATE_KHR) {
 			return MakeVkErr(temp, r, "vkAcquireNextImageKHR")->Push(Err_RecreateSwapchain);
 		} else {
@@ -1589,7 +1588,7 @@ Res<> EndFrame() {
 	const VkSemaphoreSubmitInfo vkWaitSemaphoreSubmitInfo = {
 		.sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 		.pNext       = 0,
-		.semaphore   = vkFrameAcquireImageSemaphores[frameIndex],
+		.semaphore   = vkFrameAcquireImageSemaphores[frameIdx],
 		.value       = 0,
 		.stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
 		.deviceIndex = 0,
@@ -1597,18 +1596,17 @@ Res<> EndFrame() {
 	const VkCommandBufferSubmitInfo vkCommandBufferSubmitInfo = {
 		.sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
 		.pNext         = 0,
-		.commandBuffer = vkFrameCommandBuffers[frameIndex],
+		.commandBuffer = vkFrameCommandBuffers[frameIdx],
 		.deviceMask    = 0,
 	};
 	const VkSemaphoreSubmitInfo vkSignalSemaphoreSubmitInfo = {
 		.sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
 		.pNext       = 0,
-		.semaphore   = vkFrameRenderSemaphores[frameIndex],
+		.semaphore   = vkFrameRenderSemaphores[frameIdx],
 		.value       = 0,
 		.stageMask   = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
 		.deviceIndex = 0,
 	};
-	CheckVk(vkResetFences(vkDevice, 1, &vkFrameCommandBufferSubmitFences[frameIndex]));
 	const VkSubmitInfo2 vkSubmitInfo2 = {
 		.sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
 		.pNext                    = 0,
@@ -1620,13 +1618,14 @@ Res<> EndFrame() {
 		.signalSemaphoreInfoCount = 1,
 		.pSignalSemaphoreInfos    = &vkSignalSemaphoreSubmitInfo,
 	};
-	CheckVk(vkQueueSubmit2(vkQueue, 1, &vkSubmitInfo2, vkFrameCommandBufferSubmitFences[frameIndex]));
+	CheckVk(vkQueueSubmit2(vkQueue, 1, &vkSubmitInfo2, vkFrameFences[frameIdx]));
+	frameInUse[frameIdx] = true;
 
 	VkPresentInfoKHR vkPresentInfoKHR = {
 		.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 		.pNext              = 0,
 		.waitSemaphoreCount = 1,
-		.pWaitSemaphores    = &vkFrameRenderSemaphores[frameIndex],
+		.pWaitSemaphores    = &vkFrameRenderSemaphores[frameIdx],
 		.swapchainCount     = 1,
 		.pSwapchains        = &vkSwapchain,
 		.pImageIndices      = &swapchainImageIdx,
@@ -1640,41 +1639,47 @@ Res<> EndFrame() {
 		}
 	}
 
-	stagingBufferUsed = 0;
-
-	frameIndex = (frameIndex + 1) % MaxFrames;
+	//frameIdx = (frameIdx + 1) % MaxFrames;
 
 	return Ok();
 }
 
-//----------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
 
 Res<> BeginCmds() {
-	CheckVk(vkWaitForFences(vkDevice, 1, &vkFrameCommandBufferSubmitFences[frameIndex], VK_TRUE, U64Max));
+	if (frameInUse[frameIdx]) {
+		CheckVk(vkWaitForFences(vkDevice, 1, &vkFrameFences[frameIdx], VK_TRUE, U64Max));
+		CheckVk(vkResetFences(vkDevice, 1, &vkFrameFences[frameIdx]));
+		frameInUse[frameIdx] = false;
+	}
+
+	vkResetCommandBuffer(vkFrameCommandBuffers[frameIdx],  0);
 	constexpr VkCommandBufferBeginInfo vkCommandBufferBeginInfo = {
 		.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 		.pNext            = 0,
 		.flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
 		.pInheritanceInfo = 0,
 	};
-	CheckVk(vkBeginCommandBuffer(vkFrameCommandBuffers[frameIndex], &vkCommandBufferBeginInfo));
+	CheckVk(vkBeginCommandBuffer(vkFrameCommandBuffers[frameIdx], &vkCommandBufferBeginInfo));
+
 	return Ok();
 }
 
-//----------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
 
 Res<> EndCmds() {
-	CheckVk(vkEndCommandBuffer(vkFrameCommandBuffers[frameIndex]));
+	CheckVk(vkEndCommandBuffer(vkFrameCommandBuffers[frameIdx]));
+
 	return Ok();
 }
 
-//----------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
 
-Res<> ImmediateSubmitCmds() {
+Res<> SubmitCmds() {
 	const VkCommandBufferSubmitInfo vkCommandBufferSubmitInfo = {
 		.sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
 		.pNext         = 0,
-		.commandBuffer = vkFrameCommandBuffers[frameIndex],
+		.commandBuffer = vkFrameCommandBuffers[frameIdx],
 		.deviceMask    = 0,
 	};
 	const VkSubmitInfo2 vkSubmitInfo2 = {
@@ -1688,14 +1693,13 @@ Res<> ImmediateSubmitCmds() {
 		.signalSemaphoreInfoCount = 0,
 		.pSignalSemaphoreInfos    = 0,
 	};
-	CheckVk(vkQueueSubmit2(vkQueue, 1, &vkSubmitInfo2, 0));
-
-	CheckVk(vkDeviceWaitIdle(vkDevice));
+	CheckVk(vkQueueSubmit2(vkQueue, 1, &vkSubmitInfo2, vkFrameFences[frameIdx]));
+	frameInUse[frameIdx] = true;
 
 	return Ok();
 }
 
-//----------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
 
 void* AllocStagingMem(u64 size) {
 	Assert(stagingBufferUsed + size < stagingBufferObj.size);
@@ -1706,36 +1710,11 @@ void* AllocStagingMem(u64 size) {
 
 //-------------------------------------------------------------------------------------------------
 
-BufferUpdate CmdBeginBufferUpdate(Buffer buffer) {
-	return BufferUpdate {
-		.buffer = buffer,
-		.ptr    = AllocStagingMem(bufferObjs.Get(buffer)->size),
-	};
-}
-
-//-------------------------------------------------------------------------------------------------
-
-void CmdEndBufferUpdate(BufferUpdate bufferUpdate) {
-	Assert(bufferUpdate.ptr >= stagingBufferMappedPtr && bufferUpdate.ptr <= stagingBufferMappedPtr + stagingBufferUsed);
-
-	BufferObj* const bufferObj = bufferObjs.Get(bufferUpdate.buffer);
-
-	const VkBufferCopy2 vkBufferCopy2 = {
-		.sType     = VK_STRUCTURE_TYPE_BUFFER_COPY_2,
-		.pNext     = 0,
-		.srcOffset = (VkDeviceSize)((u8*)bufferUpdate.ptr - stagingBufferMappedPtr),
-		.dstOffset = bufferObj->mem.offset,
-		.size      = bufferObj->size,
-	};
-	const VkCopyBufferInfo2 vkCopyBufferInfo2 = {
-		.sType       = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
-		.pNext       = 0,
-		.srcBuffer   = stagingBufferObj.vkBuffer,
-		.dstBuffer   = bufferObj->vkBuffer,
-		.regionCount = 1,
-		.pRegions    = &vkBufferCopy2,
-	};
-	vkCmdCopyBuffer2(vkFrameCommandBuffers[frameIndex], &vkCopyBufferInfo2);
+void* CmdBeginBufferUpdate(Buffer buffer) {
+	BufferObj* const bufferObj = bufferObjs.Get(buffer);
+	Assert(!bufferObj->updatePtr);
+	bufferObj->updatePtr = AllocStagingMem(bufferObj->size);
+	return bufferObj->updatePtr;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1752,8 +1731,8 @@ void CmdBufferBarrier(Buffer buffer, u64 srcStage, u64 srcAccess, u64 dstStage, 
 		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 		.buffer              = bufferObj->vkBuffer,
-		.offset              = bufferObj->mem.offset,
-		.size                = bufferObj->size,
+		.offset              = 0,
+		.size                = VK_WHOLE_SIZE,
 	};
 	const VkDependencyInfo vkDependencyInfo = {
 		.sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -1766,60 +1745,52 @@ void CmdBufferBarrier(Buffer buffer, u64 srcStage, u64 srcAccess, u64 dstStage, 
 		.imageMemoryBarrierCount  = 0,
 		.pImageMemoryBarriers     = 0,
 	};
-	vkCmdPipelineBarrier2(vkFrameCommandBuffers[frameIndex], &vkDependencyInfo);
+	vkCmdPipelineBarrier2(vkFrameCommandBuffers[frameIdx], &vkDependencyInfo);
+}
+
+void CmdEndBufferUpdate(Buffer buffer) {
+	BufferObj* const bufferObj = bufferObjs.Get(buffer);
+	Assert(bufferObj->updatePtr);
+	const VkBufferCopy2 vkBufferCopy2 = {
+		.sType     = VK_STRUCTURE_TYPE_BUFFER_COPY_2,
+		.pNext     = 0,
+		.srcOffset = (VkDeviceSize)((u8*)bufferObj->updatePtr - stagingBufferMappedPtr),
+		.dstOffset = bufferObj->mem.offset,
+		.size      = bufferObj->size,
+	};
+	const VkCopyBufferInfo2 vkCopyBufferInfo2 = {
+		.sType       = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
+		.pNext       = 0,
+		.srcBuffer   = stagingBufferObj.vkBuffer,
+		.dstBuffer   = bufferObj->vkBuffer,
+		.regionCount = 1,
+		.pRegions    = &vkBufferCopy2,
+	};
+	vkCmdCopyBuffer2(vkFrameCommandBuffers[frameIdx], &vkCopyBufferInfo2);
+	bufferObj->updatePtr = 0;
 }
 
 //-------------------------------------------------------------------------------------------------
 
-ImageUpdate CmdBeginImageUpdate(Image image, u32 rowLen) {
-	return ImageUpdate {
-		.image  = image,
-		.rowLen = rowLen,
-		.ptr    = AllocStagingMem(imageObjs.Get(image)->height * rowLen),
-	};
-}
-
-//-------------------------------------------------------------------------------------------------
-
-void CmdEndImageUpdate(ImageUpdate imageUpdate) {
-	Assert(imageUpdate.ptr >= stagingBufferMappedPtr && imageUpdate.ptr <= stagingBufferMappedPtr + stagingBufferUsed);
-	ImageObj* const imageObj = imageObjs.Get(imageUpdate.image);
-	const VkBufferImageCopy2 vkBufferImageCopy2 = {
-		.sType             = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2,
-		.pNext             = 0,
-		.bufferOffset      = (VkDeviceSize)((u8*)imageUpdate.ptr - stagingBufferMappedPtr),
-		.bufferRowLength   = 0,
-		.bufferImageHeight = 0,
-		.imageSubresource  = MakeVkImageSubresourceLayers(IsDepthFormat(imageObj->vkFormat) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT),
-		.imageOffset       = { .x = 0, .y = 0, .z = 0 },
-		.imageExtent       = { .width = imageObj->width, .height = imageObj->height, .depth = 1 },
-
-	};
-	const VkCopyBufferToImageInfo2 vkCopyBufferToImageInfo2 = {
-		.sType          = VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2,
-		.pNext          = 0,
-		.srcBuffer      = stagingBufferObj.vkBuffer,
-		.dstImage       = imageObj->vkImage,
-		.dstImageLayout = imageObj->vkImageLayout,
-		.regionCount    = 1,
-		.pRegions       = &vkBufferImageCopy2,
-	};
-	vkCmdCopyBufferToImage2(vkFrameCommandBuffers[frameIndex], &vkCopyBufferToImageInfo2);
-}
-
-//-------------------------------------------------------------------------------------------------
-
-void CmdImageBarrier(Image image, u64 srcStage, u64 srcAccess, u64 dstLayout, u64 dstStage, u64 dstAccess) {
+void CmdImageBarrier(
+	Image image,
+	u64   vkSrcPipelineStage,
+	u64   vkSrcAccessFlags,
+	u64   vkSrcImageLayout,
+	u64   vkDstPipelineStage,
+	u64   vkDstAccessFlags,
+	u64   vkDstImageLayout
+) {
 	ImageObj* const imageObj = imageObjs.Get(image);
 	const VkImageMemoryBarrier2 vkImageMemoryBarrier2 = {
 		.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
 		.pNext               = 0,
-		.srcStageMask        = srcStage,
-		.srcAccessMask       = srcAccess,
-		.dstStageMask        = dstStage,
-		.dstAccessMask       = dstAccess,
-		.oldLayout           = imageObj->vkImageLayout,
-		.newLayout           = (VkImageLayout)dstLayout,
+		.srcStageMask        = vkSrcPipelineStage,
+		.srcAccessMask       = vkSrcAccessFlags,
+		.dstStageMask        = vkDstPipelineStage,
+		.dstAccessMask       = vkDstAccessFlags,
+		.oldLayout           = (VkImageLayout)vkSrcImageLayout,
+		.newLayout           = (VkImageLayout)vkDstImageLayout,
 		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 		.image               = imageObj->vkImage,
@@ -1836,8 +1807,54 @@ void CmdImageBarrier(Image image, u64 srcStage, u64 srcAccess, u64 dstLayout, u6
 		.imageMemoryBarrierCount  = 1,
 		.pImageMemoryBarriers     = &vkImageMemoryBarrier2,
 	};
-	vkCmdPipelineBarrier2(vkFrameCommandBuffers[frameIndex], &vkDependencyInfo);
-	imageObj->vkImageLayout = (VkImageLayout)dstLayout;
+	vkCmdPipelineBarrier2(vkFrameCommandBuffers[frameIdx], &vkDependencyInfo);
+	imageObj->vkImageLayout = (VkImageLayout)vkDstImageLayout;
+}
+
+//-------------------------------------------------------------------------------------------------
+
+void* CmdBeginImageUpdate(Image image) {
+	ImageObj* const imageObj = imageObjs.Get(image);
+	Assert(!imageObj->updatePtr);
+
+	u32 pixelSize = 0;
+	switch (imageObj->vkFormat) {
+		case VK_FORMAT_B8G8R8A8_UNORM: pixelSize = 4; break;
+		case VK_FORMAT_R8G8B8A8_UNORM: pixelSize = 4; break;
+		case VK_FORMAT_D32_SFLOAT:     pixelSize = 4; break;
+		default: Panic("Unhandled VkFormat {}", imageObj->vkFormat);
+
+	}
+
+	imageObj->updatePtr = AllocStagingMem(imageObj->width * imageObj->height * pixelSize);
+	return imageObj->updatePtr;
+}
+
+void CmdEndImageUpdate(Image image) {
+	ImageObj* const imageObj = imageObjs.Get(image);
+	Assert(imageObj->updatePtr);
+	const VkBufferImageCopy2 vkBufferImageCopy2 = {
+		.sType             = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2,
+		.pNext             = 0,
+		.bufferOffset      = (VkDeviceSize)((u8*)imageObj->updatePtr - stagingBufferMappedPtr),
+		.bufferRowLength   = 0,
+		.bufferImageHeight = 0,
+		.imageSubresource  = MakeVkImageSubresourceLayers(IsDepthFormat(imageObj->vkFormat) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT),
+		.imageOffset       = { .x = 0, .y = 0, .z = 0 },
+		.imageExtent       = { .width = imageObj->width, .height = imageObj->height, .depth = 1 },
+
+	};
+	const VkCopyBufferToImageInfo2 vkCopyBufferToImageInfo2 = {
+		.sType          = VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2,
+		.pNext          = 0,
+		.srcBuffer      = stagingBufferObj.vkBuffer,
+		.dstImage       = imageObj->vkImage,
+		.dstImageLayout = imageObj->vkImageLayout,
+		.regionCount    = 1,
+		.pRegions       = &vkBufferImageCopy2,
+	};
+	vkCmdCopyBufferToImage2(vkFrameCommandBuffers[frameIdx], &vkCopyBufferToImageInfo2);
+	imageObj->updatePtr = 0;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1890,7 +1907,7 @@ void CmdBeginPass(const Pass* pass) {
 		.pDepthAttachment     = depthImageObj ? &vkDepthRenderingAttachmentInfo : 0,
 		.pStencilAttachment   = 0,
 	};
-	vkCmdBeginRendering(vkFrameCommandBuffers[frameIndex], &vkRenderingInfo);
+	vkCmdBeginRendering(vkFrameCommandBuffers[frameIdx], &vkRenderingInfo);
 
 	const VkViewport vkViewport = {
 		.x        = pass->viewport.x,
@@ -1900,7 +1917,7 @@ void CmdBeginPass(const Pass* pass) {
 		.minDepth = 0.0f,
 		.maxDepth = 1.0f,
 	};
-	vkCmdSetViewport(vkFrameCommandBuffers[frameIndex], 0, 1, &vkViewport);
+	vkCmdSetViewport(vkFrameCommandBuffers[frameIdx], 0, 1, &vkViewport);
 
 	const VkRect2D vkScissorRect2D = {
 		.offset     = {
@@ -1912,37 +1929,37 @@ void CmdBeginPass(const Pass* pass) {
 			.height = (u32)pass->scissor.h
 		},
 	};
-	vkCmdSetScissor(vkFrameCommandBuffers[frameIndex], 0, 1, &vkScissorRect2D);
+	vkCmdSetScissor(vkFrameCommandBuffers[frameIdx], 0, 1, &vkScissorRect2D);
 
 	PipelineObj* const pipelineObj = pipelineObjs.Get(pass->pipeline);
-	vkCmdBindPipeline(vkFrameCommandBuffers[frameIndex], pipelineObj->vkPipelineBindPoint, pipelineObj->vkPipeline);
+	vkCmdBindPipeline(vkFrameCommandBuffers[frameIdx], pipelineObj->vkPipelineBindPoint, pipelineObj->vkPipeline);
 
-	vkCmdBindDescriptorSets(vkFrameCommandBuffers[frameIndex], pipelineObj->vkPipelineBindPoint, pipelineObj->vkPipelineLayout, 0, 1, &vkBindlessDescriptorSet, 0, 0);
+	vkCmdBindDescriptorSets(vkFrameCommandBuffers[frameIdx], pipelineObj->vkPipelineBindPoint, pipelineObj->vkPipelineLayout, 0, 1, &vkBindlessDescriptorSet, 0, 0);
 }
 
 //----------------------------------------------------------------------------------------------
 
 void CmdEndPass() {
-	vkCmdEndRendering(vkFrameCommandBuffers[frameIndex]);
+	vkCmdEndRendering(vkFrameCommandBuffers[frameIdx]);
 }
 
 //----------------------------------------------------------------------------------------------
 
 void CmdBindIndexBuffer(Buffer buffer) {
-	vkCmdBindIndexBuffer(vkFrameCommandBuffers[frameIndex], bufferObjs.Get(buffer)->vkBuffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdBindIndexBuffer(vkFrameCommandBuffers[frameIdx], bufferObjs.Get(buffer)->vkBuffer, 0, VK_INDEX_TYPE_UINT32);
 }
 
 //----------------------------------------------------------------------------------------------
 
-void CmdPushConstants(Pipeline pipeline, const void* ptr, u64 len) {
+void CmdPushConstants(Pipeline pipeline, const void* ptr, u32 len) {
 	PipelineObj* const pipelineObj = pipelineObjs.Get(pipeline);
-	vkCmdPushConstants(vkFrameCommandBuffers[frameIndex], pipelineObj->vkPipelineLayout, pipelineObj->vkPushConstantRange.stageFlags, 0, (u32)len, ptr);
+	vkCmdPushConstants(vkFrameCommandBuffers[frameIdx], pipelineObj->vkPipelineLayout, pipelineObj->vkPushConstantRange.stageFlags, 0, len, ptr);
 }
 
 //----------------------------------------------------------------------------------------------
 
 void CmdDrawIndexed(u32 indexCount) {
-	vkCmdDrawIndexed(vkFrameCommandBuffers[frameIndex], indexCount, 1, 0, 0, 0);
+	vkCmdDrawIndexed(vkFrameCommandBuffers[frameIdx], indexCount, 1, 0, 0, 0);
 }
 
 //----------------------------------------------------------------------------------------------

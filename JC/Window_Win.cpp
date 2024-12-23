@@ -429,8 +429,8 @@ void SetCursorMode(CursorMode newCursorMode) {
 
 //----------------------------------------------------------------------------------------------
 
-PlatformInfo GetPlatformInfo() {
-	return PlatformInfo {
+PlatformDesc GetPlatformDesc() {
+	return PlatformDesc {
 		.hinstance = GetModuleHandleW(0),
 		.hwnd      = window.hwnd,
 	};

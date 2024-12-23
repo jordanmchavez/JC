@@ -749,15 +749,9 @@ bool IsDepthFormat(VkFormat vkFormat) {
 ImageFormat VkFormatToImageFormat(VkFormat vkFormat) {
 	switch (vkFormat) {
 		case VK_FORMAT_UNDEFINED:      return ImageFormat::Undefined;
-		case VK_FORMAT_B8G8R8_UNORM:   return ImageFormat::B8G8R8_N;
-		case VK_FORMAT_B8G8R8_UINT:    return ImageFormat::B8G8R8_U;
-		case VK_FORMAT_R8G8B8_UNORM:   return ImageFormat::R8G8B8_N;
-		case VK_FORMAT_R8G8B8_UINT:    return ImageFormat::R8G8B8_U;
-		case VK_FORMAT_B8G8R8A8_UNORM: return ImageFormat::B8G8R8A8_N;
-		case VK_FORMAT_B8G8R8A8_UINT:  return ImageFormat::B8G8R8A8_U;
-		case VK_FORMAT_R8G8B8A8_UNORM: return ImageFormat::R8G8B8A8_N;
-		case VK_FORMAT_R8G8B8A8_UINT:  return ImageFormat::R8G8B8A8_U;
-		case VK_FORMAT_D32_SFLOAT:     return ImageFormat::D32_F;
+		case VK_FORMAT_B8G8R8A8_UNORM: return ImageFormat::B8G8R8A8_UNorm;
+		case VK_FORMAT_R8G8B8A8_UNORM: return ImageFormat::R8G8B8A8_UNorm;
+		case VK_FORMAT_D32_SFLOAT:     return ImageFormat::D32_Float;
 		default: Panic("Unhandled VkFormat {}", vkFormat);
 	}
 }
@@ -766,16 +760,10 @@ ImageFormat VkFormatToImageFormat(VkFormat vkFormat) {
 
 VkFormat ImageFormatToVkFormat(ImageFormat imageFormat) {
 	switch (imageFormat) {
-		case ImageFormat::Undefined:  return VK_FORMAT_UNDEFINED;
-		case ImageFormat::B8G8R8_N:   return VK_FORMAT_B8G8R8_UNORM;
-		case ImageFormat::B8G8R8_U:   return VK_FORMAT_B8G8R8_UINT;
-		case ImageFormat::R8G8B8_N:   return VK_FORMAT_R8G8B8_UNORM;
-		case ImageFormat::R8G8B8_U:   return VK_FORMAT_R8G8B8_UINT;
-		case ImageFormat::B8G8R8A8_N: return VK_FORMAT_B8G8R8A8_UNORM;
-		case ImageFormat::B8G8R8A8_U: return VK_FORMAT_B8G8R8A8_UINT;
-		case ImageFormat::R8G8B8A8_N: return VK_FORMAT_R8G8B8A8_UNORM;
-		case ImageFormat::R8G8B8A8_U: return VK_FORMAT_R8G8B8A8_UINT;
-		case ImageFormat::D32_F :     return VK_FORMAT_D32_SFLOAT;
+		case ImageFormat::Undefined:      return VK_FORMAT_UNDEFINED;
+		case ImageFormat::B8G8R8A8_UNorm: return VK_FORMAT_B8G8R8A8_UNORM;
+		case ImageFormat::R8G8B8A8_UNorm: return VK_FORMAT_R8G8B8A8_UNORM;
+		case ImageFormat::D32_Float :     return VK_FORMAT_D32_SFLOAT;
 		default: Panic("Unhandled ImageFormat {}", imageFormat);
 	}
 }

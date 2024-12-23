@@ -72,7 +72,7 @@ State         GetState();
 void          SetRect(Rect rect);
 void          SetStyle(Style style);
 void          SetCursorMode(CursorMode cursorMode);
-PlatformInfo  GetPlatformInfo();
+PlatformDesc  GetPlatformDesc();
 bool          IsExitRequested();
 
 /*	get rect

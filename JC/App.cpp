@@ -97,16 +97,16 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	Window::PumpMessages();
 	Window::State windowState = Window::GetState();
 
-	const Window::PlatformInfo windowPlatformInfo = Window::GetPlatformInfo();
-	Render::InitInfo renderInitInfo = {
+	const Window::PlatformDesc windowPlatformDesc = Window::GetPlatformDesc();
+	Render::InitDesc renderInitDesc = {
 		.perm               = perm,
 		.temp               = temp,
 		.log                = log,
 		.width              = windowState.width,
 		.height             = windowState.height,
-		.windowPlatformInfo = &windowPlatformInfo,
+		.windowPlatformDesc = &windowPlatformDesc,
 	};
-	if (Res<> r = Render::Init(&renderInitInfo); !r) {
+	if (Res<> r = Render::Init(&renderInitDesc); !r) {
 		return r;
 	}
 
@@ -164,35 +164,35 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 			continue;
 		}
 
-		//if (prevWindowState.width != windowState.width || prevWindowState.height != windowState.height) {
-		//	if (Res<> r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
-		//		return r;
-		//	}
-		//	Logf("recreate swpachain after size mismatch");
-		//}
+		if (prevWindowState.width != windowState.width || prevWindowState.height != windowState.height) {
+			if (Res<> r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
+				return r;
+			}
+			Logf("Window size changed: {}x{} -> {}x{}", prevWindowState.width, prevWindowState.height, windowState.width, windowState.height);
+		}
 
 		if (Res<> r = Render::BeginFrame(); !r) {
-			//if (r.err->ec == Render::Err_RecreateSwapchain) {
-			//	if (r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
-			//		Logf("recreate swap chain after beginframe");
-			//		return r;
-			//	}
-			//} else {
+			if (r.err->ec != Render::Err_RecreateSwapchain) {
 				return r;
-			//}
+			}
+			if (r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
+				return r;
+			}
+			Logf("Recreated swapchain after BeginFrame() with w={}, h={}", windowState.width, windowState.height);
+			continue;
 		}
 
 		if (Res<> r = app->Draw(); !r) { return r; }
 		
 		if (Res<> r = Render::EndFrame(); !r) {
-			//if (r.err->ec == Render::Err_RecreateSwapchain) {
-			//	Logf("recreate swap chain after endframe");
-			//	if (r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
-			//		return r;
-			//	}
-			//} else {
+			if (r.err->ec != Render::Err_RecreateSwapchain) {
 				return r;
-			//}
+			}
+			if (r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
+				return r;
+			}
+			Logf("Recreated swapchain after EndFrame() with w={}, h={}", windowState.width, windowState.height);
+			continue;
 		}
 	}
 
@@ -202,7 +202,6 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 //--------------------------------------------------------------------------------------------------
 
 void Shutdown(App* app) {
-	//Render::WaitIdle();
 	app->Shutdown();
 	Render::Shutdown();
 	Window::Shutdown();

@@ -15,45 +15,35 @@ static constexpr ErrCode Err_Version                         = { .ns = "render",
 static constexpr ErrCode Err_NoLayer                         = { .ns = "render", .code = 2 };
 static constexpr ErrCode Err_NoDevice                        = { .ns = "render", .code = 3 };
 static constexpr ErrCode Err_NoMem                           = { .ns = "render", .code = 4 };
-static constexpr ErrCode Err_RecreateSwapChain               = { .ns = "render", .code = 5 };
+static constexpr ErrCode Err_RecreateSwapchain               = { .ns = "render", .code = 5 };
 static constexpr ErrCode Err_ShaderTooManyPushConstantBlocks = { .ns = "render", .code = 6 };
 
 //--------------------------------------------------------------------------------------------------
 
 struct Buffer   { u64 handle = 0; };
 struct Sampler  { u64 handle = 0; };
-struct Texture  { u64 handle = 0; };
+struct Image    { u64 handle = 0; };
 struct Shader   { u64 handle = 0; };
 struct Pipeline { u64 handle = 0; };
 
-enum struct ResourceState {
-	Undefined = 0,
-	RenderTarget,
-	Present,
-};
-
 enum struct BufferUsage {
-	Static,
-	Upload,
+	Undefined = 0,
+	Storage,
+	Index,
 };
 
-enum struct TextureUsage {
+enum struct ImageUsage {
+	Undefined = 0,
 	Sampled,
 	ColorAttachment,
-	DepthStencilAttachment,
+	DepthAttachment,
 };
 
-enum struct TextureFormat {
+enum struct ImageFormat {
 	Undefined = 0,
-	B8G8R8_N,
-	B8G8R8_U,
-	R8G8B8_N,
-	R8G8B8_U,
-	B8G8R8A8_N,
-	B8G8R8A8_U,
-	R8G8B8A8_N,
-	R8G8B8A8_U,
-	D32_F,
+	B8G8R8A8_UNorm,
+	R8G8B8A8_UNorm,
+	D32_Float,
 };
 
 struct Viewport {
@@ -64,11 +54,11 @@ struct Viewport {
 };
 
 struct Pass {
-	Pipeline      pipeline      = {};
-	Span<Texture> renderTargets = {};
-	Texture       depthStencil  = {};
-	Viewport      viewport      = {};
-	Rect          scissor       = {};
+	Pipeline    pipeline         = {};
+	Span<Image> colorAttachments = {};
+	Image       depthAttachment  = {};
+	Viewport    viewport         = {};
+	Rect        scissor          = {};
 };
 
 struct InitDesc {
@@ -82,34 +72,48 @@ struct InitDesc {
 
 Res<>         Init(const InitDesc* initDesc);
 void          Shutdown();
+
 void          WaitIdle();
-Res<>         RecreateSwapChain(u32 width, u32 height);
-Texture       GetSwapChainTexture();
-TextureFormat GetSwapChainTextureFormat();
+
+Res<>         RecreateSwapchain(u32 width, u32 height);
+Image         GetSwapchainImage();
+ImageFormat   GetSwapchainImageFormat();
 
 Res<Buffer>   CreateBuffer(u64 size, BufferUsage usage);
 void          DestroyBuffer(Buffer buffer);
 u64           GetBufferAddr(Buffer buffer);
-void*         BeginBufferUpload(Buffer buffer);
-void          EndBufferUpload(Buffer buffer);
 
-Res<Texture>  CreateTexture(u32 width, u32 height, TextureFormat format, TextureUsage usage, Sampler sampler);
-void          DestroyTexture(Texture texture);
-void          TextureBarrier(Texture, ResourceState from, ResourceState to);
+Res<Image>    CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usage, Sampler sampler);
+void          DestroyImage(Image image);
 
 Res<Shader>   CreateShader(const void* data, u64 len);
 void          DestroyShader(Shader shader);
 
-Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<TextureFormat> renderTargetFormats);
+Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> colorAttachmentFormats, ImageFormat depthAttachmentFormat);
 void          DestroyPipeline(Pipeline pipeline);
 
 Res<>         BeginFrame();
 Res<>         EndFrame();
 
+Res<>         BeginCmds();
+Res<>         EndCmds();
+Res<>         SubmitCmds();
+
+void*         CmdBeginBufferUpdate(Buffer buffer);
+void          CmdEndBufferUpdate(Buffer buffer);
+
+void*         CmdBeginImageUpdate(Image image);
+void          CmdEndImageUpdate(Image image);
+
+void          CmdBufferBarrier(Buffer buffer, u64 srcStage, u64 srcAccess, u64 dstStage, u64 dstAccess);
+void          CmdImageBarrier(Image image, u64 srcStage, u64 srcAccess, u64 srcLayout, u64 dstStage, u64 dstAccess, u64 dstLayout);
+
 void          CmdBeginPass(const Pass* pass);
 void          CmdEndPass();
 
 void          CmdBindIndexBuffer(Buffer buffer);
+
+void          CmdPushConstants(Pipeline pipeline, const void* data, u32 len);
 
 void          CmdDrawIndexed(u32 indexCount);
 

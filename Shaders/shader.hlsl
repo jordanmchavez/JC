@@ -4,7 +4,13 @@ struct Vertex {
 	float4 color;
 };
 
-struct RootConstants {
+struct SceneConstants {
+	Mat4 view;
+	Mat4 proj;
+	Vec4 ambient;
+};
+
+struct ObjConstants {
 	float2 offset;
 	uint   textureIndex;
 };

@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include "stb/stb_image.h"
 #include "JC/MinimalWindows.h"
+#include "JC/Render_Vk.h"
 
 #undef LoadImage
 
@@ -38,18 +39,12 @@ struct Mesh {
 	u32            indexCount       = 0;
 };
 
-struct BindlessImage {
-	Render::Image image       = {};
-	u32           bindlessIdx = 0;
-};
-
 struct PushConstants {
 	Mat4 model               = {};
 	u64  vertexBufferAddr    = 0;
 	u64  sceneBufferAddr     = 0;
 	Vec4 color               = {};
 	u32  imageIdx            = 0;
-	u32  pad[3];
 };
 
 struct Scene {
@@ -67,45 +62,58 @@ struct Entity {
 };
 
 //--------------------------------------------------------------------------------------------------
-/*
+
 Res<Render::Image> CreateDepthImage(u32 width, u32 height) {
-	Render::Image depthImage = {};
-	if (Res<> r = Render::CreateImage(width, height, Render::ImageFormat::D32_F, Render::ImageUsage::DepthStencilAttachment, Render::Sampler{}).To(depthImage); !r) {
+	Render::Image image = {};
+	if (Res<> r = Render::CreateImage(
+		width,
+		height,
+		Render::ImageFormat::D32_Float,
+		Render::ImageUsage::DepthAttachment,
+		Render::Sampler{}
+	).To(image); !r) {
 		return r.err;
 	}
 
 	if (Res<> r = Render::BeginCmds(); !r) {
-		Render::DestroyImage(depthImage);
+		Render::DestroyImage(image);
 		return r.err;
 	}
 
 	Render::CmdImageBarrier(
-		depthImage, 
-		VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+		image,
+		VK_PIPELINE_STAGE_2_NONE,
 		VK_ACCESS_2_NONE,
-		VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+		VK_IMAGE_LAYOUT_UNDEFINED,
 		VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-		VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT
+		VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,	// TODO: test without read and see what happens
+		VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL
 	);
 
-	if (Res<> r = Render::EndCmds(); !r) {
-		Render::DestroyImage(depthImage);
-		return r.err;
-	}
+	if (Res<> r = Render::EndCmds(); !r) { return r.err; }
+	if (Res<> r = Render::SubmitCmds(); !r) { return r.err; }
 
-	//Render::WaitIdle();
-
-	return depthImage;
+	return image;
 }
-*/
+
 //--------------------------------------------------------------------------------------------------
 
 Res<Mesh> CreateMesh() {
 	Render::Buffer vertexBuffer = {};
-	if (Res<> r = Render::CreateBuffer(24 * sizeof(Vertex), Render::BufferUsage::Static).To(vertexBuffer); !r) { return r.err; }
-	
-	Vertex* const vertices = (Vertex*)Render::BeginBufferUpload(vertexBuffer);
+	if (Res<> r = Render::CreateBuffer(24 * sizeof(Vertex), Render::BufferUsage::Storage).To(vertexBuffer); !r) {
+		return r.err;
+	}
+	Render::Buffer indexBuffer = {};
+	if (Res<> r = Render::CreateBuffer(36 * sizeof(u32), Render::BufferUsage::Index).To(indexBuffer); !r) {
+		Render::DestroyBuffer(vertexBuffer);
+		return r.err;
+	}
 
+	if (Res<> r = Render::BeginCmds(); !r) {
+		return r.err;
+	}
+
+	Vertex* const vertices = (Vertex*)Render::CmdBeginBufferUpdate(vertexBuffer);
 	// +Z
 	vertices[ 0] = { .pos = { -1.0f,  1.0f,  1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
 	vertices[ 1] = { .pos = {  1.0f,  1.0f,  1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
@@ -137,15 +145,10 @@ Res<Mesh> CreateMesh() {
 	vertices[22] = { .pos = {  1.0f, -1.0f, -1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
 	vertices[23] = { .pos = { -1.0f, -1.0f, -1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
 
-	Render::EndBufferUpload(vertexBuffer);
+	Render::CmdEndBufferUpdate(vertexBuffer);
 
-	Render::Buffer indexBuffer = {};
-	if (Res<> r = Render::CreateBuffer(36 * sizeof(u32), Render::BufferUsage::Static).To(indexBuffer); !r) {
-		Render::DestroyBuffer(vertexBuffer);
-		return r.err;
-	}
 
-	u32* const indices = (u32*)Render::BeginBufferUpload(indexBuffer);
+	u32* const indices = (u32*)Render::CmdBeginBufferUpdate(indexBuffer);
 	// +Z
 	indices[ 0] =  0;
 	indices[ 1] =  1;
@@ -188,7 +191,26 @@ Res<Mesh> CreateMesh() {
 	indices[33] = 20;
 	indices[34] = 22;
 	indices[35] = 23;
-	Render::EndBufferUpload(indexBuffer);
+	Render::CmdEndBufferUpdate(indexBuffer);
+
+	Render::CmdBufferBarrier(
+		vertexBuffer,
+		VK_PIPELINE_STAGE_2_COPY_BIT,
+		VK_ACCESS_2_TRANSFER_WRITE_BIT,
+		VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT,
+		VK_ACCESS_2_SHADER_STORAGE_READ_BIT
+	);
+
+	Render::CmdBufferBarrier(
+		indexBuffer,
+		VK_PIPELINE_STAGE_2_COPY_BIT,
+		VK_ACCESS_2_TRANSFER_WRITE_BIT,
+		VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT,
+		VK_ACCESS_2_SHADER_STORAGE_READ_BIT
+	);
+
+	if (Res<> r = Render::EndCmds(); !r) { return r.err; }
+	if (Res<> r = Render::SubmitCmds(); !r) { return r.err; }
 
 	return Mesh {
 		.vertexBuffer     = vertexBuffer,
@@ -216,24 +238,26 @@ Res<Render::Image> LoadImage(Arena* arena, s8 path) {
 	Defer { stbi_image_free(imageData); };
 
 	Render::Image image;
-	if (Res<> r = Render::CreateImage(width, height, Render::ImageFormat::R8G8B8A8_N, Render::ImageUsage::Sampled, Render::Sampler{}).To(image); !r) { return r.err; }
+	if (Res<> r = Render::CreateImage(width, height, Render::ImageFormat::R8G8B8A8_UNorm, Render::ImageUsage::Sampled, Render::Sampler{}).To(image); !r) { return r.err; }
 
 	if (Res<> r = Render::BeginCmds(); !r) { return r.err; }
+
 	Render::CmdImageBarrier(
 		image,
 		VK_PIPELINE_STAGE_2_NONE,
 		VK_ACCESS_2_NONE,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-		VK_ACCESS_2_TRANSFER_WRITE_BIT
+		VK_IMAGE_LAYOUT_UNDEFINED,
+		VK_PIPELINE_STAGE_2_COPY_BIT,
+		VK_ACCESS_2_TRANSFER_WRITE_BIT,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 	);
 
-	Render::ImageUpdate update = Render::CmdBeginImageUpdate(image, width * 4);
+	void* ptr = Render::CmdBeginImageUpdate(image);
 	if (channels == 4) {
-		MemCpy(update.ptr, imageData, width * height * channels);
+		MemCpy(ptr, imageData, width * height * channels);
 	} else {
 		u8* in = imageData;
-		u8* out = (u8*)update.ptr;
+		u8* out = (u8*)ptr;
 		for (int y = 0; y < height; y++) {
 			for (int x = 0; x < width; x++) {
 				*out++ = *in++;
@@ -243,20 +267,20 @@ Res<Render::Image> LoadImage(Arena* arena, s8 path) {
 			}
 		}
 	}
-	Render::CmdEndImageUpdate(update);
+	Render::CmdEndImageUpdate(image);
 
 	Render::CmdImageBarrier(
 		image,
-		VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+		VK_PIPELINE_STAGE_2_COPY_BIT,
 		VK_ACCESS_2_TRANSFER_WRITE_BIT,
-		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-		VK_ACCESS_2_SHADER_SAMPLED_READ_BIT
+		VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 	);
-	if (Res<> r = Render::EndCmds(); !r) { return r.err; }
-	if (Res<> r = Render::ImmediateSubmitCmds(); !r ) { return r.err; }
 
-	Render::BindImage(image, 0, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	if (Res<> r = Render::EndCmds(); !r) { return r.err; }
+	if (Res<> r = Render::SubmitCmds(); !r) { return r.err; }
 
 	return image;
 }
@@ -280,7 +304,7 @@ Res<Render::Shader> LoadShader(Arena* arena, s8 path) {
 //--------------------------------------------------------------------------------------------------
 
 struct CubeApp : App {
-	static constexpr u32 MaxEntities = 10000;
+	static constexpr u32 MaxEntities = 1;
 
 	Arena*           temp            = 0;
 	Arena*           perm            = 0;
@@ -288,7 +312,7 @@ struct CubeApp : App {
 	u32              windowWidth     = 0;
 	u32              windowHeight    = 0;
 	Render::Image    depthImage      = {};
-	Mesh             cubeMesh        = {};
+	Mesh             mesh            = {};
 	Render::Image    texture         = {};
 	Render::Shader   vertexShader    = {};
 	Render::Shader   fragmentShader  = {};
@@ -300,6 +324,7 @@ struct CubeApp : App {
 	Vec3             camX            = {};
 	Vec3             camY            = {};
 	Vec3             camZ            = {};
+	bool             recreateDepth   = false;
 
 	Res<> Init(Arena* tempIn, Arena* permIn, Log* logIn, const Window::State* windowState) override {
 		temp = tempIn;
@@ -307,25 +332,20 @@ struct CubeApp : App {
 		log = logIn;
 		windowWidth  = windowState->width;
 		windowHeight = windowState->height;
-
+		
 		if (Res<> r = CreateDepthImage(windowState->width, windowState->height).To(depthImage); !r) { return r; }
-
-		if (Res<> r = CreateCubeMesh().To(cubeMesh); !r) { return r; }
-
+		if (Res<> r = CreateMesh().To(mesh); !r) { return r; }
 		if (Res<> r = LoadImage(temp, "Assets/texture.jpg").To(texture); !r) { return r; }
-
 		if (Res<> r = LoadShader(temp, "Shaders/mesh.vert.spv").To(vertexShader); !r) { return r; }
-
 		if (Res<> r = LoadShader(temp, "Shaders/mesh.frag.spv").To(fragmentShader); !r) { return r; }
 
 		if (Res<> r = Render::CreateGraphicsPipeline(
 			{ vertexShader, fragmentShader },
 			{ Render::GetSwapchainImageFormat() },
-			Render::ImageFormat::D32_F
+			Render::ImageFormat::D32_Float
 		).To(pipeline); !r) { return r; }
 
 		if (Res<> r = Render::CreateBuffer(sizeof(Scene), Render::BufferUsage::Storage).To(sceneBuffer); !r) { return r; }
-
 		sceneBufferAddr = Render::GetBufferAddr(sceneBuffer);
 
 		auto RandomNormal = []() {
@@ -346,8 +366,8 @@ struct CubeApp : App {
 
 		entities = perm->AllocT<Entity>(MaxEntities);
 		for (u32 i = 0; i < MaxEntities; i++) {
-			entities[i].mesh       = cubeMesh;
-			entities[i].pos        = RandomVec3(100.0f);
+			entities[i].mesh       = mesh;
+			entities[i].pos        = RandomVec3(0.0f);
 			entities[i].axis       = RandomNormal();
 			entities[i].angle      = 0.0f;
 			entities[i].angleSpeed = Random::NextF32() / 15.0f;
@@ -357,9 +377,10 @@ struct CubeApp : App {
 	}
 
 	void Shutdown() override {
+		Render::WaitIdle();
 		Render::DestroyImage(depthImage);
-		Render::DestroyBuffer(cubeMesh.vertexBuffer);
-		Render::DestroyBuffer(cubeMesh.indexBuffer);
+		Render::DestroyBuffer(mesh.vertexBuffer);
+		Render::DestroyBuffer(mesh.indexBuffer);
 		Render::DestroyImage(texture);
 		Render::DestroyShader(vertexShader);
 		Render::DestroyShader(fragmentShader);
@@ -401,13 +422,10 @@ struct CubeApp : App {
 					input.pitch +=  (float)e->mouseMove.y;
 					break;
 				case Event::Type::WindowResized:
-					Render::DestroyImage(depthImage);
 					windowWidth  = e->windowResized.width;
 					windowHeight = e->windowResized.height;
 					if (windowWidth && windowHeight) {
-						if (Res<> r = CreateDepthImage(windowWidth, windowHeight).To(depthImage); !r) {
-							return r;
-						}
+						recreateDepth = true;
 					}
 					break;
 			}
@@ -443,61 +461,92 @@ struct CubeApp : App {
 	}
 
 	Res<> Draw() override {
-		const Render::Texture swapChainTexture = Render::GetSwapChainTexture();
+		if (Res<> r = Render::BeginCmds(); !r) { return r; }
 
-		Render::TextureBarrier(swapChainTexture, Render::ResourceState::Present, Render::ResourceState::RenderTarget);
+		if (recreateDepth) {
+			//Render::WaitIdle();
+			Render::DestroyImage(depthImage);
+			//Render::WaitIdle();
+			if (Res<> r = Render::CreateImage(
+				windowWidth,
+				windowHeight,
+				Render::ImageFormat::D32_Float,
+				Render::ImageUsage::DepthAttachment,
+				Render::Sampler{}
+			).To(depthImage); !r) {
+				return r.err;
+			}
 
-		Render::BufferUpdate update = Render::CmdBeginBufferUpdate(sceneBuffer);
-		Scene* const scene = (Scene*)update.ptr;
+			Render::CmdImageBarrier(
+				depthImage,
+				VK_PIPELINE_STAGE_2_NONE,
+				VK_ACCESS_2_NONE,
+				VK_IMAGE_LAYOUT_UNDEFINED,
+				VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+				VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,	// TODO: test without read and see what happens
+				VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL
+			);
+			recreateDepth = false;
+		}
+
+		const Render::Image swapchainImage = Render::GetSwapchainImage();
+		Render::CmdImageBarrier(
+			swapchainImage,
+			VK_PIPELINE_STAGE_2_NONE,
+			VK_ACCESS_2_NONE,
+			VK_IMAGE_LAYOUT_UNDEFINED,
+			VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+			VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+		);
+
+		Scene* const scene = (Scene*)Render::CmdBeginBufferUpdate(sceneBuffer);
 		scene->view    = Mat4::Look(camPos, camX, camY, camZ);
 		scene->proj    = Mat4::Perspective(DegToRad(45.0f), (f32)windowWidth / (f32)windowHeight, 0.01f, 1000.0f);
 		scene->ambient = { 0.1f, 0.1f, 0.1f, 1.0f };
 		Mat4 proj = Mat4::Perspective(DegToRad(45.0f), (f32)windowWidth / (f32)windowHeight, 0.01f, 100000000.0f);
 
-		Render::CmdEndBufferUpdate(update);
-		Render::CmdBufferBarrier(
-			sceneBuffer,
-			VK_PIPELINE_STAGE_2_COPY_BIT,
-			VK_ACCESS_2_TRANSFER_WRITE_BIT, 
-			VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-			VK_ACCESS_2_SHADER_STORAGE_READ_BIT
-		);
+		Render::CmdEndBufferUpdate(sceneBuffer);
 
 		const Render::Pass pass = {
-			.pipeline      = pipeline,
-			.renderTargets = { swapChainTexture },
-			.depthStencil  = {},
-			.viewport      = { .x = 0.0f, .y = 0.0f, .w = (f32)windowWidth, .h = (f32)windowHeight },
-			.scissor       = { .x = 0,    .y = 0,    .w = windowWidth,      .h = windowHeight },
+			.pipeline         = pipeline,
+			.colorAttachments = { swapchainImage },
+			.depthAttachment  = {},//depthImage,
+			.viewport         = { .x = 0.0f, .y = 0.0f, .w = (f32)windowWidth, .h = (f32)windowHeight },
+			.scissor          = { .x = 0,    .y = 0,    .w = windowWidth,      .h = windowHeight },
 		};
 
 		Render::CmdBeginPass(&pass);
 
-		Render::CmdBindIndexBuffer(cubeMesh.indexBuffer);
+		Render::CmdBindIndexBuffer(mesh.indexBuffer);
 
 		for (u64 i = 0; i < MaxEntities; i++) {
 			PushConstants pushConstants = {
 				.model               = Mat4::Mul(Mat4::RotateX(entities[i].angle), Mat4::Mul(Mat4::RotateY(entities[i].angle), Mat4::Translate(entities[i].pos))),
-				.vertexBufferAddr    = cubeMesh.vertexBufferAddr,
+				.vertexBufferAddr    = mesh.vertexBufferAddr,
 				.sceneBufferAddr     = sceneBufferAddr,
 				.color               = {},
 				.imageIdx            = 0,
 			};
-			entities[i].angle += entities[i].angleSpeed;
+			entities[i].angle += 0.0001f;//entities[i].angleSpeed;
 			Render::CmdPushConstants(pipeline, &pushConstants, sizeof(pushConstants));
-			Render::CmdDrawIndexed(cubeMesh.indexCount);
+			Render::CmdDrawIndexed(mesh.indexCount);
 		}
 
 		Render::CmdEndPass();
 
 		Render::CmdImageBarrier(
-			Render::GetCurrentSwapchainImage(),
+			swapchainImage,
 			VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
 			VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-			VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-			VK_ACCESS_2_NONE
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			VK_PIPELINE_STAGE_2_NONE,
+			VK_ACCESS_2_NONE,
+			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
 		);
+
+		if (Res<> r = Render::EndCmds(); !r) { return r; }
+		//if (Res<> r = Render::SubmitCmds(); !r) { return r; }
 
 		return Ok();
 	}
