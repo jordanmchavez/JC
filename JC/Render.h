@@ -85,6 +85,7 @@ u64           GetBufferAddr(Buffer buffer);
 
 Res<Image>    CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usage, Sampler sampler);
 void          DestroyImage(Image image);
+u32           BindImage(Image image);
 
 Res<Shader>   CreateShader(const void* data, u64 len);
 void          DestroyShader(Shader shader);

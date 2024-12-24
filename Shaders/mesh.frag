@@ -4,8 +4,8 @@
 #include "mesh.glsl"
 
 layout (location = 0) in vec2 uvIn;
-layout (location = 1) in vec4 colorIn;
-layout (location = 0) out vec4 colorOut;
+layout (location = 1) in vec4 rgbaIn;
+layout (location = 0) out vec4 rgbaOut;
 
 void main() {
 	vec4 textureColor = texture(
@@ -18,6 +18,6 @@ void main() {
 		uvIn
 	);
 	//colorOut = vec4(1.0f, 1.0f, 1.0f, 1.0f);//textureColor * pushConstants.color;
-	//colorOut = colorIn;
-	colorOut = vec4(0.1f, 0.1f, 0.1f, 0.1f) + textureColor * colorIn;
+	//rgbaOut = rgbaIn;
+	rgbaOut = vec4(0.1f, 0.1f, 0.1f, 0.1f) + textureColor * rgbaIn;
 }

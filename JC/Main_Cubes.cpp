@@ -26,9 +26,11 @@ constexpr ErrCode Err_LoadShader = { .ns = "app", .code = 1 };
 //--------------------------------------------------------------------------------------------------
 
 struct Vertex {
-	Vec3  pos    = {};
-	Vec2  uv     = {};
-	Vec4  color  = {};
+	Vec3  xyz   = {};
+	float pad;
+	Vec2  uv    = {};
+	float pad2[2];
+	Vec4  rgba  = {};
 };
 
 struct Mesh {
@@ -115,35 +117,35 @@ Res<Mesh> CreateMesh() {
 
 	Vertex* const vertices = (Vertex*)Render::CmdBeginBufferUpdate(vertexBuffer);
 	// +Z
-	vertices[ 0] = { .pos = { -1.0f,  1.0f,  1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
-	vertices[ 1] = { .pos = {  1.0f,  1.0f,  1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
-	vertices[ 2] = { .pos = {  1.0f, -1.0f,  1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
-	vertices[ 3] = { .pos = { -1.0f, -1.0f,  1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.0f, 0.0f, 1.0f } };
+	vertices[ 0] = { .xyz = { -1.0f,  1.0f,  1.0f }, .uv = { 0.0, 0.0f }, .rgba = { 0.5f, 0.0f, 0.0f, 1.0f } };
+	vertices[ 1] = { .xyz = {  1.0f,  1.0f,  1.0f }, .uv = { 1.0, 0.0f }, .rgba = { 0.5f, 0.0f, 0.0f, 1.0f } };
+	vertices[ 2] = { .xyz = {  1.0f, -1.0f,  1.0f }, .uv = { 1.0, 1.0f }, .rgba = { 0.5f, 0.0f, 0.0f, 1.0f } };
+	vertices[ 3] = { .xyz = { -1.0f, -1.0f,  1.0f }, .uv = { 0.0, 1.0f }, .rgba = { 0.5f, 0.0f, 0.0f, 1.0f } };
 	// -Z
-	vertices[ 4] = { .pos = {  1.0f,  1.0f, -1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
-	vertices[ 5] = { .pos = { -1.0f,  1.0f, -1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
-	vertices[ 6] = { .pos = { -1.0f, -1.0f, -1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
-	vertices[ 7] = { .pos = {  1.0f, -1.0f, -1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.5f, 0.0f, 1.0f } };
+	vertices[ 4] = { .xyz = {  1.0f,  1.0f, -1.0f }, .uv = { 0.0, 0.0f }, .rgba = { 0.0f, 0.5f, 0.0f, 1.0f } };
+	vertices[ 5] = { .xyz = { -1.0f,  1.0f, -1.0f }, .uv = { 1.0, 0.0f }, .rgba = { 0.0f, 0.5f, 0.0f, 1.0f } };
+	vertices[ 6] = { .xyz = { -1.0f, -1.0f, -1.0f }, .uv = { 1.0, 1.0f }, .rgba = { 0.0f, 0.5f, 0.0f, 1.0f } };
+	vertices[ 7] = { .xyz = {  1.0f, -1.0f, -1.0f }, .uv = { 0.0, 1.0f }, .rgba = { 0.0f, 0.5f, 0.0f, 1.0f } };
 	// +X
-	vertices[ 8] = { .pos = {  1.0f,  1.0f,  1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
-	vertices[ 9] = { .pos = {  1.0f,  1.0f, -1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
-	vertices[10] = { .pos = {  1.0f, -1.0f, -1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
-	vertices[11] = { .pos = {  1.0f, -1.0f,  1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.0f, 0.5f, 1.0f } };
+	vertices[ 8] = { .xyz = {  1.0f,  1.0f,  1.0f }, .uv = { 0.0, 0.0f }, .rgba = { 0.0f, 0.0f, 0.5f, 1.0f } };
+	vertices[ 9] = { .xyz = {  1.0f,  1.0f, -1.0f }, .uv = { 1.0, 0.0f }, .rgba = { 0.0f, 0.0f, 0.5f, 1.0f } };
+	vertices[10] = { .xyz = {  1.0f, -1.0f, -1.0f }, .uv = { 1.0, 1.0f }, .rgba = { 0.0f, 0.0f, 0.5f, 1.0f } };
+	vertices[11] = { .xyz = {  1.0f, -1.0f,  1.0f }, .uv = { 0.0, 1.0f }, .rgba = { 0.0f, 0.0f, 0.5f, 1.0f } };
 	// -X
-	vertices[12] = { .pos = { -1.0f,  1.0f, -1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
-	vertices[13] = { .pos = { -1.0f,  1.0f,  1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
-	vertices[14] = { .pos = { -1.0f, -1.0f,  1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
-	vertices[15] = { .pos = { -1.0f, -1.0f, -1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.5f, 0.0f, 1.0f } };
+	vertices[12] = { .xyz = { -1.0f,  1.0f, -1.0f }, .uv = { 0.0, 0.0f }, .rgba = { 0.5f, 0.5f, 0.0f, 1.0f } };
+	vertices[13] = { .xyz = { -1.0f,  1.0f,  1.0f }, .uv = { 1.0, 0.0f }, .rgba = { 0.5f, 0.5f, 0.0f, 1.0f } };
+	vertices[14] = { .xyz = { -1.0f, -1.0f,  1.0f }, .uv = { 1.0, 1.0f }, .rgba = { 0.5f, 0.5f, 0.0f, 1.0f } };
+	vertices[15] = { .xyz = { -1.0f, -1.0f, -1.0f }, .uv = { 0.0, 1.0f }, .rgba = { 0.5f, 0.5f, 0.0f, 1.0f } };
 	// +Y
-	vertices[16] = { .pos = { -1.0f,  1.0f, -1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
-	vertices[17] = { .pos = {  1.0f,  1.0f, -1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
-	vertices[18] = { .pos = {  1.0f,  1.0f,  1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
-	vertices[19] = { .pos = { -1.0f,  1.0f,  1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.5f, 0.0f, 0.5f, 1.0f } };
+	vertices[16] = { .xyz = { -1.0f,  1.0f, -1.0f }, .uv = { 0.0, 0.0f }, .rgba = { 0.5f, 0.0f, 0.5f, 1.0f } };
+	vertices[17] = { .xyz = {  1.0f,  1.0f, -1.0f }, .uv = { 1.0, 0.0f }, .rgba = { 0.5f, 0.0f, 0.5f, 1.0f } };
+	vertices[18] = { .xyz = {  1.0f,  1.0f,  1.0f }, .uv = { 1.0, 1.0f }, .rgba = { 0.5f, 0.0f, 0.5f, 1.0f } };
+	vertices[19] = { .xyz = { -1.0f,  1.0f,  1.0f }, .uv = { 0.0, 1.0f }, .rgba = { 0.5f, 0.0f, 0.5f, 1.0f } };
 	// -Y
-	vertices[20] = { .pos = { -1.0f, -1.0f,  1.0f }, .uv = { 0.0, 0.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
-	vertices[21] = { .pos = {  1.0f, -1.0f,  1.0f }, .uv = { 1.0, 0.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
-	vertices[22] = { .pos = {  1.0f, -1.0f, -1.0f }, .uv = { 1.0, 1.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
-	vertices[23] = { .pos = { -1.0f, -1.0f, -1.0f }, .uv = { 0.0, 1.0f }, .color = { 0.0f, 0.5f, 0.5f, 1.0f } };
+	vertices[20] = { .xyz = { -1.0f, -1.0f,  1.0f }, .uv = { 0.0, 0.0f }, .rgba = { 0.0f, 0.5f, 0.5f, 1.0f } };
+	vertices[21] = { .xyz = {  1.0f, -1.0f,  1.0f }, .uv = { 1.0, 0.0f }, .rgba = { 0.0f, 0.5f, 0.5f, 1.0f } };
+	vertices[22] = { .xyz = {  1.0f, -1.0f, -1.0f }, .uv = { 1.0, 1.0f }, .rgba = { 0.0f, 0.5f, 0.5f, 1.0f } };
+	vertices[23] = { .xyz = { -1.0f, -1.0f, -1.0f }, .uv = { 0.0, 1.0f }, .rgba = { 0.0f, 0.5f, 0.5f, 1.0f } };
 
 	Render::CmdEndBufferUpdate(vertexBuffer);
 
@@ -304,7 +306,7 @@ Res<Render::Shader> LoadShader(Arena* arena, s8 path) {
 //--------------------------------------------------------------------------------------------------
 
 struct CubeApp : App {
-	static constexpr u32 MaxEntities = 1;
+	static constexpr u32 MaxEntities = 10000;
 
 	Arena*           temp            = 0;
 	Arena*           perm            = 0;
@@ -313,14 +315,15 @@ struct CubeApp : App {
 	u32              windowHeight    = 0;
 	Render::Image    depthImage      = {};
 	Mesh             mesh            = {};
-	Render::Image    texture         = {};
+	Render::Image    image           = {};
+	u32              imageIdx        = 0;
 	Render::Shader   vertexShader    = {};
 	Render::Shader   fragmentShader  = {};
 	Render::Pipeline pipeline        = {};
 	Render::Buffer   sceneBuffer     = {};
 	u64              sceneBufferAddr = 0;
 	Entity*          entities        = 0;
-	Vec3             camPos          = { .x = 0.0f, .y = 0.0f, .z = 20.0f };
+	Vec3             camPos          = { .x = 0.0f, .y = 0.0f, .z = -20.0f };
 	Vec3             camX            = {};
 	Vec3             camY            = {};
 	Vec3             camZ            = {};
@@ -335,7 +338,8 @@ struct CubeApp : App {
 		
 		if (Res<> r = CreateDepthImage(windowState->width, windowState->height).To(depthImage); !r) { return r; }
 		if (Res<> r = CreateMesh().To(mesh); !r) { return r; }
-		if (Res<> r = LoadImage(temp, "Assets/texture.jpg").To(texture); !r) { return r; }
+		if (Res<> r = LoadImage(temp, "Assets/texture.jpg").To(image); !r) { return r; }
+		imageIdx = Render::BindImage(image);
 		if (Res<> r = LoadShader(temp, "Shaders/mesh.vert.spv").To(vertexShader); !r) { return r; }
 		if (Res<> r = LoadShader(temp, "Shaders/mesh.frag.spv").To(fragmentShader); !r) { return r; }
 
@@ -367,7 +371,7 @@ struct CubeApp : App {
 		entities = perm->AllocT<Entity>(MaxEntities);
 		for (u32 i = 0; i < MaxEntities; i++) {
 			entities[i].mesh       = mesh;
-			entities[i].pos        = RandomVec3(0.0f);
+			entities[i].pos        = RandomVec3(100.0f);
 			entities[i].axis       = RandomNormal();
 			entities[i].angle      = 0.0f;
 			entities[i].angleSpeed = Random::NextF32() / 15.0f;
@@ -381,7 +385,7 @@ struct CubeApp : App {
 		Render::DestroyImage(depthImage);
 		Render::DestroyBuffer(mesh.vertexBuffer);
 		Render::DestroyBuffer(mesh.indexBuffer);
-		Render::DestroyImage(texture);
+		Render::DestroyImage(image);
 		Render::DestroyShader(vertexShader);
 		Render::DestroyShader(fragmentShader);
 		Render::DestroyPipeline(pipeline);
@@ -434,7 +438,7 @@ struct CubeApp : App {
 		return Ok();
 	}
 
-	static constexpr float camRotPerSec  = 0.08f;
+	static constexpr float camRotPerSec  = 0.03f;
 	static constexpr float camMovePerSec = 20.0f;
 
 	float camYaw = 0.0f;
@@ -464,9 +468,7 @@ struct CubeApp : App {
 		if (Res<> r = Render::BeginCmds(); !r) { return r; }
 
 		if (recreateDepth) {
-			//Render::WaitIdle();
 			Render::DestroyImage(depthImage);
-			//Render::WaitIdle();
 			if (Res<> r = Render::CreateImage(
 				windowWidth,
 				windowHeight,
@@ -511,7 +513,7 @@ struct CubeApp : App {
 		const Render::Pass pass = {
 			.pipeline         = pipeline,
 			.colorAttachments = { swapchainImage },
-			.depthAttachment  = {},//depthImage,
+			.depthAttachment  = depthImage,
 			.viewport         = { .x = 0.0f, .y = 0.0f, .w = (f32)windowWidth, .h = (f32)windowHeight },
 			.scissor          = { .x = 0,    .y = 0,    .w = windowWidth,      .h = windowHeight },
 		};
@@ -528,7 +530,7 @@ struct CubeApp : App {
 				.color               = {},
 				.imageIdx            = 0,
 			};
-			entities[i].angle += 0.0001f;//entities[i].angleSpeed;
+			entities[i].angle += entities[i].angleSpeed;
 			Render::CmdPushConstants(pipeline, &pushConstants, sizeof(pushConstants));
 			Render::CmdDrawIndexed(mesh.indexCount);
 		}
@@ -550,7 +552,6 @@ struct CubeApp : App {
 
 		return Ok();
 	}
-
 };
 
 //--------------------------------------------------------------------------------------------------

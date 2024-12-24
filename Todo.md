@@ -33,23 +33,11 @@ memory scopes
 [15] VK_NV_external_memory_capabilities, v1
 
 # TODO
-Robin hood hashing
-Check for 64 bits in platform
-ResizeAlloc for array, or at least realloc
-Move disabled warnings to config so it's in code, not project file
-MiMalloc as custom allocator
+console / cvar system
+file logging
+allocator statistics
+vulkan statistics
 
-Windows window console
-Log file output so we have something durable in addition to the console window in case of fatal error
-Temp allocator for containers
-SPrintf require buf size + 1? Will it always write null?
-restrict on allocator returns
-	also malloc annotation
-temp allocator: could track how many segments over multiple frames and only dealloc if unused after X frames
-temp allocator asserts
-temp alloc tracking and debugging
-replace system allocator with mimalloc variant
-proper vm page size
 allocation telemtry: file/line/system, counts and maxes over frames
 	use a separate heap for this
 better solution for large temp allocs than static cap
@@ -235,3 +223,8 @@ memstats / tracing
 window::stateflgs::hidden never being used
 concerned about wasted memory with maps...would be nice if 
 map rehash testing
+camera class
+check: shaderUniformBufferArrayDynamicIndexing, shaderSampledImageArrayDynamicIndexing, shaderStorageBufferArrayDynamicIndexing and shaderStorageImageArrayDynamicIndexing are caps since Vulkan 1.0. Having those false means that the arrays of the relevant resources can only be accessed using a constant index (or even better: any constant expression). Pretty much everyone has those set to true so let’s move on. Vulkan 1.2 added shaderInputAttachmentArrayDynamicIndexing, shaderUniformTexelBufferArrayDynamicIndexing and shaderStorageTexelBufferArrayDynamicIndexing
+	re: https://anki3d.org/resource-uniformity-bindless-access-in-vulkan/
+check: XXXArrayNonUniformIndexing 
+research timeline semaphores and their uses

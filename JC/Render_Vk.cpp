@@ -1230,6 +1230,37 @@ void DestroyImage(Image image) {
 
 //-------------------------------------------------------------------------------------------------
 
+static u32 bindlessDescriptorIdx;
+
+u32 BindImage(Image image) {
+	const ImageObj* const imageObj = imageObjs.Get(image);
+
+	const u32 idx = bindlessDescriptorIdx;
+	bindlessDescriptorIdx++;
+
+	const VkDescriptorImageInfo vkDescriptorImageInfo = {
+		.sampler     = VK_NULL_HANDLE,
+		.imageView   = imageObj->vkImageView,
+		.imageLayout = imageObj->vkImageLayout,
+	};
+	const VkWriteDescriptorSet vkWriteDescriptorSet = {
+		.sType            = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		.pNext            = 0,
+		.dstSet           = vkBindlessDescriptorSet,
+		.dstBinding       = 0,
+		.dstArrayElement  = idx,
+		.descriptorCount  = 1,
+		.descriptorType   = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+		.pImageInfo       = &vkDescriptorImageInfo,
+		.pBufferInfo      = 0,
+		.pTexelBufferView = 0,
+	};
+	vkUpdateDescriptorSets(vkDevice, 1, &vkWriteDescriptorSet, 0, 0);
+	return idx;
+}
+
+//-------------------------------------------------------------------------------------------------
+
 void BindImage(Image image, u32 idx, u64 vkImageLayout) {
 	ImageObj* const imageObj = imageObjs.Get(image);
 	const VkDescriptorImageInfo vkDescriptorImageInfo = {

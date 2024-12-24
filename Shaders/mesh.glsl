@@ -3,13 +3,11 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 
 struct Vertex {
-	vec3  pos;
-	uint pad1;
-	vec3  normal;
-	uint pad2;
+	vec3  xyz;
+	float pad;
 	vec2  uv;
-	uint pad3[2];
-	vec4  color;
+	float pad2[2];
+	vec4  rgba;
 };
 
 layout (buffer_reference, std430) readonly buffer VertexBuffer {
