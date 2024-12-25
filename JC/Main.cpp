@@ -21,12 +21,110 @@ using namespace JC;
 
 //--------------------------------------------------------------------------------------------------
 
+static constexpr ErrCode Err_LoadImage = { .ns = "game", .code = 1 };
+static constexpr ErrCode Err_ImageFmt  = { .ns = "game", .code = 2 };
+
+//--------------------------------------------------------------------------------------------------
+
+struct OrthoCamera {
+};
+
+struct PerspectiveCamera {
+};
+
+struct AtlasEntry {
+	float x1 = 0.0f;
+	float y1 = 0.0f;
+	float x2 = 0.0f;
+	float y2 = 0.0f;
+};
+
+struct Atlas {
+	Render::Image image      = {};
+	AtlasEntry*   entries    = 0;
+	u32           entriesLen = 0;
+};
+
+struct Sprite {
+	Mat2 model     = {};
+	Vec2 xyz       = {};
+	Vec2 uv1       = {};
+	Vec2 uv2       = {};
+	u32  textureId = {};
+	u32  pad       = {};
+};
+
+struct PushConstants {
+	Mat4 viewProj         = {};
+	u64  spriteBufferAddr = 0;
+};
+
+//--------------------------------------------------------------------------------------------------
+
 struct Game : App {
-	Arena*           temp            = 0;
-	Arena*           perm            = 0;
-	Log*             log             = 0;
-	u32              windowWidth     = 0;
-	u32              windowHeight    = 0;
+	struct AtlasEntry {
+		s8   name      = {};
+		Vec2 uv1       = {};
+		Vec2 uv2       = {};
+		u64  imageAddr = 0;
+	};
+
+	Arena*               temp         = 0;
+	Arena*               perm         = 0;
+	Log*                 log          = 0;
+	u32                  windowWidth  = 0;
+	u32                  windowHeight = 0;
+	Array<Render::Image> atlasImages  = {};
+	Array<AtlasEntry>    atlasEntries = {};
+
+	Res<Render::Image> LoadImage(s8 path) {
+		Span<u8> data;
+		if (Res<> r = FS::ReadAll(temp, path).To(data); !r) { return r.err; }
+
+		int width = 0;
+		int height = 0;
+		int channels = 0;
+		u8* imageData = (u8*)stbi_load_from_memory(data.data, (int)data.len, &width, &height, &channels, 0);
+		if (!imageData) {
+			return MakeErr(temp, Err_LoadImage, "path", path, "desc", stbi_failure_reason());
+		}
+		if (channels != 3 && channels != 4) {
+			return MakeErr(temp, Err_ImageFmt, "path", path, "channels", channels);
+		}
+		Defer { stbi_image_free(imageData); };
+
+		Render::Image image;
+		if (Res<> r = Render::CreateImage(width, height, Render::ImageFormat::R8G8B8A8_UNorm, Render::ImageUsage::Sampled).To(image); !r) { return r.err; }
+
+		Render::ImageBarrier(image, Render::Stage::None, Render::Stage::TransferDst);
+		void* ptr = Render::BeginImageUpdate(image);
+		if (channels == 4) {
+			MemCpy(ptr, imageData, width * height * channels);
+		} else {
+			u8* in = imageData;
+			u8* out = (u8*)ptr;
+			for (int y = 0; y < height; y++) {
+				for (int x = 0; x < width; x++) {
+					*out++ = *in++;
+					*out++ = *in++;
+					*out++ = *in++;
+					*out++ = 0xff;
+				}
+			}
+		}
+		Render::EndImageUpdate(image);
+		Render::ImageBarrier(image, Render::Stage::TransferDst, Render::Stage::ShaderSampled);
+
+		return image;
+	}
+
+	Res<> LoadAtlas(s8 name) {
+		Render::Image image = {};
+		if (Res<> r = LoadImage(Fmt(temp, "{}.png", name)).To(image); !r) { return r; }
+
+		if (Res<> r = LoadJson
+	}
+
 
 	Res<> Init(Arena* tempIn, Arena* permIn, Log* logIn, const Window::State* windowState) override {
 		temp = tempIn;
@@ -49,6 +147,7 @@ struct Game : App {
 					break;
 	
 				case Event::Type::Key:
+					if (e->key.key == Event::Key::Escape) { Exit(); }
 					break;
 
 				case Event::Type::MouseMove:
@@ -70,6 +169,7 @@ struct Game : App {
 	}
 
 	Res<> Draw() override {
+		Render::ImageBarrier(Render::GetSwapchainImage(), Render::Stage::None, Render::Stage::Present);
 		return Ok();
 	}
 };

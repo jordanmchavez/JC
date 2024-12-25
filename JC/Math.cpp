@@ -61,11 +61,12 @@ Vec3 Vec3::Normalize(Vec3 b) {
 
 //--------------------------------------------------------------------------------------------------
 
-struct Mat2 {
-	f32 m[2][2];
-
-	static Mat2 Mul(Mat2 a, Mat2 b);
-};
+Mat2 Mat2::Identity() {
+	return Mat2 {
+		1.0f, 0.0f,
+		0.0f, 1.0f,
+	};
+}
 
 Mat2 Mat2::Mul(Mat2 a, Mat2 b) {
 	return Mat2 {

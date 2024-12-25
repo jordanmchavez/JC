@@ -1,0 +1,18 @@
+#version 460
+
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_buffer_reference : require
+
+#include "sprite.common.glsl"
+
+layout (location = 0) in vec2 uvIn;
+layout (location = 1) flat in uint textureIdIn;
+
+layout (location = 0) out vec4 rgbaOut;
+
+void main() {
+    rgbaOut = texture(
+		nonuniformEXT(sampler2D(bindlessTextures[textureIdIn], bindlessSamplers[SamplerId_Nearest])),
+		uvIn
+	);
+}

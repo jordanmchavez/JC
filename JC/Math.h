@@ -39,11 +39,18 @@ struct Vec4 {
 	f32 w = 0.0f;
 };
 
+struct Mat2 {
+	f32 m[2][2];
+
+	static Mat2 Identity();
+	static Mat2 Mul(Mat2 a, Mat2 b);
+};
+
 struct Mat3 {
 	f32 m[3][3];
 
 	static Mat3 Identity();
-	static Mat3 Mul(Mat3 m1, Mat3 m2);
+	static Mat3 Mul(Mat3 a, Mat3 b);
 	static Vec3 Mul(Mat3 m, Vec3 v);
 	static Mat3 RotateX(f32 a);
 	static Mat3 RotateY(f32 a);
@@ -55,7 +62,7 @@ struct Mat4 {
 	f32 m[4][4];
 
 	static Mat4 Identity();
-	static Mat4 Mul(Mat4 m1, Mat4 m2);
+	static Mat4 Mul(Mat4 a, Mat4 b);
 	static Vec4 Mul(Mat4 m, Vec4 v);
 	static Mat4 Translate(Vec3 v);
 	static Mat4 RotateX(f32 a);

@@ -26,6 +26,15 @@ struct Image    { u64 handle = 0; };
 struct Shader   { u64 handle = 0; };
 struct Pipeline { u64 handle = 0; };
 
+enum struct Stage {
+	None,
+	TransferSrc,
+	TransferDst,
+	ShaderSampled,
+	ColorAttachment,
+	Present,
+};
+
 enum struct BufferUsage {
 	Undefined = 0,
 	Storage,
@@ -70,6 +79,7 @@ struct InitDesc {
 	const Window::PlatformDesc* windowPlatformDesc = {};
 };
 
+
 Res<>         Init(const InitDesc* initDesc);
 void          Shutdown();
 
@@ -83,7 +93,7 @@ Res<Buffer>   CreateBuffer(u64 size, BufferUsage usage);
 void          DestroyBuffer(Buffer buffer);
 u64           GetBufferAddr(Buffer buffer);
 
-Res<Image>    CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usage, Sampler sampler);
+Res<Image>    CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usage);
 void          DestroyImage(Image image);
 u32           BindImage(Image image);
 
@@ -96,27 +106,23 @@ void          DestroyPipeline(Pipeline pipeline);
 Res<>         BeginFrame();
 Res<>         EndFrame();
 
-Res<>         BeginCmds();
-Res<>         EndCmds();
-Res<>         SubmitCmds();
+void*         BeginBufferUpdate(Buffer buffer);
+void          EndBufferUpdate(Buffer buffer);
 
-void*         CmdBeginBufferUpdate(Buffer buffer);
-void          CmdEndBufferUpdate(Buffer buffer);
+void*         BeginImageUpdate(Image image);
+void          EndImageUpdate(Image image);
 
-void*         CmdBeginImageUpdate(Image image);
-void          CmdEndImageUpdate(Image image);
+void          BufferBarrier(Buffer buffer, u64 srcStage, u64 srcAccess, u64 dstStage, u64 dstAccess);
+void          ImageBarrier(Image image, Stage src, Stage dst);
 
-void          CmdBufferBarrier(Buffer buffer, u64 srcStage, u64 srcAccess, u64 dstStage, u64 dstAccess);
-void          CmdImageBarrier(Image image, u64 srcStage, u64 srcAccess, u64 srcLayout, u64 dstStage, u64 dstAccess, u64 dstLayout);
+void          BeginPass(const Pass* pass);
+void          EndPass();
 
-void          CmdBeginPass(const Pass* pass);
-void          CmdEndPass();
+void          BindIndexBuffer(Buffer buffer);
 
-void          CmdBindIndexBuffer(Buffer buffer);
+void          PushConstants(Pipeline pipeline, const void* data, u32 len);
 
-void          CmdPushConstants(Pipeline pipeline, const void* data, u32 len);
-
-void          CmdDrawIndexed(u32 indexCount);
+void          DrawIndexed(u32 indexCount);
 
 //--------------------------------------------------------------------------------------------------
 

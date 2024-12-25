@@ -228,3 +228,4 @@ check: shaderUniformBufferArrayDynamicIndexing, shaderSampledImageArrayDynamicIn
 	re: https://anki3d.org/resource-uniformity-bindless-access-in-vulkan/
 check: XXXArrayNonUniformIndexing 
 research timeline semaphores and their uses
+static-ify render
