@@ -15,7 +15,7 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr ErrCode Err_Init = { .ns = "app", .code = 1 };
+DefErr(App, Init);
 
 static Arena  tempInst;
 static Arena  permInst;
@@ -58,6 +58,8 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	temp = &tempInst;
 	perm = &permInst;
 
+	CommonInit(AppPanicFn, temp);
+
 	log = GetLog();
 	log->Init(temp);
 	log->AddFn([](const char* msg, u64 len) {
@@ -67,7 +69,6 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		}
 	});
 
-	SetPanicFn(AppPanicFn);
 
 	Time::Init();
 	FS::Init(temp);
@@ -91,7 +92,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		.displayIdx = Config::GetU32("App.DisplayIdx", 0),
 	};
 	if (Res<> r = Window::Init(&windowInitInfo); !r) {
-		return r.Push(Err_Init);
+		return r.err.Push(Err_Init());
 	}
 
 	Window::PumpMessages();
@@ -171,11 +172,12 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 			Logf("Window size changed: {}x{} -> {}x{}", prevWindowState.width, prevWindowState.height, windowState.width, windowState.height);
 		}
 
-		if (Res<> r = Render::BeginFrame(); !r) {
-			if (r.err->ec != Render::Err_RecreateSwapchain) {
-				return r;
-			}
-			if (r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
+		Render::SwapchainStatus swapchainStatus = {};
+		if (Res<> r = Render::BeginFrame().To(swapchainStatus); !r) {
+			return r;
+		}
+		if (swapchainStatus == Render::SwapchainStatus::NeedsRecreate) {
+			if (Res<> r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
 				return r;
 			}
 			Logf("Recreated swapchain after BeginFrame() with w={}, h={}", windowState.width, windowState.height);
@@ -184,11 +186,11 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 
 		if (Res<> r = app->Draw(); !r) { return r; }
 		
-		if (Res<> r = Render::EndFrame(); !r) {
-			if (r.err->ec != Render::Err_RecreateSwapchain) {
-				return r;
-			}
-			if (r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
+		if (Res<> r = Render::EndFrame().To(swapchainStatus); !r) {
+			return r;
+		}
+		if (swapchainStatus == Render::SwapchainStatus::NeedsRecreate) {
+			if (Res<> r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
 				return r;
 			}
 			Logf("Recreated swapchain after EndFrame() with w={}, h={}", windowState.width, windowState.height);

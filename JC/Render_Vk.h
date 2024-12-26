@@ -20,20 +20,19 @@ namespace JC::Render {
 
 //--------------------------------------------------------------------------------------------------
 
-#define MakeVkErr(arena, vkRes, Fn) \
-	MakeErr(arena, ErrCode { .ns = "vk", .code = (i64)vkRes }, "fn", #Fn, "desc", ResultStr(vkRes))
+template <class... A> struct [[nodiscard]] Err_Vk : JC::Err {
+	static_assert(sizeof...(A) % 2 == 0);
+	Err_Vk(VkResult vkResult, s8 fn, A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, "vk", (u64)vkResult, MakeVArgs("fn", fn, args...)) {}
+};
+template <typename... A> Err_Vk(s8, VkResult, A...) -> Err_Vk<A...>;
 
 #define CheckVk(expr) { \
 	if (const VkResult r = expr; r != VK_SUCCESS) { \
-		return MakeVkErr(temp, r, #expr); \
+		return Err_Vk(r, #expr); \
 	} \
 }
 
 //--------------------------------------------------------------------------------------------------
-
-#if defined Platform_Windows
-	constexpr ErrCode Err_Dll = { .ns = "vk", .code = 1 };
-#endif	// Platform_
 
 void  LoadRootFns();
 void  LoadInstanceFns(VkInstance vkInstance);

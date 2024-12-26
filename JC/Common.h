@@ -325,7 +325,6 @@ template <class... A> [[noreturn]] void Panic(FmtStrSrcLoc<A...> fmtSl, A... arg
 template <class... A> [[noreturn]]        void _AssertFail(SrcLoc sl, s8 expr, FmtStr<A...> fmt, A... args) { VPanic(sl, expr, fmt,  MakeVArgs(args...)); }
 
 using PanicFn = void (SrcLoc sl, s8 expr, s8 fmt, VArgs args);
-PanicFn* SetPanicFn(PanicFn* panicFn);
 
 #define Assert(expr, ...) \
 	do { \
@@ -386,98 +385,71 @@ void  DestroyArena(Arena arena);
 
 //--------------------------------------------------------------------------------------------------
 
-struct ErrCode {
-	s8  ns   = {};
-	i64 code = 0;
-};
-constexpr bool operator==(ErrCode ec1, ErrCode ec2) { return ec1.code == ec2.code && ec1.ns == ec2.ns; }
-constexpr bool operator!=(ErrCode ec1, ErrCode ec2) { return ec1.code != ec2.code || ec1.ns != ec2.ns; }
-
-//--------------------------------------------------------------------------------------------------
-
-struct ArenaSrcLoc {
-	Arena* arena = 0;
-	SrcLoc sl    = {};
-	constexpr ArenaSrcLoc(Arena* arenaIn, SrcLoc slIn = SrcLoc::Here()) { arena = arenaIn; sl = slIn; }
-};
-
-struct ErrCodeSrcLoc {
-	ErrCode ec = {};
-	SrcLoc  sl = {};
-	constexpr ErrCodeSrcLoc(ErrCode ecIn, SrcLoc slIn = SrcLoc::Here()) { ec = ecIn; sl = slIn; }
-};
-
-//--------------------------------------------------------------------------------------------------
-
 struct [[nodiscard]] ErrArg {
 	s8   name = {};
 	VArg arg  = {};
 };
 
-struct [[nodiscard]] Err {
-	Arena*  arena   = 0;
-	Err*    prev    = 0;
+struct [[nodiscard]] ErrObj {
+	ErrObj* prev    = 0;
 	SrcLoc  sl      = {};
-	ErrCode ec      = {};
+	s8      ns      = {};
+	s8      code    = {};
 	u32     argsLen = 0;
 	ErrArg  args[1] = {};	// variable length
+};
 
-	template <class... A> Err* Push(ErrCodeSrcLoc ecSl, A... args) {
-		static_assert(sizeof...(A) % 2 == 0);
-		return VMakeErr(arena, this, ecSl.sl, ecSl.ec, MakeVArgs(args...));
+struct Err {
+	ErrObj* obj = 0;
+
+	constexpr Err() = default;
+	Err(SrcLoc sl, s8 ns, s8 code, VArgs args);
+	Err(SrcLoc sl, s8 ns, u64 code, VArgs args);
+
+	template <class... A> Err Push(Err err) {
+		err.obj->prev = obj;
+		return err;
 	}
 };
 
-Err* VMakeErr(Arena* arena, Err* prev, SrcLoc sl, ErrCode ec, VArgs args);
-
-template <class... A> Err* MakeErr(ArenaSrcLoc arenaSl, ErrCode ec, A... args) {
-	static_assert(sizeof...(A) % 2 == 0);
-	return VMakeErr(arenaSl.arena, 0, arenaSl.sl, ec, MakeVArgs(args...));
-}
+#define DefErr(Ns, Code) \
+	template <class... A> struct [[nodiscard]] Err_##Code : Err { \
+		static_assert(sizeof...(A) % 2 == 0); \
+		Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, #Ns, #Code, MakeVArgs(args...)) {} \
+	}; \
+	template <typename... A> Err_##Code(A...) -> Err_##Code<A...>
 
 //--------------------------------------------------------------------------------------------------
 
 template <class T = void> struct [[nodiscard]] Res;
 
 template <> struct [[nodiscard]] Res<void> {
-	Err* err = 0;
+	Err err = {};
 
 	constexpr Res() = default;
-	constexpr Res(Err* e) { err = e; }	// implicit
+	constexpr Res(Err e) { err = e; }	// implicit
 
-	constexpr operator bool() const { return err == 0; }
+	constexpr operator bool() const { return err.obj == 0; }
 
 	constexpr void Ignore() const {}
-
-	template <class... A> Err* Push(ErrCodeSrcLoc ecSl, A... args) {
-		static_assert(sizeof...(A) % 2 == 0);
-		Assert(err);
-		return VMakeErr(err->arena, err, ecSl.sl, ecSl.ec, MakeVArgs(args...));
-	}
 };
 
 template <class T> struct [[nodiscard]] Res {
 	union {
-		T    val;
-		Err* err;
+		T   val;
+		Err err;
 	};
 	bool hasVal = false;
 
-	constexpr Res()       {          hasVal = false; }
-	constexpr Res(T v)    { val = v; hasVal = true;  }
-	constexpr Res(Err* e) { err = e; hasVal = false; }
+	constexpr Res()      {          hasVal = false; }
+	constexpr Res(T v)   { val = v; hasVal = true;  }
+	constexpr Res(Err e) { err = e; hasVal = false; }
 	constexpr Res(const Res&) = default;
 
 	constexpr operator bool() const { return hasVal; }
 
-	constexpr Err* To(T& out) { if (hasVal) { out = val; return 0; } else { return err; } }
-	constexpr T    Or(T def) { return hasVal ? val : def; }
-
-	template <class... A> Err* Push(ErrCodeSrcLoc ecSl, A... args) {
-		static_assert(sizeof...(A) % 2 == 0);
-		Assert(!hasVal);
-		return VMakeErr(err->arena, err, ecSl.sl, ecSl.ec, MakeVArgs(args...));
-	}
+	constexpr Err To(T& out) { if (hasVal) { out = val; return Err{}; } else { return err; } }
+	constexpr T   Or(T def) { return hasVal ? val : def; }
 };
 
 constexpr Res<> Ok() { return Res<>(); }
@@ -550,6 +522,11 @@ struct Rect {
 	u32 w = 0;
 	u32 h = 0;
 };
+
+//--------------------------------------------------------------------------------------------------
+
+void CommonInit(PanicFn* panicFn, Arena* errArena);
+
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC

@@ -11,14 +11,10 @@ namespace Render {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr ErrCode Err_Version                         = { .ns = "render", .code = 1 };
-static constexpr ErrCode Err_NoLayer                         = { .ns = "render", .code = 2 };
-static constexpr ErrCode Err_NoDevice                        = { .ns = "render", .code = 3 };
-static constexpr ErrCode Err_NoMem                           = { .ns = "render", .code = 4 };
-static constexpr ErrCode Err_RecreateSwapchain               = { .ns = "render", .code = 5 };
-static constexpr ErrCode Err_ShaderTooManyPushConstantBlocks = { .ns = "render", .code = 6 };
-
-//--------------------------------------------------------------------------------------------------
+enum struct SwapchainStatus {
+	Ok,
+	NeedsRecreate,
+};
 
 struct Buffer   { u64 handle = 0; };
 struct Sampler  { u64 handle = 0; };
@@ -103,8 +99,8 @@ void          DestroyShader(Shader shader);
 Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> colorAttachmentFormats, ImageFormat depthAttachmentFormat);
 void          DestroyPipeline(Pipeline pipeline);
 
-Res<>         BeginFrame();
-Res<>         EndFrame();
+Res<SwapchainStatus> BeginFrame();
+Res<SwapchainStatus> EndFrame();
 
 void*         BeginBufferUpdate(Buffer buffer);
 void          EndBufferUpdate(Buffer buffer);

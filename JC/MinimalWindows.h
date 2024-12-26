@@ -53,18 +53,23 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-s8 MakeWinErrorDesc(Arena* arena, u32 code);
+s8 WinErrorDesc(u32 code);
 
-template <class... A> Err* _MakeWinErr(Arena* arena, SrcLoc sl, u32 code, s8 fn, A... args) {
+template <class... A> struct [[nodiscard]] Err_WinLast : JC::Err {
 	static_assert(sizeof...(A) % 2 == 0);
-	return VMakeErr(arena, 0, sl, ErrCode { .ns = "win", .code = code }, MakeVArgs("fn", fn, "desc", MakeWinErrorDesc(arena, code), args...));
-}
+	const u32 lastWinError = GetLastError();
+	Err_WinLast(s8 fn, A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, "win", lastWinError, MakeVArgs("fn", fn, "desc", WinErrorDesc(lastWinError), args...)) {}
+};
+template <typename... A> Err_WinLast(s8, A...) -> Err_WinLast<A...>;
 
-#define MakeLastErr(arena, fn, ...)      _MakeWinErr(arena, SrcLoc::Here(), GetLastError(), #fn, ##__VA_ARGS__)
-#define MakeWinErr(arena, code, fn, ...) _MakeWinErr(arena, SrcLoc::Here(), code, #fn, ##__VA_ARGS__)
+template <class... A> struct [[nodiscard]] Err_Win : JC::Err {
+	static_assert(sizeof...(A) % 2 == 0);
+	Err_Win(u32 winError, s8 fn, A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, "win", winError, MakeVArgs("fn", fn, "desc", WinErrorDesc(winError), args...)) {}
+};
+template <typename... A> Err_Win(u32, s8, A...) -> Err_Win<A...>;
 
-constexpr bool IsInvalidHandle(HANDLE h) {
-	return h == (HANDLE)0 || h == INVALID_HANDLE_VALUE;
+constexpr bool IsValidHandle(HANDLE h) {
+	return h != (HANDLE)0 && h != INVALID_HANDLE_VALUE;
 }
 
 //--------------------------------------------------------------------------------------------------

@@ -8,7 +8,6 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 s8 MakeWinErrorDesc(Arena* arena, u32 code) {
-	const ErrCode ec = { .ns = "win", .code = (u64)code };
 	wchar_t* desc = nullptr;
 	DWORD descLen = FormatMessageW(
 		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,

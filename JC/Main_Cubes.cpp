@@ -74,12 +74,12 @@ Res<Render::Image> CreateDepthImage(u32 width, u32 height) {
 		Render::ImageUsage::DepthAttachment,
 		Render::Sampler{}
 	).To(image); !r) {
-		return r.err;
+		return r;
 	}
 
 	if (Res<> r = Render::BeginCmds(); !r) {
 		Render::DestroyImage(image);
-		return r.err;
+		return r;
 	}
 
 	Render::CmdImageBarrier(
@@ -92,8 +92,8 @@ Res<Render::Image> CreateDepthImage(u32 width, u32 height) {
 		VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL
 	);
 
-	if (Res<> r = Render::EndCmds(); !r) { return r.err; }
-	if (Res<> r = Render::SubmitCmds(); !r) { return r.err; }
+	if (Res<> r = Render::EndCmds(); !r) { return r; }
+	if (Res<> r = Render::SubmitCmds(); !r) { return r; }
 
 	return image;
 }
@@ -103,16 +103,16 @@ Res<Render::Image> CreateDepthImage(u32 width, u32 height) {
 Res<Mesh> CreateMesh() {
 	Render::Buffer vertexBuffer = {};
 	if (Res<> r = Render::CreateBuffer(24 * sizeof(Vertex), Render::BufferUsage::Storage).To(vertexBuffer); !r) {
-		return r.err;
+		return r;
 	}
 	Render::Buffer indexBuffer = {};
 	if (Res<> r = Render::CreateBuffer(36 * sizeof(u32), Render::BufferUsage::Index).To(indexBuffer); !r) {
 		Render::DestroyBuffer(vertexBuffer);
-		return r.err;
+		return r;
 	}
 
 	if (Res<> r = Render::BeginCmds(); !r) {
-		return r.err;
+		return r;
 	}
 
 	Vertex* const vertices = (Vertex*)Render::CmdBeginBufferUpdate(vertexBuffer);
@@ -211,8 +211,8 @@ Res<Mesh> CreateMesh() {
 		VK_ACCESS_2_SHADER_STORAGE_READ_BIT
 	);
 
-	if (Res<> r = Render::EndCmds(); !r) { return r.err; }
-	if (Res<> r = Render::SubmitCmds(); !r) { return r.err; }
+	if (Res<> r = Render::EndCmds(); !r) { return r; }
+	if (Res<> r = Render::SubmitCmds(); !r) { return r; }
 
 	return Mesh {
 		.vertexBuffer     = vertexBuffer,
@@ -227,7 +227,7 @@ Res<Mesh> CreateMesh() {
 
 Res<Render::Image> LoadImage(Arena* arena, s8 path) {
 	Span<u8> data;
-	if (Res<> r = FS::ReadAll(arena, path).To(data); !r) { return r.err; }
+	if (Res<> r = FS::ReadAll(arena, path).To(data); !r) { return r; }
 
 	int width = 0;
 	int height = 0;
@@ -240,9 +240,9 @@ Res<Render::Image> LoadImage(Arena* arena, s8 path) {
 	Defer { stbi_image_free(imageData); };
 
 	Render::Image image;
-	if (Res<> r = Render::CreateImage(width, height, Render::ImageFormat::R8G8B8A8_UNorm, Render::ImageUsage::Sampled, Render::Sampler{}).To(image); !r) { return r.err; }
+	if (Res<> r = Render::CreateImage(width, height, Render::ImageFormat::R8G8B8A8_UNorm, Render::ImageUsage::Sampled, Render::Sampler{}).To(image); !r) { return r; }
 
-	if (Res<> r = Render::BeginCmds(); !r) { return r.err; }
+	if (Res<> r = Render::BeginCmds(); !r) { return r; }
 
 	Render::CmdImageBarrier(
 		image,
@@ -281,8 +281,8 @@ Res<Render::Image> LoadImage(Arena* arena, s8 path) {
 		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 	);
 
-	if (Res<> r = Render::EndCmds(); !r) { return r.err; }
-	if (Res<> r = Render::SubmitCmds(); !r) { return r.err; }
+	if (Res<> r = Render::EndCmds(); !r) { return r; }
+	if (Res<> r = Render::SubmitCmds(); !r) { return r; }
 
 	return image;
 }
@@ -476,7 +476,7 @@ struct CubeApp : App {
 				Render::ImageUsage::DepthAttachment,
 				Render::Sampler{}
 			).To(depthImage); !r) {
-				return r.err;
+				return r;
 			}
 
 			Render::CmdImageBarrier(

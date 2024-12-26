@@ -21,8 +21,8 @@ using namespace JC;
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr ErrCode Err_LoadImage = { .ns = "game", .code = 1 };
-static constexpr ErrCode Err_ImageFmt  = { .ns = "game", .code = 2 };
+DefErr(Game, LoadImage);
+DefErr(Game, ImageFmt);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -86,10 +86,10 @@ struct Game : App {
 		int channels = 0;
 		u8* imageData = (u8*)stbi_load_from_memory(data.data, (int)data.len, &width, &height, &channels, 0);
 		if (!imageData) {
-			return MakeErr(temp, Err_LoadImage, "path", path, "desc", stbi_failure_reason());
+			return Err_LoadImage("path", path, "desc", stbi_failure_reason());
 		}
 		if (channels != 3 && channels != 4) {
-			return MakeErr(temp, Err_ImageFmt, "path", path, "channels", channels);
+			return Err_ImageFmt("path", path, "channels", channels);
 		}
 		Defer { stbi_image_free(imageData); };
 
@@ -122,7 +122,8 @@ struct Game : App {
 		Render::Image image = {};
 		if (Res<> r = LoadImage(Fmt(temp, "{}.png", name)).To(image); !r) { return r; }
 
-		if (Res<> r = LoadJson
+		//if (Res<> r = LoadJson
+		return Ok();
 	}
 
 

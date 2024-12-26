@@ -22,6 +22,14 @@ namespace JC::Render {
 
 //--------------------------------------------------------------------------------------------------
 
+DefErr(Render, Version);
+DefErr(Render, NoLayer);
+DefErr(Render, NoDevice);
+DefErr(Render, NoMem);
+DefErr(Render, ShaderTooManyPushConstantBlocks);
+
+//--------------------------------------------------------------------------------------------------
+
 #define DestroyVk(h, DestroyFn) \
 	if (h != VK_NULL_HANDLE) { \
 		DestroyFn(vkDevice, h, vkAllocationCallbacks); \
@@ -240,7 +248,7 @@ static Res<> InitInstance() {
 	u32 instanceVersion = 0;
 	CheckVk(vkEnumerateInstanceVersion(&instanceVersion));
 	if (instanceVersion < VK_API_VERSION_1_3) {
-		return MakeErr(temp, Err_Version, "ver", instanceVersion);
+		return Err_Version("ver", instanceVersion);
 	}
 
 	u32 n = 0;
@@ -273,7 +281,7 @@ static Res<> InitInstance() {
 			}
 		}
 		if (!found) {
-			return MakeErr(temp, Err_NoLayer, "name", RequiredLayers[i]);
+			return Err_NoLayer("name", RequiredLayers[i]);
 		}
 	}
 	
@@ -305,7 +313,7 @@ static Res<> InitInstance() {
 			}
 		}
 		if (!found) {
-			return MakeErr(temp, Err_NoLayer, "name", RequiredInstExts[i]);
+			return Err_NoLayer("name", RequiredInstExts[i]);
 		}
 	}
 		
@@ -549,7 +557,7 @@ static Res<> InitDevice() {
 	}
 
 	if (bestScore == 0) {
-		return MakeErr(temp, Err_NoDevice);
+		return Err_NoDevice();
 	}
 	Logf("Selected physical device '{}' with score={}", physicalDevice->vkPhysicalDeviceProperties.deviceName, physicalDevice->score);
 
@@ -888,7 +896,7 @@ static Res<Mem> AllocateMem(VkMemoryRequirements vkMemoryRequirements, VkMemoryP
 		}
 	}
 	if (memType == U32Max) {
-		return MakeErr(temp, Err_NoMem);
+		return Err_NoMem();
 	}
 	const VkMemoryAllocateFlagsInfo vkMemoryAllocateFlagsInfo = {
 		.sType      = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
@@ -956,7 +964,7 @@ static Res<BufferObj> CreateBufferInternal(
 	if (const VkResult r = vkBindBufferMemory(vkDevice, vkBuffer, mem.vkDeviceMemory, 0); r != VK_SUCCESS) {
 		vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
 		FreeMem(mem);
-		return MakeVkErr(temp, r, vkBindBufferMemory);
+		return Err_Vk(r, "vkBindBufferMemory");
 	}
 
 	u64 addr = 0;
@@ -1238,7 +1246,7 @@ Res<Image> CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usa
 	if (const VkResult r = vkBindImageMemory(vkDevice, vkImage, mem.vkDeviceMemory, 0); r != VK_SUCCESS) {
 		vkDestroyImage(vkDevice, vkImage, vkAllocationCallbacks);
 		FreeMem(mem);
-		return MakeVkErr(temp, r, vkBindImageMemory);
+		return Err_Vk(r, "vkBindImageMemory");
 	}
 
 	const VkImageViewCreateInfo vkImageViewCreateInfo = {
@@ -1255,7 +1263,7 @@ Res<Image> CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usa
 	if (VkResult r = vkCreateImageView(vkDevice, &vkImageViewCreateInfo, vkAllocationCallbacks, &vkImageView); r != VK_SUCCESS) {
 		vkDestroyImage(vkDevice, vkImage, vkAllocationCallbacks);
 		FreeMem(mem);
-		return MakeVkErr(temp, r, vkCreateImageView);
+		return Err_Vk(r, "vkCreateImageView");
 	}
 
 	const Image image = imageObjs.Alloc();
@@ -1646,7 +1654,7 @@ void DestroyPipeline(Pipeline pipeline) {
 
 //-------------------------------------------------------------------------------------------------
 
-Res<> BeginFrame() {
+Res<SwapchainStatus> BeginFrame() {
 	if (frameIdx == 0) {
 		stagingBufferUsed = 0;
 	}
@@ -1664,7 +1672,7 @@ Res<> BeginFrame() {
 
 //----------------------------------------------------------------------------------------------
 
-Res<> EndFrame() {
+Res<SwapchainStatus> EndFrame() {
 	CheckVk(vkEndCommandBuffer(vkFrameCommandBuffers[frameIdx]));
 
 	const VkSemaphoreSubmitInfo vkWaitSemaphoreSubmitInfo = {
@@ -1715,7 +1723,7 @@ Res<> EndFrame() {
 	};
 	if (VkResult r = vkQueuePresentKHR(vkQueue, &vkPresentInfoKHR); r != VK_SUCCESS) {
 		if (r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_OUT_OF_DATE_KHR) {
-			return MakeVkErr(temp, r, "vkAcquireNextImageKHR")->Push(Err_RecreateSwapchain);
+			return SwapchainStatus::NeedsRecreate;
 		} else {
 			return MakeVkErr(temp, r, "vkAcquireNextImageKHR");
 		}

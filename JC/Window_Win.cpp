@@ -251,7 +251,7 @@ Res<> Init(const InitInfo* initInfo) {
 		.hIconSm       = 0,
 	};
 	if (!RegisterClassExW(&wndClassExW)) {
-		return MakeLastErr(temp, RegisterClassExW);
+		return Err_WinLast("RegisterClassExW");
 	}
 
 	const s16z titlew = Utf8ToWtf16z(temp, initInfo->title);

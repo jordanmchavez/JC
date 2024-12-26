@@ -34,17 +34,14 @@ struct LogObj : Log {
 		}
 	}
 
-	void Error(Err* err, SrcLoc sl) override {
+	void Error(Err err, SrcLoc sl) override {
 		Array<char> arr(temp);
-		Fmt(&arr, "!!! {}({}): ", sl.file, sl.line);
-		for (Err* e = err; e; e = e->prev) {
-			Fmt(&arr, "{}[{}]:", e->ec.ns, e->ec.code);
-		}
-		arr.data[arr.len - 1] = '\n';	// overwrite trailing ':'
-		for (Err* e = err; e; e = e->prev) {
-			Fmt(&arr, "  {}({}): {}[{}]\n", e->sl.file, e->sl.line, e->ec.ns, e->ec.code);
+		Fmt(&arr, "!!! Error:");
+
+		for (ErrObj* e = err.obj; e; e = e->prev) {
+			Fmt(&arr, "{}({}): {}:{}\n", sl.file, sl.line, err.obj->ns, err.obj->code);
 			for (u32 i = 0; i < e->argsLen; i++) {
-				Fmt(&arr, "    '{}' = {}\n", e->args[i].name, e->args[i].arg);
+				Fmt(&arr, "  '{}' = {}\n", e->args[i].name, e->args[i].arg);
 			}
 		}
 		arr.data[arr.len] = '\0';	// replace trailing '\n'

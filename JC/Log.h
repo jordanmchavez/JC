@@ -17,7 +17,7 @@ struct Log {
 	virtual void Init(Arena* temp) = 0;
 
 	virtual void VPrint(SrcLoc sl, LogCategory category, s8 fmt, VArgs args) = 0;
-	virtual void Error(Err* err, SrcLoc sl = SrcLoc::Here()) = 0;
+	virtual void Error(Err err, SrcLoc sl = SrcLoc::Here()) = 0;
 
 	template <class... A> void Print(FmtStrSrcLoc<A...> fmtSl, A... args) { VPrint(fmtSl.sl, LogCategory::Log, fmtSl.fmt, MakeVArgs(args...)); }
 	template <class... A> void Error(FmtStrSrcLoc<A...> fmtSl, A... args) { VPrint(fmtSl.sl, LogCategory::Error, fmtSl.fmt, MakeVArgs(args...)); }

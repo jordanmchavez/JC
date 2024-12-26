@@ -15,8 +15,8 @@ void Init(Arena* tempIn) {
 
 Res<File> Open(s8 path) {
 	HANDLE h = CreateFileW(Utf8ToWtf16z(temp, path).data, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
-	if (IsInvalidHandle(h)) {
-		return MakeLastErr(temp, CreateFileW, "path", path);
+	if (!IsValidHandle(h)) {
+		return Err_WinLast("CreateFileW", "path", path);
 	}
 	return File { .handle = (u64)h };
 }
@@ -24,7 +24,7 @@ Res<File> Open(s8 path) {
 Res<u64> Len(File file) {
 	LARGE_INTEGER fileSize;
 	if (GetFileSizeEx((HANDLE)file.handle, &fileSize) == 0) {
-		return MakeLastErr(temp, GetFileSizeEx);
+		return Err_WinLast("GetFileSizeEx");
 	}
 	return fileSize.QuadPart;
 }
@@ -36,7 +36,7 @@ Res<> Read(File file, void* out, u64 outLen) {
 		const u32 bytesToRead = rem > U32Max ? U32Max : (u32)rem;
 		DWORD bytesRead = 0;
 		if (ReadFile((HANDLE)file.handle, (u8*)out + offset, bytesToRead, &bytesRead, 0) == FALSE) {
-			return MakeLastErr(temp, ReadFile);
+			return Err_WinLast("ReadFile");
 		}
 		offset += bytesRead;
 	}
