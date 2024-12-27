@@ -39,7 +39,11 @@ struct LogObj : Log {
 		Fmt(&arr, "!!! {}({}): Error:", sl.file, sl.line);
 
 		for (Err e = err; e.handle; e = e.GetPrev()) {
-			Fmt(&arr, "{}({}): {}:{}\n", e.GetSrcLoc().file, e.GetSrcLoc().line, e.GetNs(), e.GetCode());
+			if (e.GetS8Code() != "") {
+				Fmt(&arr, "{}({}): {}:{}\n", e.GetSrcLoc().file, e.GetSrcLoc().line, e.GetNs(), e.GetS8Code());
+			} else {
+				Fmt(&arr, "{}({}): {}:{}\n", e.GetSrcLoc().file, e.GetSrcLoc().line, e.GetNs(), e.GetI64Code());
+			}
 			Span<NamedArg> namedArgs = e.GetNamedArgs();
 			for (u32 i = 0; i < namedArgs.len; i++) {
 				Fmt(&arr, "  '{}' = {}\n", namedArgs[i].name, namedArgs[i].varg);

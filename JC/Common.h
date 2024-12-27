@@ -422,8 +422,6 @@ void  DestroyArena(Arena arena);
 
 //--------------------------------------------------------------------------------------------------
 
-void InitErr(Arena* temp);
-
 struct NamedArg {
 	s8   name = {};
 	VArg varg  = {};
@@ -432,25 +430,22 @@ struct NamedArg {
 struct [[nodiscard]] Err {
 	u64 handle = 0;
 
-	Err            GetPrev() const;
-	SrcLoc         GetSrcLoc() const;
-	s8             GetNs() const;
-	s8             GetCode() const;
-	Span<NamedArg> GetNamedArgs() const;
 
 	static void SetArena(Arena* arena);
 
 	Err() = default;
 
-	template <class...A> Err(SrcLoc sl, A... args) {
-		static_assert(sizeof...(A) > 0 && sizeof...(A) % 2 == 0);
+	template <class...A> Err(SrcLoc sl, s8 ns, s8 s8Code, i64 i64Code, A... args) {
+		static_assert(sizeof...(A) % 2 == 0);
 		constexpr u64 NamedArgsLen = sizeof...(A) / 2;
-		NamedArg namedArgs[NamedArgsLen] = {};
-		BuildNamedArgsInternal(namedArgs, args...);
-		Init(sl, Span<NamedArg>(namedArgs, NamedArgsLen));
+		NamedArg namedArgs[NamedArgsLen > 0 ? NamedArgsLen : 1] = {};
+		if constexpr (NamedArgsLen > 0) {
+			BuildNamedArgsInternal(namedArgs, args...);
+		}
+		Init(sl, ns, s8Code, i64Code, Span<NamedArg>(namedArgs, NamedArgsLen));
 	}
 
-	void Init(SrcLoc sl, Span<NamedArg> namedArgs);
+	void Init(SrcLoc sl, s8 ns, s8 s8Code, i64 i64Code, Span<NamedArg> namedArgs);
 
 	template <class T> static void BuildNamedArgsInternal(NamedArg* namedArgs, s8 name, T arg) {
 		namedArgs->name = name;
@@ -474,11 +469,18 @@ struct [[nodiscard]] Err {
 		BuildNamedArgsInternal(namedArgs, args...);
 		AddInternal(namedArgs);
 	}
+
+	Err            GetPrev() const;
+	SrcLoc         GetSrcLoc() const;
+	s8             GetNs() const;
+	s8             GetS8Code() const;
+	i64            GetI64Code() const;
+	Span<NamedArg> GetNamedArgs() const;
 };
 
 #define DefErr(Ns, Code) \
 	template <class... A> struct Err_##Code : Err { \
-		Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, "ns", #Ns, "code", #Code, args...) {} \
+		Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, #Ns, #Code, 0, args...) {} \
 	}; \
 	template <class...A> Err_##Code(A...) -> Err_##Code<A...>
 

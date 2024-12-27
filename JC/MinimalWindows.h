@@ -55,16 +55,16 @@ namespace JC {
 
 template <class... A> struct [[nodiscard]] Err_WinLast : Err {
 	static_assert(sizeof...(A) % 2 == 0);
-	const u32 lastWinError = GetLastError();
+	const u32 code = GetLastError();
 	Err_WinLast(s8 fn, A... args, SrcLoc sl = SrcLoc::Here())
-		: Err(sl, "Win", "System", "code", lastWinError, "fn", fn, args...)
+		: Err(sl, "Win", "", code, "fn", fn, args...)
 	{}
 };
 template <typename... A> Err_WinLast(s8, A...) -> Err_WinLast<A...>;
 
 template <class... A> struct [[nodiscard]] Err_Win : JC::Err {
 	static_assert(sizeof...(A) % 2 == 0);
-	Err_Win(u32 winError, s8 fn, A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, "win", winError, MakeVArgs("fn", fn, args...)) {}
+	Err_Win(u32 code, s8 fn, A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, "win", "", code, "fn", fn, args...) {}
 };
 template <typename... A> Err_Win(u32, s8, A...) -> Err_Win<A...>;
 
