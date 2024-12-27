@@ -1,6 +1,7 @@
 #include "JC/Json.h"
 
 #include "JC/Array.h"
+#include <math.h>
 
 namespace JC::Json {
 
@@ -11,6 +12,9 @@ DefErr(Json, UnmatchedBlockComment);
 DefErr(Json, UnexpectedEof);
 DefErr(Json, UnexpectedChar);
 DefErr(Json, BadExponent);
+DefErr(Json, BadNumber);
+DefErr(Json, ExponentWithoutDecimal);
+
 
 //--------------------------------------------------------------------------------------------------
 
@@ -152,64 +156,87 @@ Res<Elem> ParseFalse(ParseCtx* p) {
 }
 
 Res<Elem> ParseNum(Arena* arena, ParseCtx* p) {
-	Assert(p->iter < p->end);
-
 	const char* i = p->iter;
 	const char* const e = p->end;
 
-	double sign = 1.0;
-	if (i[0] == '-') {
+	Assert(i < e);
+
+	f64 sign = 1.0;
+	if (*i == '-') {
 		sign = -1.0;
 		i++;
 	}
 
 	u64 intVal = 0;
-	while (i < e && i[0] >= '0' && i[0] <= '9') {
-		intVal = (intVal * 10) + (i[0] - '0');
-		i++;
+	if (i < e) {
+		if (*i == '0') {
+		} else if (*i >= '1' && *i <= '9') {
+			intVal = *i - '0';
+			i++;
+			while (i < e && *i >= '0' && *i <= '9') {
+				intVal = (intVal * 10) + (*i - '0');
+				i++;
+			}
+		} else {
+			return Err_BadNumber("line", p->line, "ch", *i);
+		}
 	}
 
 	u64 fracVal = 0;
-	if (i < e && i[0] == '.') {
+	f64 fracDenom = 1;
+	bool isFloat = false;
+	if (i < e && *i == '.') {
+		isFloat = true;
 		i++;
-		while (i < e && i[0] >= '0' && i[0] <= '9') {
-			const u64 newFracVal = (fracVal * 10) + (i[0] - '0');
+		while (i < e && *i >= '0' && *i <= '9') {
+			const u64 newFracVal = (fracVal * 10) + (*i - '0');
 			if (newFracVal < fracVal) {
 				// overflow, skip remainder
-				while (i < e && i[0] >= '0' && i[0] <= '9') {
+				while (i < e && *i >= '0' && *i <= '9') {
 					i++;
 				}
 				break;
 			}
 			fracVal = newFracVal;
+			fracDenom *= 10;
 			i++;
 		}
 	}
-	/*
-	double expSign = 1.0;
+
+	f64 expSign = 1.0;
 	u32 exp = 0;
-	if (i < e && i[0] == 'e' || i[0] == 'E') {
+	if (i < e && *i == 'e' || *i == 'E') {
+		if (!isFloat) { return Err_ExponentWithoutDecimal("line", p->line); }
 		i++;
-		if (i >= e) {
-			return Err_Exponent("line", p->line);
+		if (i >= e) { return Err_BadExponent("line", p->line); }
+		if (*i == '+') {
+			i++;
+		} else if (*i == '-') {
+			expSign = -1.0;
+			i++;
 		}
-			if (i[0] == '+') {
-				i++;
-			} else if (i[0] == '-') {
-				expSign = -1.0;
-				i++;
-			}
+		if (i >= e || *i < '1' || *i > '9') {  return Err_BadExponent("line", p->line); }
+		exp = *i - '0';
+		i++;
+		while (i < e && *i >= '0' && *i <= '9') {
+			exp = (exp * 10) + (*i - '0');
+			i++;
 		}
-		
 	}
-	*/
+
 	p->iter = i;
 	p->end = e;
-	arena;
+
+	const double val = sign * ((double)intVal + ((double)fracVal / fracDenom)) * pow(10.0, expSign * (double)exp;
+
+	return AddF64(arena, val);
+
+	finally fix err to not require allocation;
 }
-/*
-Res<Elem> ParseStr(ParseCtx* p) {
-	p; return 
+
+Res<Elem> ParseStr(Arena* arena, ParseCtx* p) {
+	
+	Assert(p->
 }
 
 Res<Elem> ParseArr(ParseCtx* p) {
@@ -217,7 +244,7 @@ Res<Elem> ParseArr(ParseCtx* p) {
 
 Res<Elem> ParseObj(ParseCtx* p) {
 }
-*/
+
 Res<Elem> ParseElem(Arena* arena, ParseCtx* p) {
 	if (p->iter >= p->end) {
 		return NullElem;
@@ -242,12 +269,12 @@ Res<Elem> ParseElem(Arena* arena, ParseCtx* p) {
 		case '.':
 		case '-': return ParseNum(arena, p);
 
-/*		case '"': return ParseStr(arena, p);
+		case '"': return ParseStr(arena, p);
 		
 		case '[': return ParseArr(arena, p);
 
 		case '{': return ParseObj(p);
-	*/	
+
 		default: return Err_UnexpectedChar("line", p->line, "ch", p->iter[0]);
 	}
 }
@@ -260,8 +287,14 @@ Res<Elem> Parse(Arena* arena, s8 str) {
 	};
 
 	if (Res<> r = SkipWhitespace(&p); !r) { return r.err; }
+	Elem elem = {};
+	if (Res<> r = ParseElem(arena, &p).To(elem); !r) { return r; };
+	if (Res<> r = SkipWhitespace(&p); !r) { return r.err; }
+	if (p.iter < p.end) {
+		return Err_UnexpectedChar("line", p.line, "ch", p.ter[0]);
+	}
 
-	return ParseElem(arena, &p);
+	return Elem;
 }
 
 //--------------------------------------------------------------------------------------------------

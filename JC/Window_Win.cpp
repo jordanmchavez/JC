@@ -228,12 +228,12 @@ Res<> Init(const InitInfo* initInfo) {
 	log  = initInfo->log;
 
 	if (EnumDisplayMonitors(0, 0, MonitorEnumFn, 0) == FALSE) {
-		return MakeLastErr(temp, EnumDisplayMonitors);
+		return Err_WinLast("EnumDisplayMonitors");
 	}
 	Assert(displaysLen > 0);
 
 	if (SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) == FALSE) {
-		return MakeLastErr(temp, SetProcessDpiAwarenessContext);
+		return Err_WinLast("SetProcessDpiAwarenessContext");
 	}
 
 	const WNDCLASSEXW wndClassExW = {
@@ -311,7 +311,7 @@ Res<> Init(const InitInfo* initInfo) {
 		0
 	);
 	if (!window.hwnd) {
-		return MakeLastErr(temp, CreateWindowExW);
+		return Err_WinLast("CreateWindowExW");
 	}
 
 	window.windowRect.x = r.left;

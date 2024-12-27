@@ -27,6 +27,7 @@ DefErr(Render, NoLayer);
 DefErr(Render, NoDevice);
 DefErr(Render, NoMem);
 DefErr(Render, ShaderTooManyPushConstantBlocks);
+DefErr(Render, SpvReflect);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -1353,12 +1354,12 @@ void BindImage(Image image, u32 idx, u64 vkImageLayout) {
 Res<Shader> CreateShader(const void* data, u64 len) {
 	SpvReflectShaderModule spvReflectShaderModule = {};
 	if (const SpvReflectResult r = spvReflectCreateShaderModule2(SPV_REFLECT_MODULE_FLAG_NO_COPY, len, data, &spvReflectShaderModule); r != SPV_REFLECT_RESULT_SUCCESS) {
-		return MakeErr(temp, ErrCode { .ns = "spirv", .code = (i64)r });
+		return Err_SpvReflect("code", r, "fn", "spvReflectCreateShaderModule2");
 	}
 
 	if (spvReflectShaderModule.push_constant_block_count > 1) {
 		spvReflectDestroyShaderModule(&spvReflectShaderModule);
-		return MakeErr(temp, Err_ShaderTooManyPushConstantBlocks);
+		return Err_SpvReflect("push_constant_block_count", spvReflectShaderModule.push_constant_block_count, "fn", "Err_ShaderTooManyPushConstantBlocks");
 	}
 
 	const VkShaderModuleCreateInfo vkShaderModuleCreateInfo = {
@@ -1371,7 +1372,7 @@ Res<Shader> CreateShader(const void* data, u64 len) {
 	VkShaderModule vkShaderModule = VK_NULL_HANDLE;
 	if (const VkResult r = vkCreateShaderModule(vkDevice, &vkShaderModuleCreateInfo, vkAllocationCallbacks, &vkShaderModule); r != VK_SUCCESS) {
 		spvReflectDestroyShaderModule(&spvReflectShaderModule);
-		return MakeVkErr(temp, r, vkCreateShaderModule);
+		return Err_Vk(r, "vkCreateShaderModule");
 	}
 
 	const Shader shader = shaderObjs.Alloc();
@@ -1447,7 +1448,7 @@ Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> col
 	};
 	VkPipelineLayout vkPipelineLayout;
 	if (const VkResult r = vkCreatePipelineLayout(vkDevice, &vkPipelineLayoutCreateInfo, vkAllocationCallbacks, &vkPipelineLayout); r != VK_SUCCESS) {
-		return MakeVkErr(temp, r, vkCreatePipelineLayout);
+		return Err_Vk(r, "vkCreatePipelineLayout");
 	}
 
 	const VkPipelineVertexInputStateCreateInfo vkPipelineVertexInputStateCreateInfo = {
@@ -1628,7 +1629,7 @@ Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> col
 	VkPipeline vkPipeline = VK_NULL_HANDLE;
 	if (const VkResult r = vkCreateGraphicsPipelines(vkDevice, 0, 1, &vkGraphicsPipelineCreateInfo, vkAllocationCallbacks, &vkPipeline); r != VK_SUCCESS) {
 		vkDestroyPipelineLayout(vkDevice, vkPipelineLayout, vkAllocationCallbacks);
-		return MakeVkErr(temp, r, vkCreateGraphicsPipelines);
+		return Err_Vk(r, "vkCreateGraphicsPipelines");
 	}
 
 	const Pipeline pipeline = pipelineObjs.Alloc();
@@ -1661,13 +1662,13 @@ Res<SwapchainStatus> BeginFrame() {
 
 	if (VkResult r = vkAcquireNextImageKHR(vkDevice, vkSwapchain, U64Max, vkFrameAcquireImageSemaphores[frameIdx], 0, &swapchainImageIdx); r != VK_SUCCESS) {
 		if (r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_OUT_OF_DATE_KHR) {
-			return MakeVkErr(temp, r, "vkAcquireNextImageKHR")->Push(Err_RecreateSwapchain);
+			return SwapchainStatus::NeedsRecreate;
 		} else {
-			return MakeVkErr(temp, r, "vkAcquireNextImageKHR");
+			return Err_Vk(r, "vkAcquireNextImageKHR");
 		}
 	}
 
-	return Ok();
+	return SwapchainStatus::Ok;
 };
 
 //----------------------------------------------------------------------------------------------
@@ -1725,17 +1726,17 @@ Res<SwapchainStatus> EndFrame() {
 		if (r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_OUT_OF_DATE_KHR) {
 			return SwapchainStatus::NeedsRecreate;
 		} else {
-			return MakeVkErr(temp, r, "vkAcquireNextImageKHR");
+			return Err_Vk(r, "vkAcquireNextImageKHR");
 		}
 	}
 
 	frameIdx = (frameIdx + 1) % MaxFrames;
 
 	if (Res<> r = BeginCmds(); !r) {
-		return r;
+		return r.err;
 	}
 
-	return Ok();
+	return SwapchainStatus::Ok;
 }
 
 //-------------------------------------------------------------------------------------------------

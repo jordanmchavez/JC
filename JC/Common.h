@@ -201,15 +201,15 @@ template <u64 N> static constexpr VArg MakeVArg(char (&val)[N])       { return {
 template <u64 N> static constexpr VArg MakeVArg(const char (&val)[N]) { return { .type = VArgType::S8, .s = { .data = val, .len = CxStrLen8(val) } }; }
 
 template <u32 N> struct VArgStore {
-	VArg args[N > 0 ? N : 1] = {};
+	VArg vargs[N > 0 ? N : 1] = {};
 };
 
 struct VArgs {
-	const VArg* args = 0;
-	u32        len  = 0;
+	const VArg* vargs = 0;
+	u32         len  = 0;
 
 	template <u32 N> constexpr VArgs(VArgStore<N> argStore) {
-		args = argStore.args;
+		vargs = argStore.vargs;
 		len  = N;
 	}
 };
@@ -318,13 +318,13 @@ template <class... A> using FmtStrSrcLoc = _FmtStrSrcLoc<typename TypeIdentity<A
 
 //--------------------------------------------------------------------------------------------------
 
-                      [[noreturn]] void VPanic(SrcLoc sl, s8 expr, s8 fmt, VArgs args);
+                      [[noreturn]] void VPanic(SrcLoc sl, s8 expr, s8 fmt, VArgs vargs);
 template <class... A> [[noreturn]] void Panic(FmtStrSrcLoc<A...> fmtSl, A... args) { VPanic(fmtSl.sl, 0, fmtSl.fmt, MakeVArgs(args...)); }
 
                       [[noreturn]] inline void _AssertFail(SrcLoc sl, s8 expr)                              { VPanic(sl, expr, "",   MakeVArgs()); }
 template <class... A> [[noreturn]]        void _AssertFail(SrcLoc sl, s8 expr, FmtStr<A...> fmt, A... args) { VPanic(sl, expr, fmt,  MakeVArgs(args...)); }
 
-using PanicFn = void (SrcLoc sl, s8 expr, s8 fmt, VArgs args);
+using PanicFn = void (SrcLoc sl, s8 expr, s8 fmt, VArgs vargs);
 
 #define Assert(expr, ...) \
 	do { \
@@ -385,18 +385,20 @@ void  DestroyArena(Arena arena);
 
 //--------------------------------------------------------------------------------------------------
 
-struct [[nodiscard]] ErrArg {
+static constexpr u32 MaxErrNamedArgs = 16;
+
+struct ErrNamedArg {
 	s8   name = {};
-	VArg arg  = {};
+	VArg varg = {};
 };
 
-struct [[nodiscard]] ErrObj {
-	ErrObj* prev    = 0;
-	SrcLoc  sl      = {};
-	s8      ns      = {};
-	s8      code    = {};
-	u32     argsLen = 0;
-	ErrArg  args[1] = {};	// variable length
+struct ErrObj {
+	ErrObj*      prev                       = 0;
+	SrcLoc       sl                         = {};
+	s8           ns                         = {};
+	s8           code                       = {};
+	ErrNamedArg  namedArgs[MaxErrNamedArgs] = {};
+	u32          namedArgsLen               = 0;
 };
 
 struct Err {
@@ -410,6 +412,13 @@ struct Err {
 		err.obj->prev = obj;
 		return err;
 	}
+
+	template <class... A> void AddArgs(A... args) {
+		static_assert(sizeof...(A) % 2 == 0);
+		AddVArgs(MakeVArgs(args...));
+	}
+
+	void AddVArgs(VArgs vargs);
 };
 
 #define DefErr(Ns, Code) \
@@ -417,7 +426,7 @@ struct Err {
 		static_assert(sizeof...(A) % 2 == 0); \
 		Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, #Ns, #Code, MakeVArgs(args...)) {} \
 	}; \
-	template <typename... A> Err_##Code(A...) -> Err_##Code<A...>
+	template <class... A> Err_##Code(A...) -> Err_##Code<A...>
 
 //--------------------------------------------------------------------------------------------------
 
@@ -442,8 +451,8 @@ template <class T> struct [[nodiscard]] Res {
 	bool hasVal = false;
 
 	constexpr Res()      {          hasVal = false; }
-	constexpr Res(T v)   { val = v; hasVal = true;  }
-	constexpr Res(Err e) { err = e; hasVal = false; }
+	constexpr Res(T v)   { val = v; hasVal = true;  }	// implicit
+	constexpr Res(Err e) { err = e; hasVal = false; }	// implicit
 	constexpr Res(const Res&) = default;
 
 	constexpr operator bool() const { return hasVal; }
