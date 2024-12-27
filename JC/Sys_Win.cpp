@@ -7,29 +7,6 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-s8 MakeWinErrorDesc(Arena* arena, u32 code) {
-	wchar_t* desc = nullptr;
-	DWORD descLen = FormatMessageW(
-		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-		nullptr,
-		code,
-		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		(LPWSTR)&desc,
-		0,
-		nullptr
-	);
-	if (descLen == 0) {
-		return "";
-	}
-
-	while (descLen > 0 && desc[descLen] == L'\n' || desc[descLen] == L'\r' || desc[descLen] == L'.') {
-		--descLen;
-	}
-	s8 msg = Wtf16zToUtf8(arena, s16z(desc, descLen));
-	LocalFree(desc);
-	return msg;
-}
-
 namespace Sys {
 
 //--------------------------------------------------------------------------------------------------

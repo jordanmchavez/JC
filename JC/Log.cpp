@@ -36,12 +36,13 @@ struct LogObj : Log {
 
 	void Error(Err err, SrcLoc sl) override {
 		Array<char> arr(temp);
-		Fmt(&arr, "!!! Error:");
+		Fmt(&arr, "!!! {}({}): Error:", sl.file, sl.line);
 
-		for (const Err* e = err; e; e = e->prev) {
-			Fmt(&arr, "{}({}): {}:{}\n", sl.file, sl.line, err->ns, err->code);
-			for (u32 i = 0; i < e->namedValsLen; i++) {
-				Fmt(&arr, "  '{}' = {}\n", e->namedVals[i].name, e->namedVals[i].val);
+		for (Err e = err; e.handle; e = e.GetPrev()) {
+			Fmt(&arr, "{}({}): {}:{}\n", e.GetSrcLoc().file, e.GetSrcLoc().line, e.GetNs(), e.GetCode());
+			Span<NamedArg> namedArgs = e.GetNamedArgs();
+			for (u32 i = 0; i < namedArgs.len; i++) {
+				Fmt(&arr, "  '{}' = {}\n", namedArgs[i].name, namedArgs[i].varg);
 			}
 		}
 		arr.data[arr.len] = '\0';	// replace trailing '\n'

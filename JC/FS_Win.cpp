@@ -16,7 +16,7 @@ void Init(Arena* tempIn) {
 Res<File> Open(s8 path) {
 	HANDLE h = CreateFileW(Utf8ToWtf16z(temp, path).data, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 	if (!IsValidHandle(h)) {
-		return Err_WinLast(temp, "CreateFileW", "path", path);
+		return Err_WinLast( "CreateFileW", "path", path);
 	}
 	return File { .handle = (u64)h };
 }

@@ -446,17 +446,17 @@ void VFmtImpl(Out out, s8 fmt, VArgs args) {
 
 		DoArg:
 		Assert(nextArg < args.len);
-		const VArg* arg = &args.args[nextArg++];
-		switch (arg->type)
+		const VArg* varg = &args.vargs[nextArg++];
+		switch (varg->type)
 		{
-			case VArgType::Bool: WriteStr(out, arg->b ? "true" : "false",   flags, width, prec); break;
-			case VArgType::Char: WriteStr(out, s8(&arg->c, 1),              flags, width, prec); break;
-			case VArgType::I64:  WriteI64(out, arg->i,                      flags, width);       break;													   
-			case VArgType::U64:  WriteU64(out, arg->u,                      flags, width);       break;													   
-			case VArgType::F64:  WriteF64(out, arg->f,                      flags, width, prec); break;
-			case VArgType::S8:   WriteStr(out, s8(arg->s.data, arg->s.len), flags, width, prec); break;
-			case VArgType::Ptr:  WritePtr(out, arg->p,                      flags, width);       break;
-			default: Panic("Unhandled arg type {}", arg->type);
+			case VArgType::Bool: WriteStr(out, varg->b ? "true" : "false",    flags, width, prec); break;
+			case VArgType::Char: WriteStr(out, s8(&varg->c, 1),               flags, width, prec); break;
+			case VArgType::I64:  WriteI64(out, varg->i,                       flags, width);       break;													   
+			case VArgType::U64:  WriteU64(out, varg->u,                       flags, width);       break;													   
+			case VArgType::F64:  WriteF64(out, varg->f,                       flags, width, prec); break;
+			case VArgType::S8:   WriteStr(out, s8(varg->s.data, varg->s.len), flags, width, prec); break;
+			case VArgType::Ptr:  WritePtr(out, varg->p,                       flags, width);       break;
+			default: Panic("Unhandled varg type {}", varg->type);
 		}
 	}
 }

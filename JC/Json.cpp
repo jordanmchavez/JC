@@ -8,12 +8,12 @@ namespace JC::Json {
 //--------------------------------------------------------------------------------------------------
 
 DefErr(Json, WrongType);
-DefErr(Json, UnmatchedBlockComment);
-DefErr(Json, UnexpectedEof);
-DefErr(Json, UnexpectedChar);
+DefErr(Json, UnmatchedComment);
+DefErr(Json, Eof);
+DefErr(Json, BadChar);
 DefErr(Json, BadExponent);
 DefErr(Json, BadNumber);
-DefErr(Json, ExponentWithoutDecimal);
+DefErr(Json, UnmatchedQuote);
 
 
 //--------------------------------------------------------------------------------------------------
@@ -99,7 +99,7 @@ Res<> SkipWhitespace(ParseCtx* p) {
 				const u32 commentStartLine = p->line;
 				for (;;) {
 					if (p->iter >= p->end) {
-						return Err_UnmatchedBlockComment("line", commentStartLine);
+						return Err_UnmatchedComment("line", commentStartLine);
 					} else if (p->iter + 1 < p->end && p->iter[0] == '*' && p->iter[1] == '/') {
 						p->iter += 2;
 						break;
@@ -121,10 +121,10 @@ static constexpr Elem FalseElem = { .handle = (u64)Type::Bool };
 
 Res<> Expect(ParseCtx* p, char c) {
 	if (p->iter >= p->end) {
-		return Err_UnexpectedEof("line", p->line, "expected", c);
+		return Err_Eof("line", p->line, "expected", c);
 	}
 	if (p->iter[0] != c) {
-		return Err_UnexpectedChar("line", p->line, "expected", c, "actual", p->iter[0]);
+		return Err_BadChar("line", p->line, "expected", c, "actual", p->iter[0]);
 	}
 	p->iter++;
 	return Ok();
@@ -206,7 +206,7 @@ Res<Elem> ParseNum(Arena* arena, ParseCtx* p) {
 	f64 expSign = 1.0;
 	u32 exp = 0;
 	if (i < e && *i == 'e' || *i == 'E') {
-		if (!isFloat) { return Err_ExponentWithoutDecimal("line", p->line); }
+		if (!isFloat) { return Err_BadExponent("line", p->line); }
 		i++;
 		if (i >= e) { return Err_BadExponent("line", p->line); }
 		if (*i == '+') {
@@ -225,24 +225,58 @@ Res<Elem> ParseNum(Arena* arena, ParseCtx* p) {
 	}
 
 	p->iter = i;
-	p->end = e;
 
-	const double val = sign * ((double)intVal + ((double)fracVal / fracDenom)) * pow(10.0, expSign * (double)exp;
+	const double val = sign * ((double)intVal + ((double)fracVal / fracDenom)) * pow(10.0, expSign * (double)exp);
 
 	return AddF64(arena, val);
-
-	finally fix err to not require allocation;
 }
 
 Res<Elem> ParseStr(Arena* arena, ParseCtx* p) {
-	
-	Assert(p->
+	const char* i = p->iter;
+	const char* const e = p->end;
+
+	if (Res<> r = Expect(p, '"'); !r) { return r; }
+	Array<char> a;
+
+	for (;;) {
+		if (i >= e) {
+			return Err_UnmatchedQuote("line", p->line);
+
+		} else if (*i != '"') {
+			p->iter = i + 1;
+			return AddS8(arena, s8(a.data, a.len));
+
+		} else if (*i == '\\') {
+			i++;
+			switch (*i) {
+				case '\\': a.Add('\\'); i++; break;
+				case '"':  a.Add('"');  i++; break;
+				case '/':  a.Add('/');  i++; break;
+				case 'b':  a.Add('\b'); i++; break;
+				case 'f':  a.Add('\f'); i++; break;
+				case 'n':  a.Add('\n'); i++; break;
+				case 'r':  a.Add('\r'); i++; break;
+				case 't':  a.Add('\t'); i++; break;
+
+				case 'u': // TODO: UTF-8 support
+
+				default:
+					return Err_BadChar("line", p->line, "ch", *i);
+			}
+
+		} else {
+			a.Add(*i);
+			i++;
+		}
+	}
 }
 
-Res<Elem> ParseArr(ParseCtx* p) {
+Res<Elem> ParseArr(Arena* arena, ParseCtx* p) {
+	arena; p; return Elem{};
 }
 
-Res<Elem> ParseObj(ParseCtx* p) {
+Res<Elem> ParseObj(Arena* arena, ParseCtx* p) {
+	arena; p; return Elem{};
 }
 
 Res<Elem> ParseElem(Arena* arena, ParseCtx* p) {
@@ -273,9 +307,9 @@ Res<Elem> ParseElem(Arena* arena, ParseCtx* p) {
 		
 		case '[': return ParseArr(arena, p);
 
-		case '{': return ParseObj(p);
+		case '{': return ParseObj(arena, p);
 
-		default: return Err_UnexpectedChar("line", p->line, "ch", p->iter[0]);
+		default: return Err_BadChar("line", p->line, "ch", p->iter[0]);
 	}
 }
 
@@ -291,10 +325,10 @@ Res<Elem> Parse(Arena* arena, s8 str) {
 	if (Res<> r = ParseElem(arena, &p).To(elem); !r) { return r; };
 	if (Res<> r = SkipWhitespace(&p); !r) { return r.err; }
 	if (p.iter < p.end) {
-		return Err_UnexpectedChar("line", p.line, "ch", p.ter[0]);
+		return Err_BadChar("line", p.line, "ch", *p.iter);
 	}
 
-	return Elem;
+	return elem;
 }
 
 //--------------------------------------------------------------------------------------------------

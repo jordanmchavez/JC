@@ -3,40 +3,51 @@
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
+
+static Arena* errArena;
+
+void Err::SetArena(Arena* arena) {
+	errArena = arena;
+}
+
+static constexpr u32 MaxNamedArgs = 32;
+
 struct ErrObj {
-	static constexpr u32 MaxNamedVals = 16;
-
-	Err*     prev                    = 0;
+	ErrObj*  prev                    = 0;
 	SrcLoc   sl                      = {};
-	s8       ns                      = {};
-	s8       code                    = {};
-	NamedVal NamedVals[MaxNamedVals] = {};
-	u32      namedValsLen            = 0;
+	NamedArg namedArgs[MaxNamedArgs] = {};
+	u32      namedArgsLen            = 0;
 };
+void Err::Init(SrcLoc sl, Span<NamedArg> namedArgs) {
+	Assert(namedArgs.len <= MaxNamedArgs);
 
-
-Err* Err::MakeInternal(Arena* arena, SrcLoc sl, s8 ns, s8 code, Span<NamedVal> namedVals) {
-	Assert(namedVals.len <= MaxNamedVals);
-
-	Err* err = arena->AllocT<Err>();
-	err->arena = arena;
-	err->prev  = 0;
-	err->ns    = ns;
-	err->code  = code;
-	err->sl    = sl;
-	for (u32 i = 0; i < namedVals.len; i++) {
-		err->namedVals[i].name = namedVals[i].name;
-		err->namedVals[i].val  = namedVals[i].val;	// TODO: should this be a string copy here?
+	ErrObj* const obj = errArena->AllocT<ErrObj>();
+	obj->prev  = 0;
+	obj->sl    = sl;
+	for (u64 i = 0; i < namedArgs.len; i++) {
+		obj->namedArgs[i].name = namedArgs[i].name;
+		obj->namedArgs[i].varg = namedArgs[i].varg;	// TODO: should this be a string copy here?
 	}
-	err->namedValsLen = namedVals.len;
+	obj->namedArgsLen = (u32)namedArgs.len;
 
 	#if defined DebugBreakOnErr
 	if (Sys::IsDebuggerPresent()) {
 		Sys_DebuggerBreak();
 	}
 	#endif	// DebugBreakOnErr
+}
 
+Err Err::Push(Err err) {
+	ErrObj* const obj = (ErrObj*)err.handle;
+	obj->prev = (ErrObj*)handle;
 	return err;
+}
+
+void Err::AddInternal(Span<NamedArg> namedArgs) {
+	ErrObj* const obj = (ErrObj*)handle;
+	Assert(obj->namedArgsLen + namedArgs.len < MaxNamedArgs);
+	MemCpy(obj->namedArgs + obj->namedArgsLen, namedArgs.data, namedArgs.len * sizeof(NamedArg));	// TODO: should we copy the string arg?
+	obj->namedArgsLen += (u32)namedArgs.len;
 }
 
 //--------------------------------------------------------------------------------------------------

@@ -53,18 +53,18 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-s8 WinErrorDesc(u32 code);
-
-template <class... A> struct [[nodiscard]] Err_WinLast : JC::Err {
+template <class... A> struct [[nodiscard]] Err_WinLast : Err {
 	static_assert(sizeof...(A) % 2 == 0);
 	const u32 lastWinError = GetLastError();
-	Err_WinLast(s8 fn, A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, "win", lastWinError, MakeVArgs("fn", fn, "desc", WinErrorDesc(lastWinError), args...)) {}
+	Err_WinLast(s8 fn, A... args, SrcLoc sl = SrcLoc::Here())
+		: Err(sl, "Win", "System", "code", lastWinError, "fn", fn, args...)
+	{}
 };
 template <typename... A> Err_WinLast(s8, A...) -> Err_WinLast<A...>;
 
 template <class... A> struct [[nodiscard]] Err_Win : JC::Err {
 	static_assert(sizeof...(A) % 2 == 0);
-	Err_Win(u32 winError, s8 fn, A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, "win", winError, MakeVArgs("fn", fn, "desc", WinErrorDesc(winError), args...)) {}
+	Err_Win(u32 winError, s8 fn, A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, "win", winError, MakeVArgs("fn", fn, args...)) {}
 };
 template <typename... A> Err_Win(u32, s8, A...) -> Err_Win<A...>;
 

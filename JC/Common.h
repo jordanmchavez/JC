@@ -322,7 +322,7 @@ template <class... A> [[noreturn]]        void _AssertFail(SrcLoc sl, s8 expr, F
 
 using PanicFn = void (SrcLoc sl, s8 expr, s8 fmt, VArgs vargs);
 
-void SetPanicFn(PanicFn* panicFn);
+PanicFn* SetPanicFn(PanicFn* panicFn);
 
 #define Assert(expr, ...) \
 	do { \
@@ -422,57 +422,63 @@ void  DestroyArena(Arena arena);
 
 //--------------------------------------------------------------------------------------------------
 
-struct NamedVal {
+void InitErr(Arena* temp);
+
+struct NamedArg {
 	s8   name = {};
-	VArg val  = {};
+	VArg varg  = {};
 };
 
 struct [[nodiscard]] Err {
 	u64 handle = 0;
 
-	static void Init(Arena* arena);
+	Err            GetPrev() const;
+	SrcLoc         GetSrcLoc() const;
+	s8             GetNs() const;
+	s8             GetCode() const;
+	Span<NamedArg> GetNamedArgs() const;
 
-	void Init(SrcLoc sl, s8 ns, s8 code, const NamedVal* namedVals, u32 namedValsLen);
-
-	template <class T> static void BuildNamedValsInternal(NamedVal* namedVals, s8 name, T val) {
-		namedVals->name = name;
-		namedVals->val  = MakeVArg(val);
-	}
-
-	template <class T, class... A> static void BuildNamedValsInternal(NamedVal* namedVals, s8 name, T val, A... args) {
-		namedVals->name = name;
-		namedVals->val  = MakeVArg(val);
-		BuildNamedValsInternal(namedVals + 1, args...);
-	}
+	static void SetArena(Arena* arena);
 
 	Err() = default;
 
-	template <class...A> Err(SrcLoc sl, s8 ns, s8 code, A... args) {
-		static_assert(sizeof...(A) % 2 == 0);
-		constexpr u64 NamedValsLen = sizeof...(A) / 2;
-		NamedVal namedVals[NamedValsLen > 0 ? NamedValsLen : 1] = {};
-		if constexpr (NamedValsLen > 0) {
-			BuildNamedValsInternal(namedVals, args...);
-		}
-		Init(sl, ns, code, namedVals, NamedValsLen);
+	template <class...A> Err(SrcLoc sl, A... args) {
+		static_assert(sizeof...(A) > 0 && sizeof...(A) % 2 == 0);
+		constexpr u64 NamedArgsLen = sizeof...(A) / 2;
+		NamedArg namedArgs[NamedArgsLen] = {};
+		BuildNamedArgsInternal(namedArgs, args...);
+		Init(sl, Span<NamedArg>(namedArgs, NamedArgsLen));
+	}
+
+	void Init(SrcLoc sl, Span<NamedArg> namedArgs);
+
+	template <class T> static void BuildNamedArgsInternal(NamedArg* namedArgs, s8 name, T arg) {
+		namedArgs->name = name;
+		namedArgs->varg = MakeVArg(arg);
+	}
+
+	template <class T, class... A> static void BuildNamedArgsInternal(NamedArg* namedArgs, s8 name, T arg, A... args) {
+		namedArgs->name = name;
+		namedArgs->varg = MakeVArg(arg);
+		BuildNamedArgsInternal(namedArgs + 1, args...);
 	}
 
 	Err Push(Err err);
 
-	void AddInternal(const NamedVal* namedVals, u32 namedValsLen);
+	void AddInternal(Span<NamedArg> namedArgs);
 
 	template <class... A> void Add(A... args) {
 		static_assert(sizeof...(A) > 0 && sizeof...(A) % 2 == 0);
-		constexpr u64 NamedValsLen = sizeof...(A) / 2;
-		NamedVal namedVals[NamedValsLen] = {};
-		BuildNamedValsInternal(namedVals, args...);
-		AddInternal(namedVals + NamedValsLen, args...);
+		constexpr u64 NamedArgsLen = sizeof...(A) / 2;
+		NamedArg namedArgs[NamedArgsLen] = {};
+		BuildNamedArgsInternal(namedArgs, args...);
+		AddInternal(namedArgs);
 	}
 };
 
 #define DefErr(Ns, Code) \
 	template <class... A> struct Err_##Code : Err { \
-		Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, #Ns, #Code, args...) {} \
+		Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, "ns", #Ns, "code", #Code, args...) {} \
 	}; \
 	template <class...A> Err_##Code(A...) -> Err_##Code<A...>
 
@@ -485,6 +491,14 @@ template <> struct [[nodiscard]] Res<void> {
 
 	constexpr Res() = default;
 	constexpr Res(Err e) { err = e; }	// implicit
+	template <class T> constexpr Res(const Res<T>& r) {
+		if constexpr (IsSameType<T, void>) {
+			err = r.err;
+		} else {
+			Assert(!r.hasVal);
+			err = r.err;
+		}
+	}
 
 	constexpr operator bool() const { return err.handle == 0; }
 
@@ -501,7 +515,25 @@ template <class T> struct [[nodiscard]] Res {
 	constexpr Res()      {          hasVal = false; }
 	constexpr Res(T v)   { val = v; hasVal = true;  }	// implicit
 	constexpr Res(Err e) { err = e; hasVal = false; }	// implicit
-	constexpr Res(const Res&) = default;
+	template <class U> constexpr Res(const Res<U>& r) {
+		if constexpr (IsSameType<U, T>) {
+			hasVal = r.hasVal;
+			if (r.hasVal) {
+				val = r.val;
+			} else {
+				err = r.err;
+			}
+		} else if constexpr (IsSameType<U, void>) {
+			Assert(r.err.handle);
+			err = r.err;
+			hasVal = false;
+			
+		} else {
+			Assert(!r.hasVal);
+			err = r.err;
+			hasVal = false;
+		}
+	}
 
 	constexpr operator bool() const { return hasVal; }
 
