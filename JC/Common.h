@@ -365,124 +365,6 @@ constexpr bool operator!=(s8 str1, s8 str2) { return str1.len != str2.len && Mem
 
 //--------------------------------------------------------------------------------------------------
 
-struct Arena {
-	u8* begin      = 0;
-	u8* end        = 0;
-	u8* endCommit  = 0;
-	u8* endReserve = 0;
-
-	void* Alloc(u64 size, SrcLoc sl = SrcLoc::Here());
-	bool  Extend(void* p, u64 oldSize, u64 newSize, SrcLoc sl = SrcLoc::Here());
-	u64   Mark();
-	void  Reset(u64 mark);
-
-	template <class T> T* AllocT(u64 n, SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(n * sizeof(T), sl); }
-	template <class T> bool ExtendT(T* p, u64 oldN, u64 newN, SrcLoc sl = SrcLoc::Here()) { return Extend(p, oldN * sizeof(T), newN * sizeof(T), sl); }
-};
-
-Arena CreateArena(u64 reserveSize);
-void  DestroyArena(Arena arena);
-
-//--------------------------------------------------------------------------------------------------
-
-static constexpr u32 MaxErrNamedArgs = 16;
-
-struct ErrNamedArg {
-	s8   name = {};
-	VArg varg = {};
-};
-
-struct ErrObj {
-	ErrObj*      prev                       = 0;
-	SrcLoc       sl                         = {};
-	s8           ns                         = {};
-	s8           code                       = {};
-	ErrNamedArg  namedArgs[MaxErrNamedArgs] = {};
-	u32          namedArgsLen               = 0;
-};
-
-struct Err {
-	ErrObj* obj = 0;
-
-	constexpr Err() = default;
-	Err(SrcLoc sl, s8 ns, s8 code, VArgs args);
-	Err(SrcLoc sl, s8 ns, u64 code, VArgs args);
-
-	template <class... A> Err Push(Err err) {
-		err.obj->prev = obj;
-		return err;
-	}
-
-	template <class... A> void AddArgs(A... args) {
-		static_assert(sizeof...(A) % 2 == 0);
-		AddVArgs(MakeVArgs(args...));
-	}
-
-	void AddVArgs(VArgs vargs);
-};
-
-#define DefErr(Ns, Code) \
-	template <class... A> struct [[nodiscard]] Err_##Code : Err { \
-		static_assert(sizeof...(A) % 2 == 0); \
-		Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, #Ns, #Code, MakeVArgs(args...)) {} \
-	}; \
-	template <class... A> Err_##Code(A...) -> Err_##Code<A...>
-
-//--------------------------------------------------------------------------------------------------
-
-template <class T = void> struct [[nodiscard]] Res;
-
-template <> struct [[nodiscard]] Res<void> {
-	Err err = {};
-
-	constexpr Res() = default;
-	constexpr Res(Err e) { err = e; }	// implicit
-
-	constexpr operator bool() const { return err.obj == 0; }
-
-	constexpr void Ignore() const {}
-};
-
-template <class T> struct [[nodiscard]] Res {
-	union {
-		T   val;
-		Err err;
-	};
-	bool hasVal = false;
-
-	constexpr Res()      {          hasVal = false; }
-	constexpr Res(T v)   { val = v; hasVal = true;  }	// implicit
-	constexpr Res(Err e) { err = e; hasVal = false; }	// implicit
-	constexpr Res(const Res&) = default;
-
-	constexpr operator bool() const { return hasVal; }
-
-	constexpr Err To(T& out) { if (hasVal) { out = val; return Err{}; } else { return err; } }
-	constexpr T   Or(T def) { return hasVal ? val : def; }
-};
-
-constexpr Res<> Ok() { return Res<>(); }
-
-//--------------------------------------------------------------------------------------------------
-
-struct NullOpt {};
-inline NullOpt nullOpt;
-
-template <class T> struct [[nodiscard]] Opt {
-	T    val    = {};
-	bool hasVal = false;
-
-	constexpr Opt() = default;
-	constexpr Opt(T v)     { val = v; hasVal = true;  }
-	constexpr Opt(NullOpt) {          hasVal = false; }
-
-	constexpr operator bool() const { return hasVal; }
-
-	constexpr T Or (T def) const { return hasVal ? val : def; };
-};
-
-//--------------------------------------------------------------------------------------------------
-
 } namespace std {
 	template <class T>
 	struct initializer_list {
@@ -519,6 +401,143 @@ struct Span {
 
 //--------------------------------------------------------------------------------------------------
 
+struct Arena {
+	u8* begin      = 0;
+	u8* end        = 0;
+	u8* endCommit  = 0;
+	u8* endReserve = 0;
+
+	void* Alloc(u64 size, SrcLoc sl = SrcLoc::Here());
+	bool  Extend(void* p, u64 oldSize, u64 newSize, SrcLoc sl = SrcLoc::Here());
+	u64   Mark();
+	void  Reset(u64 mark);
+
+	template <class T> T* AllocT(SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(sizeof(T), sl); }
+	template <class T> T* AllocT(u64 n, SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(n * sizeof(T), sl); }
+	template <class T> bool ExtendT(T* p, u64 oldN, u64 newN, SrcLoc sl = SrcLoc::Here()) { return Extend(p, oldN * sizeof(T), newN * sizeof(T), sl); }
+};
+
+Arena CreateArena(u64 reserveSize);
+void  DestroyArena(Arena arena);
+
+//--------------------------------------------------------------------------------------------------
+
+struct NamedVal {
+	s8   name = {};
+	VArg val  = {};
+};
+
+struct [[nodiscard]] Err {
+	static constexpr u32 MaxNamedVals = 16;
+
+	Arena*   arena                   = 0;
+	Err*     prev                    = 0;
+	SrcLoc   sl                      = {};
+	s8       ns                      = {};
+	s8       code                    = {};
+	NamedVal namedVals[MaxNamedVals] = {};
+	u32      namedValsLen            = 0;
+
+	Err* Push(Err* err) {
+		err->prev = this;
+		return err;
+	}
+
+	template <class... A> void Add(A... args) {
+		static_assert(sizeof...(A) > 0 && sizeof...(A) % 2 == 0);
+		constexpr u32 NewNamedValsLen = sizeof...(A) / 2];
+		Assert(namedValsLen + NewNamedValsLen < MaxNamedVals);
+	}
+
+	void AddNamedVals(Span<NamedVal> newNamedVals);
+
+	static Err* MakeInternal(Arena* arena, SrcLoc sl, s8 ns, s8 code, const s8* names, Span<NamedVal> namedVals);
+
+	template <class T> static void AddNamedValsInternal(NamedVal* namedVals, s8 name, T val) {
+		namedVals->name = name;
+		namedVals->val  = MakeVArg(val);
+	}
+
+	template <class T, class... A> static void AddNamedValsInternal(NamedVal* namedVals, s8 name, T val, A... args) {
+		namedVals->name = name;
+		namedVals->val  = MakeVArg(val);
+		AddNamedVals(namedVals + 1, args);
+	}
+
+	template <class...A> static Err* Make(Arena* arena, SrcLoc sl, s8 ns, s8 code, A... args) {
+		static_assert(sizeof...(A) % 2 == 0);
+		constexpr u64 NamedValsLen = sizeof...(A) / 2;
+		static_assert(NamedValsLen <= Err::MaxNamedVals);
+		NamedVal namedVals[NamedValsLen] = {};
+		AddNamedValsInternal(namedVals, args...);
+		return MakeInternal(arena, sl, ns, code, Span<NamedVal>(namedVals, NamedValsLen));
+	}
+};
+
+
+
+#define DefErr(Ns, Code) \
+	template <class... A> struct [[nodiscard]] Err_##Code : Err { \
+		static_assert(sizeof...(A) % 2 == 0); \
+		Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, #Ns, #Code, MakeVArgs(args...)) {} \
+	}; \
+	template <class... A> Err_##Code(A...) -> Err_##Code<A...>
+
+//--------------------------------------------------------------------------------------------------
+
+template <class T = void> struct [[nodiscard]] Res;
+
+template <> struct [[nodiscard]] Res<void> {
+	Err* err = {};
+
+	constexpr Res() = default;
+	constexpr Res(Err* e) { err = e; }	// implicit
+
+	constexpr operator bool() const { return err == 0; }
+
+	constexpr void Ignore() const {}
+};
+
+template <class T> struct [[nodiscard]] Res {
+	union {
+		T    val;
+		Err* err;
+	};
+	bool hasVal = false;
+
+	constexpr Res()       {          hasVal = false; }
+	constexpr Res(T v)    { val = v; hasVal = true;  }	// implicit
+	constexpr Res(Err* e) { err = e; hasVal = false; }	// implicit
+	constexpr Res(const Res&) = default;
+
+	constexpr operator bool() const { return hasVal; }
+
+	constexpr Err* To(T& out) { if (hasVal) { out = val; return 0; } else { return err; } }
+	constexpr T    Or(T def) { return hasVal ? val : def; }
+};
+
+constexpr Res<> Ok() { return Res<>(); }
+
+//--------------------------------------------------------------------------------------------------
+
+struct NullOpt {};
+inline NullOpt nullOpt;
+
+template <class T> struct [[nodiscard]] Opt {
+	T    val    = {};
+	bool hasVal = false;
+
+	constexpr Opt() = default;
+	constexpr Opt(T v)     { val = v; hasVal = true;  }
+	constexpr Opt(NullOpt) {          hasVal = false; }
+
+	constexpr operator bool() const { return hasVal; }
+
+	constexpr T Or (T def) const { return hasVal ? val : def; };
+};
+
+//--------------------------------------------------------------------------------------------------
+
 template <class T> constexpr T Min(T x, T y) { return x < y ? x : y; }
 template <class T> constexpr T Max(T x, T y) { return x > y ? x : y; }
 template <class T> constexpr T Clamp(T x, T lo, T hi) { return x < lo ? lo : (x > hi ? hi : x); }
@@ -531,10 +550,6 @@ struct Rect {
 	u32 w = 0;
 	u32 h = 0;
 };
-
-//--------------------------------------------------------------------------------------------------
-
-void CommonInit(PanicFn* panicFn, Arena* errArena);
 
 //--------------------------------------------------------------------------------------------------
 

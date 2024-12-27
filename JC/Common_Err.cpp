@@ -1,27 +1,22 @@
 #include "JC/Common.h"
 
-#include "JC/Config.h"
-#include "JC/Sys.h"
+#include "JC/Array.h"
 
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr u32 MaxErrs = 64;
+struct ErrObj {
+};
 
-static ErrObj errObjs[MaxErrs];
-static u32    errObjsLen;
-
-Err::Err(SrcLoc sl, s8 ns, s8 code, VArgs vargs) {
-	Assert(errObjsLen < MaxErrs);
-	Assert(vargs.len < MaxErrNamedArgs);
-	Assert(vargs.len % 2 == 0);
-	obj = &errObjs[errObjsLen++];
-	obj->prev    = 0;
-	obj->ns      = ns;
-	obj->code    = code;
-	obj->sl      = sl;
-
+Err* MakeErr(Arena* arena, SrcLoc sl, s8 ns, s8 code, Span<NamedVal> namedVals) {
+	Err* err = arena->AllocT<Err>();
+	err->arena = arena;
+	err->prev  = 0;
+	err->ns    = ns;
+	err->code  = code;
+	err->sl    = sl;
+	err->namedVals = arena->AllocT<
 	for (u32 i = 0; i < vargs.len / 2; i++) {
 		Assert(vargs.vargs[i * 2].type == VArgType::S8);
 		obj->namedArgs[i].name = s8(vargs.vargs[i * 2].s.data, vargs.vargs[i * 2].s.len);
@@ -36,10 +31,8 @@ Err::Err(SrcLoc sl, s8 ns, s8 code, VArgs vargs) {
 	#endif	// DebugBreakOnErr
 }
 
-void Err::AddVArgs(VArgs vargs) {
-	Assert(obj);
-	Assert(obj->namedArgsLen + vargs.len < MaxErrNamedArgs);
-	Assert(vargs.len % 2 == 0);
+void Err::AddNamedVals(Span<NamedVal> newNamedVals) {
+	
 	for (u32 i = 0; i < vargs.len / 2; i++) {
 		Assert(vargs.vargs[i * 2].type == VArgType::S8);
 		obj->namedArgs[obj->namedArgsLen + i].name = s8(vargs.vargs[i * 2].s.data, vargs.vargs[i * 2].s.len);
