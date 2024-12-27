@@ -295,10 +295,8 @@ consteval void CheckFmtStr(s8 fmt, size_t argsLen) {
 
 template <class... A> struct _FmtStr {
 	s8 fmt;
-
 	consteval _FmtStr(s8          fmt_) { CheckFmtStr(fmt_, sizeof...(A)); fmt = fmt_; }
 	consteval _FmtStr(const char* fmt_) { CheckFmtStr(fmt_, sizeof...(A)); fmt = fmt_; }
-
 	operator s8() const { return fmt; }
 };
 
@@ -307,10 +305,8 @@ template <class... A> using FmtStr = _FmtStr<typename TypeIdentity<A>::Type...>;
 template <class... A> struct _FmtStrSrcLoc {
 	s8     fmt;
 	SrcLoc sl;
-
 	consteval _FmtStrSrcLoc(s8          fmt_, SrcLoc sl_ = SrcLoc::Here()) { CheckFmtStr(fmt_, sizeof...(A)); fmt = fmt_; sl = sl_; }
 	consteval _FmtStrSrcLoc(const char* fmt_, SrcLoc sl_ = SrcLoc::Here()) { CheckFmtStr(fmt_, sizeof...(A)); fmt = fmt_; sl = sl_; }
-
 	operator s8() const { return fmt; }
 };
 
@@ -325,6 +321,8 @@ template <class... A> [[noreturn]] void Panic(FmtStrSrcLoc<A...> fmtSl, A... arg
 template <class... A> [[noreturn]]        void _AssertFail(SrcLoc sl, s8 expr, FmtStr<A...> fmt, A... args) { VPanic(sl, expr, fmt,  MakeVArgs(args...)); }
 
 using PanicFn = void (SrcLoc sl, s8 expr, s8 fmt, VArgs vargs);
+
+void SetPanicFn(PanicFn* panicFn);
 
 #define Assert(expr, ...) \
 	do { \
@@ -344,11 +342,13 @@ constexpr s8::s8(const char* d, u64 l) {
 	data = d;
 	len  = l;
 }
+
 constexpr s8::s8(const char* b, const char* e) {
 	Assert(e >= b);
 	data = b;
 	len  = (u64)(e - b);
 }
+
 constexpr s8& s8::operator=(const char* s) {
 	data = s;
 	len = CxStrLen8(s);
@@ -428,92 +428,85 @@ struct NamedVal {
 };
 
 struct [[nodiscard]] Err {
-	static constexpr u32 MaxNamedVals = 16;
+	u64 handle = 0;
 
-	Arena*   arena                   = 0;
-	Err*     prev                    = 0;
-	SrcLoc   sl                      = {};
-	s8       ns                      = {};
-	s8       code                    = {};
-	NamedVal namedVals[MaxNamedVals] = {};
-	u32      namedValsLen            = 0;
+	static void Init(Arena* arena);
 
-	Err* Push(Err* err) {
-		err->prev = this;
-		return err;
+	void Init(SrcLoc sl, s8 ns, s8 code, const NamedVal* namedVals, u32 namedValsLen);
+
+	template <class T> static void BuildNamedValsInternal(NamedVal* namedVals, s8 name, T val) {
+		namedVals->name = name;
+		namedVals->val  = MakeVArg(val);
 	}
+
+	template <class T, class... A> static void BuildNamedValsInternal(NamedVal* namedVals, s8 name, T val, A... args) {
+		namedVals->name = name;
+		namedVals->val  = MakeVArg(val);
+		BuildNamedValsInternal(namedVals + 1, args...);
+	}
+
+	Err() = default;
+
+	template <class...A> Err(SrcLoc sl, s8 ns, s8 code, A... args) {
+		static_assert(sizeof...(A) % 2 == 0);
+		constexpr u64 NamedValsLen = sizeof...(A) / 2;
+		NamedVal namedVals[NamedValsLen > 0 ? NamedValsLen : 1] = {};
+		if constexpr (NamedValsLen > 0) {
+			BuildNamedValsInternal(namedVals, args...);
+		}
+		Init(sl, ns, code, namedVals, NamedValsLen);
+	}
+
+	Err Push(Err err);
+
+	void AddInternal(const NamedVal* namedVals, u32 namedValsLen);
 
 	template <class... A> void Add(A... args) {
 		static_assert(sizeof...(A) > 0 && sizeof...(A) % 2 == 0);
-		constexpr u32 NewNamedValsLen = sizeof...(A) / 2];
-		Assert(namedValsLen + NewNamedValsLen < MaxNamedVals);
-	}
-
-	void AddNamedVals(Span<NamedVal> newNamedVals);
-
-	static Err* MakeInternal(Arena* arena, SrcLoc sl, s8 ns, s8 code, const s8* names, Span<NamedVal> namedVals);
-
-	template <class T> static void AddNamedValsInternal(NamedVal* namedVals, s8 name, T val) {
-		namedVals->name = name;
-		namedVals->val  = MakeVArg(val);
-	}
-
-	template <class T, class... A> static void AddNamedValsInternal(NamedVal* namedVals, s8 name, T val, A... args) {
-		namedVals->name = name;
-		namedVals->val  = MakeVArg(val);
-		AddNamedVals(namedVals + 1, args);
-	}
-
-	template <class...A> static Err* Make(Arena* arena, SrcLoc sl, s8 ns, s8 code, A... args) {
-		static_assert(sizeof...(A) % 2 == 0);
 		constexpr u64 NamedValsLen = sizeof...(A) / 2;
-		static_assert(NamedValsLen <= Err::MaxNamedVals);
 		NamedVal namedVals[NamedValsLen] = {};
-		AddNamedValsInternal(namedVals, args...);
-		return MakeInternal(arena, sl, ns, code, Span<NamedVal>(namedVals, NamedValsLen));
+		BuildNamedValsInternal(namedVals, args...);
+		AddInternal(namedVals + NamedValsLen, args...);
 	}
 };
 
-
-
 #define DefErr(Ns, Code) \
-	template <class... A> struct [[nodiscard]] Err_##Code : Err { \
-		static_assert(sizeof...(A) % 2 == 0); \
-		Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, #Ns, #Code, MakeVArgs(args...)) {} \
+	template <class... A> struct Err_##Code : Err { \
+		Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, #Ns, #Code, args...) {} \
 	}; \
-	template <class... A> Err_##Code(A...) -> Err_##Code<A...>
+	template <class...A> Err_##Code(A...) -> Err_##Code<A...>
 
 //--------------------------------------------------------------------------------------------------
 
 template <class T = void> struct [[nodiscard]] Res;
 
 template <> struct [[nodiscard]] Res<void> {
-	Err* err = {};
+	Err err = {};
 
 	constexpr Res() = default;
-	constexpr Res(Err* e) { err = e; }	// implicit
+	constexpr Res(Err e) { err = e; }	// implicit
 
-	constexpr operator bool() const { return err == 0; }
+	constexpr operator bool() const { return err.handle == 0; }
 
 	constexpr void Ignore() const {}
 };
 
 template <class T> struct [[nodiscard]] Res {
 	union {
-		T    val;
-		Err* err;
+		T   val;
+		Err err;
 	};
 	bool hasVal = false;
 
-	constexpr Res()       {          hasVal = false; }
-	constexpr Res(T v)    { val = v; hasVal = true;  }	// implicit
-	constexpr Res(Err* e) { err = e; hasVal = false; }	// implicit
+	constexpr Res()      {          hasVal = false; }
+	constexpr Res(T v)   { val = v; hasVal = true;  }	// implicit
+	constexpr Res(Err e) { err = e; hasVal = false; }	// implicit
 	constexpr Res(const Res&) = default;
 
 	constexpr operator bool() const { return hasVal; }
 
-	constexpr Err* To(T& out) { if (hasVal) { out = val; return 0; } else { return err; } }
-	constexpr T    Or(T def) { return hasVal ? val : def; }
+	constexpr Err To(T& out) { if (hasVal) { out = val; return Err{}; } else { return err; } }
+	constexpr T   Or(T def) { return hasVal ? val : def; }
 };
 
 constexpr Res<> Ok() { return Res<>(); }

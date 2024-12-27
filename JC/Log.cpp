@@ -38,10 +38,10 @@ struct LogObj : Log {
 		Array<char> arr(temp);
 		Fmt(&arr, "!!! Error:");
 
-		for (ErrObj* e = err.obj; e; e = e->prev) {
-			Fmt(&arr, "{}({}): {}:{}\n", sl.file, sl.line, err.obj->ns, err.obj->code);
-			for (u32 i = 0; i < e->argsLen; i++) {
-				Fmt(&arr, "  '{}' = {}\n", e->args[i].name, e->args[i].arg);
+		for (const Err* e = err; e; e = e->prev) {
+			Fmt(&arr, "{}({}): {}:{}\n", sl.file, sl.line, err->ns, err->code);
+			for (u32 i = 0; i < e->namedValsLen; i++) {
+				Fmt(&arr, "  '{}' = {}\n", e->namedVals[i].name, e->namedVals[i].val);
 			}
 		}
 		arr.data[arr.len] = '\0';	// replace trailing '\n'

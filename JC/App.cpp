@@ -58,7 +58,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	temp = &tempInst;
 	perm = &permInst;
 
-	CommonInit(AppPanicFn, temp);
+	SetPanicFn(AppPanicFn);
 
 	log = GetLog();
 	log->Init(temp);
@@ -92,7 +92,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		.displayIdx = Config::GetU32("App.DisplayIdx", 0),
 	};
 	if (Res<> r = Window::Init(&windowInitInfo); !r) {
-		return r.err.Push(Err_Init());
+		return r.err.Push(Err_Init(temp));
 	}
 
 	Window::PumpMessages();

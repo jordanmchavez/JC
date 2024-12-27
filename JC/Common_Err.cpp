@@ -1,44 +1,42 @@
 #include "JC/Common.h"
 
-#include "JC/Array.h"
-
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
-
 struct ErrObj {
+	static constexpr u32 MaxNamedVals = 16;
+
+	Err*     prev                    = 0;
+	SrcLoc   sl                      = {};
+	s8       ns                      = {};
+	s8       code                    = {};
+	NamedVal NamedVals[MaxNamedVals] = {};
+	u32      namedValsLen            = 0;
 };
 
-Err* MakeErr(Arena* arena, SrcLoc sl, s8 ns, s8 code, Span<NamedVal> namedVals) {
+
+Err* Err::MakeInternal(Arena* arena, SrcLoc sl, s8 ns, s8 code, Span<NamedVal> namedVals) {
+	Assert(namedVals.len <= MaxNamedVals);
+
 	Err* err = arena->AllocT<Err>();
 	err->arena = arena;
 	err->prev  = 0;
 	err->ns    = ns;
 	err->code  = code;
 	err->sl    = sl;
-	err->namedVals = arena->AllocT<
-	for (u32 i = 0; i < vargs.len / 2; i++) {
-		Assert(vargs.vargs[i * 2].type == VArgType::S8);
-		obj->namedArgs[i].name = s8(vargs.vargs[i * 2].s.data, vargs.vargs[i * 2].s.len);
-		obj->namedArgs[i].varg = vargs.vargs[i * 2 + 1];
+	for (u32 i = 0; i < namedVals.len; i++) {
+		err->namedVals[i].name = namedVals[i].name;
+		err->namedVals[i].val  = namedVals[i].val;	// TODO: should this be a string copy here?
 	}
-	obj->namedArgsLen = vargs.len / 2;
+	err->namedValsLen = namedVals.len;
 
 	#if defined DebugBreakOnErr
 	if (Sys::IsDebuggerPresent()) {
 		Sys_DebuggerBreak();
 	}
 	#endif	// DebugBreakOnErr
-}
 
-void Err::AddNamedVals(Span<NamedVal> newNamedVals) {
-	
-	for (u32 i = 0; i < vargs.len / 2; i++) {
-		Assert(vargs.vargs[i * 2].type == VArgType::S8);
-		obj->namedArgs[obj->namedArgsLen + i].name = s8(vargs.vargs[i * 2].s.data, vargs.vargs[i * 2].s.len);
-		obj->namedArgs[obj->namedArgsLen + i].varg = vargs.vargs[i * 2 + 1];
-	}
-	obj->namedArgsLen += vargs.len / 2;
+	return err;
 }
 
 //--------------------------------------------------------------------------------------------------
