@@ -242,8 +242,8 @@ struct Game : App {
 			u32 weight  = 0;
 		};
 		TerrainWeight terrainWeights[] = {
-			{ "ground1",     50 },              
-			{ "ground2",     20 },              
+			{ "ground1",    100 },              
+			{ "ground2",     50 },              
 			{ "ground3",     10 },              
 			{ "groundSpark",  2 },              
 			{ "grass",        5 },              
@@ -270,8 +270,8 @@ struct Game : App {
 			terrainWeights[i].weight = maxWeight;
 		}
 
-		constexpr u32 spritesWidth  = 128;
-		constexpr u32 spritesHeight = 128;
+		constexpr u32 spritesWidth  = 1024;
+		constexpr u32 spritesHeight = 1024;
 		spritesLen = spritesWidth * spritesHeight;
 		sprites = perm->AllocT<Sprite>(spritesLen);
 		for (u32 y = 0; y < spritesWidth; y++) {
@@ -300,6 +300,13 @@ struct Game : App {
 		if (Res<> r = Render::CreateBuffer(spritesLen * sizeof(Sprite), Render::BufferUsage::Storage).To(spriteBuffer); !r) { return r; }
 		spriteBufferAddr = Render::GetBufferAddr(spriteBuffer);
 
+		Sprite* spritePtr = (Sprite*)Render::BeginBufferUpdate(spriteBuffer);
+		for (u32 i = 0; i < spritesLen; i++) {
+			*spritePtr = sprites[i];
+			spritePtr++;
+		}
+		Render::EndBufferUpdate(spriteBuffer);
+
 		if (Res<> r = LoadShader("Shaders/sprite.vert.spv").To(vertexShader); !r) { return r; }
 		if (Res<> r = LoadShader("Shaders/sprite.frag.spv").To(fragmentShader); !r) { return r; }
 		if (Res<> r = Render::CreateGraphicsPipeline(
@@ -310,7 +317,7 @@ struct Game : App {
 
 		cam.aspect = (f32)windowWidth / (f32)windowHeight;
 		cam.fov = 45.0f;
-		cam.pos = { 0.0f, 0.0f, -10.0f };
+		cam.pos = { 64.0f, 64.0f, -100.0f };
 
 		return Ok();
 	}
@@ -328,7 +335,7 @@ struct Game : App {
 
 	bool keyDown[(u32)Event::Key::Max] = {};
 
-	static constexpr f32 camMovePerSec  = 5.00f;
+	static constexpr f32 camMovePerSec  = 20.00f;
 	static constexpr f32 camRotateSpeed = 0.001f;
 
 	Res<> Events(Span<Event::Event> events) override {
@@ -350,6 +357,7 @@ struct Game : App {
 				case Event::Type::WindowResized:
 					windowWidth  = e->windowResized.width;
 					windowHeight = e->windowResized.height;
+					cam.aspect = (f32)windowWidth / (f32)windowHeight;
 					break;
 			}
 		}
@@ -359,13 +367,14 @@ struct Game : App {
 
 	Res<> Update(double secs) override {
 		const f32 fsecs = (f32)secs;
+		const f32 m = keyDown[(u32)Event::Key::ShiftLeft] ? camMovePerSec * 5.0f : camMovePerSec;
 		if (keyDown[(u32)Event::Key::Escape]) { Exit(); }
-		if (keyDown[(u32)Event::Key::W     ]) { cam.Forward(-camMovePerSec * fsecs); }
-		if (keyDown[(u32)Event::Key::S     ]) { cam.Forward( camMovePerSec * fsecs); }
-		if (keyDown[(u32)Event::Key::A     ]) { cam.Left   (-camMovePerSec * fsecs); }
-		if (keyDown[(u32)Event::Key::D     ]) { cam.Left   ( camMovePerSec * fsecs); }
-		if (keyDown[(u32)Event::Key::Space ]) { cam.Up     ( camMovePerSec * fsecs); }
-		if (keyDown[(u32)Event::Key::C     ]) { cam.Up     (-camMovePerSec * fsecs); }
+		if (keyDown[(u32)Event::Key::W     ]) { cam.Forward(-m * fsecs); }
+		if (keyDown[(u32)Event::Key::S     ]) { cam.Forward( m * fsecs); }
+		if (keyDown[(u32)Event::Key::A     ]) { cam.Left   (-m * fsecs); }
+		if (keyDown[(u32)Event::Key::D     ]) { cam.Left   ( m * fsecs); }
+		if (keyDown[(u32)Event::Key::Space ]) { cam.Up     ( m * fsecs); }
+		if (keyDown[(u32)Event::Key::C     ]) { cam.Up     (-m * fsecs); }
 
 		return Ok();
 	}
@@ -374,13 +383,6 @@ struct Game : App {
 		const Render::Image swapchainImage = Render::GetSwapchainImage();
 
 		Render::ImageBarrier(Render::GetSwapchainImage(), Render::Stage::None, Render::Stage::ColorAttachment);
-
-		Sprite* spritePtr = (Sprite*)Render::BeginBufferUpdate(spriteBuffer);
-		for (u32 i = 0; i < spritesLen; i++) {
-			*spritePtr = sprites[i];
-			spritePtr++;
-		}
-		Render::EndBufferUpdate(spriteBuffer);
 
 		const Render::Pass pass = {
 			.pipeline         = pipeline,

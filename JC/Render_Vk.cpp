@@ -114,7 +114,7 @@ static constexpr u32 MaxBindlessSampledImages  = 64 * 1024;
 static constexpr u32 MaxBindlessSamplers       = 8;
 static constexpr u32 MaxBindlessDescriptorSets = 32;
 static constexpr f32 MaxAnisotropy             = 8.0f;
-static constexpr u64 StagingBufferSize         = 64 * 1024 * 1024;
+static constexpr u64 StagingBufferSize         = 256 * 1024 * 1024;
 
 struct QueueFamily {
 	VkQueueFamilyProperties vkQueueFamilyProperties = {};
@@ -1663,10 +1663,6 @@ void DestroyPipeline(Pipeline pipeline) {
 //-------------------------------------------------------------------------------------------------
 
 Res<SwapchainStatus> BeginFrame() {
-	if (frameIdx == 0) {
-		stagingBufferUsed = 0;
-	}
-
 	if (VkResult r = vkAcquireNextImageKHR(vkDevice, vkSwapchain, U64Max, vkFrameAcquireImageSemaphores[frameIdx], 0, &swapchainImageIdx); r != VK_SUCCESS) {
 		if (r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_OUT_OF_DATE_KHR) {
 			return SwapchainStatus::NeedsRecreate;
@@ -1738,6 +1734,11 @@ Res<SwapchainStatus> EndFrame() {
 	}
 
 	frameIdx = (frameIdx + 1) % MaxFrames;
+
+	if (frameIdx == 0) {
+		stagingBufferUsed = 0;
+	}
+
 
 	if (Res<> r = BeginCmds(); !r) {
 		return r.err;
@@ -1863,7 +1864,6 @@ void* BeginImageUpdate(Image image) {
 		case VK_FORMAT_R8G8B8A8_UNORM: pixelSize = 4; break;
 		case VK_FORMAT_D32_SFLOAT:     pixelSize = 4; break;
 		default: Panic("Unhandled VkFormat {}", imageObj->vkFormat);
-
 	}
 
 	imageObj->updatePtr = AllocStagingMem(imageObj->width * imageObj->height * pixelSize);
@@ -1882,7 +1882,6 @@ void EndImageUpdate(Image image) {
 		.imageSubresource  = MakeVkImageSubresourceLayers(IsDepthFormat(imageObj->vkFormat) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT),
 		.imageOffset       = { .x = 0, .y = 0, .z = 0 },
 		.imageExtent       = { .width = imageObj->width, .height = imageObj->height, .depth = 1 },
-
 	};
 	const VkCopyBufferToImageInfo2 vkCopyBufferToImageInfo2 = {
 		.sType          = VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2,
