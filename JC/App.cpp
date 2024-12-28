@@ -204,7 +204,11 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 
 //--------------------------------------------------------------------------------------------------
 
+namespace Render { void EndCommands(); }	// TODO: this sucks, fix
+
 void Shutdown(App* app) {
+	Render::EndCommands();
+	Render::WaitIdle();
 	app->Shutdown();
 	Render::Shutdown();
 	Window::Shutdown();
@@ -213,8 +217,7 @@ void Shutdown(App* app) {
 //--------------------------------------------------------------------------------------------------
 
 void RunApp(App* app, int argc, const char** argv) {
-	Res<> r = RunAppInternal(app, argc, argv);
-	if (!r) {
+	if (Res<> r = RunAppInternal(app, argc, argv); !r) {
 		if (log) {
 			Errorf(r.err);
 		}

@@ -6,13 +6,13 @@
 #include "sprite.common.glsl"
 
 layout (location = 0) in vec2 uvIn;
-layout (location = 1) flat in uint textureIdIn;
+layout (location = 1) flat in uint textureIdxIn;
 
 layout (location = 0) out vec4 rgbaOut;
 
 void main() {
     rgbaOut = texture(
-		nonuniformEXT(sampler2D(bindlessTextures[textureIdIn], bindlessSamplers[SamplerId_Nearest])),
+		nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[SamplerId_Nearest])),
 		uvIn
 	);
 }

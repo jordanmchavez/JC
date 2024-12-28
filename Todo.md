@@ -231,3 +231,5 @@ research timeline semaphores and their uses
 static-ify render
 FmtStr shouldn't be parameterized on all args, only the number of args, since we're currently not checking the individual arg flags
 VArg -> Val?
+test for all the common shit: common, math
+hash table stats

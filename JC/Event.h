@@ -131,6 +131,7 @@ enum struct Key {
 	CtrlRight   = 0xa3,
 	AltLeft     = 0xa4,
 	AltRight    = 0xa5,
+	Max,
 };
 
 s8 KeyStr(Key k);

@@ -1,5 +1,8 @@
 #include "JC/Common.h"
 
+#include "JC/Config.h"
+#include "JC/Sys.h"
+
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
@@ -36,6 +39,8 @@ void Err::Init(SrcLoc sl, s8 ns, s8 s8Code, i64 i64Code, Span<NamedArg> namedArg
 	}
 	obj->namedArgsLen = (u32)namedArgs.len;
 
+	handle = (u64)obj;
+
 	#if defined DebugBreakOnErr
 	if (Sys::IsDebuggerPresent()) {
 		Sys_DebuggerBreak();
@@ -60,7 +65,11 @@ SrcLoc         Err::GetSrcLoc()    const { return ((ErrObj*)handle)->sl;        
 s8             Err::GetNs()        const { return ((ErrObj*)handle)->ns;        }
 s8             Err::GetS8Code()    const { return ((ErrObj*)handle)->s8Code;    }
 i64            Err::GetI64Code()   const { return ((ErrObj*)handle)->i64Code;   }
-Span<NamedArg> Err::GetNamedArgs() const { return ((ErrObj*)handle)->namedArgs; }
+
+Span<NamedArg> Err::GetNamedArgs() const {
+	const ErrObj* const obj = (ErrObj*)handle;
+	return Span<NamedArg>(obj->namedArgs, obj->namedArgsLen);
+}
 
 //--------------------------------------------------------------------------------------------------
 

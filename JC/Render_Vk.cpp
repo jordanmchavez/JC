@@ -1060,13 +1060,13 @@ Res<> Init(const InitDesc* initDesc) {
 
 //----------------------------------------------------------------------------------------------
 
-void Shutdown() {
-	if (vkDevice != VK_NULL_HANDLE) {
-		vkDeviceWaitIdle(vkDevice);
+void EndCommands() {
+	if (vkFrameCommandBuffers.len > frameIdx && vkFrameCommandBuffers[frameIdx] != VK_NULL_HANDLE) {
+		vkEndCommandBuffer(vkFrameCommandBuffers[frameIdx]);
 	}
+}
 
-	vkEndCommandBuffer(vkFrameCommandBuffers[frameIdx]);
-
+void Shutdown() {
 	DestroyVk(stagingBufferObj.vkBuffer, vkDestroyBuffer);
 	FreeMem(stagingBufferObj.mem);
 	for (u64 i = 0; i < vkBindlessSamplersLen; i++) {
@@ -1075,7 +1075,9 @@ void Shutdown() {
 	vkBindlessSamplersLen = 0;
 	DestroyVk(vkBindlessDescriptorSetLayout, vkDestroyDescriptorSetLayout);
 	DestroyVk(vkDescriptorPool, vkDestroyDescriptorPool);
-	vkFreeCommandBuffers(vkDevice, vkCommandPool, (u32)vkFrameCommandBuffers.len, vkFrameCommandBuffers.data);
+	if (vkCommandPool != VK_NULL_HANDLE) {
+		vkFreeCommandBuffers(vkDevice, vkCommandPool, (u32)vkFrameCommandBuffers.len, vkFrameCommandBuffers.data);
+	}
 	DestroyVk(vkCommandPool, vkDestroyCommandPool);
 	DestroyVkArray(vkFrameAcquireImageSemaphores, vkDestroySemaphore);
 	DestroyVkArray(vkFrameRenderSemaphores, vkDestroySemaphore);
@@ -1296,7 +1298,12 @@ void DestroyImage(Image image) {
 
 //-------------------------------------------------------------------------------------------------
 
-static u32 bindlessDescriptorIdx;
+u32 GetImageWidth (Image image) { return imageObjs.Get(image)->width;  }
+u32 GetImageHeight(Image image) { return imageObjs.Get(image)->height; }
+
+//-------------------------------------------------------------------------------------------------
+
+static u32 bindlessDescriptorIdx;	// TODO: move to top
 
 u32 BindImage(Image image) {
 	const ImageObj* const imageObj = imageObjs.Get(image);
@@ -1990,6 +1997,10 @@ void PushConstants(Pipeline pipeline, const void* ptr, u32 len) {
 }
 
 //----------------------------------------------------------------------------------------------
+
+void Draw(u32 vertexCount, u32 instanceCount) {
+	vkCmdDraw(vkFrameCommandBuffers[frameIdx], vertexCount, instanceCount, 0, 0);
+}
 
 void DrawIndexed(u32 indexCount) {
 	vkCmdDrawIndexed(vkFrameCommandBuffers[frameIdx], indexCount, 1, 0, 0, 0);

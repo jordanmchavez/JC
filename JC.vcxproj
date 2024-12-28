@@ -142,6 +142,7 @@
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
+    <ClCompile Include="JC\Common.cpp" />
     <ClCompile Include="JC\App.cpp" />
     <ClCompile Include="JC\Config.cpp" />
     <ClCompile Include="JC\FS_Win.cpp" />

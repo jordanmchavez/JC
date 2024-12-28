@@ -22,10 +22,10 @@ struct LogObj : Log {
 		Array<char> arr(temp);
 		Fmt(
 			&arr,
-			"{}{}({}): ",
-			category == LogCategory::Error ? "!!! " : "",
+			"{}({}):{} ",
 			sl.file,
-			sl.line
+			sl.line,
+			category == LogCategory::Error ? " !!!" : ""
 		);
 		VFmt(&arr, fmt, args);
 		arr.Add("\n", 2);
@@ -36,7 +36,7 @@ struct LogObj : Log {
 
 	void Error(Err err, SrcLoc sl) override {
 		Array<char> arr(temp);
-		Fmt(&arr, "!!! {}({}): Error:", sl.file, sl.line);
+		Fmt(&arr, "{}({}): !!! Error:\n", sl.file, sl.line);
 
 		for (Err e = err; e.handle; e = e.GetPrev()) {
 			if (e.GetS8Code() != "") {

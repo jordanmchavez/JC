@@ -1,6 +1,7 @@
 #include "JC/Json.h"
 
 #include "JC/Array.h"
+#include "JC/UnitTest.h"
 #include <math.h>
 
 namespace JC::Json {
@@ -13,58 +14,62 @@ DefErr(Json, Eof);
 DefErr(Json, BadChar);
 DefErr(Json, BadExponent);
 DefErr(Json, BadNumber);
-DefErr(Json, UnmatchedQuote);
-
+DefErr(Json, UnmatchedStringQuote);
+DefErr(Json, UnmatchedArrayBracket);
+DefErr(Json, UnmatchedObjectBrace);
+DefErr(Json, BadEscapedChar);
+DefErr(Json, BadObj);
+DefErr(Json, BadKey);
 
 //--------------------------------------------------------------------------------------------------
 
-Elem AddU64(Arena* arena, u64 val) {
+static Elem AddI64(Arena* arena, u64 val) {
 	u64* ptr = (u64*)arena->Alloc(sizeof(val));
 	*ptr = val;
-	return Elem { .handle = ((u64)ptr) & (u64)Type::U64 };
+	return Elem { .handle = ((u64)ptr) | (u64)Type::I64 };
 }
 
-Elem AddF64(Arena* arena, f64 val) {
+static Elem AddF64(Arena* arena, f64 val) {
 	f64* ptr = (f64*)arena->Alloc(sizeof(val));
 	*ptr = val;
-	return Elem { .handle = ((u64)ptr) & (u64)Type::F64 };
+	return Elem { .handle = ((u64)ptr) | (u64)Type::F64 };
 }
 
-Elem AddS8(Arena* arena, s8 val) {
+static Elem AddS8(Arena* arena, s8 val) {
 	u64* ptr = (u64*)arena->Alloc(sizeof(val.len) + val.len);
 	*ptr = val.len;
 	memcpy(ptr + 1, val.data, val.len);
-	return Elem { .handle = ((u64)ptr) & (u64)Type::S8 };
+	return Elem { .handle = ((u64)ptr) | (u64)Type::S8 };
 }
 
-Elem AddArr(Arena* arena, Span<Elem> elems) {
+static Elem AddArr(Arena* arena, Span<Elem> elems) {
 	u64* ptr = (u64*)arena->Alloc(sizeof(u64) + (elems.len * sizeof(Elem)));
 	*ptr = elems.len;
 	memcpy(ptr + 1, elems.data, elems.len * sizeof(Elem));
-	return Elem { .handle = ((u64)ptr) & (u64)Type::Arr };
+	return Elem { .handle = ((u64)ptr) | (u64)Type::Arr };
 }
 
-Elem AddObj(Arena* arena, Span<NameVal> nameVals) {
-	u64 namesSize = 0;
-	for (u64 i = 0; i < nameVals.len; i++) {
-		namesSize += nameVals[i].name.len;
+static Elem AddObj(Arena* arena, Span<KeyVal> keyVals) {
+	u64 keysSize = 0;
+	for (u64 i = 0; i < keyVals.len; i++) {
+		keysSize += keyVals[i].key.len;
 	}
 
-	char* namesPtr = (char*)arena->Alloc(namesSize);
-	u64* ptr = (u64*)arena->Alloc(sizeof(u64) + (nameVals.len * sizeof(NameVal)));
-	*ptr = nameVals.len;
-	NameVal* nameValsPtr = (NameVal*)(ptr + 1);
-	for (u64 i = 0; i < nameVals.len; i++) {
-		char* const namePtr = namesPtr;
-		s8 name = nameVals[i].name;
-		memcpy(namePtr, name.data, name.len);
-		namesPtr += name.len;
-		nameValsPtr->name = s8(namePtr, name.len);
-		nameValsPtr->val  = nameVals[i].val;
-		nameValsPtr++;
+	char* keysPtr = (char*)arena->Alloc(keysSize);
+	u64* ptr = (u64*)arena->Alloc(sizeof(u64) + (keyVals.len * sizeof(KeyVal)));
+	*ptr = keyVals.len;
+	KeyVal* keyValsPtr = (KeyVal*)(ptr + 1);
+	for (u64 i = 0; i < keyVals.len; i++) {
+		char* const keyPtr = keysPtr;
+		s8 key = keyVals[i].key;
+		memcpy(keyPtr, key.data, key.len);
+		keysPtr += key.len;
+		keyValsPtr->key = s8(keyPtr, key.len);
+		keyValsPtr->val  = keyVals[i].val;
+		keyValsPtr++;
 	}
 
-	return Elem { .handle = ((u64)ptr) & (u64)Type::Obj };
+	return Elem { .handle = ((u64)ptr) | (u64)Type::Obj };
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -75,9 +80,9 @@ struct ParseCtx {
 	u32         line = 0;
 };
 
-constexpr bool IsSpace(char c) { return c <= 32; }
+static constexpr bool IsSpace(char c) { return c <= 32; }
 
-Res<> SkipWhitespace(ParseCtx* p) {
+static Res<> SkipWhitespace(ParseCtx* p) {
 	while (p->iter < p->end) {
 		const char c = *p->iter;
 		if (c == '\n') {
@@ -115,11 +120,10 @@ Res<> SkipWhitespace(ParseCtx* p) {
 	return Ok();
 }
 
-static constexpr Elem NullElem  = { .handle = (u64)Type::Null };
 static constexpr Elem TrueElem  = { .handle = (u64)Type::Bool };
 static constexpr Elem FalseElem = { .handle = (u64)Type::Bool };
 
-Res<> Expect(ParseCtx* p, char c) {
+static Res<> Expect(ParseCtx* p, char c) {
 	if (p->iter >= p->end) {
 		return Err_Eof("line", p->line, "expected", c);
 	}
@@ -130,15 +134,7 @@ Res<> Expect(ParseCtx* p, char c) {
 	return Ok();
 }
 
-Res<Elem> ParseNull(ParseCtx* p) {
-	if (Res<> r = Expect(p, 'n'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 'u'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 'l'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 'l'); !r) { return r.err; }
-	return NullElem;
-}
-
-Res<Elem> ParseTrue(ParseCtx* p) {
+static Res<Elem> ParseTrue(ParseCtx* p) {
 	if (Res<> r = Expect(p, 't'); !r) { return r.err; }
 	if (Res<> r = Expect(p, 'r'); !r) { return r.err; }
 	if (Res<> r = Expect(p, 'u'); !r) { return r.err; }
@@ -146,7 +142,7 @@ Res<Elem> ParseTrue(ParseCtx* p) {
 	return TrueElem;
 }
 
-Res<Elem> ParseFalse(ParseCtx* p) {
+static Res<Elem> ParseFalse(ParseCtx* p) {
 	if (Res<> r = Expect(p, 'f'); !r) { return r.err; }
 	if (Res<> r = Expect(p, 'a'); !r) { return r.err; }
 	if (Res<> r = Expect(p, 'l'); !r) { return r.err; }
@@ -155,138 +151,219 @@ Res<Elem> ParseFalse(ParseCtx* p) {
 	return FalseElem;
 }
 
-Res<Elem> ParseNum(Arena* arena, ParseCtx* p) {
-	const char* i = p->iter;
-	const char* const e = p->end;
+static Res<Elem> ParseNum(Arena* arena, ParseCtx* p) {
+	Assert(p->iter < p->end);
 
-	Assert(i < e);
-
-	f64 sign = 1.0;
-	if (*i == '-') {
-		sign = -1.0;
-		i++;
+	i64 sign = 1;
+	if (*p->iter == '-') {
+		sign = -1;
+		p->iter++;
 	}
 
-	u64 intVal = 0;
-	if (i < e) {
-		if (*i == '0') {
-		} else if (*i >= '1' && *i <= '9') {
-			intVal = *i - '0';
-			i++;
-			while (i < e && *i >= '0' && *i <= '9') {
-				intVal = (intVal * 10) + (*i - '0');
-				i++;
+	i64 intVal = 0;
+	if (p->iter < p->end) {
+		if (*p->iter == '0') {
+			p->iter++;
+		} else if (*p->iter >= '1' && *p->iter <= '9') {
+			intVal = *p->iter - '0';
+			p->iter++;
+			while (p->iter < p->end && *p->iter >= '0' && *p->iter <= '9') {
+				intVal = (intVal * 10) + (*p->iter - '0');
+				p->iter++;
 			}
 		} else {
-			return Err_BadNumber("line", p->line, "ch", *i);
+			return Err_BadNumber("line", p->line, "ch", *p->iter);
 		}
+	}
+
+	if (p->iter >= p->end || *p->iter != '.') {
+		return AddI64(arena, sign * intVal);
 	}
 
 	u64 fracVal = 0;
 	f64 fracDenom = 1;
-	bool isFloat = false;
-	if (i < e && *i == '.') {
-		isFloat = true;
-		i++;
-		while (i < e && *i >= '0' && *i <= '9') {
-			const u64 newFracVal = (fracVal * 10) + (*i - '0');
-			if (newFracVal < fracVal) {
-				// overflow, skip remainder
-				while (i < e && *i >= '0' && *i <= '9') {
-					i++;
-				}
-				break;
+	p->iter++;
+	while (p->iter < p->end && *p->iter >= '0' && *p->iter <= '9') {
+		const u64 newFracVal = (fracVal * 10) + (*p->iter - '0');
+		if (newFracVal < fracVal) {
+			// overflow, skip remainder
+			while (p->iter < p->end && *p->iter >= '0' && *p->iter <= '9') {
+				p->iter++;
 			}
-			fracVal = newFracVal;
-			fracDenom *= 10;
-			i++;
+			break;
 		}
+		fracVal = newFracVal;
+		fracDenom *= 10;
+		p->iter++;
 	}
 
 	f64 expSign = 1.0;
 	u32 exp = 0;
-	if (i < e && *i == 'e' || *i == 'E') {
-		if (!isFloat) { return Err_BadExponent("line", p->line); }
-		i++;
-		if (i >= e) { return Err_BadExponent("line", p->line); }
-		if (*i == '+') {
-			i++;
-		} else if (*i == '-') {
+	if (p->iter < p->end && *p->iter == 'e' || *p->iter == 'E') {
+		p->iter++;
+		if (p->iter >= p->end) { return Err_BadExponent("line", p->line); }
+		if (*p->iter == '+') {
+			p->iter++;
+		} else if (*p->iter == '-') {
 			expSign = -1.0;
-			i++;
+			p->iter++;
 		}
-		if (i >= e || *i < '1' || *i > '9') {  return Err_BadExponent("line", p->line); }
-		exp = *i - '0';
-		i++;
-		while (i < e && *i >= '0' && *i <= '9') {
-			exp = (exp * 10) + (*i - '0');
-			i++;
+		if (p->iter >= p->end || *p->iter < '1' || *p->iter > '9') {  return Err_BadExponent("line", p->line); }
+		exp = *p->iter - '0';
+		p->iter++;
+		while (p->iter < p->end && *p->iter >= '0' && *p->iter <= '9') {
+			exp = (exp * 10) + (*p->iter - '0');
+			p->iter++;
 		}
 	}
 
-	p->iter = i;
-
-	const double val = sign * ((double)intVal + ((double)fracVal / fracDenom)) * pow(10.0, expSign * (double)exp);
-
-	return AddF64(arena, val);
+	return AddF64(arena, (double)sign * ((double)intVal + ((double)fracVal / fracDenom)) * pow(10.0, expSign * (double)exp));
 }
 
-Res<Elem> ParseStr(Arena* arena, ParseCtx* p) {
-	const char* i = p->iter;
-	const char* const e = p->end;
-
+static Res<s8> ParseStrRaw(Arena* temp, ParseCtx* p) {
+	const u32 openLine = p->line;
 	if (Res<> r = Expect(p, '"'); !r) { return r; }
-	Array<char> a;
+	Array<char> a(temp);
 
 	for (;;) {
-		if (i >= e) {
-			return Err_UnmatchedQuote("line", p->line);
-
-		} else if (*i != '"') {
-			p->iter = i + 1;
-			return AddS8(arena, s8(a.data, a.len));
-
-		} else if (*i == '\\') {
-			i++;
-			switch (*i) {
-				case '\\': a.Add('\\'); i++; break;
-				case '"':  a.Add('"');  i++; break;
-				case '/':  a.Add('/');  i++; break;
-				case 'b':  a.Add('\b'); i++; break;
-				case 'f':  a.Add('\f'); i++; break;
-				case 'n':  a.Add('\n'); i++; break;
-				case 'r':  a.Add('\r'); i++; break;
-				case 't':  a.Add('\t'); i++; break;
+		if (p->iter >= p->end) { return Err_UnmatchedStringQuote("line", openLine); }
+		if (*p->iter == '"') { break; }
+		if (*p->iter == '\\') {
+			p->iter++;
+			if (p->iter >= p->end) { return Err_BadEscapedChar("line", p->line); }
+			switch (*p->iter) {
+				case '\\': a.Add('\\'); break;
+				case '"':  a.Add('"');  break;
+				case '/':  a.Add('/');  break;
+				case 'b':  a.Add('\b'); break;
+				case 'f':  a.Add('\f'); break;
+				case 'n':  a.Add('\n'); break;
+				case 'r':  a.Add('\r'); break;
+				case 't':  a.Add('\t'); break;
 
 				case 'u': // TODO: UTF-8 support
 
 				default:
-					return Err_BadChar("line", p->line, "ch", *i);
+					return Err_BadChar("line", p->line, "ch", *p->iter);
 			}
+			p->iter++;
 
 		} else {
-			a.Add(*i);
-			i++;
+			a.Add(*p->iter);
+			p->iter++;
 		}
 	}
+
+	Assert(p->iter < p->end && *p->iter == '"');
+	p->iter++;
+	return s8(a.data, a.len);
 }
 
-Res<Elem> ParseArr(Arena* arena, ParseCtx* p) {
-	arena; p; return Elem{};
+static Res<Elem> ParseStr(Arena* perm, Arena* temp, ParseCtx* p) {
+	s8 s = {};
+	if (Res<> r = ParseStrRaw(temp, p).To(s); !r) { return r; }
+	return AddS8(perm, s);
 }
 
-Res<Elem> ParseObj(Arena* arena, ParseCtx* p) {
-	arena; p; return Elem{};
-}
+static Res<Elem> ParseElem(Arena* perm, Arena* temp, ParseCtx* p);
 
-Res<Elem> ParseElem(Arena* arena, ParseCtx* p) {
-	if (p->iter >= p->end) {
-		return NullElem;
+static Res<Elem> ParseArr(Arena* perm, Arena* temp, ParseCtx* p) {
+	const u32 openLine = p->line;
+	if (Res<> r = Expect(p, '['); !r) { return r; }
+
+	Array<Elem> elems(temp);
+	for (;;) {
+		if (Res<> r = SkipWhitespace(p); !r) { return r; }
+		if (p->iter >= p->end) { return Err_UnmatchedArrayBracket("line", openLine); }
+		if (*p->iter == ']') { break; }
+
+		Elem e = {};
+		if (Res<> r = ParseElem(perm, temp, p).To(e); !r) { return r; }
+		elems.Add(e);
+		
+		if (Res<> r = SkipWhitespace(p); !r) { return r; }
+		if (p->iter >= p->end) { return Err_UnmatchedArrayBracket("line", openLine); }
+		if (*p->iter == ']') { break; }
+		if (Res<> r = Expect(p, ','); !r) { return r; }
 	}
 
-	switch (p->iter[0]) {
-		case 'n': return ParseNull(p);
+	Assert(p->iter < p->end && *p->iter == ']');
+	p->iter++;
+	return AddArr(perm, elems);
+}
 
+static Res<s8> ParseKey(Arena* temp, ParseCtx* p) {
+	Assert(p->iter < p->end);
+	if (char c = *p->iter; c == '"') {
+		return ParseStrRaw(temp, p);
+		
+	} else if (
+		(c >= 'a' && c <= 'z') ||
+		(c >= 'A' && c <= 'Z') ||
+		(c == '_')
+	) {
+		const char* begin = p->iter;
+		p->iter++;
+		for (;;) {
+			if (p->iter >= p->end) { return Err_BadKey("line", p->line); }
+			c = *p->iter; 
+			if (
+				(c >= '0' && c <= '9') ||
+				(c >= 'a' && c <= 'z') ||
+				(c >= 'A' && c <= 'Z') ||
+				(c == '_')
+			) {
+				p->iter++;
+			} else {
+				break;
+			}
+		}
+		return s8(begin, p->iter);
+	} else {
+		return Err_BadKey("line", p->line, "ch", c);
+	}
+}
+
+static Res<Elem> ParseObj(Arena* perm, Arena* temp, ParseCtx* p) {
+	const u32 openLine = p->line;
+	if (Res<> r = Expect(p, '{'); !r) { return r; }
+
+	Array<KeyVal> keyVals(temp);
+	for (;;) {
+		if (Res<> r = SkipWhitespace(p); !r) { return r; }
+		if (p->iter >= p->end) { return Err_UnmatchedObjectBrace("line", openLine); }
+		if (*p->iter == '}') { break; }
+
+		KeyVal kv = {};
+		if (Res<> r = ParseKey(temp, p).To(kv.key); !r) { return r; }
+
+		if (Res<> r = SkipWhitespace(p); !r) { return r; }
+		if (p->iter >= p->end) { return Err_UnmatchedObjectBrace("line", openLine); }
+
+		if (Res<> r = Expect(p, ':'); !r) { return r; }
+
+		if (Res<> r = SkipWhitespace(p); !r) { return r; }
+		if (p->iter >= p->end) { return Err_UnmatchedObjectBrace("line", openLine); }
+
+		if (Res<> r = ParseElem(perm, temp, p).To(kv.val); !r) { return r; }
+
+		keyVals.Add(kv);
+		
+		if (Res<> r = SkipWhitespace(p); !r) { return r; }
+		if (p->iter >= p->end) { return Err_UnmatchedObjectBrace("line", openLine); }
+		if (*p->iter == '}') { break; }
+		if (Res<> r = Expect(p, ','); !r) { return r; }
+	}
+
+	Assert(p->iter < p->end && *p->iter == '}');
+	p->iter++;
+	return AddObj(perm, keyVals);
+}
+
+static Res<Elem> ParseElem(Arena* perm, Arena* temp, ParseCtx* p) {
+	Assert(p->iter < p->end);
+
+	switch (p->iter[0]) {
 		case 't': return ParseTrue(p);
 		case 'f': return ParseFalse(p);
 
@@ -300,20 +377,19 @@ Res<Elem> ParseElem(Arena* arena, ParseCtx* p) {
 		case '7':
 		case '8':
 		case '9':
-		case '.':
-		case '-': return ParseNum(arena, p);
+		case '-': return ParseNum(perm, p);
 
-		case '"': return ParseStr(arena, p);
+		case '"': return ParseStr(perm, temp, p);
 		
-		case '[': return ParseArr(arena, p);
+		case '[': return ParseArr(perm, temp, p);
 
-		case '{': return ParseObj(arena, p);
+		case '{': return ParseObj(perm, temp, p);
 
 		default: return Err_BadChar("line", p->line, "ch", p->iter[0]);
 	}
 }
 
-Res<Elem> Parse(Arena* arena, s8 str) {
+Res<Elem> Parse(Arena* perm, Arena* temp, s8 str) {
 	ParseCtx p = {
 		.iter = str.data,
 		.end  = str.data + str.len,
@@ -322,7 +398,7 @@ Res<Elem> Parse(Arena* arena, s8 str) {
 
 	if (Res<> r = SkipWhitespace(&p); !r) { return r.err; }
 	Elem elem = {};
-	if (Res<> r = ParseElem(arena, &p).To(elem); !r) { return r; };
+	if (Res<> r = ParseElem(perm, temp, &p).To(elem); !r) { return r; };
 	if (Res<> r = SkipWhitespace(&p); !r) { return r.err; }
 	if (p.iter < p.end) {
 		return Err_BadChar("line", p.line, "ch", *p.iter);
@@ -349,11 +425,11 @@ Res<bool> GetBool(Elem elem) {
 	}
 }
 
-Res<u64> GetU64(Elem elem) {
+Res<i64> GetI64(Elem elem) {
 	const Type type = (Type)(elem.handle & 0x7);
-	if (type != Type::U64) { return Err_WrongType("actualtype", type); }
+	if (type != Type::I64) { return Err_WrongType("actualtype", type); }
 	const u64* const ptr = (u64*)(elem.handle & ~0x7);
-	return *ptr;
+	return (i64)*ptr;
 }
 
 Res<f64> GetF64(Elem elem) {
@@ -377,11 +453,45 @@ Res<Span<Elem>> GetArr(Elem elem) {
 	return Span<Elem>((Elem*)(ptr + 1), *ptr);
 }
 
-Res<Span<NameVal>> GetObj(Elem elem) {
+Res<Span<KeyVal>> GetObj(Elem elem) {
 	const Type type = (Type)(elem.handle & 0x7);
 	if (type != Type::Obj) { return Err_WrongType("actualtype", type); }
 	const u64* const ptr = (u64*)(elem.handle & ~0x7);
-	return Span<NameVal>((NameVal*)(ptr + 1), *ptr);
+	return Span<KeyVal>((KeyVal*)(ptr + 1), *ptr);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+UnitTest("Json") {
+	{
+		Elem e = {};
+		CheckTrue(Parse(temp, temp, "123").To(e));
+		CheckEq(GetType(e), Type::I64);
+		i64 val = 0;
+		CheckTrue(GetI64(e).To(val));
+		CheckEq(val, 123);
+	}
+
+	{
+		Elem e = {};
+		CheckTrue(Parse(temp, temp, "{ foo: \"hello\", \"foo bar\": 1.25 }").To(e));
+		Span<KeyVal> keyVals = {};
+		CheckTrue(GetObj(e).To(keyVals));
+
+		CheckEq(keyVals.len, 2);
+		CheckEq(keyVals[0].key, "foo");
+
+		s8 s = {};
+		CheckTrue(GetS8(keyVals[0].val).To(s));
+		CheckEq(s, "hello");
+
+		f64 f = {};
+		CheckEq(keyVals[1].key, "foo bar");
+		CheckTrue(GetF64(keyVals[1].val).To(f));
+		CheckEq(f, 1.25);
+	}
+
+	// TODO: more detailed tests, especially error conditions
 }
 
 //--------------------------------------------------------------------------------------------------

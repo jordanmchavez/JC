@@ -333,6 +333,27 @@ PanicFn* SetPanicFn(PanicFn* panicFn);
 
 //--------------------------------------------------------------------------------------------------
 
+struct Arena {
+	u8* begin      = 0;
+	u8* end        = 0;
+	u8* endCommit  = 0;
+	u8* endReserve = 0;
+
+	void* Alloc(u64 size, SrcLoc sl = SrcLoc::Here());
+	bool  Extend(void* p, u64 oldSize, u64 newSize, SrcLoc sl = SrcLoc::Here());
+	u64   Mark();
+	void  Reset(u64 mark);
+
+	template <class T> T* AllocT(SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(sizeof(T), sl); }
+	template <class T> T* AllocT(u64 n, SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(n * sizeof(T), sl); }
+	template <class T> bool ExtendT(T* p, u64 oldN, u64 newN, SrcLoc sl = SrcLoc::Here()) { return Extend(p, oldN * sizeof(T), newN * sizeof(T), sl); }
+};
+
+Arena CreateArena(u64 reserveSize);
+void  DestroyArena(Arena arena);
+
+//--------------------------------------------------------------------------------------------------
+
 constexpr s8::s8(const char* s) {
 	data = s;
 	len  = CxStrLen8(s);
@@ -363,6 +384,8 @@ constexpr char s8::operator[](u64 i) const {
 constexpr bool operator==(s8 str1, s8 str2) { return str1.len == str2.len && MemCmp(str1.data, str2.data, str1.len) == 0; }
 constexpr bool operator!=(s8 str1, s8 str2) { return str1.len != str2.len && MemCmp(str1.data, str2.data, str1.len) != 0; }
 
+s8 Copy(Arena* arena, s8 s);
+
 //--------------------------------------------------------------------------------------------------
 
 } namespace std {
@@ -386,7 +409,7 @@ struct Span {
 	u64      len  = 0;
 
 	constexpr Span() { data = nullptr; len = 0; }
-	constexpr Span(T* d, u64 l) { data = d; len = l; }
+	constexpr Span(const T* d, u64 l) { data = d; len = l; }
 	template <u64 N> constexpr Span(T (&a)[N]) { data = a; len = N; }
 	constexpr Span(std::initializer_list<T> il) { data = il.begin(), len = il.size(); }
 	constexpr Span(const Span&) = default;
@@ -398,27 +421,6 @@ struct Span {
 	constexpr const T* Begin() const { return data; }
 	constexpr const T* End()   const { return data + len; }
 };
-
-//--------------------------------------------------------------------------------------------------
-
-struct Arena {
-	u8* begin      = 0;
-	u8* end        = 0;
-	u8* endCommit  = 0;
-	u8* endReserve = 0;
-
-	void* Alloc(u64 size, SrcLoc sl = SrcLoc::Here());
-	bool  Extend(void* p, u64 oldSize, u64 newSize, SrcLoc sl = SrcLoc::Here());
-	u64   Mark();
-	void  Reset(u64 mark);
-
-	template <class T> T* AllocT(SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(sizeof(T), sl); }
-	template <class T> T* AllocT(u64 n, SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(n * sizeof(T), sl); }
-	template <class T> bool ExtendT(T* p, u64 oldN, u64 newN, SrcLoc sl = SrcLoc::Here()) { return Extend(p, oldN * sizeof(T), newN * sizeof(T), sl); }
-};
-
-Arena CreateArena(u64 reserveSize);
-void  DestroyArena(Arena arena);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -539,8 +541,8 @@ template <class T> struct [[nodiscard]] Res {
 
 	constexpr operator bool() const { return hasVal; }
 
-	constexpr Err To(T& out) { if (hasVal) { out = val; return Err{}; } else { return err; } }
-	constexpr T   Or(T def) { return hasVal ? val : def; }
+	constexpr Res<> To(T& out) { if (hasVal) { out = val; return Res<>{}; } return Res<>(err); }
+	constexpr T     Or(T def) { return hasVal ? val : def; }
 };
 
 constexpr Res<> Ok() { return Res<>(); }

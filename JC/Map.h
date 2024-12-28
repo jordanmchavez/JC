@@ -43,6 +43,7 @@ template <class K, class V> struct Map {
 	}
 
 	void Init(Arena* arenaIn, u64 bucketsCapIn, u64 elemsCapIn, SrcLoc sl = SrcLoc::Here()) {
+		Assert(bucketsCapIn > 0);
 		bucketsCapIn = AlignPow2(bucketsCapIn);
 
 		arena      = arenaIn;
@@ -51,7 +52,7 @@ template <class K, class V> struct Map {
 		elems      = arena->AllocT<Elem>(elemsCapIn);
 		elemsLen   = 0;
 		elemsCap   = elemsCapIn;
-		mask       = elemsCapIn - 1;
+		mask       = bucketsCapIn - 1;
 		MemSet(buckets, 0, bucketsCapIn * sizeof(Bucket));
 	}
 
@@ -104,7 +105,7 @@ template <class K, class V> struct Map {
 					u64 newCap = Max(16ull, elemsCap * 2u);
 					if (!arena->ExtendT(elems, elemsCap, newCap, sl)) {
 						Elem* newElems = arena->AllocT<Elem>(newCap , sl);
-						MemCpy(newElems, elems, elemsLen);
+						MemCpy(newElems, elems, elemsLen * sizeof(Elem));
 						elems = newElems;
 					}
 					elemsCap = newCap;
@@ -115,7 +116,6 @@ template <class K, class V> struct Map {
 					if (!arena->ExtendT<Bucket>(buckets, bucketsCap, newBucketsCap, sl)) {
 						buckets = arena->AllocT<Bucket>(newBucketsCap, sl);
 					}
-					MemSet(buckets, 0, newBucketsCap * sizeof(Bucket));
 					bucketsCap = newBucketsCap;
 					mask = newBucketsCap - 1;
 					for (u64 j = 0; j < elemsLen; ++j) {
