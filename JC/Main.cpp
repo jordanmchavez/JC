@@ -263,6 +263,7 @@ struct Game : App {
 			{ "obsidian3",    1 },              
 			{ "petr1",        2 },              
 			{ "petr2",        1 },              
+			{ "thorns",       1 },              
 		};
 		u32 maxWeight = 0;
 		for (u64 i = 0; i < LenOf(terrainWeights); i++) {
@@ -270,8 +271,8 @@ struct Game : App {
 			terrainWeights[i].weight = maxWeight;
 		}
 
-		constexpr u32 spritesWidth  = 1024;
-		constexpr u32 spritesHeight = 1024;
+		constexpr u32 spritesWidth  = 128;
+		constexpr u32 spritesHeight = 128;
 		spritesLen = spritesWidth * spritesHeight;
 		sprites = perm->AllocT<Sprite>(spritesLen);
 		for (u32 y = 0; y < spritesWidth; y++) {
@@ -280,7 +281,7 @@ struct Game : App {
 				const u32 weight = Random::NextU64() % maxWeight;
 				s8 terrain = {};
 				for (u32 i = 0; i < LenOf(terrainWeights); i++) {
-					if (weight <= terrainWeights[i].weight) {
+					if (weight < terrainWeights[i].weight) {
 						terrain = terrainWeights[i].terrain;
 						break;
 					}
