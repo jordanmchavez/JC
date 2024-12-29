@@ -114,7 +114,7 @@ static constexpr u32 MaxBindlessSampledImages  = 64 * 1024;
 static constexpr u32 MaxBindlessSamplers       = 8;
 static constexpr u32 MaxBindlessDescriptorSets = 32;
 static constexpr f32 MaxAnisotropy             = 8.0f;
-static constexpr u64 StagingBufferSize         = 256 * 1024 * 1024;
+static constexpr u64 StagingBufferSize         = 64 * 1024 * 1024;
 
 struct QueueFamily {
 	VkQueueFamilyProperties vkQueueFamilyProperties = {};
