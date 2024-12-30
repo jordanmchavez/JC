@@ -6,8 +6,9 @@ struct Sprite {
 	mat4 model;
 	vec2 uv1;
 	vec2 uv2;
-	uint textureIdx;
-	uint pad[3];
+	uint diffuseIdx;
+	uint normalIdx;
+	uint pad[2];
 };
 
 layout (buffer_reference, scalar) readonly buffer SpriteBuffer {
@@ -24,3 +25,9 @@ layout (push_constant) uniform PushConstants {
 	mat4 projView;
 	SpriteBuffer spriteBuffer;
 } pushConstants;
+
+struct VsOut {
+	vec3 pos;
+	vec2 uv;
+	vec3 
+};

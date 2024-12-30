@@ -68,11 +68,12 @@ struct PerspectiveCamera {
 };
 
 struct Sprite {
-	Mat4 model    = {};
-	Vec2 uv1      = {};
-	Vec2 uv2      = {};
-	u32  imageIdx = {};
-	u32  pad[3]   = {};
+	Mat4 model      = {};
+	Vec2 uv1        = {};
+	Vec2 uv2        = {};
+	u32  diffuseIdx = {};
+	u32  normalIdx  = {};
+	u32  pad[2]     = {};
 };
 
 struct PushConstants {

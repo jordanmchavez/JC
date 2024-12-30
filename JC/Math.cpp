@@ -200,17 +200,11 @@ Vec4 Mat4::Mul(Mat4 m, Vec4 b) {
 }
 
 Mat4 Mat4::Translate(Vec3 b) {
-	//b.x = b.y = b.z = 1.0f;
 	return Mat4 {
-		//{ 1.0f, 0.0f, 0.0f,  b.x },
-		//{ 0.0f, 1.0f, 0.0f,  b.y },
-		//{ 0.0f, 0.0f, 1.0f,  b.z },
-		//{ 0.0f, 0.0f, 0.0f, 1.0f },
-
 		1.0f, 0.0f, 0.0f,  0.f,
 		0.0f, 1.0f, 0.0f,  0.f,
 		0.0f, 0.0f, 1.0f,  0.f,
-		b.x, b.y, b.z   , 1.0f,
+		 b.x,  b.y,  b.z, 1.0f,
 	};
 }
 

@@ -6,7 +6,8 @@
 #include "sprite.common.glsl"
 
 layout (location = 0) out vec2 uvOut;
-layout (location = 1) flat out uint textureIdxOut;
+layout (location = 1) flat out uint diffuseIdxOut;
+layout (location = 2) flat out uint normalIdxOut;
 
 vec2 spriteXYs[6] = vec2[6](
 	vec2(-0.5f,  0.5f),
@@ -40,5 +41,6 @@ void main() {
 		sprite.uv1.y * (1.0f - t.y) + sprite.uv2.y * t.y
 	);
 
-	textureIdxOut = sprite.textureIdx;
+	diffuseIdxOut = sprite.diffuseIdx;
+	normalIdxOut = sprite.normalIdx;
 }
