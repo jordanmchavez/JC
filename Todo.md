@@ -236,3 +236,4 @@ hash table stats
 maximizing window right when we're starting up causes a command buffer weirdness
 	we should probably end the command buffer and restart it, see what love2d does here
 our sprite structure has padding...can we get rid of it?
+consider replacing all ' = 0' with ' = {}'

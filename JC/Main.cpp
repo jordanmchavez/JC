@@ -17,6 +17,7 @@
 #include "stb/stb_image.h"
 #include "JC/MinimalWindows.h"
 #include "JC/Render_Vk.h"
+#include <math.h>
 
 #undef LoadImage
 
@@ -67,23 +68,19 @@ struct PerspectiveCamera {
 	}
 };
 
-struct Sprite {
-	Mat4 model      = {};
-	Vec2 uv1        = {};
-	Vec2 uv2        = {};
-	u32  diffuseIdx = {};
-	u32  normalIdx  = {};
-	u32  pad[2]     = {};
-};
-
-struct PushConstants {
-	Mat4 projView         = {};
-	u64  spriteBufferAddr = 0;
-};
-
 //--------------------------------------------------------------------------------------------------
 
 struct Game : App {
+	struct Scene {
+		Mat4 projView         = {};
+		Vec3 lightPos         = {};
+		u64  spriteBufferAddr = 0;
+	};
+
+	struct PushConstants {
+		u64  sceneBufferAddr = 0;
+	};
+
 	struct AtlasEntry {
 		u32 imageIdx = 0;
 		s8  name     = {};
@@ -91,12 +88,26 @@ struct Game : App {
 		Vec2 uv2     = {};
 	};
 
+	struct Sprite {
+		Mat4 model      = {};
+		Vec2 uv1        = {};
+		Vec2 uv2        = {};
+		u32  diffuseIdx = {};
+		u32  normalIdx  = {};
+		u32  pad[2]     = {};
+	};
 	Arena*               temp             = 0;
 	Arena*               perm             = 0;
 	Log*                 log              = 0;
 	u32                  windowWidth      = 0;
 	u32                  windowHeight     = 0;
+	Render::Buffer       sceneBuffer      = {};
+	u64                  sceneBufferAddr  = 0;
 	Array<Render::Image> atlasImages      = {};
+	Render::Image        facesImage       = {};
+	Render::Image        facesNImage      = {};
+	u32                  facesImageIdx    = 0;
+	u32                  facesNImageIdx   = 0;
 	Array<AtlasEntry>    atlasEntries     = {};
 	Map<s8, u32>         atlasEntryMap    = {};
 	Render::Buffer       spriteBuffer     = {};
@@ -105,6 +116,7 @@ struct Game : App {
 	Render::Shader       fragmentShader   = {};
 	Render::Pipeline     pipeline         = {};
 	PerspectiveCamera    cam              = {};
+	Vec3                 lightPos         = { 64.0f, 64.0f, 10.0f };
 
 	Res<Render::Image> LoadImage(s8 path) {
 		Span<u8> data;
@@ -231,12 +243,20 @@ struct Game : App {
 		log = logIn;
 		windowWidth  = windowState->width;
 		windowHeight = windowState->height;
+
+		if (Res<> r = Render::CreateBuffer(sizeof(Scene), Render::BufferUsage::Storage).To(sceneBuffer); !r) { return r; }
+		sceneBufferAddr = Render::GetBufferAddr(sceneBuffer);
 		
+		if (Res<> r = LoadImage("Assets/faces.png").To(facesImage); !r) { return r; }
+		if (Res<> r = LoadImage("Assets/faces_n.png").To(facesNImage); !r) { return r; }
+
 		atlasImages.Init(perm);
 		atlasEntries.Init(perm);
 		atlasEntryMap.Init(perm);
 
 		if (Res<> r = LoadAtlas("fnw"); !r) { return r; }
+		facesImageIdx  = Render::BindImage(facesImage);
+		facesNImageIdx = Render::BindImage(facesNImage);
 
 		struct TerrainWeight {
 			s8  terrain = {};
@@ -279,22 +299,30 @@ struct Game : App {
 		for (u32 y = 0; y < spritesWidth; y++) {
 			for (u32 x = 0; x < spritesHeight; x++) {
 				
-				const u32 weight = Random::NextU64() % maxWeight;
-				s8 terrain = {};
-				for (u32 i = 0; i < LenOf(terrainWeights); i++) {
-					if (weight < terrainWeights[i].weight) {
-						terrain = terrainWeights[i].terrain;
-						break;
-					}
-				}
-				Assert(terrain != "");
+				//const u32 weight = Random::NextU64() % maxWeight;
+				//s8 terrain = {};
+				//for (u32 i = 0; i < LenOf(terrainWeights); i++) {
+				//	if (weight < terrainWeights[i].weight) {
+				//		terrain = terrainWeights[i].terrain;
+				//		break;
+				//	}
+				//}
+				//Assert(terrain != "");
 
-				AtlasEntry* atlasEntry = FindAtlasEntry(terrain);
+				//AtlasEntry* atlasEntry = FindAtlasEntry(terrain);
+				//sprites[y * spritesWidth + x] = {
+				//	.model    = Mat4::Translate(Vec3 { (f32)x, (f32)y, 0.0f }),
+				//	.uv1      = atlasEntry->uv1,
+				//	.uv2      = atlasEntry->uv2,
+				//	.imageIdx = atlasEntry->imageIdx,
+				//};
+
 				sprites[y * spritesWidth + x] = {
-					.model    = Mat4::Translate(Vec3 { (f32)x, (f32)y, 0.0f }),
-					.uv1      = atlasEntry->uv1,
-					.uv2      = atlasEntry->uv2,
-					.imageIdx = atlasEntry->imageIdx,
+					.model      = Mat4::Translate(Vec3 { (f32)x, (f32)y, 0.0f }),
+					.uv1        = Vec2(0.0f, 0.0f),
+					.uv2        = Vec2(1.0f, 1.0f),
+					.diffuseIdx = facesImageIdx,
+					.normalIdx  = facesNImageIdx,
 				};
 			}
 		}
@@ -332,6 +360,9 @@ struct Game : App {
 		for (u64 i = 0; i < atlasImages.len; i++) {
 			Render::DestroyImage(atlasImages[i]);
 		}
+		Render::DestroyImage(facesImage);
+		Render::DestroyImage(facesNImage);
+		Render::DestroyBuffer(sceneBuffer);
 		atlasImages.Clear();
 	}
 
@@ -378,6 +409,13 @@ struct Game : App {
 		if (keyDown[(u32)Event::Key::Space ]) { cam.Up     ( m * fsecs); }
 		if (keyDown[(u32)Event::Key::C     ]) { cam.Up     (-m * fsecs); }
 
+		constexpr float lightMovePerSec = 100.0f;
+		if (keyDown[(u32)Event::Key::Left  ]) { lightPos.x += fsecs * lightMovePerSec; }
+		if (keyDown[(u32)Event::Key::Right ]) { lightPos.x -= fsecs * lightMovePerSec; }
+		if (keyDown[(u32)Event::Key::Up    ]) { lightPos.y += fsecs * lightMovePerSec; }
+		if (keyDown[(u32)Event::Key::Down  ]) { lightPos.y -= fsecs * lightMovePerSec; }
+		Logf("{},{},{}", lightPos.x, lightPos.y, lightPos.z);
+
 		return Ok();
 	}
 
@@ -386,6 +424,12 @@ struct Game : App {
 
 		Render::ImageBarrier(Render::GetSwapchainImage(), Render::Stage::None, Render::Stage::ColorAttachment);
 
+		Scene* scene = (Scene*)Render::BeginBufferUpdate(sceneBuffer);
+		scene->projView         = cam.GetProjView(),
+		scene->lightPos         = lightPos;
+		scene->spriteBufferAddr = spriteBufferAddr,
+		Render::EndBufferUpdate(sceneBuffer);
+
 		const Render::Pass pass = {
 			.pipeline         = pipeline,
 			.colorAttachments = { swapchainImage },
@@ -393,12 +437,8 @@ struct Game : App {
 			.viewport         = { .x = 0.0f, .y = 0.0f, .w = (f32)windowWidth, .h = (f32)windowHeight },
 			.scissor          = { .x = 0,    .y = 0,    .w = windowWidth,      .h = windowHeight },
 		};
-
 		Render::BeginPass(&pass);
-		PushConstants pushConstants = {
-			.projView         = cam.GetProjView(),
-			.spriteBufferAddr = spriteBufferAddr,
-		};
+		PushConstants pushConstants = { .sceneBufferAddr = sceneBufferAddr };
 		Render::PushConstants(pipeline, &pushConstants, sizeof(pushConstants));
 		Render::Draw(6, spritesLen);
 		Render::EndPass();

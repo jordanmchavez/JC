@@ -16,8 +16,9 @@ layout (buffer_reference, scalar) readonly buffer SpriteBuffer {
 };
 
 layout (buffer_reference, scalar) readonly buffer SceneBuffer {
-	Mat4 projView;
-	Vec3 lightDir;
+	mat4 projView;
+	vec3 lightPos;
+	SpriteBuffer spriteBuffer;
 };
 
 layout (set = 0, binding = 0) uniform texture2D bindlessTextures[];
@@ -27,6 +28,5 @@ layout (set = 0, binding = 1) uniform sampler bindlessSamplers[];
 #define SamplerId_Linear 1
 
 layout (push_constant) uniform PushConstants {
-	SceneBuffer sceneBuffer
-	SpriteBuffer spriteBuffer;
+	SceneBuffer sceneBuffer;
 } pushConstants;
