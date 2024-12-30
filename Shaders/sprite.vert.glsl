@@ -30,7 +30,6 @@ vec2 spriteUVs[6] = vec2[6](
 );
 
 void main() {
-	
 	Sprite sprite = pushConstants.sceneBuffer.spriteBuffer.sprites[gl_InstanceIndex];
 	uint idx = gl_VertexIndex % 6;
 
@@ -43,12 +42,15 @@ void main() {
 		sprite.uv1.y * (1.0f - t.y) + sprite.uv2.y * t.y
 	);
 
-	vec3 tangent   = normalize(vec3(sprite.model * vec4(1.0f, 0.0f, 0.0f, 1.0f)));
-	vec3 bitangent = normalize(vec3(sprite.model * vec4(0.0f, 1.0f, 0.0f, 1.0f)));
-	vec3 normal    = normalize(vec3(sprite.model * vec4(0.0f, 0.0f, 1.0f, 1.0f)));
+	mat3 model3 = mat3(sprite.model);
+
+	vec3 tangent   = normalize(model3 * vec3(1.0f, 0.0f, 0.0f));
+	vec3 bitangent = normalize(model3 * vec3(0.0f, 1.0f, 0.0f));
+	vec3 normal    = normalize(model3 * vec3(0.0f, 0.0f, 1.0f));
 	mat3 tbn       = transpose(mat3(tangent, bitangent, normal));
 
-	worldPosOut   = vec3(worldPos);
+	worldPosOut   = worldPos.rgb;
+	//lightPosOut   = pushConstants.sceneBuffer.lightPos;
 	lightPosOut   = tbn * pushConstants.sceneBuffer.lightPos;
 	diffuseIdxOut = sprite.diffuseIdx;
 	normalIdxOut  = sprite.normalIdx;

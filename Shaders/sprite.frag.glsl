@@ -27,8 +27,8 @@ void main() {
 	vec3 lightVec = lightPosIn - worldPosIn;
 	float lightDist = length(lightVec);
 	vec3 lightDir = normalize(lightVec);
-	float d = dot(lightDir, texNormalN) / (0.0001 * lightDist * lightDist);
-	
+	float d = min(1.0f, dot(lightDir, texNormalN) / (0.001 * lightDist * lightDist));
+
 	float diffuse = max(d, 0.0f);
 	rgbaOut = vec4(0.01f, 0.01f, 0.01f, 0.0f) + diffuse * texColor;
 }

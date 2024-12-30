@@ -116,7 +116,7 @@ struct Game : App {
 	Render::Shader       fragmentShader   = {};
 	Render::Pipeline     pipeline         = {};
 	PerspectiveCamera    cam              = {};
-	Vec3                 lightPos         = { 64.0f, 64.0f, 10.0f };
+	Vec3                 lightPos         = { 16.0f, 16.0f, 20.0f };
 
 	Res<Render::Image> LoadImage(s8 path) {
 		Span<u8> data;
@@ -292,8 +292,8 @@ struct Game : App {
 			terrainWeights[i].weight = maxWeight;
 		}
 
-		constexpr u32 spritesWidth  = 128;
-		constexpr u32 spritesHeight = 128;
+		constexpr u32 spritesWidth  = 32;
+		constexpr u32 spritesHeight = 32;
 		spritesLen = spritesWidth * spritesHeight;
 		sprites = perm->AllocT<Sprite>(spritesLen);
 		for (u32 y = 0; y < spritesWidth; y++) {
@@ -347,7 +347,7 @@ struct Game : App {
 
 		cam.aspect = (f32)windowWidth / (f32)windowHeight;
 		cam.fov = 45.0f;
-		cam.pos = { 64.0f, 64.0f, -100.0f };
+		cam.pos = { 16.0f, 16.0f, -40.0f };
 
 		return Ok();
 	}
