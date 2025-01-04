@@ -32,6 +32,7 @@ DefErr(Game, AtlasNameAlreadyExists);
 //--------------------------------------------------------------------------------------------------
 
 struct OrthoCamera {
+	
 };
 
 struct PerspectiveCamera {
@@ -82,10 +83,10 @@ struct Game : App {
 	};
 
 	struct AtlasEntry {
-		u32 imageIdx = 0;
-		s8  name     = {};
-		Vec2 uv1     = {};
-		Vec2 uv2     = {};
+		u32  imageIdx = 0;
+		s8   name     = {};
+		Vec2 uv1      = {};
+		Vec2 uv2      = {};
 	};
 
 	struct Sprite {
@@ -96,6 +97,7 @@ struct Game : App {
 		u32  normalIdx  = {};
 		u32  pad[2]     = {};
 	};
+
 	Arena*               temp             = 0;
 	Arena*               perm             = 0;
 	Log*                 log              = 0;
@@ -200,10 +202,10 @@ struct Game : App {
 			i64 ih    = 0;
 			s8  name = {};
 
-			if (Res<> r = Json::GetI64(jsonObj[0].val).To(ix);    !r) { return r; }
-			if (Res<> r = Json::GetI64(jsonObj[1].val).To(iy);    !r) { return r; }
-			if (Res<> r = Json::GetI64(jsonObj[2].val).To(iw);    !r) { return r; }
-			if (Res<> r = Json::GetI64(jsonObj[3].val).To(ih);    !r) { return r; }
+			if (Res<> r = Json::GetI64(jsonObj[0].val).To(ix);   !r) { return r; }
+			if (Res<> r = Json::GetI64(jsonObj[1].val).To(iy);   !r) { return r; }
+			if (Res<> r = Json::GetI64(jsonObj[2].val).To(iw);   !r) { return r; }
+			if (Res<> r = Json::GetI64(jsonObj[3].val).To(ih);   !r) { return r; }
 			if (Res<> r = Json::GetS8 (jsonObj[4].val).To(name); !r) { return r; }
 
 			const f32 x = (f32)ix / imageWidth;
