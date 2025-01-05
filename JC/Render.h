@@ -26,7 +26,8 @@ enum struct Stage {
 	None,
 	TransferSrc,
 	TransferDst,
-	ShaderSampled,
+	VertexShaderRead,
+	FragmentShaderSampled,
 	ColorAttachment,
 	Present,
 };
@@ -104,13 +105,19 @@ void          DestroyPipeline(Pipeline pipeline);
 Res<SwapchainStatus> BeginFrame();
 Res<SwapchainStatus> EndFrame();
 
-void*         BeginBufferUpdate(Buffer buffer);
-void          EndBufferUpdate(Buffer buffer);
+struct BufferUpdate {
+	Buffer buffer = {};
+	void*  ptr    = 0;
+	u64    offset = 0;
+	u64    size   = 0;
+};
+BufferUpdate  BeginBufferUpdate(Buffer buffer, u64 offset, u64 size);
+void          EndBufferUpdate(BufferUpdate bufferUpdate);
 
 void*         BeginImageUpdate(Image image);
 void          EndImageUpdate(Image image);
 
-void          BufferBarrier(Buffer buffer, u64 srcStage, u64 srcAccess, u64 dstStage, u64 dstAccess);
+void          BufferBarrier(Buffer buffer, Stage src, Stage dst);
 void          ImageBarrier(Image image, Stage src, Stage dst);
 
 void          BeginPass(const Pass* pass);

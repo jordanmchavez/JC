@@ -83,20 +83,28 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 			RAWINPUT* rawInput = (RAWINPUT*)temp->Alloc(size);
 			GetRawInputData(hrawInput, RID_INPUT, rawInput, &size, sizeof(RAWINPUTHEADER));
 			if (rawInput->header.dwType == RIM_TYPEMOUSE) {
-				rawInput->data.mouse;
+				const RAWMOUSE* const m = &rawInput->data.mouse;
+				if (m->usButtonFlags & RI_MOUSE_WHEEL) {
+					Event::Add({
+						.type = Event::Type::MouseWheel,
+						.mouseWheel = { .delta = (float)((signed short)m->usButtonData) / 120.0f },
+					});
+				}
+
 				Event::Add({
 					.type = Event::Type::MouseMove,
 					.mouseMove = {
-						.x = (i32)rawInput->data.mouse.lLastX,
-						.y = (i32)rawInput->data.mouse.lLastY,
+						.x = (i32)m->lLastX,
+						.y = (i32)m->lLastY,
 					},
 				});
 					
 			} else if (rawInput->header.dwType == RIM_TYPEKEYBOARD) {
-				u32 scanCode   = rawInput->data.keyboard.MakeCode;
-				u32 virtualKey = rawInput->data.keyboard.VKey;
-				const bool e0  = rawInput->data.keyboard.Flags & RI_KEY_E0;
-				const bool e1  = rawInput->data.keyboard.Flags & RI_KEY_E1;
+				const RAWKEYBOARD* const k = &rawInput->data.keyboard;
+				u32 scanCode   = k->MakeCode;
+				u32 virtualKey = k->VKey;
+				const bool e0  = k->Flags & RI_KEY_E0;
+				const bool e1  = k->Flags & RI_KEY_E1;
 				if (virtualKey == 255) {
 					break;
 				} else if (virtualKey == VK_SHIFT) {
@@ -126,7 +134,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 				Event::Add({
 					.type = Event::Type::Key,
 					.key = {
-						.down = !(rawInput->data.keyboard.Flags & RI_KEY_BREAK),
+						.down = !(k->Flags & RI_KEY_BREAK),
 						.key  = (Event::Key)virtualKey,
 					},
 				});

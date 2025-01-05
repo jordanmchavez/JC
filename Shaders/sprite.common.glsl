@@ -2,7 +2,7 @@
 #extension GL_EXT_scalar_block_layout: require
 #extension GL_EXT_nonuniform_qualifier : enable
 
-struct Sprite {
+struct SpriteDrawCmd {
 	mat4 model;
 	vec2 uv1;
 	vec2 uv2;
@@ -11,14 +11,17 @@ struct Sprite {
 	uint pad[2];
 };
 
-layout (buffer_reference, scalar) readonly buffer SpriteBuffer {
-	Sprite sprites[];
+layout (buffer_reference, scalar) readonly buffer SpriteDrawCmdBuffer {
+	SpriteDrawCmd spriteDrawCmds[];
 };
 
 layout (buffer_reference, scalar) readonly buffer SceneBuffer {
-	mat4 projView;
-	vec3 lightPos;
-	SpriteBuffer spriteBuffer;
+	mat4                projView;
+	vec3                lightPos;
+	uint                pad1;
+	vec3                lightColor;
+	uint                pad2;
+	SpriteDrawCmdBuffer spriteDrawCmdBuffer;
 };
 
 layout (set = 0, binding = 0) uniform texture2D bindlessTextures[];

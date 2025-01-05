@@ -148,11 +148,11 @@ Mat3 Mat3::AxisAngle(Vec3 v, f32 a) {
 	Vec3 vc = Vec3::Scale(n, 1.0f - c);
 	Vec3 vs = Vec3::Scale(n, sinf(a));
 
-	Mat3 m;
-	m.m[0][0] = vc.x * n.x + c;    m.m[1][0] = vc.y * n.x - vs.z; m.m[2][0] = vc.z * n.x + vs.x;
-	m.m[0][1] = vc.x * n.y + vs.z; m.m[1][1] = vc.y * n.y + c;    m.m[2][1] = vc.z * n.y - vs.x;
-	m.m[0][2] = vc.x * n.z - vs.y; m.m[1][2] = vc.y * n.z + vs.x; m.m[2][2] = vc.z * n.z + c;
-	return m;
+	return {
+		vc.x * n.x + c,    vc.y * n.x - vs.z, vc.z * n.x + vs.x,
+		vc.x * n.y + vs.z, vc.y * n.y + c,    vc.z * n.y - vs.x,
+		vc.x * n.z - vs.y, vc.y * n.z + vs.x, vc.z * n.z + c,
+	};
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -248,7 +248,6 @@ Mat4 Mat4::AxisAngle(Vec3 b, f32 a) {
 	Vec3 vs = Vec3::Scale(n, sinf(a));
 
 	return Mat4 {
-
 		vc.x * n.x + c,    vc.x * n.y + vs.z,  vc.x * n.z - vs.y, 0.0f,
 		vc.y * n.x - vs.z, vc.y * n.y + c,     vc.y * n.z + vs.x, 0.0f,
 		vc.z * n.x + vs.x, vc.z * n.y - vs.x,  vc.z * n.z + c,    0.0f,
@@ -262,12 +261,12 @@ Mat4 Mat4::AxisAngle(Vec3 b, f32 a) {
 }
 
 Mat4 Mat4::Look(Vec3 pos, Vec3 x, Vec3 y, Vec3 z) {
-	Mat4 m;
-	m.m[0][0] =  x.x; m.m[1][0] =  x.y; m.m[2][0] =  x.z; m.m[3][0] = -Vec3::Dot(x, pos);
-	m.m[0][1] =  y.x; m.m[1][1] =  y.y; m.m[2][1] =  y.z; m.m[3][1] = -Vec3::Dot(y, pos);
-	m.m[0][2] =  z.x; m.m[1][2] =  z.y; m.m[2][2] =  z.z; m.m[3][2] = -Vec3::Dot(z, pos);
-	m.m[0][3] = 0.0f; m.m[1][3] = 0.0f; m.m[2][3] = 0.0f; m.m[3][3] = 1.0f;
-	return m;
+	return Mat4 {
+		 x.x,  x.y,  x.z, -Vec3::Dot(x, pos),
+		 y.x,  y.y,  y.z, -Vec3::Dot(y, pos),
+		 z.x,  z.y,  z.z, -Vec3::Dot(z, pos),
+		0.0f, 0.0f, 0.0f, 1.0f,
+	};
 }
 
 /*
@@ -286,12 +285,21 @@ Mat4 LookAt(Vec3 eye, Vec3 at, Vec3 up) {
 
 Mat4 Mat4::Perspective(f32 fovy, f32 aspect, f32 zn, f32 zf) {
 	const f32 ht = tanf(fovy / 2.0f);
-	Mat4 m;
-	m.m[0][0] = 1.0f / (aspect * ht); m.m[1][0] = 0.0f;       m.m[2][0] = 0.0f;           m.m[3][0] = 0.0f;
-	m.m[0][1] = 0.0f;                 m.m[1][1] = -1.0f / ht; m.m[2][1] = 0.0f;           m.m[3][1] = 0.0f;
-	m.m[0][2] = 0.0f;                 m.m[1][2] = 0.0f;       m.m[2][2] = zf / (zn - zf); m.m[3][2] = -(zf * zn) / (zf - zn);
-	m.m[0][3] = 0.0f;                 m.m[1][3] = 0.0f;       m.m[2][3] = -1.0f;          m.m[3][3] = 0.0f;
-	return m;
+	return Mat4 {
+		1.0f / (aspect * ht), 0.0f,       0.0f,           0.0f,
+		0.0f,                 -1.0f / ht, 0.0f,           0.0f,
+		0.0f,                 0.0f,       zf / (zn - zf), -(zf * zn) / (zf - zn),
+		0.0f,                 0.0f,       -1.0f,          0.0f,
+	};
+}
+
+Mat4 Mat4::Ortho(float l, float r, float b, float t, float n, float f) {
+	return Mat4 {
+		2.0f / (r - l),     0.0f,               0.0f,           0.0f,
+		0.0f,               2.0f / (b - t),     0.0f,           0.0f,
+		0.0f,               0.0f,               1.0f / (n - f), 0.0f,
+		-(r + l) / (r - l), -(b + t) / (b - t), n / (n - f),    1.0f,
+	};
 }
 
 //--------------------------------------------------------------------------------------------------

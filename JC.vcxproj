@@ -137,7 +137,7 @@
     <ClInclude Include="JC\Unicode.h" />
     <ClInclude Include="JC\UnitTest.h" />
     <ClInclude Include="JC\Window.h" />
-    <ClInclude Include="Scratch.h" />
+    <ClInclude Include="Notes\Scratch.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
@@ -171,10 +171,12 @@
     <ClCompile Include="JC\Time_Win.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Game Notes.md" />
-    <None Include="Guidebook.md" />
-    <None Include="Stardew Notes.md" />
-    <None Include="Todo.md" />
+    <None Include="Notes\Game Notes.md" />
+    <None Include="Notes\Guidebook.md" />
+    <None Include="Notes\Todo.md" />
+    <None Include="Shaders\sprite.common.glsl" />
+    <None Include="Shaders\sprite.frag.glsl" />
+    <None Include="Shaders\sprite.vert.glsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -71,6 +71,7 @@ struct Mat4 {
 	static Mat4 AxisAngle(Vec3 v, f32 a);
 	static Mat4 Look(Vec3 pos, Vec3 x, Vec3 y, Vec3 z);
 	static Mat4 Perspective(f32 fovy, f32 aspect, f32 zn, f32 zf);
+	static Mat4 Ortho(float l, float r, float b, float t, float n, float f);
 };
 
 //--------------------------------------------------------------------------------------------------

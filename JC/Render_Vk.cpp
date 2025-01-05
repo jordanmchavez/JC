@@ -52,37 +52,40 @@ VkFormat ImageFormatToVkFormat(ImageFormat imageFormat);
 
 static VkPipelineStageFlags2 StageToVkPipelineStage2(Stage stage) {
 	switch (stage) {
-		case Stage::None:            return VK_PIPELINE_STAGE_2_NONE;
-		case Stage::TransferSrc:     return VK_PIPELINE_STAGE_2_COPY_BIT;
-		case Stage::TransferDst:     return VK_PIPELINE_STAGE_2_COPY_BIT;
-		case Stage::ShaderSampled:   return VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-		case Stage::ColorAttachment: return VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-		case Stage::Present:         return VK_PIPELINE_STAGE_2_NONE;
-		default:                     Panic("Unhandled Stage {}", stage);
+		case Stage::None:                  return VK_PIPELINE_STAGE_2_NONE;
+		case Stage::TransferSrc:           return VK_PIPELINE_STAGE_2_COPY_BIT;
+		case Stage::TransferDst:           return VK_PIPELINE_STAGE_2_COPY_BIT;
+		case Stage::VertexShaderRead:      return VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+		case Stage::FragmentShaderSampled: return VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		case Stage::ColorAttachment:       return VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		case Stage::Present:               return VK_PIPELINE_STAGE_2_NONE;
+		default:                           Panic("Unhandled Stage {}", stage);
 	}
 }
 
 static VkAccessFlags2 StageToVkAccessFlags2(Stage stage) {
 	switch (stage) {
-		case Stage::None:            return VK_ACCESS_2_NONE;
-		case Stage::TransferSrc:     return VK_ACCESS_2_TRANSFER_READ_BIT;
-		case Stage::TransferDst:     return VK_ACCESS_2_TRANSFER_WRITE_BIT;
-		case Stage::ShaderSampled:   return VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
-		case Stage::ColorAttachment: return VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-		case Stage::Present:         return VK_ACCESS_2_NONE;
-		default:                     Panic("Unhandled Stage {}", stage);
+		case Stage::None:                  return VK_ACCESS_2_NONE;
+		case Stage::TransferSrc:           return VK_ACCESS_2_TRANSFER_READ_BIT;
+		case Stage::TransferDst:           return VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		case Stage::VertexShaderRead:      return VK_ACCESS_2_SHADER_READ_BIT;
+		case Stage::FragmentShaderSampled: return VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+		case Stage::ColorAttachment:       return VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		case Stage::Present:               return VK_ACCESS_2_NONE;
+		default:                           Panic("Unhandled Stage {}", stage);
 	}
 }
 
 static VkImageLayout StageToVkImageLayout(Stage stage) {
 	switch (stage) {
-		case Stage::None:            return VK_IMAGE_LAYOUT_UNDEFINED;
-		case Stage::TransferSrc:     return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		case Stage::TransferDst:     return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		case Stage::ShaderSampled:   return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		case Stage::ColorAttachment: return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		case Stage::Present:         return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		default:                     Panic("Unhandled Stage {}", stage);
+		case Stage::None:                  return VK_IMAGE_LAYOUT_UNDEFINED;
+		case Stage::TransferSrc:           return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		case Stage::TransferDst:           return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		case Stage::VertexShaderRead:      return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		case Stage::FragmentShaderSampled: return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		case Stage::ColorAttachment:       return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		case Stage::Present:               return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		default:                           Panic("Unhandled Stage {}", stage);
 	}
 }
 
@@ -114,7 +117,7 @@ static constexpr u32 MaxBindlessSampledImages  = 64 * 1024;
 static constexpr u32 MaxBindlessSamplers       = 8;
 static constexpr u32 MaxBindlessDescriptorSets = 32;
 static constexpr f32 MaxAnisotropy             = 8.0f;
-static constexpr u64 StagingBufferSize         = 64 * 1024 * 1024;
+static constexpr u64 StagingBufferSize         = 128 * 1024 * 1024;
 
 struct QueueFamily {
 	VkQueueFamilyProperties vkQueueFamilyProperties = {};
@@ -153,7 +156,6 @@ struct BufferObj {
 	u64                size               = 0;
 	VkBufferUsageFlags vkBufferUsageFlags = 0;
 	u64                addr               = 0;
-	void*              updatePtr          = 0;
 };
 
 struct SamplerObj {
@@ -984,7 +986,6 @@ static Res<BufferObj> CreateBufferInternal(
 		.size               = size,
 		.vkBufferUsageFlags = vkBufferUsageFlags,
 		.addr               = addr,
-		.updatePtr          = 0,
 	};
 }
 
@@ -1758,24 +1759,28 @@ void* AllocStagingMem(u64 size) {
 
 //-------------------------------------------------------------------------------------------------
 
-void* BeginBufferUpdate(Buffer buffer) {
+BufferUpdate BeginBufferUpdate(Buffer buffer, u64 offset, u64 size) {
 	BufferObj* const bufferObj = bufferObjs.Get(buffer);
-	Assert(!bufferObj->updatePtr);
-	bufferObj->updatePtr = AllocStagingMem(bufferObj->size);
-	return bufferObj->updatePtr;
+	size = size ? size : bufferObj->size;
+	return BufferUpdate {
+		.buffer = buffer,
+		.ptr    = AllocStagingMem(size),
+		.offset = offset,
+		.size   = size,
+	};
 }
 
 //-------------------------------------------------------------------------------------------------
 
-void BufferBarrier(Buffer buffer, u64 srcStage, u64 srcAccess, u64 dstStage, u64 dstAccess) {
+void BufferBarrier(Buffer buffer, Stage src, Stage dst) {
 	BufferObj* const bufferObj = bufferObjs.Get(buffer);
 	const VkBufferMemoryBarrier2 vkBufferMemoryBarrier2 = {
 		.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
 		.pNext               = 0,
-		.srcStageMask        = srcStage,
-		.srcAccessMask       = srcAccess,
-		.dstStageMask        = dstStage,
-		.dstAccessMask       = dstAccess,
+		.srcStageMask        = StageToVkPipelineStage2(src),
+		.srcAccessMask       = StageToVkAccessFlags2(src),
+		.dstStageMask        = StageToVkPipelineStage2(dst),
+		.dstAccessMask       = StageToVkAccessFlags2(dst),
 		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 		.buffer              = bufferObj->vkBuffer,
@@ -1796,14 +1801,13 @@ void BufferBarrier(Buffer buffer, u64 srcStage, u64 srcAccess, u64 dstStage, u64
 	vkCmdPipelineBarrier2(vkFrameCommandBuffers[frameIdx], &vkDependencyInfo);
 }
 
-void EndBufferUpdate(Buffer buffer) {
-	BufferObj* const bufferObj = bufferObjs.Get(buffer);
-	Assert(bufferObj->updatePtr);
+void EndBufferUpdate(BufferUpdate bufferUpdate) {
+	BufferObj* const bufferObj = bufferObjs.Get(bufferUpdate.buffer);
 	const VkBufferCopy2 vkBufferCopy2 = {
 		.sType     = VK_STRUCTURE_TYPE_BUFFER_COPY_2,
 		.pNext     = 0,
-		.srcOffset = (VkDeviceSize)((u8*)bufferObj->updatePtr - stagingBufferMappedPtr),
-		.dstOffset = bufferObj->mem.offset,
+		.srcOffset = (VkDeviceSize)((u8*)bufferUpdate.ptr - stagingBufferMappedPtr),
+		.dstOffset = bufferObj->mem.offset + bufferUpdate.offset,
 		.size      = bufferObj->size,
 	};
 	const VkCopyBufferInfo2 vkCopyBufferInfo2 = {
@@ -1815,7 +1819,6 @@ void EndBufferUpdate(Buffer buffer) {
 		.pRegions    = &vkBufferCopy2,
 	};
 	vkCmdCopyBuffer2(vkFrameCommandBuffers[frameIdx], &vkCopyBufferInfo2);
-	bufferObj->updatePtr = 0;
 }
 
 //-------------------------------------------------------------------------------------------------

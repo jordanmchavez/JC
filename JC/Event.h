@@ -17,6 +17,7 @@ enum struct Type {
 	WindowRestored,
 	Key,
 	MouseMove,
+	MouseWheel,
 };
 
 enum struct Key {
@@ -151,12 +152,17 @@ struct MouseMoveEvent {
 	i32 y;
 };
 
+struct MouseWheelEvent {
+	float delta;
+};
+
 struct Event {
 	Type type;
 	union {
 		WindowResizedEvent windowResized;
 		KeyEvent           key;
 		MouseMoveEvent     mouseMove;
+		MouseWheelEvent    mouseWheel;
 	};
 };
 

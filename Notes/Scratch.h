@@ -7,33 +7,36 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-struct SpriteDrawCmd {
-	Vec2 position;
-	Vec2 uv1;
+sprite handle = sprite sheet + sprite ID within sheet;
+sprites ordered by spritesheet
+[0] -> sprites...
+[1] -> sprites...
+[2] -> sprites...;
 
-	Vec2 uv2;
-	u32 diffuseIdx;
-	u32 normalIdx;
+hierarchical grid of sprites, only render current + neighboring tiles
+we have a fixed-size world so this can be hardcoded;
 
-	float scale;
-	specular?
-	emissive?
-	roughness?
+struct SpriteComponents {
+	
+
 };
 
-3 float4s = 12 dwords = 48 bytes
-
-6 float4s = 24 dwords = 96 bytes
-
-sprite pipeline
-mesh pipeline
-ui pipeline
-
-make a ramp for each color hue section
-
-
-
+struct ParticleComponents {
+};
 
 //--------------------------------------------------------------------------------------------------
+
+/*
+
+Dim |   16 |  32 | Size
+----+------+-----+-----
+256 |  256 |  64 | 256k
+512 |   1k | 256 |   1m
+ 1k |   4k |  1k |   4m
+ 2k |  16k |  4k |  16m
+ 4k |  64k | 16k |  64m
+ 8k | 256k | 64k | 256m
+
+ */
 
 }	// namespace JC
