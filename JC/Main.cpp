@@ -120,26 +120,26 @@ struct Game : App {
 		Vec2 uv2      = {};
 	};
 
-	Arena*               temp                    = 0;
-	Arena*               perm                    = 0;
-	Log*                 log                     = 0;
-	u32                  windowWidth             = 0;
-	u32                  windowHeight            = 0;
-	Render::Image        depthImage              = {};
-	Render::Buffer       sceneBuffer             = {};
-	u64                  sceneBufferAddr         = 0;
-	Array<Render::Image> atlasImages             = {};
-	Array<AtlasEntry>    atlasEntries            = {};
-	Map<s8, u32>         atlasEntryMap           = {};
-	Render::Buffer       spriteDrawCmdBuffer     = {};
-	u64                  spriteDrawCmdBufferAddr = 0;
-	Render::Shader       vertexShader            = {};
-	Render::Shader       fragmentShader          = {};
-	Render::Pipeline     pipeline                = {};
-	OrthoCamera          cam                     = {};
+	Arena*               temp                                        = 0;
+	Arena*               perm                                        = 0;
+	Log*                 log                                         = 0;
+	u32                  windowWidth                                 = 0;
+	u32                  windowHeight                                = 0;
+	Render::Image        depthImage                                  = {};
+	Render::Buffer       sceneBuffers[Render::MaxFrames]             = {};
+	u64                  sceneBufferAddrs[Render::MaxFrames]         = {};
+	Array<Render::Image> atlasImages                                 = {};
+	Array<AtlasEntry>    atlasEntries                                = {};
+	Map<s8, u32>         atlasEntryMap                               = {};
+	Render::Buffer       spriteDrawCmdBuffers[Render::MaxFrames]     = {};
+	u64                  spriteDrawCmdBufferAddrs[Render::MaxFrames] = {};
+	Render::Shader       vertexShader                                = {};
+	Render::Shader       fragmentShader                              = {};
+	Render::Pipeline     pipeline                                    = {};
+	OrthoCamera          cam                                         = {};
 
 	static constexpr u32 MapSize = 128;
-	static constexpr u32 MaxSprites = 128 * 128 + 1;
+	static constexpr u32 MaxSprites = 128 * 128 * 2;
 
 	const AtlasEntry* map[MapSize * MapSize] = {};
 	const AtlasEntry* hero = 0;
@@ -165,12 +165,12 @@ struct Game : App {
 		if (Res<> r = Render::CreateImage(width, height, Render::ImageFormat::R8G8B8A8_UNorm, Render::ImageUsage::Sampled).To(image); !r) { return r.err; }
 
 		Render::ImageBarrier(image, Render::Stage::None, Render::Stage::TransferDst);
-		void* ptr = Render::BeginImageUpdate(image);
+		const Render::StagingMem stagingMem = Render::AllocStagingMem(width * height * 4);
 		if (channels == 4) {
-			MemCpy(ptr, imageData, width * height * channels);
+			MemCpy(stagingMem.ptr, imageData, width * height * channels);
 		} else {
 			u8* in = imageData;
-			u8* out = (u8*)ptr;
+			u8* out = (u8*)stagingMem.ptr;
 			for (int y = 0; y < height; y++) {
 				for (int x = 0; x < width; x++) {
 					*out++ = *in++;
@@ -180,8 +180,8 @@ struct Game : App {
 				}
 			}
 		}
-		Render::EndImageUpdate(image);
-		Render::ImageBarrier(image, Render::Stage::TransferDst, Render::Stage::FragmentShaderSampled);
+		Render::UpdateImage(image, stagingMem);
+		Render::ImageBarrier(image, Render::Stage::TransferDst, Render::Stage::FragmentShaderSample);
 
 		return image;
 	}
@@ -269,8 +269,11 @@ struct Game : App {
 		windowHeight = windowState->height;
 
 		if (Res<> r = Render::CreateImage(windowWidth, windowHeight, Render::ImageFormat::D32_Float, Render::ImageUsage::DepthAttachment).To(depthImage); !r) { return r; }
-		if (Res<> r = Render::CreateBuffer(sizeof(Scene), Render::BufferUsage::Storage).To(sceneBuffer); !r) { return r; }
-		sceneBufferAddr = Render::GetBufferAddr(sceneBuffer);
+
+		for (u32 i = 0; i < Render::MaxFrames; i++) {
+			if (Res<> r = Render::CreateBuffer(sizeof(Scene), Render::BufferUsage::Storage).To(sceneBuffers[i]); !r) { return r; }
+			sceneBufferAddrs[i] = Render::GetBufferAddr(sceneBuffers[i]);
+		}
 		
 		atlasImages.Init(perm);
 		atlasEntries.Init(perm);
@@ -329,10 +332,12 @@ struct Game : App {
 			}
 		}
 		hero = FindAtlasEntry("hero");
-		heroPos = { -260.0f, 0.0f };
+		heroPos = { 345.156830f, 492.393951f };
 
-		if (Res<> r = Render::CreateBuffer(MaxSprites * sizeof(SpriteDrawCmd), Render::BufferUsage::Storage).To(spriteDrawCmdBuffer); !r) { return r; }
-		spriteDrawCmdBufferAddr = Render::GetBufferAddr(spriteDrawCmdBuffer);
+		for (u32 i = 0; i < Render::MaxFrames; i++) {
+			if (Res<> r = Render::CreateBuffer(MaxSprites * sizeof(SpriteDrawCmd), Render::BufferUsage::Storage).To(spriteDrawCmdBuffers[i]); !r) { return r; }
+			spriteDrawCmdBufferAddrs[i] = Render::GetBufferAddr(spriteDrawCmdBuffers[i]);
+		}
 
 		if (Res<> r = LoadShader("Shaders/sprite.vert.spv").To(vertexShader); !r) { return r; }
 		if (Res<> r = LoadShader("Shaders/sprite.frag.spv").To(fragmentShader); !r) { return r; }
@@ -351,19 +356,23 @@ struct Game : App {
 		DestroyPipeline(pipeline);
 		DestroyShader(vertexShader);
 		DestroyShader(fragmentShader);
-		Render::DestroyBuffer(spriteDrawCmdBuffer);
+		for (u32 i = 0; i < Render::MaxFrames; i++) {
+			Render::DestroyBuffer(spriteDrawCmdBuffers[i]);
+		}
 		for (u64 i = 0; i < atlasImages.len; i++) {
 			Render::DestroyImage(atlasImages[i]);
 		}
-		Render::DestroyBuffer(sceneBuffer);
+		for (u32 i = 0; i < Render::MaxFrames; i++) {
+			Render::DestroyBuffer(sceneBuffers[i]);
+		}
 		atlasImages.Clear();
 		Render::DestroyImage(depthImage);
 	}
 
 	bool keyDown[(u32)Event::Key::Max] = {};
 
-	static constexpr f32 camMovePerSec  = 20.00f;
-	static constexpr f32 camZoomPerWheel = 1.0f;
+	static constexpr f32 heroMovePerSec  = 200.00f;
+	static constexpr f32 camZoomPerWheel = 50.0f;
 
 	Res<> Events(Span<Event::Event> events) override {
 		for (const Event::Event* e = events.Begin(); e != events.End(); e++) {
@@ -377,8 +386,8 @@ struct Game : App {
 					break;
 
 				case Event::Type::MouseWheel: {
-					const f32 m = keyDown[(u32)Event::Key::ShiftLeft] ? camMovePerSec * 5.0f : camMovePerSec;
-					cam.Set(45.0f, (f32)windowWidth / (f32)windowHeight, cam.pos.z - m * e->mouseWheel.delta * camZoomPerWheel);
+					const f32 m = keyDown[(u32)Event::Key::ShiftLeft] ? camZoomPerWheel * 5.0f : camZoomPerWheel;
+					cam.Set(45.0f, (f32)windowWidth / (f32)windowHeight, cam.pos.z - m * e->mouseWheel.delta);
 					break;
 				}
 
@@ -402,7 +411,7 @@ struct Game : App {
 
 	Res<> Update(double secs) override {
 		const f32 fsecs = (f32)secs;
-		const f32 m = keyDown[(u32)Event::Key::ShiftLeft] ? camMovePerSec * 5.0f : camMovePerSec;
+		const f32 m = (keyDown[(u32)Event::Key::ShiftLeft] || keyDown[(u32)Event::Key::ShiftRight]) ? heroMovePerSec * 5.0f : heroMovePerSec;
 		if (keyDown[(u32)Event::Key::Escape]) { Exit(); }
 		if (keyDown[(u32)Event::Key::W     ]) { heroPos.y +=  m * fsecs; }
 		if (keyDown[(u32)Event::Key::S     ]) { heroPos.y += -m * fsecs; }
@@ -411,6 +420,8 @@ struct Game : App {
 
 		cam.pos.x = heroPos.x;
 		cam.pos.y = heroPos.y;
+
+		//Logf("{}x{}", heroPos.x, heroPos.y);
 
 		lightChangeRem -= secs;
 		if (lightChangeRem <= 0.0) {
@@ -422,21 +433,22 @@ struct Game : App {
 	}
 
 
-	u64 frame = 0;
 	Res<> Draw() override {
-		frame++;
-		if (frame % 10000 == 0) Logf("Frame {}", frame);
+		const u32 frameIdx = Render::GetFrameIdx();
+
 		const Render::Image swapchainImage = Render::GetSwapchainImage();
 
-		Render::ImageBarrier(Render::GetSwapchainImage(), Render::Stage::None, Render::Stage::ColorAttachment);
+		Render::ImageBarrier(swapchainImage, Render::Stage::PresentOld, Render::Stage::ColorAttachment);
 
-		const Render::BufferUpdate sceneBufferUpdate = Render::BeginBufferUpdate(sceneBuffer, 0, 0);
-		Scene* const scene = (Scene*)sceneBufferUpdate.ptr;
+		const Render::StagingMem sceneBufferStagingMem = Render::AllocStagingMem(sizeof(Scene));
+		Scene* const scene = (Scene*)sceneBufferStagingMem.ptr;
 		scene->projView                = cam.GetProjView(),
 		scene->lightPos                = heroPos;
 		scene->lightColor              = Vec3(lightColorIntensity, lightColorIntensity, lightColorIntensity);
-		scene->spriteDrawCmdBufferAddr = spriteDrawCmdBufferAddr,
-		Render::EndBufferUpdate(sceneBufferUpdate);
+		scene->spriteDrawCmdBufferAddr = spriteDrawCmdBufferAddrs[frameIdx],
+		Render::BufferBarrier(sceneBuffers[frameIdx], Render::Stage::VertexShaderRead, Render::Stage::TransferDst);
+		Render::UpdateBuffer(sceneBuffers[frameIdx], 0, sceneBufferStagingMem);
+		Render::BufferBarrier(sceneBuffers[frameIdx], Render::Stage::TransferDst, Render::Stage::VertexShaderRead);
 
 		f32 startX = Clamp(cam.pos.x - cam.halfWidth,  0.0f, (f32)MapSize * 16.0f);
 		f32 endX   = Clamp(cam.pos.x + cam.halfWidth,  0.0f, (f32)MapSize * 16.0f);
@@ -446,10 +458,11 @@ struct Game : App {
 		const u32 endRow   = (u32)(endY   / 16.0f);
 		const u32 startCol = (u32)(startX / 16.0f);
 		const u32 endCol   = (u32)(endX   / 16.0f);
-		const u32 spriteCount = 1 + (endRow - startRow) * (endCol - startCol);
-		Logf("spriteCount: {}, heropos={}x{}, {}", spriteCount, heroPos.x, heroPos.y, frame);
-		const Render::BufferUpdate spriteDrawCmdBufferUpdate = Render::BeginBufferUpdate(spriteDrawCmdBuffer, 0, spriteCount * sizeof(SpriteDrawCmd));
-		SpriteDrawCmd* spriteDrawCmds = (SpriteDrawCmd*)spriteDrawCmdBufferUpdate.ptr;
+		const u32 spriteCount = 1 + (endCol - startCol) * (endRow - startRow);
+
+		const Render::StagingMem spriteDrawCmdStagingMem = Render::AllocStagingMem(spriteCount * sizeof(SpriteDrawCmd));
+		//const Render::StagingMem spriteDrawCmdStagingMem = Render::AllocStagingMem((1 + MapSize * MapSize) * sizeof(SpriteDrawCmd));
+		SpriteDrawCmd* spriteDrawCmds = (SpriteDrawCmd*)spriteDrawCmdStagingMem.ptr;
 		*spriteDrawCmds++ = {
 			.model      = Mat4::Translate(Vec3 { heroPos.x, heroPos.y, -1.0f }),
 			.uv1        = hero->uv1,
@@ -459,7 +472,11 @@ struct Game : App {
 		};
 		for (u32 row = startRow; row < endRow; row++) {
 			for (u32 col = startCol; col < endCol; col++) {
+		//for (u32 row = 0; row < MapSize; row++) {
+		//	for (u32 col = 0; col < MapSize; col++) {
 				const AtlasEntry* const atlasEntry = map[row * MapSize + col];
+				Assert((u64)atlasEntry < (u64)map + sizeof(map));
+				Assert(atlasEntry->imageIdx < atlasEntries.len);
 				*spriteDrawCmds++ = {
 					.model      = Mat4::Translate(Vec3 { (f32)col * 16.0f, (f32)row * 16.0f, 0.0f }),
 					.uv1        = atlasEntry->uv1,
@@ -469,8 +486,9 @@ struct Game : App {
 				};
 			}
 		}
-		Render::EndBufferUpdate(spriteDrawCmdBufferUpdate);
-		Render::BufferBarrier(spriteDrawCmdBuffer, Render::Stage::TransferDst, Render::Stage::VertexShaderRead);
+		Render::BufferBarrier(spriteDrawCmdBuffers[frameIdx], Render::Stage::VertexShaderRead, Render::Stage::TransferDst);
+		Render::UpdateBuffer(spriteDrawCmdBuffers[frameIdx], 0, spriteDrawCmdStagingMem);
+		Render::BufferBarrier(spriteDrawCmdBuffers[frameIdx], Render::Stage::TransferDst, Render::Stage::VertexShaderRead);
 
 		const Render::Pass pass = {
 			.pipeline         = pipeline,
@@ -480,12 +498,12 @@ struct Game : App {
 			.scissor          = { .x = 0,    .y = 0,    .w = windowWidth,      .h = windowHeight },
 		};
 		Render::BeginPass(&pass);
-		PushConstants pushConstants = { .sceneBufferAddr = sceneBufferAddr };
+		PushConstants pushConstants = { .sceneBufferAddr = sceneBufferAddrs[frameIdx] };
 		Render::PushConstants(pipeline, &pushConstants, sizeof(pushConstants));
 		Render::Draw(6, spriteCount);
 		Render::EndPass();
 
-		Render::ImageBarrier(Render::GetSwapchainImage(), Render::Stage::ColorAttachment, Render::Stage::Present);
+		Render::ImageBarrier(swapchainImage, Render::Stage::ColorAttachment, Render::Stage::Present);
 
 		return Ok();
 	}

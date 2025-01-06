@@ -52,40 +52,43 @@ VkFormat ImageFormatToVkFormat(ImageFormat imageFormat);
 
 static VkPipelineStageFlags2 StageToVkPipelineStage2(Stage stage) {
 	switch (stage) {
-		case Stage::None:                  return VK_PIPELINE_STAGE_2_NONE;
-		case Stage::TransferSrc:           return VK_PIPELINE_STAGE_2_COPY_BIT;
-		case Stage::TransferDst:           return VK_PIPELINE_STAGE_2_COPY_BIT;
-		case Stage::VertexShaderRead:      return VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
-		case Stage::FragmentShaderSampled: return VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-		case Stage::ColorAttachment:       return VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-		case Stage::Present:               return VK_PIPELINE_STAGE_2_NONE;
-		default:                           Panic("Unhandled Stage {}", stage);
+		case Stage::None:                 return VK_PIPELINE_STAGE_2_NONE;
+		case Stage::TransferSrc:          return VK_PIPELINE_STAGE_2_COPY_BIT;
+		case Stage::TransferDst:          return VK_PIPELINE_STAGE_2_COPY_BIT;
+		case Stage::VertexShaderRead:     return VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+		case Stage::FragmentShaderSample: return VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		case Stage::ColorAttachment:      return VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		case Stage::PresentOld:           return VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		case Stage::Present:              return VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+		default:                          Panic("Unhandled Stage {}", stage);
 	}
 }
 
 static VkAccessFlags2 StageToVkAccessFlags2(Stage stage) {
 	switch (stage) {
-		case Stage::None:                  return VK_ACCESS_2_NONE;
-		case Stage::TransferSrc:           return VK_ACCESS_2_TRANSFER_READ_BIT;
-		case Stage::TransferDst:           return VK_ACCESS_2_TRANSFER_WRITE_BIT;
-		case Stage::VertexShaderRead:      return VK_ACCESS_2_SHADER_READ_BIT;
-		case Stage::FragmentShaderSampled: return VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
-		case Stage::ColorAttachment:       return VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-		case Stage::Present:               return VK_ACCESS_2_NONE;
-		default:                           Panic("Unhandled Stage {}", stage);
+		case Stage::None:                 return VK_ACCESS_2_NONE;
+		case Stage::TransferSrc:          return VK_ACCESS_2_TRANSFER_READ_BIT;
+		case Stage::TransferDst:          return VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		case Stage::VertexShaderRead:     return VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+		case Stage::FragmentShaderSample: return VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+		case Stage::ColorAttachment:      return VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		case Stage::PresentOld:           return VK_ACCESS_2_NONE;
+		case Stage::Present:              return VK_ACCESS_2_NONE;
+		default:                          Panic("Unhandled Stage {}", stage);
 	}
 }
 
 static VkImageLayout StageToVkImageLayout(Stage stage) {
 	switch (stage) {
-		case Stage::None:                  return VK_IMAGE_LAYOUT_UNDEFINED;
-		case Stage::TransferSrc:           return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		case Stage::TransferDst:           return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		case Stage::VertexShaderRead:      return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		case Stage::FragmentShaderSampled: return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		case Stage::ColorAttachment:       return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		case Stage::Present:               return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		default:                           Panic("Unhandled Stage {}", stage);
+		case Stage::None:                 return VK_IMAGE_LAYOUT_UNDEFINED;
+		case Stage::TransferSrc:          return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		case Stage::TransferDst:          return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		case Stage::VertexShaderRead:     return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		case Stage::FragmentShaderSample: return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		case Stage::ColorAttachment:      return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		case Stage::PresentOld:           return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		case Stage::Present:              return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		default:                          Panic("Unhandled Stage {}", stage);
 	}
 }
 
@@ -112,12 +115,12 @@ static VkImageSubresourceLayers MakeVkImageSubresourceLayers(VkImageAspectFlags 
 
 //----------------------------------------------------------------------------------------------
 
-static constexpr u32 MaxFrames                 = 3;
 static constexpr u32 MaxBindlessSampledImages  = 64 * 1024;
 static constexpr u32 MaxBindlessSamplers       = 8;
 static constexpr u32 MaxBindlessDescriptorSets = 32;
 static constexpr f32 MaxAnisotropy             = 8.0f;
-static constexpr u64 StagingBufferSize         = 128 * 1024 * 1024;
+static constexpr u64 StagingBufferFrameSize    = 32 * 1024 * 1024;
+static constexpr u64 StagingBufferSize         = StagingBufferFrameSize * MaxFrames;
 
 struct QueueFamily {
 	VkQueueFamilyProperties vkQueueFamilyProperties = {};
@@ -172,7 +175,6 @@ struct ImageObj {
 	VkFormat      vkFormat      = VK_FORMAT_UNDEFINED;
 	VkImageLayout vkImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	Sampler       sampler       = {};
-	void*         updatePtr     = 0;
 };
 
 struct ShaderObj {
@@ -187,6 +189,12 @@ struct PipelineObj {
 	VkPipelineLayout      vkPipelineLayout      = VK_NULL_HANDLE;
 	VkPipelineBindPoint   vkPipelineBindPoint   = {};
 	VkPushConstantRange   vkPushConstantRange   = {};
+};
+
+struct StagingArena {
+	u8* begin = 0;
+	u8* used  = 0;
+	u8* end   = 0;
 };
 
 static Arena*                             perm;
@@ -219,22 +227,23 @@ static VkDescriptorSet                    vkBindlessDescriptorSet;
 static VkSampler                          vkBindlessSamplers[MaxBindlessSamplers];
 static u32                                vkBindlessSamplersLen;
 static BufferObj                          stagingBufferObj;
-static u8*                                stagingBufferMappedPtr;
-static u64                                stagingBufferUsed;
-static u64                                frameIdx;
+static StagingArena                       stagingArenas[MaxFrames];
+static u32                                frameIdx;
 
 //-------------------------------------------------------------------------------------------------
 
 static VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT, const VkDebugUtilsMessengerCallbackDataEXT* data, void*) {
 	if (data && data->pMessage) {
 		Sys::LockMutex(&mutex);
-		if (severity & (VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)) {
+		if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
 			log->Error("{}", data->pMessage);
 			#if defined DebugBreakOnErr
 				if (Sys::IsDebuggerPresent()) {
 					Sys_DebuggerBreak();
 				}
 			#endif	// DebugBreakOnErr
+		} else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+			//log->Error("{}", data->pMessage);
 		} else {
 			log->Print("{}", data->pMessage);
 		}
@@ -272,6 +281,7 @@ static Res<> InitInstance() {
 	constexpr const char* RequiredLayers[] = {
 		#if defined Render_Debug
 			"VK_LAYER_KHRONOS_validation",
+
 		#endif	// Render_Debug
 	};
 	for (u32 i = 0; i < LenOf(RequiredLayers); i++) {
@@ -342,7 +352,7 @@ static Res<> InitInstance() {
 	#if defined Render_Debug
 		const VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {
 			.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-			.pNext           = nullptr,
+			.pNext           = vkInstanceCreateInfo.pNext,
 			.flags           = 0,
 			.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
 			.messageType     = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT,
@@ -350,6 +360,25 @@ static Res<> InitInstance() {
 			.pUserData       = 0,
 		};
 		vkInstanceCreateInfo.pNext = &debugCreateInfo;
+
+		const VkBool32 vkTrue = VK_TRUE;
+		const VkLayerSettingEXT vkLayerSettingEXTs[] = {
+			{ "VK_LAYER_KHRONOS_validation", "validate_core",                  VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "validate_sync",                  VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "check_object_in_use",            VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "check_shaders",                  VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "validate_gpu_based",             VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "validate_best_practices",        VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "validate_best_practices_nvidia", VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &vkTrue },
+		};
+		const VkLayerSettingsCreateInfoEXT vkLayerSettingsCreateInfoEXT = {
+			.sType        = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
+			.pNext        = vkInstanceCreateInfo.pNext,
+			.settingCount = LenOf(vkLayerSettingEXTs),
+			.pSettings    = vkLayerSettingEXTs,
+
+		};
+		vkInstanceCreateInfo.pNext = &vkLayerSettingsCreateInfoEXT;
 	#endif	// Render_Debug
 
 	CheckVk(vkCreateInstance(&vkInstanceCreateInfo, vkAllocationCallbacks, &vkInstance));
@@ -595,7 +624,7 @@ static Res<> InitDevice() {
 	vkPhysicalDeviceVulkan13Features.pNext = 0;
 	vkPhysicalDeviceVulkan13Features.dynamicRendering = VK_TRUE;
 	vkPhysicalDeviceVulkan13Features.synchronization2 = VK_TRUE;
-			
+
 	// TODO: possibly create more queues? one per type?
 	const VkDeviceCreateInfo vkDeviceCreateInfo = {
 		.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
@@ -708,6 +737,7 @@ static Res<> InitSwapchain(u32 width, u32 height) {
 		imageObj->sampler       = {};
 	}
 
+	vkDeviceWaitIdle(vkDevice);
 	return Ok();
 }
 
@@ -1001,8 +1031,13 @@ static Res<> InitStaging() {
 		return r;
 	}
 
-	CheckVk(vkMapMemory(vkDevice, stagingBufferObj.mem.vkDeviceMemory, 0, StagingBufferSize, 0, (void**)&stagingBufferMappedPtr));
-	stagingBufferUsed  = 0;
+	u8* ptr = 0;
+	CheckVk(vkMapMemory(vkDevice, stagingBufferObj.mem.vkDeviceMemory, 0, StagingBufferSize, 0, (void**)&ptr));
+	for (u32 i = 0; i < MaxFrames; i++) {
+		stagingArenas[i].begin = ptr + (i * StagingBufferFrameSize);
+		stagingArenas[i].used  = stagingArenas[i].begin;
+		stagingArenas[i].end   = stagingArenas[i].begin + StagingBufferFrameSize;
+	}
 
 	return Ok();
 };
@@ -1052,9 +1087,6 @@ Res<> Init(const InitDesc* initDesc) {
 	if (Res<> r = InitBindlessSamplers();                           !r) { return r; }
 	if (Res<> r = InitStaging();                                    !r) { return r; }
 	if (Res<> r = BeginCmds();                                      !r) { return r; }
-
-	ImageBarrier(swapchainImages[frameIdx], Stage::None, Stage::Present);
-
 
 	return Ok();
 }
@@ -1281,7 +1313,6 @@ Res<Image> CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usa
 	imageObj->vkFormat      = vkFormat;
 	imageObj->vkImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	imageObj->sampler       = {};
-	imageObj->updatePtr     = 0;
 
 	return image;
 
@@ -1663,111 +1694,67 @@ void DestroyPipeline(Pipeline pipeline) {
 
 //-------------------------------------------------------------------------------------------------
 
-Res<SwapchainStatus> BeginFrame() {
-	if (VkResult r = vkAcquireNextImageKHR(vkDevice, vkSwapchain, U64Max, vkFrameAcquireImageSemaphores[frameIdx], 0, &swapchainImageIdx); r != VK_SUCCESS) {
-		if (r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_OUT_OF_DATE_KHR) {
-			return SwapchainStatus::NeedsRecreate;
-		} else {
-			return Err_Vk(r, "vkAcquireNextImageKHR");
-		}
-	}
-
-	return SwapchainStatus::Ok;
+StagingMem AllocStagingMem(u64 size) {
+	Assert(stagingArenas[frameIdx].used + size <= stagingArenas[frameIdx].end);
+	void* const ptr = stagingArenas[frameIdx].used;
+	stagingArenas[frameIdx].used += size;
+	return StagingMem {
+		.ptr  = ptr,
+		.size = size,
+	};
 };
 
-//----------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
 
-Res<SwapchainStatus> EndFrame() {
-	CheckVk(vkEndCommandBuffer(vkFrameCommandBuffers[frameIdx]));
-
-	const VkSemaphoreSubmitInfo vkWaitSemaphoreSubmitInfo = {
-		.sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+void UpdateBuffer(Buffer buffer, u64 offset, StagingMem stagingMem) {
+	Assert(stagingMem.ptr >= stagingArenas[frameIdx].begin);
+	Assert(stagingMem.ptr <= stagingArenas[frameIdx].end);
+	BufferObj* const bufferObj = bufferObjs.Get(buffer);
+	const VkBufferCopy2 vkBufferCopy2 = {
+		.sType     = VK_STRUCTURE_TYPE_BUFFER_COPY_2,
+		.pNext     = 0,
+		.srcOffset = (VkDeviceSize)((u8*)stagingMem.ptr - stagingArenas[0].begin),
+		.dstOffset = bufferObj->mem.offset + offset,
+		.size      = stagingMem.size,
+	};
+	Assert(vkBufferCopy2.dstOffset + vkBufferCopy2.size <= bufferObj->size);
+	const VkCopyBufferInfo2 vkCopyBufferInfo2 = {
+		.sType       = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
 		.pNext       = 0,
-		.semaphore   = vkFrameAcquireImageSemaphores[frameIdx],
-		.value       = 0,
-		.stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-		.deviceIndex = 0,
+		.srcBuffer   = stagingBufferObj.vkBuffer,
+		.dstBuffer   = bufferObj->vkBuffer,
+		.regionCount = 1,
+		.pRegions    = &vkBufferCopy2,
 	};
-	const VkCommandBufferSubmitInfo vkCommandBufferSubmitInfo = {
-		.sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-		.pNext         = 0,
-		.commandBuffer = vkFrameCommandBuffers[frameIdx],
-		.deviceMask    = 0,
-	};
-	const VkSemaphoreSubmitInfo vkSignalSemaphoreSubmitInfo = {
-		.sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-		.pNext       = 0,
-		.semaphore   = vkFrameRenderSemaphores[frameIdx],
-		.value       = 0,
-		.stageMask   = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
-		.deviceIndex = 0,
-	};
-	const VkSubmitInfo2 vkSubmitInfo2 = {
-		.sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-		.pNext                    = 0,
-		.flags                    = 0,
-		.waitSemaphoreInfoCount   = 1,
-		.pWaitSemaphoreInfos      = &vkWaitSemaphoreSubmitInfo,
-		.commandBufferInfoCount   = 1,
-		.pCommandBufferInfos      = &vkCommandBufferSubmitInfo,
-		.signalSemaphoreInfoCount = 1,
-		.pSignalSemaphoreInfos    = &vkSignalSemaphoreSubmitInfo,
-	};
-	CheckVk(vkQueueSubmit2(vkQueue, 1, &vkSubmitInfo2, vkFrameFences[frameIdx]));
-
-
-	VkPresentInfoKHR vkPresentInfoKHR = {
-		.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-		.pNext              = 0,
-		.waitSemaphoreCount = 1,
-		.pWaitSemaphores    = &vkFrameRenderSemaphores[frameIdx],
-		.swapchainCount     = 1,
-		.pSwapchains        = &vkSwapchain,
-		.pImageIndices      = &swapchainImageIdx,
-		.pResults           = 0,
-	};
-	if (VkResult r = vkQueuePresentKHR(vkQueue, &vkPresentInfoKHR); r != VK_SUCCESS) {
-		if (r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_OUT_OF_DATE_KHR) {
-			return SwapchainStatus::NeedsRecreate;
-		} else {
-			return Err_Vk(r, "vkAcquireNextImageKHR");
-		}
-	}
-
-	frameIdx = (frameIdx + 1) % MaxFrames;
-
-	if (frameIdx == 0) {
-		stagingBufferUsed = 0;
-	}
-
-
-	if (Res<> r = BeginCmds(); !r) {
-		return r.err;
-	}
-
-	return SwapchainStatus::Ok;
+	vkCmdCopyBuffer2(vkFrameCommandBuffers[frameIdx], &vkCopyBufferInfo2);
 }
 
 //-------------------------------------------------------------------------------------------------
 
-void* AllocStagingMem(u64 size) {
-	Assert(stagingBufferUsed + size < stagingBufferObj.size);
-	void* const ptr = stagingBufferMappedPtr +  stagingBufferUsed;
-	stagingBufferUsed += size;
-	return ptr;
-};
-
-//-------------------------------------------------------------------------------------------------
-
-BufferUpdate BeginBufferUpdate(Buffer buffer, u64 offset, u64 size) {
-	BufferObj* const bufferObj = bufferObjs.Get(buffer);
-	size = size ? size : bufferObj->size;
-	return BufferUpdate {
-		.buffer = buffer,
-		.ptr    = AllocStagingMem(size),
-		.offset = offset,
-		.size   = size,
+void UpdateImage(Image image, StagingMem stagingMem) {
+	Assert(stagingMem.ptr >= stagingArenas[frameIdx].begin);
+	Assert(stagingMem.ptr <= stagingArenas[frameIdx].end);
+	ImageObj* const imageObj = imageObjs.Get(image);
+	const VkBufferImageCopy2 vkBufferImageCopy2 = {
+		.sType             = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2,
+		.pNext             = 0,
+		.bufferOffset      = (VkDeviceSize)((u8*)stagingMem.ptr - stagingArenas[0].begin),
+		.bufferRowLength   = 0,
+		.bufferImageHeight = 0,
+		.imageSubresource  = MakeVkImageSubresourceLayers(IsDepthFormat(imageObj->vkFormat) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT),
+		.imageOffset       = { .x = 0, .y = 0, .z = 0 },
+		.imageExtent       = { .width = imageObj->width, .height = imageObj->height, .depth = 1 },
 	};
+	const VkCopyBufferToImageInfo2 vkCopyBufferToImageInfo2 = {
+		.sType          = VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2,
+		.pNext          = 0,
+		.srcBuffer      = stagingBufferObj.vkBuffer,
+		.dstImage       = imageObj->vkImage,
+		.dstImageLayout = imageObj->vkImageLayout,
+		.regionCount    = 1,
+		.pRegions       = &vkBufferImageCopy2,
+	};
+	vkCmdCopyBufferToImage2(vkFrameCommandBuffers[frameIdx], &vkCopyBufferToImageInfo2);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1799,26 +1786,6 @@ void BufferBarrier(Buffer buffer, Stage src, Stage dst) {
 		.pImageMemoryBarriers     = 0,
 	};
 	vkCmdPipelineBarrier2(vkFrameCommandBuffers[frameIdx], &vkDependencyInfo);
-}
-
-void EndBufferUpdate(BufferUpdate bufferUpdate) {
-	BufferObj* const bufferObj = bufferObjs.Get(bufferUpdate.buffer);
-	const VkBufferCopy2 vkBufferCopy2 = {
-		.sType     = VK_STRUCTURE_TYPE_BUFFER_COPY_2,
-		.pNext     = 0,
-		.srcOffset = (VkDeviceSize)((u8*)bufferUpdate.ptr - stagingBufferMappedPtr),
-		.dstOffset = bufferObj->mem.offset + bufferUpdate.offset,
-		.size      = bufferObj->size,
-	};
-	const VkCopyBufferInfo2 vkCopyBufferInfo2 = {
-		.sType       = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
-		.pNext       = 0,
-		.srcBuffer   = stagingBufferObj.vkBuffer,
-		.dstBuffer   = bufferObj->vkBuffer,
-		.regionCount = 1,
-		.pRegions    = &vkBufferCopy2,
-	};
-	vkCmdCopyBuffer2(vkFrameCommandBuffers[frameIdx], &vkCopyBufferInfo2);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1857,46 +1824,111 @@ void ImageBarrier(Image image, Stage src, Stage dst) {
 
 //-------------------------------------------------------------------------------------------------
 
-void* BeginImageUpdate(Image image) {
-	ImageObj* const imageObj = imageObjs.Get(image);
-	Assert(!imageObj->updatePtr);
-
-	u32 pixelSize = 0;
-	switch (imageObj->vkFormat) {
-		case VK_FORMAT_B8G8R8A8_UNORM: pixelSize = 4; break;
-		case VK_FORMAT_R8G8B8A8_UNORM: pixelSize = 4; break;
-		case VK_FORMAT_D32_SFLOAT:     pixelSize = 4; break;
-		default: Panic("Unhandled VkFormat {}", imageObj->vkFormat);
-	}
-
-	imageObj->updatePtr = AllocStagingMem(imageObj->width * imageObj->height * pixelSize);
-	return imageObj->updatePtr;
+void DebugBarrier() {
+	const VkMemoryBarrier2 vkMemoryBarrier2 = {
+		.sType          = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+		.pNext          = 0,
+		.srcStageMask   = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+		.srcAccessMask  = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+		.dstStageMask   = VK_ACCESS_2_MEMORY_READ_BIT,
+		.dstAccessMask  = VK_ACCESS_2_MEMORY_WRITE_BIT,
+	};
+	const VkDependencyInfo vkDependencyInfo = {
+		.sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+		.pNext                    = 0,
+		.dependencyFlags          = 0,
+		.memoryBarrierCount       = 1,
+		.pMemoryBarriers          = &vkMemoryBarrier2,
+		.bufferMemoryBarrierCount = 0,
+		.pBufferMemoryBarriers    = 0,
+		.imageMemoryBarrierCount  = 0,
+		.pImageMemoryBarriers     = 0,
+	};
+	vkCmdPipelineBarrier2(vkFrameCommandBuffers[frameIdx], &vkDependencyInfo);
 }
 
-void EndImageUpdate(Image image) {
-	ImageObj* const imageObj = imageObjs.Get(image);
-	Assert(imageObj->updatePtr);
-	const VkBufferImageCopy2 vkBufferImageCopy2 = {
-		.sType             = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2,
-		.pNext             = 0,
-		.bufferOffset      = (VkDeviceSize)((u8*)imageObj->updatePtr - stagingBufferMappedPtr),
-		.bufferRowLength   = 0,
-		.bufferImageHeight = 0,
-		.imageSubresource  = MakeVkImageSubresourceLayers(IsDepthFormat(imageObj->vkFormat) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT),
-		.imageOffset       = { .x = 0, .y = 0, .z = 0 },
-		.imageExtent       = { .width = imageObj->width, .height = imageObj->height, .depth = 1 },
+//-------------------------------------------------------------------------------------------------
+
+Res<SwapchainStatus> BeginFrame() {
+	if (VkResult r = vkAcquireNextImageKHR(vkDevice, vkSwapchain, U64Max, vkFrameAcquireImageSemaphores[frameIdx], 0, &swapchainImageIdx); r != VK_SUCCESS) {
+		if (r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_OUT_OF_DATE_KHR) {
+			return SwapchainStatus::NeedsRecreate;
+		} else {
+			return Err_Vk(r, "vkAcquireNextImageKHR");
+		}
+	}
+
+	return SwapchainStatus::Ok;
+};
+
+//----------------------------------------------------------------------------------------------
+
+u64 frame = 0;
+Res<SwapchainStatus> EndFrame() {
+	CheckVk(vkEndCommandBuffer(vkFrameCommandBuffers[frameIdx]));
+
+	const VkSemaphoreSubmitInfo vkWaitSemaphoreSubmitInfo = {
+		.sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+		.pNext       = 0,
+		.semaphore   = vkFrameAcquireImageSemaphores[frameIdx],
+		.value       = 0,
+		.stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+		.deviceIndex = 0,
 	};
-	const VkCopyBufferToImageInfo2 vkCopyBufferToImageInfo2 = {
-		.sType          = VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2,
-		.pNext          = 0,
-		.srcBuffer      = stagingBufferObj.vkBuffer,
-		.dstImage       = imageObj->vkImage,
-		.dstImageLayout = imageObj->vkImageLayout,
-		.regionCount    = 1,
-		.pRegions       = &vkBufferImageCopy2,
+	const VkCommandBufferSubmitInfo vkCommandBufferSubmitInfo = {
+		.sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+		.pNext         = 0,
+		.commandBuffer = vkFrameCommandBuffers[frameIdx],
+		.deviceMask    = 0,
 	};
-	vkCmdCopyBufferToImage2(vkFrameCommandBuffers[frameIdx], &vkCopyBufferToImageInfo2);
-	imageObj->updatePtr = 0;
+	const VkSemaphoreSubmitInfo vkSignalSemaphoreSubmitInfo = {
+		.sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+		.pNext       = 0,
+		.semaphore   = vkFrameRenderSemaphores[frameIdx],
+		.value       = 0,
+		.stageMask   = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
+		.deviceIndex = 0,
+	};
+	const VkSubmitInfo2 vkSubmitInfo2 = {
+		.sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+		.pNext                    = 0,
+		.flags                    = 0,
+		.waitSemaphoreInfoCount   = 1,
+		.pWaitSemaphoreInfos      = &vkWaitSemaphoreSubmitInfo,
+		.commandBufferInfoCount   = 1,
+		.pCommandBufferInfos      = &vkCommandBufferSubmitInfo,
+		.signalSemaphoreInfoCount = 1,
+		.pSignalSemaphoreInfos    = &vkSignalSemaphoreSubmitInfo,
+	};
+	CheckVk(vkQueueSubmit2(vkQueue, 1, &vkSubmitInfo2, vkFrameFences[frameIdx]));
+
+	VkPresentInfoKHR vkPresentInfoKHR = {
+		.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+		.pNext              = 0,
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores    = &vkFrameRenderSemaphores[frameIdx],
+		.swapchainCount     = 1,
+		.pSwapchains        = &vkSwapchain,
+		.pImageIndices      = &swapchainImageIdx,
+		.pResults           = 0,
+	};
+	if (VkResult r = vkQueuePresentKHR(vkQueue, &vkPresentInfoKHR); r != VK_SUCCESS) {
+		if (r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_OUT_OF_DATE_KHR) {
+			return SwapchainStatus::NeedsRecreate;
+		} else {
+			return Err_Vk(r, "vkAcquireNextImageKHR");
+		}
+	}
+
+	frameIdx = (frameIdx + 1) % MaxFrames;
+	frame++;
+	stagingArenas[frameIdx].used = stagingArenas[frameIdx].begin;
+
+	if (Res<> r = BeginCmds(); !r) {
+		return r.err;
+	}
+
+	return SwapchainStatus::Ok;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2007,6 +2039,10 @@ void Draw(u32 vertexCount, u32 instanceCount) {
 void DrawIndexed(u32 indexCount) {
 	vkCmdDrawIndexed(vkFrameCommandBuffers[frameIdx], indexCount, 1, 0, 0, 0);
 }
+
+//----------------------------------------------------------------------------------------------
+
+u32 GetFrameIdx() { return frameIdx; }
 
 //----------------------------------------------------------------------------------------------
 

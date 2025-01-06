@@ -237,3 +237,4 @@ maximizing window right when we're starting up causes a command buffer weirdness
 	we should probably end the command buffer and restart it, see what love2d does here
 our sprite structure has padding...can we get rid of it?
 consider replacing all ' = 0' with ' = {}'
+if performance is a concern and you have profiling data to back it up then you need to take into account: VkPhysicalDeviceLimits.optimalBufferCopyOffsetAlignment

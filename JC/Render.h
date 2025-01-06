@@ -11,9 +11,20 @@ namespace Render {
 
 //--------------------------------------------------------------------------------------------------
 
+constexpr u32 MaxFrames = 3;
+
 enum struct SwapchainStatus {
 	Ok,
 	NeedsRecreate,
+};
+
+struct InitDesc {
+	Arena*                      perm               = 0;
+	Arena*                      temp               = 0;
+	Log*                        log                = 0;
+	u32                         width              = 0;
+	u32                         height             = 0;
+	const Window::PlatformDesc* windowPlatformDesc = {};
 };
 
 struct Buffer   { u64 handle = 0; };
@@ -27,8 +38,9 @@ enum struct Stage {
 	TransferSrc,
 	TransferDst,
 	VertexShaderRead,
-	FragmentShaderSampled,
+	FragmentShaderSample,
 	ColorAttachment,
+	PresentOld,
 	Present,
 };
 
@@ -67,68 +79,44 @@ struct Pass {
 	Rect        scissor          = {};
 };
 
-struct InitDesc {
-	Arena*                      perm               = 0;
-	Arena*                      temp               = 0;
-	Log*                        log                = 0;
-	u32                         width              = 0;
-	u32                         height             = 0;
-	const Window::PlatformDesc* windowPlatformDesc = {};
+struct StagingMem {
+	void* ptr;
+	u64   size;
 };
 
-
-Res<>         Init(const InitDesc* initDesc);
-void          Shutdown();
-
-void          WaitIdle();
-
-Res<>         RecreateSwapchain(u32 width, u32 height);
-Image         GetSwapchainImage();
-ImageFormat   GetSwapchainImageFormat();
-
-Res<Buffer>   CreateBuffer(u64 size, BufferUsage usage);
-void          DestroyBuffer(Buffer buffer);
-u64           GetBufferAddr(Buffer buffer);
-
-Res<Image>    CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usage);
-void          DestroyImage(Image image);
-u32           GetImageWidth(Image image);	// TODO; -> IVec2 or IExtent or something
-u32           GetImageHeight(Image image);
-u32           BindImage(Image image);
-
-Res<Shader>   CreateShader(const void* data, u64 len);
-void          DestroyShader(Shader shader);
-
-Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> colorAttachmentFormats, ImageFormat depthAttachmentFormat);
-void          DestroyPipeline(Pipeline pipeline);
-
+Res<>                Init(const InitDesc* initDesc);
+void                 Shutdown();
+void                 WaitIdle();
+Res<>                RecreateSwapchain(u32 width, u32 height);
+Image                GetSwapchainImage();
+ImageFormat          GetSwapchainImageFormat();
+Res<Buffer>          CreateBuffer(u64 size, BufferUsage usage);
+void                 DestroyBuffer(Buffer buffer);
+u64                  GetBufferAddr(Buffer buffer);
+Res<Image>           CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usage);
+void                 DestroyImage(Image image);
+u32                  GetImageWidth(Image image);	// TODO; -> IVec2 or IExtent or something
+u32                  GetImageHeight(Image image);
+u32                  BindImage(Image image);
+Res<Shader>          CreateShader(const void* data, u64 len);
+void                 DestroyShader(Shader shader);
+Res<Pipeline>        CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> colorAttachmentFormats, ImageFormat depthAttachmentFormat);
+void                 DestroyPipeline(Pipeline pipeline);
+StagingMem           AllocStagingMem(u64 size);
+void                 UpdateBuffer(Buffer buffer, u64 offset, StagingMem stagingMem);
+void                 UpdateImage(Image image, StagingMem stagingMem);
+void                 BufferBarrier(Buffer buffer, Stage src, Stage dst);
+void                 ImageBarrier(Image image, Stage src, Stage dst);
+void                 DebugBarrier();
 Res<SwapchainStatus> BeginFrame();
 Res<SwapchainStatus> EndFrame();
-
-struct BufferUpdate {
-	Buffer buffer = {};
-	void*  ptr    = 0;
-	u64    offset = 0;
-	u64    size   = 0;
-};
-BufferUpdate  BeginBufferUpdate(Buffer buffer, u64 offset, u64 size);
-void          EndBufferUpdate(BufferUpdate bufferUpdate);
-
-void*         BeginImageUpdate(Image image);
-void          EndImageUpdate(Image image);
-
-void          BufferBarrier(Buffer buffer, Stage src, Stage dst);
-void          ImageBarrier(Image image, Stage src, Stage dst);
-
-void          BeginPass(const Pass* pass);
-void          EndPass();
-
-void          BindIndexBuffer(Buffer buffer);
-
-void          PushConstants(Pipeline pipeline, const void* data, u32 len);
-
-void          Draw(u32 vertexCount, u32 instanceCount);
-void          DrawIndexed(u32 indexCount);
+void                 BeginPass(const Pass* pass);
+void                 EndPass();
+void                 BindIndexBuffer(Buffer buffer);
+void                 PushConstants(Pipeline pipeline, const void* data, u32 len);
+void                 Draw(u32 vertexCount, u32 instanceCount);
+void                 DrawIndexed(u32 indexCount);
+u32                  GetFrameIdx();
 
 //--------------------------------------------------------------------------------------------------
 
