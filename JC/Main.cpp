@@ -100,13 +100,17 @@ struct Game : App {
 		u32  pad[2]     = {};
 	};
 
+	struct Light {
+		Vec3  position = {};
+		float radius   = 0.0f;
+		Vec3  color    = {};
+		float pad      = 0.0f;
+	};
+
 	struct Scene {
-		Mat4 projView         = {};
-		Vec3 lightPos         = {};
-		u32  pad1;
-		Vec3 lightColor       = {};
-		u32  pad2;
-		u64  spriteDrawCmdBufferAddr = 0;
+		Mat4  projView                = {};
+		Light lights[4]               = {};
+		u64   spriteDrawCmdBufferAddr = 0;
 	};
 
 	struct PushConstants {
@@ -332,7 +336,7 @@ struct Game : App {
 			}
 		}
 		hero = FindAtlasEntry("hero");
-		heroPos = { 345.156830f, 492.393951f };
+		heroPos = { 64 * 16.0f, 64 * 16.0f, 0.0f };
 
 		for (u32 i = 0; i < Render::MaxFrames; i++) {
 			if (Res<> r = Render::CreateBuffer(MaxSprites * sizeof(SpriteDrawCmd), Render::BufferUsage::Storage).To(spriteDrawCmdBuffers[i]); !r) { return r; }
@@ -371,8 +375,8 @@ struct Game : App {
 
 	bool keyDown[(u32)Event::Key::Max] = {};
 
-	static constexpr f32 heroMovePerSec  = 200.00f;
-	static constexpr f32 camZoomPerWheel = 50.0f;
+	static constexpr f32 heroMovePerSec  = 20.00f;
+	static constexpr f32 camZoomPerWheel = 10.0f;
 
 	Res<> Events(Span<Event::Event> events) override {
 		for (const Event::Event* e = events.Begin(); e != events.End(); e++) {
@@ -421,12 +425,10 @@ struct Game : App {
 		cam.pos.x = heroPos.x;
 		cam.pos.y = heroPos.y;
 
-		//Logf("{}x{}", heroPos.x, heroPos.y);
-
 		lightChangeRem -= secs;
 		if (lightChangeRem <= 0.0) {
 			lightChangeRem = MaxLightChangePeriod;
-			lightColorIntensity = 0.8f + Random::NextF32() * 0.2f;
+			//lightColorIntensity = 0.8f + Random::NextF32() * 0.2f;
 		}
 
 		return Ok();
@@ -442,9 +444,20 @@ struct Game : App {
 
 		const Render::StagingMem sceneBufferStagingMem = Render::AllocStagingMem(sizeof(Scene));
 		Scene* const scene = (Scene*)sceneBufferStagingMem.ptr;
-		scene->projView                = cam.GetProjView(),
-		scene->lightPos                = heroPos;
-		scene->lightColor              = Vec3(lightColorIntensity, lightColorIntensity, lightColorIntensity);
+		scene->projView  = cam.GetProjView(),
+		MemSet(scene->lights, 0, sizeof(scene->lights));
+		scene->lights[0] = {
+			.position = Vec3(64.0f * 16.0f, 64.0f * 16.0f, 1.0f),
+			.radius   = 32.0f * 16.0f,
+			.color    = Vec3(0.8f, 0.7f, 0.5f),
+		};
+		scene->lights[1] = {
+			.position = Vec3(heroPos.x, heroPos.y, 1.0f),
+			.radius   = 8.0f * 16.0f,
+			.color    = Vec3(0.4f, 0.6f, 0.5f),
+		};
+		scene->lights[2] = { {}, 1.0f, {} };
+		scene->lights[3] = { {}, 1.0f, {} };
 		scene->spriteDrawCmdBufferAddr = spriteDrawCmdBufferAddrs[frameIdx],
 		Render::BufferBarrier(sceneBuffers[frameIdx], Render::Stage::VertexShaderRead, Render::Stage::TransferDst);
 		Render::UpdateBuffer(sceneBuffers[frameIdx], 0, sceneBufferStagingMem);
@@ -461,10 +474,9 @@ struct Game : App {
 		const u32 spriteCount = 1 + (endCol - startCol) * (endRow - startRow);
 
 		const Render::StagingMem spriteDrawCmdStagingMem = Render::AllocStagingMem(spriteCount * sizeof(SpriteDrawCmd));
-		//const Render::StagingMem spriteDrawCmdStagingMem = Render::AllocStagingMem((1 + MapSize * MapSize) * sizeof(SpriteDrawCmd));
 		SpriteDrawCmd* spriteDrawCmds = (SpriteDrawCmd*)spriteDrawCmdStagingMem.ptr;
 		*spriteDrawCmds++ = {
-			.model      = Mat4::Translate(Vec3 { heroPos.x, heroPos.y, -1.0f }),
+			.model      = Mat4::Translate(Vec3 { heroPos.x, heroPos.y, 0.0f }),
 			.uv1        = hero->uv1,
 			.uv2        = hero->uv2,
 			.diffuseIdx = hero->imageIdx,
@@ -472,8 +484,6 @@ struct Game : App {
 		};
 		for (u32 row = startRow; row < endRow; row++) {
 			for (u32 col = startCol; col < endCol; col++) {
-		//for (u32 row = 0; row < MapSize; row++) {
-		//	for (u32 col = 0; col < MapSize; col++) {
 				const AtlasEntry* const atlasEntry = map[row * MapSize + col];
 				Assert((u64)atlasEntry < (u64)map + sizeof(map));
 				Assert(atlasEntry->imageIdx < atlasEntries.len);

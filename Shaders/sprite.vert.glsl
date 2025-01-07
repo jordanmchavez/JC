@@ -5,12 +5,10 @@
 
 #include "sprite.common.glsl"
 
-layout (location = 0) out vec2 uvOut;
-layout (location = 1) out vec3 worldPosOut;
-layout (location = 2) flat out vec3 lightPosOut;
-layout (location = 3) flat out vec3 lightColorOut;
-layout (location = 4) flat out uint diffuseIdxOut;
-layout (location = 5) flat out uint normalIdxOut;
+layout (location = 0)      out vec2 uvOut;
+layout (location = 1)      out vec3 worldPosOut;
+layout (location = 2) flat out uint diffuseIdxOut;
+layout (location = 3) flat out uint normalIdxOut;
 
 vec2 spriteXYs[6] = vec2[6](
 	vec2( 0.0f, 16.0f),
@@ -51,8 +49,6 @@ void main() {
 	mat3 tbn       = transpose(mat3(tangent, bitangent, normal));
 
 	worldPosOut   = worldPos.rgb;
-	lightPosOut   = tbn * pushConstants.sceneBuffer.lightPos;
-	lightColorOut = pushConstants.sceneBuffer.lightColor;
 	diffuseIdxOut = spriteDrawCmd.diffuseIdx;
 	normalIdxOut  = spriteDrawCmd.normalIdx;
 }

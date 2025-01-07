@@ -15,13 +15,17 @@ layout (buffer_reference, scalar) readonly buffer SpriteDrawCmdBuffer {
 	SpriteDrawCmd spriteDrawCmds[];
 };
 
+struct Light {
+	vec3  position;
+	float radius;
+	vec3  color;
+	float pad;
+};
 layout (buffer_reference, scalar) readonly buffer SceneBuffer {
 	mat4                projView;
-	vec3                lightPos;
-	uint                pad1;
-	vec3                lightColor;
-	uint                pad2;
+	Light               lights[4];
 	SpriteDrawCmdBuffer spriteDrawCmdBuffer;
+
 };
 
 layout (set = 0, binding = 0) uniform texture2D bindlessTextures[];
