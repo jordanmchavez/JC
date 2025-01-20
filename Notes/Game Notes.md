@@ -1,50 +1,10 @@
-draw an empty map
-draw trees on the map
-draw a worker and have him move randomly
+a single hex can have multiple features
+terrain features like grassland, forest, coast, lake, river, hills, mountains
+cities
+explorable structures like caves, ruins, and towers
 
-map, tiles, trees on tiles
-worker
-designate trees for cutting
-worker chops trees and leaves the wood where it stands
+so the tile you're on limits the city's output based on available resource (wood, stone, metal, food)
 
-designate stockpile, worker returns wood to stockpile
+swordsmen are trained at a barracks or training grounds
 
-
-
-designate resources for collection
-stockpile
-crafting station
-
-Structure {
-	
-}
-
-Tree {
-	wood resource
-	hitpoints
-}
-
-MoveTask {
-	Pawn pawn
-	Vec2 target
-}
-
-FellTreeTask {
-	
-}
-Worker {
-	position
-}
-
-for each move task
-	
-	
-
-Tile {
-	TerrainType
-	Structure	// house, tree, bush, etc
-}
-
-Map {
-	Tile[]
-}
+assign 

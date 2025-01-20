@@ -119,6 +119,7 @@
     <ClInclude Include="JC\Bit.h" />
     <ClInclude Include="JC\Common.h" />
     <ClInclude Include="JC\Config.h" />
+    <ClInclude Include="JC\Entity.h" />
     <ClInclude Include="JC\Event.h" />
     <ClInclude Include="JC\FS.h" />
     <ClInclude Include="JC\Fmt.h" />
@@ -142,6 +143,8 @@
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
+    <ClCompile Include="JC\Entity.cpp" />
+    <ClCompile Include="JC\Game.cpp" />
     <ClCompile Include="JC\Common.cpp" />
     <ClCompile Include="JC\App.cpp" />
     <ClCompile Include="JC\Config.cpp" />

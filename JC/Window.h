@@ -45,7 +45,7 @@ struct State {
 	bool       focused    = false;
 };
 
-struct InitInfo {
+struct InitDesc {
 	Arena* temp       = 0;
 	Log*   log        = 0;
 	s8     title      = {};
@@ -64,7 +64,7 @@ struct PlatformDesc {
 	#endif	// Platform_
 };
 
-Res<>         Init(const InitInfo* init);
+Res<>         Init(const InitDesc* initDesc);
 void          Shutdown();
 Span<Display> GetDisplays();
 void          PumpMessages();

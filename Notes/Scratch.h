@@ -1,3 +1,5 @@
+#pragma once
+
 #include "JC/Common.h"
 
 #include "JC/Array.h"
@@ -7,10 +9,20 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-acquire next swapchain image
-begin cmd buf
-end cmd buf
-submit cmd buf
+enum struct ResourceType {
+	Invalid = 0,
+	Food,
+	Wood,
+	Stone,
+	Iron,
+};
+
+
+then what is currency even used for?
+
+in MoM, currency was used for unit upkeep
+same for eador
+
 
 
 //--------------------------------------------------------------------------------------------------

@@ -231,9 +231,9 @@ static BOOL MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
 
 //----------------------------------------------------------------------------------------------
 
-Res<> Init(const InitInfo* initInfo) {
-	temp = initInfo->temp;
-	log  = initInfo->log;
+Res<> Init(const InitDesc* initDesc) {
+	temp = initDesc->temp;
+	log  = initDesc->log;
 
 	if (EnumDisplayMonitors(0, 0, MonitorEnumFn, 0) == FALSE) {
 		return Err_WinLast("EnumDisplayMonitors");
@@ -262,9 +262,9 @@ Res<> Init(const InitInfo* initInfo) {
 		return Err_WinLast("RegisterClassExW");
 	}
 
-	const s16z titlew = Utf8ToWtf16z(temp, initInfo->title);
+	const s16z titlew = Utf8ToWtf16z(temp, initDesc->title);
 
-	window.style = initInfo->style;
+	window.style = initDesc->style;
 	window.winStyle = 0;
 	switch (window.style) {
 		case Style::Bordered:
@@ -281,16 +281,16 @@ Res<> Init(const InitInfo* initInfo) {
 			break;
 	}
 
-	const Display* const display = &displays[(initInfo->displayIdx >= displaysLen) ? 0 : initInfo->displayIdx];
+	const Display* const display = &displays[(initDesc->displayIdx >= displaysLen) ? 0 : initDesc->displayIdx];
 	RECT r = {};
-	if (initInfo->style == Style::Fullscreen) {
+	if (initDesc->style == Style::Fullscreen) {
 		r.left =   display->x;
 		r.top    = display->y;
 		r.right  = display->x + display->width;
 		r.bottom = display->y + display->height;
 	} else {
-		const u32 w = Min(initInfo->width,  display->width);
-		const u32 h = Min(initInfo->height, display->height);
+		const u32 w = Min(initDesc->width,  display->width);
+		const u32 h = Min(initDesc->height, display->height);
 		const i32 x = display->x + (i32)(display->width  - w) / 2;
 		const i32 y = display->y + (i32)(display->height - h) / 2;
 		r.left =   x;

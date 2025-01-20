@@ -83,7 +83,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	Event::Init(log);
 
 	const Window::Style windowStyle = (Window::Style)Config::GetU32("App.WindowStyle", (u32)Window::Style::BorderedResizable);
-	Window::InitInfo windowInitInfo = {
+	Window::InitDesc windowInitDesc = {
 		.temp       = temp,
 		.log        = log,
 		.title      = Config::GetS8("App.WindowTitlye", "test window"),
@@ -92,7 +92,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		.height     = windowStyle == Window::Style::Fullscreen ? 0 : Config::GetU32("App.WindowHeight", 1200),
 		.displayIdx = Config::GetU32("App.DisplayIdx", 0),
 	};
-	if (Res<> r = Window::Init(&windowInitInfo); !r) {
+	if (Res<> r = Window::Init(&windowInitDesc); !r) {
 		return r.err.Push(Err_Init());
 	}
 

@@ -1332,6 +1332,8 @@ void DestroyImage(Image image) {
 
 u32 GetImageWidth (Image image) { return imageObjs.Get(image)->width;  }
 u32 GetImageHeight(Image image) { return imageObjs.Get(image)->height; }
+ImageFormat GetImageFormat(Image image) { return VkFormatToImageFormat(imageObjs.Get(image)->vkFormat); }
+
 
 //-------------------------------------------------------------------------------------------------
 

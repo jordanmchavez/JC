@@ -10,12 +10,9 @@
 #include "JC/Math.h"
 #include "JC/Random.h"
 #include "JC/Render.h"
-#include "JC/Unicode.h"
 #include "JC/UnitTest.h"
 #include "JC/Window.h"
-#include <stdio.h>
 #include "stb/stb_image.h"
-#include "JC/MinimalWindows.h"
 #include "JC/Render_Vk.h"
 #include <math.h>
 
@@ -347,7 +344,7 @@ struct Game : App {
 		if (Res<> r = LoadShader("Shaders/sprite.frag.spv").To(fragmentShader); !r) { return r; }
 		if (Res<> r = Render::CreateGraphicsPipeline(
 			{ vertexShader, fragmentShader },
-			{ Render::GetSwapchainImageFormat() },
+			{ Render::GetImageFormat(Render::GetSwapchainImage()) },
 			Render::ImageFormat::D32_Float
 		).To(pipeline); !r) { return r; }
 
