@@ -35,7 +35,6 @@ template <class K, class V> struct Map {
 
 	Map(Arena* arenaIn, u64 bucketsCapIn, u64 elemsCapIn, SrcLoc sl = SrcLoc::Here()) {
 		Init(arenaIn, bucketsCapIn, elemsCapIn, sl);
-		
 	}
 
 	void Init(Arena* arenaIn, SrcLoc sl = SrcLoc::Here()) {
@@ -56,20 +55,20 @@ template <class K, class V> struct Map {
 		MemSet(buckets, 0, bucketsCapIn * sizeof(Bucket));
 	}
 
-	Opt<V> Find(K k) const {
+	V* Find(K k) const {
 		u64 h = Hash(k);
 		u32 df = 0x100 | (h & 0xff);
 		u64 i = h & mask;
 		Bucket* bucket = &buckets[i];
 		if (df == bucket->df && elems[bucket->idx].key == k) {
-			return elems[bucket->idx].val;
+			return &elems[bucket->idx].val;
 		}
 
 		df += 0x100;
 		i = (i + 1 == bucketsCap) ? 0 : i + 1;
 		bucket = &buckets[i];
 		if (df == bucket->df && elems[bucket->idx].key == k) {
-			return elems[bucket->idx].val;
+			return &elems[bucket->idx].val;
 		}
 
 		df += 0x100;
@@ -78,10 +77,10 @@ template <class K, class V> struct Map {
 		while (true) {
 			if (df == bucket->df) {
 				if (elems[bucket->idx].key == k) {
-					return elems[bucket->idx].val;
+					return &elems[bucket->idx].val;
 				}
 			} else if (df > bucket->df) {
-				return nullOpt;
+				return 0;
 			}
 			df += 0x100;
 			i = (i + 1 == bucketsCap) ? 0 : i + 1;

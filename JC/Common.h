@@ -23,12 +23,6 @@ namespace JC {
 	using f32 = float;
 	using f64 = double;
 
-	#define StrLen      __builtin_strlen
-	#define StrCmp      strcmp
-	#define MemCmp      __builtin_memcmp
-	#define MemSet      memset
-	#define MemCpy      memcpy
-	#define MemMove     memmove
 	#define BuiltinFile __builtin_FILE()
 	#define BuiltinLine __builtin_LINE()
 	#define IfConsteval if (__builtin_is_constant_evaluated())
@@ -68,7 +62,7 @@ constexpr u64 CxStrLen8(const char* s) {
 		}
 		return (u64)(i - s);
 	} else {
-		return StrLen(s);
+		return strlen(s);
 	}
 }
 
@@ -86,7 +80,7 @@ constexpr u64 CxMemCmp(const void* p1, const void* p2, u64 len) {
 		}
 		return 0;
 	} else {
-		return MemCmp(p1, p2, len);
+		return memcmp(p1, p2, len);
 	}
 }
 
@@ -381,8 +375,8 @@ constexpr char s8::operator[](u64 i) const {
 	return data[i];
 }
 
-constexpr bool operator==(s8 str1, s8 str2) { return str1.len == str2.len && MemCmp(str1.data, str2.data, str1.len) == 0; }
-constexpr bool operator!=(s8 str1, s8 str2) { return str1.len != str2.len && MemCmp(str1.data, str2.data, str1.len) != 0; }
+constexpr bool operator==(s8 str1, s8 str2) { return str1.len == str2.len && memcmp(str1.data, str2.data, str1.len) == 0; }
+constexpr bool operator!=(s8 str1, s8 str2) { return str1.len != str2.len && memcmp(str1.data, str2.data, str1.len) != 0; }
 
 s8 Copy(Arena* arena, s8 s);
 
@@ -431,7 +425,6 @@ struct NamedArg {
 
 struct [[nodiscard]] Err {
 	u64 handle = 0;
-
 
 	static void SetArena(Arena* arena);
 
@@ -485,6 +478,9 @@ struct [[nodiscard]] Err {
 		Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, #Ns, #Code, 0, args...) {} \
 	}; \
 	template <class...A> Err_##Code(A...) -> Err_##Code<A...>
+
+#define MakeErr(Ns, Code, ...) \
+	MakeErrInternal(__FILE__, __LINE__, Ns, Code, __VA_ARGS__)
 
 //--------------------------------------------------------------------------------------------------
 
@@ -546,24 +542,6 @@ template <class T> struct [[nodiscard]] Res {
 };
 
 constexpr Res<> Ok() { return Res<>(); }
-
-//--------------------------------------------------------------------------------------------------
-
-struct NullOpt {};
-inline NullOpt nullOpt;
-
-template <class T> struct [[nodiscard]] Opt {
-	T    val    = {};
-	bool hasVal = false;
-
-	constexpr Opt() = default;
-	constexpr Opt(T v)     { val = v; hasVal = true;  }
-	constexpr Opt(NullOpt) {          hasVal = false; }
-
-	constexpr operator bool() const { return hasVal; }
-
-	constexpr T Or (T def) const { return hasVal ? val : def; };
-};
 
 //--------------------------------------------------------------------------------------------------
 

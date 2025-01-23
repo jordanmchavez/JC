@@ -239,3 +239,5 @@ our sprite structure has padding...can we get rid of it?
 consider replacing all ' = 0' with ' = {}'
 if performance is a concern and you have profiling data to back it up then you need to take into account: VkPhysicalDeviceLimits.optimalBufferCopyOffsetAlignment
 replace staging buffer with host/device visible memory if it exists
+array tests, especially around zero-ing memory
+map zero memory and tests

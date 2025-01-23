@@ -13,11 +13,20 @@ template <class T> struct Array {
 	u64    cap    = 0;
 
 	Array() = default;
+
 	Array(Arena* arenaIn) {
 		arena = arenaIn;
 		data  = 0;
 		len   = 0;
 		cap   = 0;
+	}
+
+	Array(Arena* arenaIn, u64 initLen) {
+		arena = arenaIn;
+		data  = 0;
+		len   = 0;
+		cap   = 0;
+		Resize(initLen);
 	}
 
 	void Init(Arena* arenaIn) {
@@ -47,7 +56,7 @@ template <class T> struct Array {
 		if (len + 1 > cap) {
 			Grow(len + 1, sl);
 		}
-		MemSet(&data[len], 0, sizeof(data[len]));
+		memset(&data[len], 0, sizeof(data[len]));
 		len++;
 		return &data[len - 1];
 	}
@@ -64,7 +73,7 @@ template <class T> struct Array {
 		if (len + valsLen > cap) {
 			Grow(len + valsLen, sl);
 		}
-		MemCpy(data + len, vals, valsLen * sizeof(T));
+		memcpy(data + len, vals, valsLen * sizeof(T));
 		len += valsLen;
 	}
 
@@ -73,7 +82,7 @@ template <class T> struct Array {
 		if (len + valsLen > cap) {
 			Grow(len + valsLen, sl);
 		}
-		MemCpy(data + len, begin, valsLen * sizeof(T));
+		memcpy(data + len, begin, valsLen * sizeof(T));
 		len += valsLen;
 	}
 
@@ -81,7 +90,7 @@ template <class T> struct Array {
 		if (len + vals.len > cap) {
 			Grow(len + vals.len, sl);
 		}
-		MemCpy(data + len, vals,data, vals.len * sizeof(T));
+		memcpy(data + len, vals,data, vals.len * sizeof(T));
 		len += vals.len;
 	}
 
@@ -90,7 +99,7 @@ template <class T> struct Array {
 			Grow(len + n, sl);
 		}
 		if constexpr (sizeof(T) == 1) {
-			MemSet(data + len, (int)val, n);
+			memset(data + len, (int)val, n);
 		} else {
 			T* const end = data + n;
 			for (T* iter = data + len; iter <= end; ++iter) {
@@ -104,7 +113,7 @@ template <class T> struct Array {
 		if (len + 1 > cap) {
 			Grow(len + 1, sl);
 		}
-		MemMove(data + i + 1, data + i, (len - i) * sizeof(T));
+		memmove(data + i + 1, data + i, (len - i) * sizeof(T));
 		data[i] = val;
 		++len;
 	}
@@ -133,6 +142,7 @@ template <class T> struct Array {
 			Grow(len + n, sl);
 		}
 		T* res = data + len;
+		memset(data + len, 0, n * sizeof(T));
 		len += n;
 		return res;
 	}
@@ -142,6 +152,7 @@ template <class T> struct Array {
 			Grow(newLen, sl);
 		}
 		T* res = data + len;
+		memset(data + len, 0, n * sizeof(T));
 		len = newLen;
 		return res;
 	}
@@ -158,7 +169,7 @@ template <class T> struct Array {
 		newCap = Max(Max((u64)16, newCap), cap * 2);
 		if (!arena->ExtendT<T>(data, cap, newCap, sl)) {
 			T* newData = arena->AllocT<T>(newCap, sl);
-			MemCpy(newData, data, len * sizeof(T));
+			memcpy(newData, data, len * sizeof(T));
 			data = newData;
 		}
 		cap = newCap;

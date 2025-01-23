@@ -6,7 +6,7 @@ namespace JC {
 
 s8 Copy(Arena* arena, s8 s) {
 	char* const data = (char*)arena->Alloc(s.len);
-	MemCpy(data, s.data, s.len);
+	memcpy(data, s.data, s.len);
 	return s8(data, s.len);
 }
 

@@ -287,7 +287,7 @@ static Res<> InitInstance() {
 	for (u32 i = 0; i < LenOf(RequiredLayers); i++) {
 		bool found = false;
 		for (u64 j = 0; j < layers.len; j++) {
-			if (!StrCmp(RequiredLayers[i], layers[j].layerName)) {
+			if (!strcmp(RequiredLayers[i], layers[j].layerName)) {
 				Logf("Found required layer '{}'", RequiredLayers[i]);
 				found = true;
 				break;
@@ -319,7 +319,7 @@ static Res<> InitInstance() {
 	for (u32 i = 0; i < LenOf(RequiredInstExts); i++) {
 		bool found = false;
 		for (u64 j = 0; j < instExts.len; j++) {
-			if (!StrCmp(RequiredInstExts[i], instExts[j].extensionName)) {
+			if (!strcmp(RequiredInstExts[i], instExts[j].extensionName)) {
 				Logf("Found required instance extension '{}'", RequiredInstExts[i]);
 				found = true;
 				break;
@@ -508,7 +508,7 @@ static Res<> InitDevice() {
 		for (u64 j = 0; j < LenOf(RequiredDeviceExts); j++) {
 			bool found = false;
 			for (u64 k = 0; k < pd->vkExtensionProperties.len; k++) {
-				if (!StrCmp(RequiredDeviceExts[j], pd->vkExtensionProperties[k].extensionName)) {
+				if (!strcmp(RequiredDeviceExts[j], pd->vkExtensionProperties[k].extensionName)) {
 					found = true;
 					break;
 				}

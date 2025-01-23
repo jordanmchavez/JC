@@ -18,8 +18,8 @@ inline u64 HashCombine(u64 h, u64 u)         { return HashCombine(h,        &u, 
 inline u64 Hash(void const* data, u64 len)   { return HashCombine(HashSeed, data,   len); }
 inline u64 Hash(s8 s)                        { return HashCombine(HashSeed, s.data, s.len); }
 inline u64 Hash(const void* p)               { return HashCombine(HashSeed, &p,     sizeof(p)); }
-inline u64 Hash(i64 i)                       { return HashCombine(HashSeed, &i,     sizeof(i)); }
-inline u64 Hash(u64 u)                       { return HashCombine(HashSeed, &u,     sizeof(u)); }
+inline u64 Hash(i64 i)                       { return (u64)i; }
+inline u64 Hash(u64 u)                       { return u; }
 
 //--------------------------------------------------------------------------------------------------
 
