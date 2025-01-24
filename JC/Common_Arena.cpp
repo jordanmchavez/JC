@@ -39,7 +39,7 @@ void* Arena::Alloc(u64 size, SrcLoc) {
 	}
 	void* p = end;
 	end += size;
-	MemSet(p, 0x00, size);
+	memset(p, 0x00, size);
 	Assert(end <= endCommit);
 	Assert(endCommit <= endReserve);
 	return p;
@@ -73,7 +73,7 @@ bool Arena::Extend(void* p, u64 oldSize, u64 newSize, SrcLoc) {
 	}
 	end += newSize;
 
-	MemSet((u8*)p + oldSize, 0, newSize - oldSize);
+	memset((u8*)p + oldSize, 0, newSize - oldSize);
 
 	Assert(end <= endCommit);
 	Assert(endCommit <= endReserve);

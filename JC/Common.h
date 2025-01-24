@@ -416,6 +416,12 @@ struct Span {
 	constexpr const T* End()   const { return data + len; }
 };
 
+template <class T> Span<T> Copy(Arena* arena, Span<T> s) {
+	T* data = arena->AllocT<T>(s.len);
+	memcpy(data, s.data, s.len * sizeof(T));
+	return Span<T>(data, s.len);
+}
+
 //--------------------------------------------------------------------------------------------------
 
 struct NamedArg {

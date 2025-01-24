@@ -54,7 +54,7 @@ template <class T, class H> struct HandleArray {
 				const u32 newCap = cap * 2;
 				if (!arena->ExtendT<Entry>(entries, cap, newCap, sl)) {
 					Entry* newEntries = arena->AllocT<Entry>(newCap, sl);
-					MemCpy(newEntries, entries, len * sizeof(Entry));
+					memcpy(newEntries, entries, len * sizeof(Entry));
 					entries = newEntries;
 				}
 				cap = newCap;

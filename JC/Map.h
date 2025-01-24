@@ -52,7 +52,7 @@ template <class K, class V> struct Map {
 		elemsLen   = 0;
 		elemsCap   = elemsCapIn;
 		mask       = bucketsCapIn - 1;
-		MemSet(buckets, 0, bucketsCapIn * sizeof(Bucket));
+		memset(buckets, 0, bucketsCapIn * sizeof(Bucket));
 	}
 
 	V* Find(K k) const {
@@ -104,7 +104,7 @@ template <class K, class V> struct Map {
 					u64 newCap = Max(16ull, elemsCap * 2u);
 					if (!arena->ExtendT(elems, elemsCap, newCap, sl)) {
 						Elem* newElems = arena->AllocT<Elem>(newCap , sl);
-						MemCpy(newElems, elems, elemsLen * sizeof(Elem));
+						memcpy(newElems, elems, elemsLen * sizeof(Elem));
 						elems = newElems;
 					}
 					elemsCap = newCap;

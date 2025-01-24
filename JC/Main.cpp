@@ -21,7 +21,7 @@
 using namespace JC;
 
 //--------------------------------------------------------------------------------------------------
-
+/*
 DefErr(Game, LoadImage);
 DefErr(Game, ImageFmt);
 DefErr(Game, AtlasNameAlreadyExists);
@@ -168,7 +168,7 @@ struct Game : App {
 		Render::ImageBarrier(image, Render::Stage::None, Render::Stage::TransferDst);
 		const Render::StagingMem stagingMem = Render::AllocStagingMem(width * height * 4);
 		if (channels == 4) {
-			MemCpy(stagingMem.ptr, imageData, width * height * channels);
+			memcpy(stagingMem.ptr, imageData, width * height * channels);
 		} else {
 			u8* in = imageData;
 			u8* out = (u8*)stagingMem.ptr;
@@ -442,7 +442,7 @@ struct Game : App {
 		const Render::StagingMem sceneBufferStagingMem = Render::AllocStagingMem(sizeof(Scene));
 		Scene* const scene = (Scene*)sceneBufferStagingMem.ptr;
 		scene->projView  = cam.GetProjView(),
-		MemSet(scene->lights, 0, sizeof(scene->lights));
+		memset(scene->lights, 0, sizeof(scene->lights));
 		scene->lights[0] = {
 			.position = Vec3(64.0f * 16.0f, 64.0f * 16.0f, 1.0f),
 			.radius   = 32.0f * 16.0f,
@@ -515,12 +515,12 @@ struct Game : App {
 		return Ok();
 	}
 };
-
+*/
 //--------------------------------------------------------------------------------------------------
 
-static Game game;
+namespace JC { App* GetApp(); }
 
 int main(int argc, const char** argv) {
-	RunApp(&game, argc, argv);
+	RunApp(GetApp(), argc, argv);
 	return 0;
 }

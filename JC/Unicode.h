@@ -34,8 +34,8 @@ struct s16z {
 	constexpr char16_t operator[](u64 i) const        { return data[i]; }
 };
 
-constexpr bool operator==(s16z str1, s16z str2) { return str1.len == str2.len && MemCmp(str1.data, str2.data, str1.len * 2) == 0; }
-constexpr bool operator!=(s16z str1, s16z str2) { return str1.len != str2.len && MemCmp(str1.data, str2.data, str1.len * 2) != 0; }
+constexpr bool operator==(s16z str1, s16z str2) { return str1.len == str2.len && memcmp(str1.data, str2.data, str1.len * 2) == 0; }
+constexpr bool operator!=(s16z str1, s16z str2) { return str1.len != str2.len && memcmp(str1.data, str2.data, str1.len * 2) != 0; }
 
 //--------------------------------------------------------------------------------------------------
 

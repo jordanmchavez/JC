@@ -56,7 +56,7 @@ Err Err::Push(Err err) {
 void Err::AddInternal(Span<NamedArg> namedArgs) {
 	ErrObj* const obj = (ErrObj*)handle;
 	Assert(obj->namedArgsLen + namedArgs.len < MaxNamedArgs);
-	MemCpy(obj->namedArgs + obj->namedArgsLen, namedArgs.data, namedArgs.len * sizeof(NamedArg));	// TODO: should we copy the string arg?
+	memcpy(obj->namedArgs + obj->namedArgsLen, namedArgs.data, namedArgs.len * sizeof(NamedArg));	// TODO: should we copy the string arg?
 	obj->namedArgsLen += (u32)namedArgs.len;
 }
 

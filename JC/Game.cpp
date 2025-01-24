@@ -1,45 +1,33 @@
 #include "JC/App.h"
-/*
-namespace JC::Game {
+
+namespace JC {
 
 struct Game : App {
-	enum struct State {
-	};
-
-	struct Unit {
-	};
-
-	struct MapTile {
-	};
-
-	State state;
-
 	Res<> Init(Arena* perm, Arena* temp, Log* log, const Window::State* windowState) override {
+		perm;temp;log;windowState;
+		return Ok();
 	}
 
-	void  Shutdown() override {
+	void Shutdown() override {
 	}
 
 	Res<> Events(Span<Event::Event> events) override {
+		events;
+		return Ok();
 	}
 
 	Res<> Update(double secs) override {
+		secs;
+		return Ok();
 	}
 
-	struct MapTile {
-	};
-
-	static constexpr u32 MapTilesLen = 8 * 8;
-	MapTile mapTiles[MapTilesLen] = {};
-
 	Res<> Draw() override {
-		// draw map tiles
-		for (u32 i = 0; i < MapTilesLen; i++) {
-		}
-		// draw units
-
+		return Ok();
 	}
 };
 
-}	// namespace JC::Game
-*/
+static Game game;
+
+App* GetApp() { return &game; }
+
+}	// namespace JC

@@ -6,20 +6,33 @@ namespace JC::Entity {
 
 //--------------------------------------------------------------------------------------------------
 
-using EntityId = u64;
-using ComponentId = u32;
+constexpr u32 MaxQueryComponents = 32;
 
-struct Iter;
+struct Entity    { u64 id; };
+struct Component { u32 id; };
+struct Query     { u32 id; };
 
-void           Init(Arena* perm, Arena* temp);
-Span<EntityId> CreateEntities(u32 n, Span<ComponentId> componentIds);
-void           DestroyEntities(Span<EntityId> entityIds);
-ComponentId    CreateComponent(s8 name, u32 len);
-void           AddComponent(EntityId entityId, ComponentId componentId);
-void           RemoveComponent(EntityId entityId, ComponentId componentId);
-void*          ComponentData(EntityId entityId, ComponentId componentId);
-Iter*          Query(Span<ComponentId> componentIds);
-Span<void*>    Next(Iter* iter);
+struct Iter;	// Iter always hash temp arena scope
+
+struct RowSet {
+	Entity* entities;
+	void*   componentData[MaxQueryComponents];
+	u32     len;
+};
+
+void         Init(Arena* perm, Arena* temp);
+
+Span<Entity> CreateEntities(u32 n, Span<Component> components);
+void         DestroyEntities(Span<Entity> entitys);
+
+Component    CreateComponent(s8 name, u32 len);
+void         AddComponent(Entity entity, Component component);
+void         RemoveComponent(Entity entity, Component component);
+void*        ComponentData(Entity entity, Component component);
+
+Query        CreateQuery(Span<Component> components);
+Iter*        RunQuery(Query query);
+RowSet*      Next(Iter* iter);
 
 //--------------------------------------------------------------------------------------------------
 

@@ -152,7 +152,7 @@ template <class T> struct Array {
 			Grow(newLen, sl);
 		}
 		T* res = data + len;
-		memset(data + len, 0, n * sizeof(T));
+		memset(data + len, 0, newLen * sizeof(T));
 		len = newLen;
 		return res;
 	}

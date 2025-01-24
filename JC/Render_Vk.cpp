@@ -1213,7 +1213,7 @@ void DestroyBuffer(Buffer buffer) {
 		BufferObj* const bufferObj = bufferObjs.Get(buffer);
 		DestroyVk(bufferObj->vkBuffer, vkDestroyBuffer);
 		FreeMem(bufferObj->mem);
-		MemSet(bufferObj, 0, sizeof(*bufferObj));
+		memset(bufferObj, 0, sizeof(*bufferObj));
 		bufferObjs.Free(buffer);
 	}
 }

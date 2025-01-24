@@ -9,14 +9,26 @@ namespace JC::Entity {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr u32 MaxComponents   = 1024;
-static constexpr u32 TypeIdShift     = 10;
-static constexpr u32 MaxTypes        = 1 << TypeIdShift;
-static constexpr u32 MaxTypeColumns  = 64;
-static constexpr u64 TypeDataReserve = 1024 * 1024 * 1024;
-static constexpr u32 TypeInitialCap  = 16;
+// Win64 virtual reserve overhead:
+// 64k = 1 bit
+// 512k = 1 byte
+// 1 gb = 2k
+// 16gb = 32k
 
-using TypeId = u32;
+static constexpr u32 MaxComponents       = 1024;
+static constexpr u32 MaxTypesShift       = 10;
+static constexpr u32 MaxTypes            = 1 << MaxTypesShift;
+static constexpr u32 MaxTypeColumns      = 64;
+static constexpr u32 MaxQueries          = 1024;
+static constexpr u64 EntitiesReserveSize = 1024 * 1024 * 1024;
+static constexpr u64 TypeDataReserveSize = 1024 * 1024 * 1024;
+static constexpr u32 TypeInitialCap      = 16;
+
+using EntityId    = u64;
+using ComponentId = u32;
+using QueryId     = u32;
+using TypeId      = u32;
+using ColumnId    = u32;
 
 struct ComponentMask {
 	u64 bits[MaxComponents / 64];
@@ -26,15 +38,15 @@ struct TypeMask {
 	u64 bits[MaxTypes / 64];
 };
 
-struct Component {
+struct ComponentObj {
 	s8  name;
 	u32 size;
 };
 
 struct Column {
-	u32 componentId;
-	u32 offset;
-	u32 size;
+	ComponentId componentId;
+	u32         offset;
+	u32         size;
 };
 
 struct Type {
@@ -48,7 +60,7 @@ struct Type {
 	u32           cap;
 };
 
-struct Entity {
+struct EntityObj {
 	union {
 		u32 typeId;
 		u32 nextFreeIdx;
@@ -57,80 +69,90 @@ struct Entity {
 	u32 row;
 };
 
+struct QueryObj {
+	Component     components[MaxQueryComponents];
+	u32           componentsLen;
+	ComponentMask componentMask;
+	TypeMask      typeMask;
+};
+
+struct Iter {
+	Component    components[MaxQueryComponents];
+	u32          componentsLen;
+	TypeMask     typeMask;
+	u32          idx;
+	RowSet       rowSet;
+};
+
 static Arena*                       perm;
 static Arena*                       temp;
-static Arena                        entitiesArena;
-static Array<Entity>                entities;
-static u32                          freeEntityIdx;
-static Component                    components[MaxComponents];
-static u32                          componentsLen;
+static Arena                        entityObjsArena;
+static Array<EntityObj>             entityObjs;
+static u32                          freeEntityObjIdx;
+static ComponentObj                 componentObjs[MaxComponents];
+static u32                          componentObjsLen;
 static Type                         types[MaxTypes];
 static u32                          typesLen;
-static Map<u32, u32>                typeIdComponentIdToColumn;	// key = typeId | (componentId << TypeIdShift)
-static Map<ComponentMask, TypeId>   componentMaskToTypeId;
-static Map<ComponentMask, TypeMask> componentMaskToTypeMask;
+static Map<u32, ColumnId>           typeIdComponentIdToColumnId;	// key = typeId | (componentId << TypeIdShift)
+static Map<PreHash, TypeId>         componentMaskHashToTypeId;
+static QueryObj                     queryObjs[MaxQueries];
+static u32                          queryObjsLen;
+static Map<PreHash, QueryId>        componentMaskHashToQueryId;
 
 //--------------------------------------------------------------------------------------------------
 
-void Init(Arena* permIn, Arena* tempIn) {
-	perm = permIn;
-	temp = tempIn;
-	page arena;
-	entities;
-	initial empty/zero type;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static ComponentMask BuildComponentMask(Span<ComponentId> componentIds) {
-	ComponentMask mask = {};
-	for (u64 i = 0; i < componentIds.len; i++) {
-		const ComponentId componentId = componentIds[i];
-		mask.bits[componentId / 64] |= (u64)1 << (componentId & 63);
+static bool Contains(const ComponentMask* m1, const ComponentMask* m2) {
+	for (u32 i = 0; i < MaxComponents / 64; i++) {
+		const u64 b1 = m1->bits[i];
+		const u64 b2 = m2->bits[i];
+		if ((b1 & b2) != b1) {
+			return false;
+		}
 	}
-	return mask;
+	return true;
 }
 
 //--------------------------------------------------------------------------------------------------
 
 static TypeId CreateType(const ComponentMask* componentMask) {
 	Assert(typesLen < MaxTypes);
-	u32 typeId = typesLen;
-	Type* type = &types[typesLen++];
-	*type = {};
+	const TypeId typeId = typesLen;
+	Type* const type = &types[typesLen++];
 
-	// Iterate over each mask component
+	type->componentMask = *componentMask;
+	type->rowSize       = sizeof(EntityId);
+
 	for (u32 i = 0; i < MaxComponents / 64; i++) {
-		u32 bits = componentMask->bits[i];
+		u64 bits = componentMask->bits[i];
 		if (!bits) { continue; }
 
 		while (const u32 bit = Bsf64(bits)) {
 			bits &= ~((u64)1 << bit);
 
 			u32 componentId = (i * 64) + bit;
-			typeIdComponentIdToColumn.Put(
-				typeId | (componentId << TypeIdShift),
+			typeIdComponentIdToColumnId.Put(
+				typeId | (componentId << MaxTypesShift),
 				type->columnsLen
 			);
 
-			Component* component = &components[componentId];
+			ComponentObj* componentObj = &componentObjs[componentId];
 			type->columns[type->columnsLen++] = {
 				.componentId = componentId,
 				.offset      = type->rowSize,
-				.size        = component->size,
+				.size        = componentObj->size,
 			};
 
-			type->rowSize += component->size;
+			type->rowSize += componentObj->size;
 		}
 	}
+	type->arena = CreateArena(TypeDataReserveSize);
+	type->data  = (u8*)type->arena.Alloc(TypeInitialCap * type->rowSize);
+	type->len   = 0;
+	type->cap   = TypeInitialCap;
 
-	type->componentMask = *componentMask;
-	type->arena         = CreateArena(TypeDataReserve);
-	type->data          = (u8*)type->arena.Alloc(TypeInitialCap * type->rowSize);
-
-	for (u32 i = 0; i < componentMaskToTypeMask.elemsLen; i++) {
-		if (Contains(componentMask, &componentMaskToTypeMask.elems[i].key)) {
-			componentMaskToTypeMask.elems[i].val.bits[typeId / 64] |= (u64)1 << typeId & 63;
+	for (u32 i = 0; i < queryObjsLen; i++) {
+		if (Contains(componentMask, &queryObjs[i].componentMask)) {
+			queryObjs[i].typeMask.bits[typeId / 64] |= (u64)1 << (typeId & 63);
 		}
 	}
 
@@ -139,15 +161,44 @@ static TypeId CreateType(const ComponentMask* componentMask) {
 
 //--------------------------------------------------------------------------------------------------
 
-Span<u32> AddRows(Type* type, u32 n) {
+void Init(Arena* permIn, Arena* tempIn) {
+	perm = permIn;
+	temp = tempIn;
+
+	entityObjsArena = CreateArena(EntitiesReserveSize);
+	entityObjs.Init(&entityObjsArena);
+	entityObjs.Add();	// reserve 0 for invalid
+
+	const ComponentMask emptyMask = {};
+	const TypeId emptyTypeId = CreateType(&emptyMask);
+	Assert(emptyTypeId == 0);
+
+	componentObjsLen = 1;	// reserve 0 for invalid
+	queryObjsLen = 1;	// reserve 0 for invalid
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static ComponentMask BuildComponentMask(Span<Component> components) {
+	ComponentMask mask = {};
+	for (u64 i = 0; i < components.len; i++) {
+		const ComponentId componentId = components[i].id;
+		mask.bits[componentId / 64] |= (u64)1 << (componentId & 63);
+	}
+	return mask;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static Span<u32> AddRows(Type* type, u32 n) {
 	const u32 oldLen = type->len;
 	const u32 newLen = type->len + n;
 	if (newLen > type->cap) {
 		const u32 newCap = Max(newLen, type->cap * 2);
 		Assert(type->arena.Extend(type->data, type->cap * type->rowSize, newCap * type->rowSize));
 		
-		// Don't need to move the first one
-		for (u32 i = 1; i < type->columnsLen; i++) {
+		// Don't need to move the entities row
+		for (u32 i = 0; i < type->columnsLen; i++) {
 			const Column* const col = &type->columns[i];
 			memmove(
 				type->data + (type->cap * col->offset),
@@ -171,20 +222,25 @@ Span<u32> AddRows(Type* type, u32 n) {
 
 //--------------------------------------------------------------------------------------------------
 
-void RemoveRow(Type* type, u32 row) {
-	const u32 srcRow = type->len - 1;
+static void RemoveRow(Type* type, u32 row) {
+	const u32 lastRow = type->len - 1;
+
+	((EntityId*)type->data)[row] = ((EntityId*)type->data)[lastRow];
 	for (u32 c = 0; c < type->columnsLen; c++) {
 		Column* col = &type->columns[c];
-		void* dst = type->data + (col->offset * type->cap) + (row    * col->size);
-		void* src = type->data + (col->offset * type->cap) + (srcRow * col->size);
-		memcpy(dst, src, col->size);
+		memcpy(
+			type->data + (col->offset * type->cap) + (lastRow * col->size),
+			type->data + (col->offset * type->cap) + (row     * col->size),
+			col->size
+		);
 	}
 	type->len--;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-u32 CopyRow(Type* srcType, u32 srcRow, Type* dstType, u32 dstRow) {
+static void CopyRow(Type* srcType, u32 srcRow, Type* dstType, u32 dstRow) {
+	((EntityId*)srcType->data)[srcRow] = ((EntityId*)dstType->data)[dstRow];
 	u32 srcColIdx = 0;
 	u32 dstColIdx = 0;
 	while (srcColIdx < srcType->columnsLen && dstColIdx < dstType->columnsLen) {
@@ -194,7 +250,7 @@ u32 CopyRow(Type* srcType, u32 srcRow, Type* dstType, u32 dstRow) {
 			memcpy(
 				srcType->data + (srcCol->offset * srcType->cap) + (srcRow * srcCol->size),
 			    dstType->data + (dstCol->offset * dstType->cap) + (dstRow * dstCol->size),
-				components[srcCol->componentId].size
+				componentObjs[srcCol->componentId].size
 			);
 			srcColIdx++;
 			dstColIdx++;
@@ -208,97 +264,86 @@ u32 CopyRow(Type* srcType, u32 srcRow, Type* dstType, u32 dstRow) {
 
 //--------------------------------------------------------------------------------------------------
 
-Span<EntityId> CreateEntities(u32 n, Span<ComponentId> componentIds) {
-	Array<EntityId> entityIds(temp, n);
-
-	const ComponentMask mask = BuildComponentMask(componentIds);
-	const TypeId* const typeIdPtr = componentMaskToTypeId.Find(mask);
+Span<Entity> CreateEntities(u32 n, Span<Component> components) {
+	const ComponentMask mask = BuildComponentMask(components);
+	const PreHash maskHash = Hash(&mask, sizeof(mask));
+	const TypeId* const typeIdPtr = componentMaskHashToTypeId.Find(maskHash);
 	TypeId typeId = typeIdPtr ? *typeIdPtr : CreateType(&mask);
 	Type* const type = &types[typeId];
 	Span<u32> rows = AddRows(type, n);
 
-	Array<EntityId> result(temp, n);
+	Array<Entity> result(temp, n);
 	u32 i = 0;
-	for (; i < n && freeEntityIdx; i++) {
-		Entity* entity = &entities[freeEntityIdx];
-		freeEntityIdx = entities[freeEntityIdx].nextFreeIdx;
-		entity->typeId = typeId;
-		entity->gen++;
-		entity->row = rows[i];
-		result[i] = (u64)(entity - entities.data) | ((u64)entity->gen << 32);
+	for (; i < n && freeEntityObjIdx; i++) {
+		EntityObj* entityObj = &entityObjs[freeEntityObjIdx];
+		freeEntityObjIdx = entityObjs[freeEntityObjIdx].nextFreeIdx;
+		entityObj->typeId = typeId;
+		entityObj->gen++;
+		entityObj->row = rows[i];
+		result[i].id = (u64)(entityObj - entityObjs.data) | ((u64)entityObj->gen << 32);
 	}
-	for (Entity* entity = entities.Extend(n - i); i < n; i++, entity++) {
-		entity->typeId = typeId;
-		entity->gen++;
-		entity->row = rows[i];
-		result[i] = (u64)(entity - entities.data) | ((u64)entity->gen << 32);
+	for (EntityObj* entityObj = entityObjs.Extend(n - i); i < n; i++, entityObj++) {
+		entityObj->typeId = typeId;
+		entityObj->gen++;
+		entityObj->row = rows[i];
+		result[i].id = (u64)(entityObj - entityObjs.data) | ((u64)entityObj->gen << 32);
 	}
 
-	return entityIds;
+	return result;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void DestroyEntities(Span<EntityId> entityIds) {
-	for (u32 i = 0; i < entityIds.len; i++) {
-		const u32 idx = (u32)(entityIds[i] & 0xffffffff);
-		const u32 gen = (u32)(entityIds[i] >> 32);
-		Assert(idx < entities.len);
-		Entity* const entity = &entities[idx];
-		Assert(entity->gen == gen);
+void DestroyEntities(Span<Entity> entities) {
+	for (u32 i = 0; i < entities.len; i++) {
+		const u32 idx = (u32)(entities[i].id & 0xffffffff);
+		const u32 gen = (u32)(entities[i].id >> 32);
+		Assert(idx < entityObjs.len);
+		EntityObj* const entityObj = &entityObjs[idx];
+		Assert(entityObj->gen == gen);
 
-		RemoveRow(&types[entity->typeId], entity->row);
-		entity->gen++;
+		RemoveRow(&types[entityObj->typeId], entityObj->row);
+		entityObj->gen++;
+		entityObj->nextFreeIdx = freeEntityObjIdx;
+		freeEntityObjIdx = idx;
 	}
 }
 
 //--------------------------------------------------------------------------------------------------
 
-ComponentId CreateComponent(s8 name, u32 size) {
-	Assert(componentsLen < MaxComponents);
-	size = AlignUp(size, 8);
-	components[componentsLen++] = {
+Component CreateComponent(s8 name, u32 size) {
+	Assert(componentObjsLen < MaxComponents);
+	size = (u32)AlignUp(size, 8);
+	componentObjs[componentObjsLen++] = {
 		.name = Copy(perm, name),
 		.size = size,
 	};
+	return Component { .id = componentObjsLen - 1 };
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static bool Contains(const ComponentMask* m1, const ComponentMask* m2) {
-	for (u32 i = 0; i < MaxComponents / 64; i++) {
-		const u64 b1 = m1->bits[i];
-		const u64 b2 = m2->bits[i];
-		if ((b1 & b2) != b1) {
-			return false;
-		}
-	}
-	return true;
-}
+void AddComponent(Entity entity, Component component) {
+	const u32 idx = (u32)(entity.id & 0xffffffff);
+	const u32 gen = (u32)(entity.id >> 32);
 
-//--------------------------------------------------------------------------------------------------
+	Assert(idx < entityObjs.len);
+	EntityObj* const entityObj = &entityObjs[idx];
+	Assert(gen == entityObj->gen);
+	Assert(component.id < componentObjsLen);
 
-void AddComponent(EntityId entityId, ComponentId componentId) {
-	const u32 idx = (u32)(entityId & 0xffffffff);
-	const u32 gen = (u32)(entityId >> 32);
-
-	Assert(idx < entities.len);
-	Entity* entity = &entities[idx];
-	Assert(gen == entity->gen);
-	Assert(componentId < componentsLen);
-
-	const TypeId oldTypeId = entity->typeId;
+	const TypeId oldTypeId = entityObj->typeId;
 	Type* const  oldType   = &types[oldTypeId];
-	const u32    oldRow    = entity->row;
+	const u32    oldRow    = entityObj->row;
 
-	if (oldType->componentMask.bits[componentId / 64] & (componentId & 63)) {
+	if (oldType->componentMask.bits[component.id / 64] & (component.id & 63)) {
 		return;
 	}
 
-	ComponentMask newComponentMask = oldType->componentMask;
-	newComponentMask.bits[componentId / 64] |= (u64)1 << (componentId & 63);
-	const TypeId* const newTypeIdPtr = componentMaskToTypeId.Find(newComponentMask);
-	const u32 newTypeId = newTypeIdPtr ? *newTypeIdPtr : CreateType(&newComponentMask);
+	ComponentMask newMask = oldType->componentMask;
+	newMask.bits[component.id / 64] |= (u64)1 << (component.id & 63);
+	const TypeId* const newTypeIdPtr = componentMaskHashToTypeId.Find(Hash(&newMask, sizeof(newMask)));
+	const u32 newTypeId = newTypeIdPtr ? *newTypeIdPtr : CreateType(&newMask);
 	Type* const newType = &types[newTypeId];
 
 	// TODO: AddRow() singular?
@@ -309,69 +354,87 @@ void AddComponent(EntityId entityId, ComponentId componentId) {
 
 //--------------------------------------------------------------------------------------------------
 
-void RemoveComponent(EntityId entityId, ComponentId componentId) {
+void RemoveComponent(Entity entity, Component component) {
+	entity;component;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void* GetComponentData(EntityId entityId, ComponentId componentId) {
+void* ComponentData(Entity entity, Component component) {
+	entity;component;
+	return 0;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-struct Iter {
-	TypeMask     typeMask;
-	u32          typeMaskIdx;
-	u64          typeMaskBits;
-	ComponentId* componentIds;
-	void**       components;
-	u32          componentsLen;
-};
+Query CreateQuery(Span<Component> components) {
+	Assert(components.len < MaxQueryComponents);
 
-Iter* Query(Span<ComponentId> componentIds) {
-	const ComponentMask componentMask = BuildComponentMask(componentIds);
-	const TypeMask* typeMaskPtr = componentMaskToTypeMask.Find(componentMask);
-	if (!typeMaskPtr) {
-		TypeMask typeMask = {};
-		for (u32 i = 0; i < typesLen; i++) {
-			if (Contains(&types[i].componentMask, &componentMask)) {
-				typeMask.bits[i / 64] |= (u64)1 << (i & 63);
-			}
-		}
-		typeMaskPtr = componentMaskToTypeMask.Put(componentMask, typeMask);
+	const ComponentMask componentMask = BuildComponentMask(components);
+	const PreHash maskHash = Hash(&componentMask, sizeof(componentMask));
+
+	QueryId* queryIdPtr = componentMaskHashToQueryId.Find(maskHash);
+	if (queryIdPtr) {
+		return Query { .id = *queryIdPtr };
 	}
 
-	Iter* iter = temp->AllocT<Iter>();
-	iter->typeMask      = ;
-	iter->typeMaskIdx   = ;
-	iter->typeMaskBits  = ;
-	iter->componentIds  = ;
-	iter->components    = ;
-	iter->componentsLen = ;
+	Assert(queryObjsLen < MaxQueries);
+	QueryObj* const queryObj = &queryObjs[queryObjsLen];
+	const QueryId queryId = queryObjsLen++;
+
+	queryObj->componentMask = componentMask;
+	memcpy(queryObj->components, components.data, components.len * sizeof(components[0]));
+	queryObj->componentsLen = (u32)components.len;
+	for (u32 i = 0; i < typesLen; i++) {
+		if (Contains(&types[i].componentMask, &componentMask)) {
+			queryObj->typeMask.bits[i / 64] |= (u64)1 << (i & 63);
+		}
+	}
+
+	componentMaskHashToQueryId.Put(maskHash, queryId);
+
+	return Query { .id = queryId };
+}
+//--------------------------------------------------------------------------------------------------
+
+Iter* RunQuery(Query query) {
+	Assert(query.id && query.id < queryObjsLen);
+	QueryObj* const queryObj = &queryObjs[query.id];
+
+	Iter* iter = temp->AllocT<Iter>(1);
+	memcpy(iter->components, queryObj->components, queryObj->componentsLen * sizeof(ComponentId));
+	iter->componentsLen = queryObj->componentsLen;
+	iter->typeMask      = queryObj->typeMask; 
+	iter->idx           = 0;
 
 	return iter;
 }
+
 //--------------------------------------------------------------------------------------------------
 
-Span<void*> Next(Iter* iter) {
-	for (; iter->typeMaskIdx < MaxTypes / 64; iter->typeMaskIdx++) {
-		if (!iter->typeMaskBits) { continue; }
+RowSet* Next(Iter* iter) {
+	for (; iter->idx < MaxTypes / 64; iter->idx++) {
+		u64* const bits = iter->typeMask.bits;
+		if (!bits[iter->idx]) { continue; }
 
-		if (const u32 bit = Bsf64(iter->typeMaskBits)) {
-			iter->typeMaskBits &= ~((u64)1 << bit);
+		if (const u32 bit = Bsf64(bits[iter->idx])) {
+			bits[iter->idx] &= ~((u64)1 << bit);
 
-			const TypeId typeId = (iter->typeMaskIdx * 64) + bit;
+			const TypeId typeId = (iter->idx * 64) + bit;
 			Type* const type = &types[typeId];
 
+			iter->rowSet.entities = (Entity*)&type->data;
 			for (u32 i = 0; i < iter->componentsLen; i++) {
-				u32 colIdx = *typeIdComponentIdToColumn.Find(typeId | (iter->componentIds[i] << TypeIdShift));
-				iter->components[i] = type->data + (type->cap * type->columns[colIdx].offset);
+				ColumnId colId = *typeIdComponentIdToColumnId.Find(typeId | (iter->components[i].id << MaxTypesShift));
+				iter->rowSet.componentData[i] = type->data + (type->cap * type->columns[colId].offset);
 			}
+			iter->rowSet.len = type->len;
 
-			return Span<void*>(iter->components, iter->componentsLen);
+			return &iter->rowSet;
 		}
 	}
-	return Span<void*>();
+
+	return 0;
 }
 
 //--------------------------------------------------------------------------------------------------
