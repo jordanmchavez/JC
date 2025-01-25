@@ -4,6 +4,7 @@
 #include "JC/Bit.h"
 #include "JC/Hash.h"
 #include "JC/Map.h"
+#include "JC/UnitTest.h"
 
 namespace JC::Entity {
 
@@ -436,6 +437,41 @@ RowSet* Next(Iter* iter) {
 
 	return 0;
 }
+
+//--------------------------------------------------------------------------------------------------
+
+struct A { u8 data[64]; };
+struct B { u8 data[91]; };
+struct C { u8 data[1]; };
+
+UnitTest("Entity") {
+	Init(temp, temp);
+
+	const Component a = CreateComponent("A", sizeof(A));
+	const Component b = CreateComponent("B", sizeof(B));
+	const Component c = CreateComponent("C", sizeof(C));
+
+	Span<Entity> e_a   = CreateEntities(1, { a,      });
+	Span<Entity> e_b   = CreateEntities(2, {    b    });
+	Span<Entity> e_c   = CreateEntities(3, {       c });
+	Span<Entity> e_ab  = CreateEntities(2, { a, b    });
+	Span<Entity> e_ac  = CreateEntities(4, { a,    c });
+	Span<Entity> e_bc  = CreateEntities(1, {    b, c });
+	Span<Entity> e_abc = CreateEntities(3, { a, b, c });
+
+	//Span<Entity> CreateEntities(u32 n, Span<Component> components);
+	//void         DestroyEntities(Span<Entity> entitys);
+
+	//Component    CreateComponent(s8 name, u32 len);
+	//void         AddComponent(Entity entity, Component component);
+	//void         RemoveComponent(Entity entity, Component component);
+	//void*        ComponentData(Entity entity, Component component);
+
+	//Query        CreateQuery(Span<Component> components);
+	//Iter*        RunQuery(Query query);
+	//RowSet*      Next(Iter* iter);
+}
+
 
 //--------------------------------------------------------------------------------------------------
 
