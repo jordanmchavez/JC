@@ -114,22 +114,21 @@
     <ClInclude Include="3rd\vulkan\vk_platform.h" />
     <ClInclude Include="3rd\vulkan\vulkan_core.h" />
     <ClInclude Include="3rd\vulkan\vulkan_win32.h" />
-    <ClInclude Include="JC\Common\Fmt.h" />
+    <ClInclude Include="JC\Common\Err.inl.h" />
     <ClInclude Include="JC\Common\Fmt.inl.h" />
-    <ClInclude Include="JC\Common\Res.h" />
-    <ClInclude Include="JC\Common\Mem.h" />
-    <ClInclude Include="JC\Common\SrcLoc.h" />
-    <ClInclude Include="JC\Common\VArg.h" />
-    <ClInclude Include="JC\Common\Panic.h" />
+    <ClInclude Include="JC\Common\Panic.inl.h" />
+    <ClInclude Include="JC\Common\Res.inl.h" />
     <ClInclude Include="JC\Common.h" />
-    <ClInclude Include="JC\Common\Str.h" />
+    <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="Notes\Scratch.h" />
+    <ClInclude Include="JC\Common\Str.inl.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
     <ClCompile Include="JC\Main.cpp" />
     <ClCompile Include="JC\Common\Panic.cpp" />
+    <ClCompile Include="JC\Sys_Win.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Notes\Game Notes.md" />

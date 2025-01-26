@@ -4,8 +4,6 @@
 
 namespace JC {
 
-template <class T> struct Array;
-
 //--------------------------------------------------------------------------------------------------
 
 inline void BadFmtStr_UnmatchedOpenBrace() {}
@@ -81,36 +79,17 @@ consteval void CheckFmtStr(Str fmt, size_t argsLen) {
 
 //--------------------------------------------------------------------------------------------------
 
-template <class... A> struct _FmtStr {
-	Str fmt;
-	consteval _FmtStr(Str         fmtIn) { CheckFmtStr(fmtIn, sizeof...(A)); fmt = fmtIn; }
-	consteval _FmtStr(const char* fmtIn) { CheckFmtStr(fmtIn, sizeof...(A)); fmt = fmtIn; }
-	operator Str() const { return fmt; }
-};
+template <class... A> consteval _FmtStr<A...>::_FmtStr(Str         fmtIn) { CheckFmtStr(fmtIn, sizeof...(A)); fmt = fmtIn; }
+template <class... A> consteval _FmtStr<A...>::_FmtStr(const char* fmtIn) { CheckFmtStr(fmtIn, sizeof...(A)); fmt = fmtIn; }
 
-template <class... A> using FmtStr = _FmtStr<typename TypeIdentity<A>::Type...>;
-
-template <class... A> struct _FmtStrSrcLoc {
-	Str    fmt;
-	SrcLoc sl;
-	consteval _FmtStrSrcLoc(Str         fmtIn, SrcLoc slIn = SrcLoc::Here()) { CheckFmtStr(fmtIn, sizeof...(A)); fmt = fmtIn; sl = slIn; }
-	consteval _FmtStrSrcLoc(const char* fmtIn, SrcLoc slIn = SrcLoc::Here()) { CheckFmtStr(fmtIn, sizeof...(A)); fmt = fmtIn; sl = slIn; }
-	operator Str() const { return fmt; }
-};
-
-template <class... A> using FmtStrSrcLoc = _FmtStrSrcLoc<typename TypeIdentity<A>::Type...>;
+template <class... A> consteval _FmtStrSrcLoc<A...>::_FmtStrSrcLoc(Str         fmtIn, SrcLoc slIn) { CheckFmtStr(fmtIn, sizeof...(A)); fmt = fmtIn; sl = slIn; }
+template <class... A> consteval _FmtStrSrcLoc<A...>::_FmtStrSrcLoc(const char* fmtIn, SrcLoc slIn) { CheckFmtStr(fmtIn, sizeof...(A)); fmt = fmtIn; sl = slIn; }
 
 //--------------------------------------------------------------------------------------------------
 
-char* VFmt(char* outBegin, char* outEnd, Str fmt, VArgs args);
-void  VFmt(Array<char>* out, Str fmt, VArgs args);
-Str   VFmt(Mem::Allocator* allocator, Str fmt, VArgs args);
-
-Str   VTFmt(Str fmt, VArgs args, Mem::Allocator* allocator = context->tempAllocator);
-
 template <class... A> char* Fmt(char* outBegin, char* outEnd, FmtStr<A...> fmt, A... args) { return VFmt(outBegin, outEnd, fmt.fmt, MakeVArgs(args...)); }
 template <class... A> void  Fmt(Array<char>* out,             FmtStr<A...> fmt, A... args) {        VFmt(out,              fmt.fmt, MakeVArgs(args...)); }
-template <class... A> Str   Fmt(Mem::Allocator* allocator,    FmtStr<A...> fmt, A... args) { return VFmt(allocator,        fmt.fmt, MakeVArgs(args...)); }
+template <class... A> Str   Fmt(Allocator* allocator,         FmtStr<A...> fmt, A... args) { return VFmt(allocator,        fmt.fmt, MakeVArgs(args...)); }
 
 //--------------------------------------------------------------------------------------------------
 

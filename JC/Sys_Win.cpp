@@ -1,6 +1,5 @@
 #include "JC/Sys.h"
-
-#include "JC/MinimalWindows.h"
+#include "JC/Sys_Win.h"
 #include "JC/Unicode.h"
 
 namespace JC {
@@ -17,7 +16,7 @@ void Abort() {
 
 //--------------------------------------------------------------------------------------------------
 
-void Print(s8 msg) {
+void Print(Str msg) {
 	WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), msg.data, (DWORD)msg.len, 0, 0);
 }
 

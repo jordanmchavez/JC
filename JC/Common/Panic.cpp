@@ -1,4 +1,4 @@
-#include "JC/Common/Panic.h"
+#include "JC/Common.h"
 
 #include "JC/Sys.h"
 
