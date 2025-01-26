@@ -2,15 +2,19 @@
 
 #include "JC/Common.h"
 
-namespace JC::Mem { struct Allocator; };
-
-namespace JC::TLSF {
+namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-Mem::Allocator* CreateAllocator(void* ptr, u64 size);
-void            ExtendAllocator(Mem::Allocator* allocator, void* ptr, u64 size);
+struct SrcLoc {
+	Str file = {};
+	u32 line = 0;
+
+	static consteval SrcLoc Here(Str file = BuiltinFile, u32 line = BuiltinLine) {
+		return SrcLoc { .file = file, .line = line };
+	}
+};
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC:TLSF
+}	// namespace JC

@@ -68,7 +68,7 @@ static constexpr const char* Tens =
 	"80" "81" "82" "83" "84" "85" "86" "87" "88" "89"
 	"90" "91" "92" "93" "94" "95" "96" "97" "98" "99";
 
-s8 U64ToDigits(u64 u, char* out, u32 outLen) {
+Str U64ToDigits(u64 u, char* out, u32 outLen) {
 	// TODO: test and profile splitting into two 32-bit ints to avoid 64-bit divides
 	char* const end = out + outLen;
 	char* iter = end;
@@ -85,10 +85,10 @@ s8 U64ToDigits(u64 u, char* out, u32 outLen) {
 	{
 		*--iter = '0' + (char)u;
 	}
-	return s8(iter, end);
+	return Str(iter, end);
 }
 
-s8 U64ToHexits(u64 u, char* out, u32 outLen) {
+Str U64ToHexits(u64 u, char* out, u32 outLen) {
 	char* const end = out + outLen;
 	char* iter = end;
 	constexpr const char* hexits = "0123456789abcdef";
@@ -96,10 +96,10 @@ s8 U64ToHexits(u64 u, char* out, u32 outLen) {
 		*--iter = hexits[u & 0xf];
 		u >>= 4;
 	} while (u > 0);
-	return s8(iter, (u64)(end - iter));
+	return Str(iter, (u64)(end - iter));
 }
 
-s8 U64ToBits(u64 u, char* out, u32 outLen) {
+Str U64ToBits(u64 u, char* out, u32 outLen) {
 	char* const end = out + outLen;
 	char* iter = end;
 	constexpr const char* bits = "01";
@@ -107,7 +107,7 @@ s8 U64ToBits(u64 u, char* out, u32 outLen) {
 		*--iter = bits[u & 0x1];
 		u >>= 1;
 	} while (u > 0);
-	return s8(iter, (u64)(end - iter));
+	return Str(iter, (u64)(end - iter));
 }
 
 //--------------------------------------------------------------------------------------------------	
@@ -143,7 +143,7 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 	else                         { sign = '\0'; }
 
 	if (const int fpc = fpclassify(f); fpc == FP_INFINITE || fpc == FP_NAN) {
-		const s8 str = (fpc == FP_INFINITE) ? "inf" : "nan";
+		const Str str = (fpc == FP_INFINITE) ? "inf" : "nan";
 		const u32 len = (sign ? 1 : 0) + 3;
 		const u32 pad = (width > len) ? width - len: 0;
 		if (!(flags & Flag_Left)) { out->Fill(' ', pad); }
@@ -155,7 +155,7 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 
 	constexpr u32 MaxSigDigs = 17;
 	char sigBuf[MaxSigDigs + 1] = "";
-	s8   sigStr;
+	Str  sigStr;
 	u32  intDigs        = 0;
 	u32  intTrailZeros  = 0;
 	u32  fracLeadZeros  = 0;
@@ -289,7 +289,7 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 //--------------------------------------------------------------------------------------------------
 
 template <class Out>
-void WriteStr(Out* out, s8 str, u32 flags, u32 width, u32 prec) {
+void WriteStr(Out* out, Str str, u32 flags, u32 width, u32 prec) {
 	if (prec && str.len > prec) {
 		str.len = prec;
 	}
@@ -316,7 +316,7 @@ void WriteI64(Out* out, i64 i, u32 flags, u32 width) {
 	else                         {         sign = '\0'; }
 
 	char buf[72];
-	const s8 str = U64ToDigits((u64)i, buf, sizeof(buf));
+	const Str str = U64ToDigits((u64)i, buf, sizeof(buf));
 	totalLen += (u32)str.len;
 	const u32 pad = (width > totalLen) ? width - totalLen : 0;
 	u32 zeros = 0;
@@ -335,7 +335,7 @@ void WriteI64(Out* out, i64 i, u32 flags, u32 width) {
 template <class Out>
 void WriteU64(Out* out, u64 u, u32 flags, u32 width) {
 	char buf[72];
-	s8 str;
+	Str str;
 	     if (flags & Flag_Hex) { str = U64ToHexits(u, buf, sizeof(buf)); }
 	else if (flags & Flag_Bin) { str = U64ToBits  (u, buf, sizeof(buf)); }
 	else                       { str = U64ToDigits(u, buf, sizeof(buf)); }
@@ -377,7 +377,7 @@ void WritePtr(Out* out, const void* p, u32 flags, u32 width) {
 //--------------------------------------------------------------------------------------------------	
 
 template <class Out>
-void VFmtImpl(Out out, s8 fmt, VArgs args) {
+void VFmtImpl(Out out, Str fmt, VArgs args) {
 	const char*       i       = fmt.data;
 	const char* const end     = i + fmt.len;
 	u32               nextArg = 0;
@@ -449,13 +449,13 @@ void VFmtImpl(Out out, s8 fmt, VArgs args) {
 		const VArg* varg = &args.vargs[nextArg++];
 		switch (varg->type)
 		{
-			case VArgType::Bool: WriteStr(out, varg->b ? "true" : "false",    flags, width, prec); break;
-			case VArgType::Char: WriteStr(out, s8(&varg->c, 1),               flags, width, prec); break;
-			case VArgType::I64:  WriteI64(out, varg->i,                       flags, width);       break;													   
-			case VArgType::U64:  WriteU64(out, varg->u,                       flags, width);       break;													   
-			case VArgType::F64:  WriteF64(out, varg->f,                       flags, width, prec); break;
-			case VArgType::S8:   WriteStr(out, s8(varg->s.data, varg->s.len), flags, width, prec); break;
-			case VArgType::Ptr:  WritePtr(out, varg->p,                       flags, width);       break;
+			case VArgType::Bool: WriteStr(out, varg->b ? "true" : "false",     flags, width, prec); break;
+			case VArgType::Char: WriteStr(out, Str(&varg->c, 1),               flags, width, prec); break;
+			case VArgType::I64:  WriteI64(out, varg->i,                        flags, width);       break;													   
+			case VArgType::U64:  WriteU64(out, varg->u,                        flags, width);       break;													   
+			case VArgType::F64:  WriteF64(out, varg->f,                        flags, width, prec); break;
+			case VArgType::Str:  WriteStr(out, Str(varg->s.data, varg->s.len), flags, width, prec); break;
+			case VArgType::Ptr:  WritePtr(out, varg->p,                        flags, width);       break;
 			default: Panic("Unhandled varg type {}", varg->type);
 		}
 	}
@@ -463,26 +463,26 @@ void VFmtImpl(Out out, s8 fmt, VArgs args) {
 
 //--------------------------------------------------------------------------------------------------
 
-char* VFmt(char* outBegin, char* outEnd, s8 fmt, VArgs args) {
+char* VFmt(char* outBegin, char* outEnd, Str fmt, VArgs args) {
 	FixedOut out = { .begin = outBegin, .end = outEnd };
 	VFmtImpl(&out, fmt, args);
 	return out.begin;
 }
 
-void VFmt(Array<char>* out, s8 fmt, VArgs args) {
+void VFmt(Array<char>* out, Str fmt, VArgs args) {
 	VFmtImpl(out, fmt, args);
 }
 	
-s8 VFmt(Arena* arena, s8 fmt, VArgs args) {
-	Array<char> out(arena);
+Str VFmt(Mem::Allocator* allocator, Str fmt, VArgs args) {
+	Array<char> out(allocator);
 	VFmtImpl(&out, fmt, args);
-	return s8(out.data, out.len);
+	return Str(out.data, out.len);
 }
 	
 //--------------------------------------------------------------------------------------------------
 
 UnitTest("Fmt") {
-	#define CheckFmt(expect, fmt, ...) { CheckEq(expect, Fmt(temp, fmt, ##__VA_ARGS__)); }
+	#define CheckFmt(expect, fmt, ...) { CheckEq(expect, Fmt(context->tempAllocator, fmt, ##__VA_ARGS__)); }
 
 	// Escape sequences
 	CheckFmt("{", "{{");

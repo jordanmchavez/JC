@@ -10,7 +10,7 @@ struct FooHandle { u64 handle = 0; };
 
 UnitTest("HandleArray") {
 	HandleArray<Foo, FooHandle> ha;
-	ha.Init(temp);
+	ha.Init(testArena);
 
 	const FooHandle fh1 = ha.Alloc(); CheckEq(fh1.handle, ((u64)1 << 32) | 1); CheckEq(ha.Get(fh1), &ha.entries[1].obj);
 	const FooHandle fh2 = ha.Alloc(); CheckEq(fh2.handle, ((u64)2 << 32) | 2); CheckEq(ha.Get(fh2), &ha.entries[2].obj);

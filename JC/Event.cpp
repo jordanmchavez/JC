@@ -7,7 +7,15 @@ namespace JC::Event {
 
 //--------------------------------------------------------------------------------------------------
 
-s8 KeyStr(Key k) {
+static constexpr u32 MaxEvents = 64 * 1024;
+
+static Log::Logger* logger;
+static Event        events[MaxEvents];
+static u32          eventsLen;
+
+//--------------------------------------------------------------------------------------------------
+
+Str KeyStr(Key k) {
 	switch (k) {
 		case Key::MouseLeft:   return "MouseLeft";
 		case Key::MouseRight:  return "MouseRight";
@@ -124,14 +132,10 @@ s8 KeyStr(Key k) {
 	}
 }
 
+//--------------------------------------------------------------------------------------------------
 
-static constexpr u32 MaxEvents = 64 * 1024;
-static Log*   log;
-static Event  events[MaxEvents];
-static u32    eventsLen;
-
-void Init(Log* logIn) {
-	log       = logIn;
+void Init() {
+	logger    = context->logger;
 	eventsLen = 0;
 }
 
@@ -151,7 +155,7 @@ void Clear()  {
 	eventsLen = 0;
 }
 
-s8 Str(Event e, Arena* arena) {
+Str EventStr(Mem::Allocator* allocator, Event e) {
 	switch (e.type) {
 		case Type::Exit:            return "ExitEvent";
 		case Type::WindowResized:   return "WindowResized";
@@ -159,8 +163,8 @@ s8 Str(Event e, Arena* arena) {
 		case Type::WindowUnfocused: return "WindowUnfocused";
 		case Type::WindowMinimized: return "WindowMinimized";
 		case Type::WindowRestored:  return "WindowRestored";
-		case Type::Key:             return Fmt(arena, "Key(key={}, down={})", e.key.key, e.key.down);
-		case Type::MouseMove:       return Fmt(arena, "MouseMove(x={}, y={})", e.mouseMove.x, e.mouseMove.y);
+		case Type::Key:             return Fmt(allocator, "Key(key={}, down={})", e.key.key, e.key.down);
+		case Type::MouseMove:       return Fmt(allocator, "MouseMove(x={}, y={})", e.mouseMove.x, e.mouseMove.y);
 		default:                    Panic("Unhandled EventType {}", e.type);
 	}
 }

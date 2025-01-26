@@ -7,45 +7,27 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 template <class T> struct Array {
-	Arena* arena  = 0;
-	T*     data   = 0;
-	u64    len    = 0;
-	u64    cap    = 0;
+	Mem::Allocator* allocator = 0;
+	T*              data      = 0;
+	u64             len       = 0;
+	u64             cap       = 0;
 
-	Array() = default;
-
-	Array(Arena* arenaIn) {
-		arena = arenaIn;
-		data  = 0;
-		len   = 0;
-		cap   = 0;
+	Array(Mem::Allocator* allocatorIn) {
+		allocator = allocatorIn;
+		data      = 0;
+		len       = 0;
+		cap       = 0;
 	}
 
-	Array(Arena* arenaIn, u64 initLen) {
-		arena = arenaIn;
-		data  = 0;
-		len   = 0;
-		cap   = 0;
-		Resize(initLen);
+	void Init(Mem::Allocator* allocatorIn) {
+		allocator = allocatorIn;
+		data      = 0;
+		len       = 0;
+		cap       = 0;
 	}
 
-	void Init(Arena* arenaIn) {
-		arena = arenaIn;
-		data  = 0;
-		len   = 0;
-		cap   = 0;
-	}
-
-	void Init(Arena* arenaIn, u64 initLen) {
-		arena = arenaIn;
-		data  = 0;
-		len   = 0;
-		cap   = 0;
-		Resize(initLen);
-	}
-
-	constexpr       T& operator[](u64 i)       { return data[i]; }
-	constexpr const T& operator[](u64 i) const { return data[i]; }
+	constexpr       T& operator[](u64 i)       { Assert(i < len); return data[i]; }
+	constexpr const T& operator[](u64 i) const { Assert(i < len); return data[i]; }
 
 	operator Span<T>() const { return Span(data, len); }
 
@@ -57,19 +39,19 @@ template <class T> struct Array {
 			Grow(len + 1, sl);
 		}
 		memset(&data[len], 0, sizeof(data[len]));
-		len++;
-		return &data[len - 1];
+		return &data[len++];
 	}
 
 	T* Add(T val, SrcLoc sl = SrcLoc::Here()) {
 		if (len + 1 > cap) {
 			Grow(len + 1, sl);
 		}
-		data[len++] = val;
-		return &data[len - 1];
+		data[len] = val;
+		return &data[len++];
 	}
 
 	void Add(const T* vals, u64 valsLen, SrcLoc sl = SrcLoc::Here()) {
+		Assert(!valsLen || vals);
 		if (len + valsLen > cap) {
 			Grow(len + valsLen, sl);
 		}
@@ -78,6 +60,7 @@ template <class T> struct Array {
 	}
 
 	void Add(const T* begin, const T* end, SrcLoc sl = SrcLoc::Here()) {
+		Assert(begin <= end);
 		const u64 valsLen = (u64)(end - begin);
 		if (len + valsLen > cap) {
 			Grow(len + valsLen, sl);
@@ -115,11 +98,11 @@ template <class T> struct Array {
 		}
 		memmove(data + i + 1, data + i, (len - i) * sizeof(T));
 		data[i] = val;
-		++len;
+		len++;
 	}
 
 	void Remove() {
-		--len;
+		len--;
 	}
 
 	void Remove(u64 n) {
@@ -167,16 +150,19 @@ template <class T> struct Array {
 	void Grow(u64 newCap, SrcLoc sl = SrcLoc::Here()) {
 		Assert(newCap > cap);
 		newCap = Max(Max((u64)16, newCap), cap * 2);
-		if (!arena->ExtendT<T>(data, cap, newCap, sl)) {
-			T* newData = arena->AllocT<T>(newCap, sl);
-			memcpy(newData, data, len * sizeof(T));
-			data = newData;
-		}
+		data = allocator->ReallocT(data, cap, newCap, sl);
 		cap = newCap;
 	}
 
 	void Clear() {
 		len = 0;
+	}
+
+	void Free(SrcLoc sl = SrcLoc::Here()) {
+		allocator->Free(data, cap, sl);
+		data = 0;
+		len  = 0;
+		cap  = 0;
 	}
 };
 

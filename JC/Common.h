@@ -24,9 +24,9 @@ namespace JC {
 	using f64 = double;
 
 	#define BuiltinFile __builtin_FILE()
-	#define BuiltinLine __builtin_LINE()
+	#define BuiltinLine ((u32)__builtin_LINE())
 	#define IfConsteval if (__builtin_is_constant_evaluated())
-	#define BuiltinIsEnum(T)   __is_enum(T)
+	#define BuiltinIsEnum(T) __is_enum(T)
 #endif
 
 constexpr u32 U32Max = 0xffffffff;
@@ -36,6 +36,8 @@ constexpr u64 U64Max = (u64)0xffffffffffffffff;
 #define MacroConcat(x, y)  MacroConcat2(x, y)
 #define MacroName(x) MacroConcat(x, __LINE__)
 #define LenOf(a) (u64)(sizeof(a) / sizeof(a[0]))
+
+//--------------------------------------------------------------------------------------------------
 
 #define Defer \
 	auto MacroName(Defer_) = DeferHelper() + [&]()
@@ -51,67 +53,15 @@ template <class F> DeferInvoker<F> operator+(DeferHelper, F&& fn) { return Defer
 
 //--------------------------------------------------------------------------------------------------
 
-constexpr u64 CxStrLen8(const char* s) {
-	if (s == nullptr) {
-		return 0;
-	}
+constexpr u64 ConstExprStrLen(const char* s) {
 	IfConsteval {
-		const char* i = s;
-		while (*i) {
-			i++;
-		}
+		const char* i = s; 
+		for (; *i; i++) {}
 		return (u64)(i - s);
 	} else {
 		return strlen(s);
 	}
 }
-
-//--------------------------------------------------------------------------------------------------
-
-constexpr u64 CxMemCmp(const void* p1, const void* p2, u64 len) {
-	IfConsteval {
-		const u8* i1 = (const u8*)p1;
-		const u8* i2 = (const u8*)p2;
-		while (len > 0) {
-			if (*i1 != *i2) {
-				return i1 - i2;
-			}
-			len--;
-		}
-		return 0;
-	} else {
-		return memcmp(p1, p2, len);
-	}
-}
-
-//--------------------------------------------------------------------------------------------------
-
-struct s8 {
-	const char* data = "";
-	u64         len  = 0;
-
-	constexpr      s8() = default;
-	constexpr      s8(const s8& s) = default;
-	constexpr      s8(const char* s);
-	constexpr      s8(const char* d, u64 l);
-	constexpr      s8(const char* b, const char* e);
-
-	constexpr s8&  operator=(const s8& s) = default;
-	constexpr s8&  operator=(const char* s);
-
-	constexpr char operator[](u64 i) const;
-};
-
-//--------------------------------------------------------------------------------------------------
-
-struct SrcLoc {
-	s8  file = {};
-	i32 line = 0;
-
-	static consteval SrcLoc Here(s8 file = BuiltinFile, i32 line = BuiltinLine) {
-		return SrcLoc { .file = file, .line = line };
-	}
-};
 
 //--------------------------------------------------------------------------------------------------
 
@@ -133,258 +83,10 @@ template <class T>            inline constexpr bool IsEnum                      
 template <class...>           inline constexpr bool AlwaysFalse                 = false; 
 
 //--------------------------------------------------------------------------------------------------
-
-enum struct VArgType {
-	Bool,
-	Char,
-	I64,
-	U64,
-	F64,
-	Ptr,
-	S8,
-};
-
-struct VArgStr {
-	const char* data;
-	u64         len;
-};
-
-struct VArgs;
-
-struct VArg {
-	VArgType type;
-	union {
-		bool        b;
-		char        c;
-		i64         i;
-		u64         u;
-		f64         f;
-		VArgStr     s;
-		const void* p;
-	};
-};
-
-template <class T>
-static VArg MakeVArg(T val) {
-	using Underlying = typename RemoveConst<typename RemoveVolatile<typename RemoveRef<T>::Type>::Type>::Type;
-	     if constexpr (IsSameType<Underlying, bool>)               { return { .type = VArgType::Bool, .b = val }; }
-	else if constexpr (IsSameType<Underlying, char>)               { return { .type = VArgType::Char, .c = val }; }
-	else if constexpr (IsSameType<Underlying, signed char>)        { return { .type = VArgType::I64,  .i = val }; }
-	else if constexpr (IsSameType<Underlying, signed short>)       { return { .type = VArgType::U64,  .i = val }; }
-	else if constexpr (IsSameType<Underlying, signed int>)         { return { .type = VArgType::I64,  .i = val }; }
-	else if constexpr (IsSameType<Underlying, signed long>)        { return { .type = VArgType::I64,  .i = val }; }
-	else if constexpr (IsSameType<Underlying, signed long long>)   { return { .type = VArgType::I64,  .i = val }; }
-	else if constexpr (IsSameType<Underlying, unsigned char>)      { return { .type = VArgType::U64,  .u = val }; }
-	else if constexpr (IsSameType<Underlying, unsigned short>)     { return { .type = VArgType::U64,  .u = val }; }
-	else if constexpr (IsSameType<Underlying, unsigned int>)       { return { .type = VArgType::U64,  .u = val }; }
-	else if constexpr (IsSameType<Underlying, unsigned long>)      { return { .type = VArgType::U64,  .u = val }; }
-	else if constexpr (IsSameType<Underlying, unsigned long long>) { return { .type = VArgType::U64,  .u = val }; }
-	else if constexpr (IsSameType<Underlying, float>)              { return { .type = VArgType::F64,  .f = val }; }
-	else if constexpr (IsSameType<Underlying, double>)             { return { .type = VArgType::F64,  .f = val }; }
-	else if constexpr (IsSameType<Underlying, s8>)                 { return { .type = VArgType::S8,   .s = { .data = val.data, .len = val.len } }; }
-	else if constexpr (IsSameType<Underlying, char*>)              { return { .type = VArgType::S8,   .s = { .data = val,      .len = CxStrLen8(val) } }; }
-	else if constexpr (IsSameType<Underlying, const char*>)        { return { .type = VArgType::S8,   .s = { .data = val,      .len = CxStrLen8(val) } }; }
-	else if constexpr (IsPointer<Underlying>)                      { return { .type = VArgType::Ptr,  .p = val }; }
-	else if constexpr (IsSameType<Underlying, decltype(nullptr)>)  { return { .type = VArgType::Ptr,  .p = nullptr }; }
-	else if constexpr (IsEnum<Underlying>)                         { return { .type = VArgType::U64,  .u = (u64)val }; }
-	else if constexpr (IsSameType<Underlying, VArg>)               { return val; }
-	else if constexpr (IsSameType<Underlying, VArgs>)              { static_assert(AlwaysFalse<T>, "You passed Args as a placeholder variable: you probably meant to call VFmt() instead of Fmt()"); }
-	else                                                           { static_assert(AlwaysFalse<T>, "Unsupported arg type"); }
-}
-template <u64 N> static constexpr VArg MakeVArg(char (&val)[N])       { return { .type = VArgType::S8, .s = { .data = val, .len = CxStrLen8(val) } }; }
-template <u64 N> static constexpr VArg MakeVArg(const char (&val)[N]) { return { .type = VArgType::S8, .s = { .data = val, .len = CxStrLen8(val) } }; }
-
-template <u32 N> struct VArgStore {
-	VArg vargs[N > 0 ? N : 1] = {};
-};
-
-struct VArgs {
-	const VArg* vargs = 0;
-	u32         len  = 0;
-
-	template <u32 N> constexpr VArgs(VArgStore<N> argStore) {
-		vargs = argStore.vargs;
-		len  = N;
-	}
-};
-
-template <class... A> constexpr VArgStore<sizeof...(A)> MakeVArgs(A... args) {
-	return VArgStore<sizeof...(A)> { MakeVArg(args)... };
-}
-
-//--------------------------------------------------------------------------------------------------
-
-inline void BadFmtStr_UnmatchedOpenBrace() {}
-inline void BadFmtStr_NotEnoughArgs() {}
-inline void BadFmtStr_CloseBraceNotEscaped() {}
-inline void BadFmtStr_TooManyArgs() {}
-inline void BadFmtStr_BadPlaceholderSpec() {}
-
-consteval const char* CheckFmtSpec(const char* i, const char* end) {
-	bool flagsDone = false;
-	while (!flagsDone && i < end) {
-		switch (*i) {
-			case '}': i++; return i;
-			case '<': i++; break;
-			case '+': i++; break;
-			case ' ': i++; break;
-			case '0': i++; flagsDone = true; break;
-			default:       flagsDone = true; break;
-		}
-	}
-	while (i < end && *i >= '0' && *i <= '9') {
-		i++;
-	}
-	if (i < end && *i == '.') {
-		i++;
-		while (i < end && *i >= '0' && *i <= '9') {
-			i++;
-		}
-	}
-	if (i >= end) { BadFmtStr_BadPlaceholderSpec(); }
-
-	switch (*i) {
-		case 'x': i++; break;
-		case 'X': i++; break;
-		case 'b': i++; break;
-		case 'f': i++; break;
-		case 'e': i++; break;
-		default:       break;
-	}
-	if (i >= end || *i != '}') { BadFmtStr_BadPlaceholderSpec(); }
-	i++;
-	return i;
-}
-
-consteval void CheckFmtStr(s8 fmt, size_t argsLen) {
-	const char* i = fmt.data;
-	const char* const end = i + fmt.len;
-	u32 nextArg = 0;
-
-	for (;;) {
-		if (i >= end) {
-			if (nextArg != argsLen) { BadFmtStr_TooManyArgs(); }
-			return;
-		} else if (*i == '{') {
-			i++;
-			if (i >= end) { BadFmtStr_UnmatchedOpenBrace(); }
-			if (*i == '{') {
-				i++;
-			} else {
-				i = CheckFmtSpec(i, end);
-				if (nextArg >= argsLen) { BadFmtStr_NotEnoughArgs(); }
-				nextArg++;
-			}
-		} else if (*i != '}') {
-			i++;
-		} else {
-			i++;
-			if (i >= end || *i != '}') { BadFmtStr_CloseBraceNotEscaped(); }
-			i++;
-		}
-	}
-}
-
-//--------------------------------------------------------------------------------------------------
-
-template <class... A> struct _FmtStr {
-	s8 fmt;
-	consteval _FmtStr(s8          fmt_) { CheckFmtStr(fmt_, sizeof...(A)); fmt = fmt_; }
-	consteval _FmtStr(const char* fmt_) { CheckFmtStr(fmt_, sizeof...(A)); fmt = fmt_; }
-	operator s8() const { return fmt; }
-};
-
-template <class... A> using FmtStr = _FmtStr<typename TypeIdentity<A>::Type...>;
-
-template <class... A> struct _FmtStrSrcLoc {
-	s8     fmt;
-	SrcLoc sl;
-	consteval _FmtStrSrcLoc(s8          fmt_, SrcLoc sl_ = SrcLoc::Here()) { CheckFmtStr(fmt_, sizeof...(A)); fmt = fmt_; sl = sl_; }
-	consteval _FmtStrSrcLoc(const char* fmt_, SrcLoc sl_ = SrcLoc::Here()) { CheckFmtStr(fmt_, sizeof...(A)); fmt = fmt_; sl = sl_; }
-	operator s8() const { return fmt; }
-};
-
-template <class... A> using FmtStrSrcLoc = _FmtStrSrcLoc<typename TypeIdentity<A>::Type...>;
-
-//--------------------------------------------------------------------------------------------------
-
-                      [[noreturn]] void VPanic(SrcLoc sl, s8 expr, s8 fmt, VArgs vargs);
-template <class... A> [[noreturn]] void Panic(FmtStrSrcLoc<A...> fmtSl, A... args) { VPanic(fmtSl.sl, 0, fmtSl.fmt, MakeVArgs(args...)); }
-
-                      [[noreturn]] inline void _AssertFail(SrcLoc sl, s8 expr)                              { VPanic(sl, expr, "",   MakeVArgs()); }
-template <class... A> [[noreturn]]        void _AssertFail(SrcLoc sl, s8 expr, FmtStr<A...> fmt, A... args) { VPanic(sl, expr, fmt,  MakeVArgs(args...)); }
-
-using PanicFn = void (SrcLoc sl, s8 expr, s8 fmt, VArgs vargs);
-
-PanicFn* SetPanicFn(PanicFn* panicFn);
-
-#define Assert(expr, ...) \
-	do { \
-		if (!(expr)) { \
-			_AssertFail(SrcLoc::Here(), #expr, ##__VA_ARGS__); \
-		} \
-	} while (false)
-
-//--------------------------------------------------------------------------------------------------
-
-struct Arena {
-	u8* begin      = 0;
-	u8* end        = 0;
-	u8* endCommit  = 0;
-	u8* endReserve = 0;
-
-	void* Alloc(u64 size, SrcLoc sl = SrcLoc::Here());
-	bool  Extend(void* p, u64 oldSize, u64 newSize, SrcLoc sl = SrcLoc::Here());
-	u64   Mark();
-	void  Reset(u64 mark);
-
-	template <class T> T* AllocT(SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(sizeof(T), sl); }
-	template <class T> T* AllocT(u64 n, SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(n * sizeof(T), sl); }
-	template <class T> bool ExtendT(T* p, u64 oldN, u64 newN, SrcLoc sl = SrcLoc::Here()) { return Extend(p, oldN * sizeof(T), newN * sizeof(T), sl); }
-};
-
-Arena CreateArena(u64 reserveSize);
-void  DestroyArena(Arena arena);
-
-//--------------------------------------------------------------------------------------------------
-
-constexpr s8::s8(const char* s) {
-	data = s;
-	len  = CxStrLen8(s);
-}
-
-constexpr s8::s8(const char* d, u64 l) {
-	data = d;
-	len  = l;
-}
-
-constexpr s8::s8(const char* b, const char* e) {
-	Assert(e >= b);
-	data = b;
-	len  = (u64)(e - b);
-}
-
-constexpr s8& s8::operator=(const char* s) {
-	data = s;
-	len = CxStrLen8(s);
-	return *this;
-}
-
-constexpr char s8::operator[](u64 i) const {
-	Assert(i <= len);
-	return data[i];
-}
-
-constexpr bool operator==(s8 str1, s8 str2) { return str1.len == str2.len && memcmp(str1.data, str2.data, str1.len) == 0; }
-constexpr bool operator!=(s8 str1, s8 str2) { return str1.len != str2.len && memcmp(str1.data, str2.data, str1.len) != 0; }
-
-s8 Copy(Arena* arena, s8 s);
-
-//--------------------------------------------------------------------------------------------------
+/*
 
 } namespace std {
-	template <class T>
-	struct initializer_list {
+	template <class T> struct initializer_list {
 		const T* _begin = 0;
 		const T* _end   = 0;
 
@@ -397,8 +99,7 @@ s8 Copy(Arena* arena, s8 s);
 
 //--------------------------------------------------------------------------------------------------
 
-template <class T>
-struct Span {
+template <class T> struct Span {
 	const T* data = 0;
 	u64      len  = 0;
 
@@ -410,83 +111,27 @@ struct Span {
 
 	constexpr Span& operator=(const Span&) = default;
 	
-	constexpr const T& operator[](u64 i) const { return data[i]; }
+	constexpr const T& operator[](u64 i) const { Assert(i < len); return data[i]; }
 
 	constexpr const T* Begin() const { return data; }
 	constexpr const T* End()   const { return data + len; }
 };
 
-template <class T> Span<T> Copy(Arena* arena, Span<T> s) {
-	T* data = arena->AllocT<T>(s.len);
-	memcpy(data, s.data, s.len * sizeof(T));
-	return Span<T>(data, s.len);
-}
-
 //--------------------------------------------------------------------------------------------------
 
-struct NamedArg {
-	s8   name = {};
-	VArg varg  = {};
-};
+struct ErrData;
+ErrData* MakeErrData(Str ns, Str code, VArgs vargs, SrcLoc sl);
 
-struct [[nodiscard]] Err {
-	u64 handle = 0;
-
-	static void SetArena(Arena* arena);
-
-	Err() = default;
-
-	template <class...A> Err(SrcLoc sl, s8 ns, s8 s8Code, i64 i64Code, A... args) {
-		static_assert(sizeof...(A) % 2 == 0);
-		constexpr u64 NamedArgsLen = sizeof...(A) / 2;
-		NamedArg namedArgs[NamedArgsLen > 0 ? NamedArgsLen : 1] = {};
-		if constexpr (NamedArgsLen > 0) {
-			BuildNamedArgsInternal(namedArgs, args...);
-		}
-		Init(sl, ns, s8Code, i64Code, Span<NamedArg>(namedArgs, NamedArgsLen));
-	}
-
-	void Init(SrcLoc sl, s8 ns, s8 s8Code, i64 i64Code, Span<NamedArg> namedArgs);
-
-	template <class T> static void BuildNamedArgsInternal(NamedArg* namedArgs, s8 name, T arg) {
-		namedArgs->name = name;
-		namedArgs->varg = MakeVArg(arg);
-	}
-
-	template <class T, class... A> static void BuildNamedArgsInternal(NamedArg* namedArgs, s8 name, T arg, A... args) {
-		namedArgs->name = name;
-		namedArgs->varg = MakeVArg(arg);
-		BuildNamedArgsInternal(namedArgs + 1, args...);
-	}
-
-	Err Push(Err err);
-
-	void AddInternal(Span<NamedArg> namedArgs);
-
-	template <class... A> void Add(A... args) {
-		static_assert(sizeof...(A) > 0 && sizeof...(A) % 2 == 0);
-		constexpr u64 NamedArgsLen = sizeof...(A) / 2;
-		NamedArg namedArgs[NamedArgsLen] = {};
-		BuildNamedArgsInternal(namedArgs, args...);
-		AddInternal(namedArgs);
-	}
-
-	Err            GetPrev() const;
-	SrcLoc         GetSrcLoc() const;
-	s8             GetNs() const;
-	s8             GetS8Code() const;
-	i64            GetI64Code() const;
-	Span<NamedArg> GetNamedArgs() const;
-};
+struct Err { ErrData* data = 0; };
 
 #define DefErr(Ns, Code) \
-	template <class... A> struct Err_##Code : Err { \
-		Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, #Ns, #Code, 0, args...) {} \
+	struct Err_##Code : Err { \
+		template <class... A> Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) { \
+			static_assert(sizeof...(A) % 2 == 0); \
+			data = MakeErrData("MyNs", "MyCode", MakeVArgs(args...), sl); \
+		} \
 	}; \
 	template <class...A> Err_##Code(A...) -> Err_##Code<A...>
-
-#define MakeErr(Ns, Code, ...) \
-	MakeErrInternal(__FILE__, __LINE__, Ns, Code, __VA_ARGS__)
 
 //--------------------------------------------------------------------------------------------------
 
@@ -506,7 +151,7 @@ template <> struct [[nodiscard]] Res<void> {
 		}
 	}
 
-	constexpr operator bool() const { return err.handle == 0; }
+	constexpr operator bool() const { return err.data; }
 
 	constexpr void Ignore() const {}
 };
@@ -545,6 +190,8 @@ template <class T> struct [[nodiscard]] Res {
 
 	constexpr Res<> To(T& out) { if (hasVal) { out = val; return Res<>{}; } return Res<>(err); }
 	constexpr T     Or(T def) { return hasVal ? val : def; }
+
+	constexpr void Ignore() const {}
 };
 
 constexpr Res<> Ok() { return Res<>(); }
@@ -565,5 +212,12 @@ struct Rect {
 };
 
 //--------------------------------------------------------------------------------------------------
-
+*/
 }	// namespace JC
+
+#include "JC/Common/Str.h"
+#include "JC/Common/SrcLoc.h"
+#include "JC/Common/Mem.h"
+#include "JC/Common/VArg.h"
+#include "JC/Common/Fmt.h"
+#include "JC/Common/Panic.h"

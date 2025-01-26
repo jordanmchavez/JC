@@ -20,12 +20,12 @@ struct RowSet {
 	u32     len;
 };
 
-void         Init(Arena* perm, Arena* temp);
+void         Init();
 
 Span<Entity> CreateEntities(u32 n, Span<Component> components);
 void         DestroyEntities(Span<Entity> entitys);
 
-Component    CreateComponent(s8 name, u32 len);
+Component    CreateComponent(Str name, u32 len);
 void         AddComponent(Entity entity, Component component);
 void         RemoveComponent(Entity entity, Component component);
 void*        ComponentData(Entity entity, Component component);

@@ -8,7 +8,7 @@ namespace JC::Sys {
 
 void  Abort();
 
-void  Print(s8 msg);
+void  Print(Str msg);
 
 #if defined Compiler_Msvc
 	#define Sys_DebuggerBreak() __debugbreak()

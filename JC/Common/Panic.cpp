@@ -1,6 +1,5 @@
-#include "JC/Common.h"
+#include "JC/Common/Panic.h"
 
-#include "JC/Fmt.h"
 #include "JC/Sys.h"
 
 namespace JC {
@@ -15,7 +14,7 @@ PanicFn* SetPanicFn(PanicFn* newPanicFn) {
 	return oldPanicFn;
 }
 
-void VPanic(SrcLoc sl, s8 expr, s8 fmt, VArgs args) {
+void VPanic(SrcLoc sl, Str expr, Str fmt, VArgs args) {
 	static bool recursive = false;
 	if (recursive) {
 		Sys::Abort();

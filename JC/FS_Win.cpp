@@ -7,13 +7,13 @@ namespace JC::FS {
 
 //--------------------------------------------------------------------------------------------------
 
-static Arena* temp = 0;
+static Mem::Allocator* tempAllocator = 0;
 
 void Init(Arena* tempIn) {
 	temp = tempIn;
 }
 
-Res<File> Open(s8 path) {
+Res<File> Open(Str path) {
 	HANDLE h = CreateFileW(Utf8ToWtf16z(temp, path).data, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 	if (!IsValidHandle(h)) {
 		return Err_WinLast("CreateFileW", "path", path);

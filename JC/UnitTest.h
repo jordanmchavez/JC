@@ -3,29 +3,27 @@
 #include "JC/Common.h"
 #include "JC/Sys.h"
 
-namespace JC { struct Log; }
-
 namespace JC::UnitTest {
 
 //--------------------------------------------------------------------------------------------------
 
-bool Run(Log* log);
+bool Run();
 
 bool CheckFailImpl(SrcLoc sl);
-bool CheckExprFail(SrcLoc sl, s8 expr);
-bool CheckRelFail(SrcLoc sl, s8 expr, VArg x, VArg y);
-bool CheckSpanEqFail_Len(SrcLoc sl, s8 expr, u64 xLen, u64 yLen);
-bool CheckSpanEqFail_Elem(SrcLoc sl, s8 expr, u64 i, VArg x, VArg y);
+bool CheckExprFail(SrcLoc sl, Str expr);
+bool CheckRelFail(SrcLoc sl, Str expr, VArg x, VArg y);
+bool CheckSpanEqFail_Len(SrcLoc sl, Str expr, u64 xLen, u64 yLen);
+bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, u64 i, VArg x, VArg y);
 
-template <class X, class Y> bool CheckEq(SrcLoc sl, s8 expr, X x, Y y) {
+template <class X, class Y> bool CheckEq(SrcLoc sl, Str expr, X x, Y y) {
 	return (x == y) || CheckRelFail(sl, expr, MakeVArg(x), MakeVArg(y));
 }
 
-template <class X, class Y> bool CheckNeq(SrcLoc sl, s8 expr, X x, Y y) {
+template <class X, class Y> bool CheckNeq(SrcLoc sl, Str expr, X x, Y y) {
 	return (x != y) || CheckRelFail(sl, expr, MakeVArg(x), MakeVArg(y));
 }
 
-template <class X, class Y> bool CheckSpanEq(SrcLoc sl, s8 expr, Span<X> x, Span<Y> y) {
+template <class X, class Y> bool CheckSpanEq(SrcLoc sl, Str expr, Span<X> x, Span<Y> y) {
 	if (x.len != y.len) {
 		return CheckSpanEqFail_Len(sl, expr, x.len, y.len);
 	}
@@ -37,30 +35,30 @@ template <class X, class Y> bool CheckSpanEq(SrcLoc sl, s8 expr, Span<X> x, Span
 	return true;
 }
 
-using TestFn = void (Arena* temp);
+using TestFn = void();
 
 struct TestRegistrar {
-	TestRegistrar(s8 name, SrcLoc sl, TestFn* fn);
+	TestRegistrar(Str name, SrcLoc sl, TestFn* fn);
 };
 
 struct Subtest {
 	struct Sig {
-		s8     name = {};
+		Str    name = {};
 		SrcLoc sl   = {};
 	};
 	Sig  sig       = {};
 	bool shouldRun = false;
 
-	Subtest(s8 name, SrcLoc sl);
+	Subtest(Str name, SrcLoc sl);
 	~Subtest();
 };
 
 #define TestDebuggerBreak ([]() { Sys_DebuggerBreak(); return false; }())
 
 #define UnitTestImpl(name, fn, registrarVar) \
-	static void fn([[maybe_unused]] Arena* temp); \
+	static void fn(); \
 	static UnitTest::TestRegistrar registrarVar = UnitTest::TestRegistrar(name, SrcLoc::Here(), fn); \
-	static void fn([[maybe_unused]] Arena* temp)
+	static void fn()
 
 #define UnitTest(name) \
 	UnitTestImpl(name, MacroName(UnitTestFn_), MacroName(UnitTestRegistrar_))

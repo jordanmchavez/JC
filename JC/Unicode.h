@@ -6,7 +6,7 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-constexpr u64 StrLen16(const wchar_t* s) {
+constexpr u64 ConstExprStrLen16(const wchar_t* s) {
 	if (s == nullptr) {
 		return 0;
 	}
@@ -19,28 +19,28 @@ constexpr u64 StrLen16(const wchar_t* s) {
 
 //--------------------------------------------------------------------------------------------------
 
-struct s16z {
+struct Str16z {
 	const wchar_t* data = nullptr;
 	u64            len  = 0;
 
-	constexpr          s16z()                        { data = nullptr; len = 0; }
-	constexpr          s16z(const s16z&s)            { data = s.data;  len = s.len; }
-	constexpr          s16z(const wchar_t* sz)       { data = sz;      len = StrLen16(sz); }
-	constexpr          s16z(const wchar_t* p, u64 l) { data = p;       len = l; }
+	constexpr Str16z()                        { data = 0;      len = 0; }
+	constexpr Str16z(const Str16z&s )         { data = s.data; len = s.len; }
+	constexpr Str16z(const wchar_t* sz)       { data = sz;     len = ConstExprStrLen16(sz); }
+	constexpr Str16z(const wchar_t* p, u64 l) { Assert(!l || p); data = p;      len = l; }
 
-	constexpr s16z&    operator=(const s16z& s)      { data = s.data;  len = s.len;        return *this;}
-	constexpr s16z&    operator=(const wchar_t* sz)  { data = sz;      len = StrLen16(sz); return *this;}
+	constexpr Str16z& operator=(const Str16z& s)    { data = s.data;  len = s.len;                 return *this; }
+	constexpr Str16z& operator=(const wchar_t* sz)  { data = sz;      len = ConstExprStrLen16(sz); return *this; }
 
-	constexpr char16_t operator[](u64 i) const        { return data[i]; }
+	constexpr char16_t operator[](u64 i) const { Assert(i < len); return data[i]; }
 };
 
-constexpr bool operator==(s16z str1, s16z str2) { return str1.len == str2.len && memcmp(str1.data, str2.data, str1.len * 2) == 0; }
-constexpr bool operator!=(s16z str1, s16z str2) { return str1.len != str2.len && memcmp(str1.data, str2.data, str1.len * 2) != 0; }
+constexpr bool operator==(Str16z s1, Str16z s2) { return s1.len == s2.len && memcmp(s1.data, s2.data, s1.len * 2) == 0; }
+constexpr bool operator!=(Str16z s1, Str16z s2) { return s1.len != s2.len && memcmp(s1.data, s2.data, s1.len * 2) != 0; }
 
 //--------------------------------------------------------------------------------------------------
 
-s16z Utf8ToWtf16z(Arena* arena, s8 s);
-s8   Wtf16zToUtf8(Arena* arena, s16z s);
+Str16z Utf8ToWtf16z(Mem::Allocator* allocator, Str s);
+Str    Wtf16zToUtf8(Mem::Allocator* allocator, Str16z s);
 
 //--------------------------------------------------------------------------------------------------
 

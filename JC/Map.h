@@ -19,40 +19,21 @@ template <class K, class V> struct Map {
 		V val = {};
 	};
 
-	Arena*  arena      = 0;
-	Bucket* buckets    = 0;
-	u64     bucketsCap = 0;
-	Elem*   elems      = 0;
-	u64     elemsLen   = 0;
-	u64     elemsCap   = 0;
-	u64     mask       = 0;
+	Mem::Allocator* allocator       = 0;
+	Bucket          initBuckets[16] = {};
+	Bucket*         buckets         = initBuckets;
+	u64             bucketsCap      = 16;
+	Elem*           elems           = 0;
+	u64             elemsLen        = 0;
+	u64             elemsCap        = 0;
+	u64             mask            = 16 - 1;
 
-	Map() = default;
-
-	Map(Arena* arenaIn, SrcLoc sl = SrcLoc::Here()) {
-		Init(arenaIn, 16, 0, sl);
+	Map(Mem::Allocator* allocatorIn = context->allocator) {
+		allocator = allocatorIn;
 	}
 
-	Map(Arena* arenaIn, u64 bucketsCapIn, u64 elemsCapIn, SrcLoc sl = SrcLoc::Here()) {
-		Init(arenaIn, bucketsCapIn, elemsCapIn, sl);
-	}
-
-	void Init(Arena* arenaIn, SrcLoc sl = SrcLoc::Here()) {
-		Init(arenaIn, 16, 0, sl);
-	}
-
-	void Init(Arena* arenaIn, u64 bucketsCapIn, u64 elemsCapIn, SrcLoc sl = SrcLoc::Here()) {
-		Assert(bucketsCapIn > 0);
-		bucketsCapIn = AlignPow2(bucketsCapIn);
-
-		arena      = arenaIn;
-		buckets    = arena->AllocT<Bucket>(bucketsCapIn, sl);
-		bucketsCap = bucketsCapIn;
-		elems      = arena->AllocT<Elem>(elemsCapIn);
-		elemsLen   = 0;
-		elemsCap   = elemsCapIn;
-		mask       = bucketsCapIn - 1;
-		memset(buckets, 0, bucketsCapIn * sizeof(Bucket));
+	void Init(Mem::Allocator* allocatorIn = context->allocator) {
+		allocator = allocatorIn;
 	}
 
 	V* Find(K k) const {
@@ -102,21 +83,18 @@ template <class K, class V> struct Map {
 			} else if (df > bucket->df) {
 				if (elemsLen >= elemsCap) {
 					u64 newCap = Max(16ull, elemsCap * 2u);
-					if (!arena->ExtendT(elems, elemsCap, newCap, sl)) {
-						Elem* newElems = arena->AllocT<Elem>(newCap , sl);
-						memcpy(newElems, elems, elemsLen * sizeof(Elem));
-						elems = newElems;
-					}
+					elems = allocator->ReallocT(elems, elemsCap, newCap, sl);
 					elemsCap = newCap;
 				}
 				elems[elemsLen++] = Elem { .key = k, .val = v };
 				if (elemsLen > (7 * (bucketsCap >> 3))) {	// max load factor = 7/8 = 87.5%
 					u64 newBucketsCap = bucketsCap << 1;
-					if (!arena->ExtendT<Bucket>(buckets, bucketsCap, newBucketsCap, sl)) {
-						buckets = arena->AllocT<Bucket>(newBucketsCap, sl);
-					}
+					allocator->FreeT(buckets, bucketsCap);
+					buckets = allocator->AllocT<Bucket>(newBucketsCap);
+					memset(buckets, 0, newBucketsCap * sizeof(Bucket));
 					bucketsCap = newBucketsCap;
 					mask = newBucketsCap - 1;
+
 					for (u64 j = 0; j < elemsLen; ++j) {
 						h = Hash(elems[j].key);
 						df = 0x100 | (h & 0xff);
@@ -135,6 +113,7 @@ template <class K, class V> struct Map {
 						};
 						buckets[i] = b;
 					}
+
 				} else {
 					Bucket b = { .df = df, .idx = elemsLen - 1 };
 					while (buckets[i].df != 0) {
@@ -197,6 +176,20 @@ template <class K, class V> struct Map {
 			MemSet(buckets, 0, bucketsCap * sizeof(Bucket));
 		}
 		elemsLen = 0;
+	}
+
+	void Free(SrcLoc* sl = SrcLoc::Here()) {
+		if (buckets != initBuckets) {
+			allocator->Alloc(buckets, bucketsCap * sizeof(Bucket), 0, sl);
+		}
+		memset(initBuckets, 0, sizeof(initBuckets));
+		allocator->Free(elems, elemsCap * sizeof(Elem), sl);
+		buckets         = initBuckets;
+		bucketsCap      = 16;
+		elems           = 0;
+		elemsLen        = 0;
+		elemsCap        = 0;
+		mask            = 16 - 1;
 	}
 };
 

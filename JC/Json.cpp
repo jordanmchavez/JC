@@ -465,7 +465,7 @@ Res<Span<KeyVal>> GetObj(Elem elem) {
 UnitTest("Json") {
 	{
 		Elem e = {};
-		CheckTrue(Parse(temp, temp, "123").To(e));
+		CheckTrue(Parse(testArena, testArena, "123").To(e));
 		CheckEq(GetType(e), Type::I64);
 		i64 val = 0;
 		CheckTrue(GetI64(e).To(val));
@@ -474,7 +474,7 @@ UnitTest("Json") {
 
 	{
 		Elem e = {};
-		CheckTrue(Parse(temp, temp, "{ foo: \"hello\", \"foo bar\": 1.25 }").To(e));
+		CheckTrue(Parse(testArena, testArena, "{ foo: \"hello\", \"foo bar\": 1.25 }").To(e));
 		Span<KeyVal> keyVals = {};
 		CheckTrue(GetObj(e).To(keyVals));
 

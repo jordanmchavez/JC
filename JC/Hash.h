@@ -22,13 +22,13 @@ inline bool operator==(PreHash p1, PreHash p2) { return p1.hash == p2.hash; }
 
 u64 HashCombine(u64 h, void const* data, u64 len);
 
-inline u64 HashCombine(u64 h, s8 s)          { return HashCombine(h,        s.data, s.len); }
+inline u64 HashCombine(u64 h, Str s)         { return HashCombine(h,        s.data, s.len); }
 inline u64 HashCombine(u64 h, const void* p) { return HashCombine(h,        &p,     sizeof(p)); }
 inline u64 HashCombine(u64 h, i64 i)         { return HashCombine(h,        &i,     sizeof(i)); }
 inline u64 HashCombine(u64 h, u64 u)         { return HashCombine(h,        &u,     sizeof(u)); }
 
 inline u64 Hash(void const* data, u64 len)   { return HashCombine(HashSeed, data,   len); }
-inline u64 Hash(s8 s)                        { return HashCombine(HashSeed, s.data, s.len); }
+inline u64 Hash(Str s)                       { return HashCombine(HashSeed, s.data, s.len); }
 inline u64 Hash(const void* p)               { return HashCombine(HashSeed, &p,     sizeof(p)); }
 inline u64 Hash(i32 i)                       { return HashCombine(HashSeed, &i,     sizeof(i)); }
 inline u64 Hash(u32 u)                       { return HashCombine(HashSeed, &u,     sizeof(u)); }

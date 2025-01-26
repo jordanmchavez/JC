@@ -1,4 +1,5 @@
-#include "JC/App.h"
+#include "JC/Common.h"
+/*#include "JC/App.h"
 #include "JC/Array.h"
 #include "JC/Event.h"
 #include "JC/Fmt.h"
@@ -19,7 +20,7 @@
 #undef LoadImage
 
 using namespace JC;
-
+*/
 //--------------------------------------------------------------------------------------------------
 /*
 DefErr(Game, LoadImage);
@@ -518,9 +519,10 @@ struct Game : App {
 */
 //--------------------------------------------------------------------------------------------------
 
-namespace JC { App* GetApp(); }
+//namespace JC { App* GetApp(); }
 
 int main(int argc, const char** argv) {
-	RunApp(GetApp(), argc, argv);
+	argc;argv;
+	//RunApp(GetApp(), argc, argv);
 	return 0;
 }

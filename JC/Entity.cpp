@@ -3,6 +3,7 @@
 #include "JC/Array.h"
 #include "JC/Bit.h"
 #include "JC/Hash.h"
+#include "JC/Mem.h"
 #include "JC/Map.h"
 #include "JC/UnitTest.h"
 
@@ -40,7 +41,7 @@ struct TypeMask {
 };
 
 struct ComponentObj {
-	s8  name;
+	Str name;
 	u32 size;
 };
 
@@ -55,7 +56,6 @@ struct Type {
 	u32           rowSize;
 	Column        columns[MaxTypeColumns];	// TODO: we could very easily make this dynamic to remove the limit
 	u32           columnsLen;
-	Arena         arena;
 	u8*           data;
 	u32           len;
 	u32           cap;
@@ -85,9 +85,8 @@ struct Iter {
 	RowSet       rowSet;
 };
 
-static Arena*                       perm;
-static Arena*                       temp;
-static Arena                        entityObjsArena;
+static Mem::Allocator*              allocator;
+static Mem::TempAllocator*          tempAllocator;
 static Array<EntityObj>             entityObjs;
 static u32                          freeEntityObjIdx;
 static ComponentObj                 componentObjs[MaxComponents];
@@ -127,7 +126,7 @@ static TypeId CreateType(const ComponentMask* componentMask) {
 		u64 bits = componentMask->bits[i];
 		if (!bits) { continue; }
 
-		while (const u32 bit = Bsf64(bits)) {
+		while (const u32 bit = Bit::Bsf64(bits)) {
 			bits &= ~((u64)1 << bit);
 
 			u32 componentId = (i * 64) + bit;
@@ -146,8 +145,7 @@ static TypeId CreateType(const ComponentMask* componentMask) {
 			type->rowSize += componentObj->size;
 		}
 	}
-	type->arena = CreateArena(TypeDataReserveSize);
-	type->data  = (u8*)type->arena.Alloc(TypeInitialCap * type->rowSize);
+	type->data  = (u8*)allocator->Alloc(TypeInitialCap * type->rowSize);
 	type->len   = 0;
 	type->cap   = TypeInitialCap;
 
@@ -162,12 +160,11 @@ static TypeId CreateType(const ComponentMask* componentMask) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Init(Arena* permIn, Arena* tempIn) {
-	perm = permIn;
-	temp = tempIn;
+void Init() {
+	allocator = context->allocator;
+	tempAllocator = context->tempAllocator;
 
-	entityObjsArena = CreateArena(EntitiesReserveSize);
-	entityObjs.Init(&entityObjsArena);
+	entityObjs.Init(allocator);
 	entityObjs.Add();	// reserve 0 for invalid
 
 	const ComponentMask emptyMask = {};
@@ -176,6 +173,10 @@ void Init(Arena* permIn, Arena* tempIn) {
 
 	componentObjsLen = 1;	// reserve 0 for invalid
 	queryObjsLen = 1;	// reserve 0 for invalid
+
+	typeIdComponentIdToColumnId.Init(allocator);
+	componentMaskHashToTypeId.Init(allocator);
+	componentMaskHashToQueryId.Init(allocator);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -196,23 +197,24 @@ static Span<u32> AddRows(Type* type, u32 n) {
 	const u32 newLen = type->len + n;
 	if (newLen > type->cap) {
 		const u32 newCap = Max(newLen, type->cap * 2);
-		Assert(type->arena.Extend(type->data, type->cap * type->rowSize, newCap * type->rowSize));
-		
+		u8* newData = (u8*)allocator->Alloc(newCap * type->rowSize);
 		// Don't need to move the entities row
 		for (u32 i = 0; i < type->columnsLen; i++) {
 			const Column* const col = &type->columns[i];
 			memmove(
-				type->data + (type->cap * col->offset),
+				newData    + (type->cap * col->offset),
 				type->data + (newCap    * col->offset),
 				type->len * col->size
 			);
 		}
-
+		allocator->Free(type->data, type->cap * type->rowSize);
+		type->data = newData;
 		type->cap = newCap;
 	}
 	type->len = newLen;
 
-	Array<u32> rows(temp, n);
+	Array<u32> rows(tempAllocator);
+	rows.Resize(n);
 	u32 row = oldLen;
 	for (u32 i = 0; i < n; i++) {
 		rows[i] = row++;
@@ -273,7 +275,8 @@ Span<Entity> CreateEntities(u32 n, Span<Component> components) {
 	Type* const type = &types[typeId];
 	Span<u32> rows = AddRows(type, n);
 
-	Array<Entity> result(temp, n);
+	Array<Entity> result(tempAllocator);
+	result.Resize(n);
 	u32 i = 0;
 	for (; i < n && freeEntityObjIdx; i++) {
 		EntityObj* entityObj = &entityObjs[freeEntityObjIdx];
@@ -312,11 +315,11 @@ void DestroyEntities(Span<Entity> entities) {
 
 //--------------------------------------------------------------------------------------------------
 
-Component CreateComponent(s8 name, u32 size) {
+Component CreateComponent(Str name, u32 size) {
 	Assert(componentObjsLen < MaxComponents);
-	size = (u32)AlignUp(size, 8);
+	size = (u32)Bit::AlignUp(size, 8);
 	componentObjs[componentObjsLen++] = {
-		.name = Copy(perm, name),
+		.name = Copy(name, allocator),
 		.size = size,
 	};
 	return Component { .id = componentObjsLen - 1 };
@@ -402,7 +405,7 @@ Iter* RunQuery(Query query) {
 	Assert(query.id && query.id < queryObjsLen);
 	QueryObj* const queryObj = &queryObjs[query.id];
 
-	Iter* iter = temp->AllocT<Iter>(1);
+	Iter* iter = tempAllocator->AllocT<Iter>();
 	memcpy(iter->components, queryObj->components, queryObj->componentsLen * sizeof(ComponentId));
 	iter->componentsLen = queryObj->componentsLen;
 	iter->typeMask      = queryObj->typeMask; 
@@ -418,7 +421,7 @@ RowSet* Next(Iter* iter) {
 		u64* const bits = iter->typeMask.bits;
 		if (!bits[iter->idx]) { continue; }
 
-		if (const u32 bit = Bsf64(bits[iter->idx])) {
+		if (const u32 bit = Bit::Bsf64(bits[iter->idx])) {
 			bits[iter->idx] &= ~((u64)1 << bit);
 
 			const TypeId typeId = (iter->idx * 64) + bit;
@@ -445,11 +448,16 @@ struct B { u8 data[91]; };
 struct C { u8 data[1]; };
 
 UnitTest("Entity") {
-	Init(temp, temp);
+	Init();
 
 	const Component a = CreateComponent("A", sizeof(A));
 	const Component b = CreateComponent("B", sizeof(B));
 	const Component c = CreateComponent("C", sizeof(C));
+
+	Entity e = CreateEntities(1, {})[0];
+	AddComponent(e, a);
+	AddComponent(e, b);
+	AddComponent(e, c);
 
 	Span<Entity> e_a   = CreateEntities(1, { a,      });
 	Span<Entity> e_b   = CreateEntities(2, {    b    });
@@ -458,6 +466,12 @@ UnitTest("Entity") {
 	Span<Entity> e_ac  = CreateEntities(4, { a,    c });
 	Span<Entity> e_bc  = CreateEntities(1, {    b, c });
 	Span<Entity> e_abc = CreateEntities(3, { a, b, c });
+
+	Query q = CreateQuery({a, b});
+	Iter* i = RunQuery(q);
+	while (RowSet* rs = Next(i)) {
+		rs;
+	}
 
 	//Span<Entity> CreateEntities(u32 n, Span<Component> components);
 	//void         DestroyEntities(Span<Entity> entitys);

@@ -3,23 +3,18 @@
 #include "JC/Array.h"
 #include "JC/Fmt.h"
 
-namespace JC {
+namespace JC::Log {
 
 //--------------------------------------------------------------------------------------------------
 
-struct LogObj : Log {
+struct DefaultLogger : Logger {
 	static constexpr u32 MaxLogFns = 32;
 
-	Arena* temp              = 0;
-	LogFn* logFns[MaxLogFns] = {};
-	u32    logFnsLen         = 0;
+	Fn* fns[MaxLogFns] = {};
+	u32 fnsLen         = 0;
 
-	void Init(Arena* tempIn) override {
-		temp = tempIn;
-	}
-
-	void VPrint(SrcLoc sl, LogCategory category, s8 fmt, VArgs args) override {
-		Array<char> arr(temp);
+	void VPrint(SrcLoc sl, Level level, Str fmt, VArgs args) override {
+		Array<char> arr;
 		Fmt(
 			&arr,
 			"{}({}):{} ",

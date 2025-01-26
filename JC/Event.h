@@ -2,8 +2,6 @@
 
 #include "JC/Common.h"
 
-namespace JC { struct Log; }
-
 namespace JC::Event {
 
 //--------------------------------------------------------------------------------------------------
@@ -135,7 +133,7 @@ enum struct Key {
 	Max,
 };
 
-s8 KeyStr(Key k);
+Str KeyStr(Key k);
 
 struct WindowResizedEvent {
 	u32 width;
@@ -166,11 +164,11 @@ struct Event {
 	};
 };
 
-void        Init(Log* log);
+void        Init();
 void        Add(Event e);
 Span<Event> Get();
 void        Clear();
-s8          Str(Event e, Arena* arena);
+Str         EventStr(Event e);
 
 //--------------------------------------------------------------------------------------------------
 

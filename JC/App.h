@@ -4,14 +4,14 @@
 
 namespace JC {
 
-struct Log; 
+namespace Log { struct Logger; } 
 namespace Event { struct Event; }
 namespace Window { struct State; }
 
 //--------------------------------------------------------------------------------------------------
 
 struct App {
-	virtual Res<> Init(Arena* perm, Arena* temp, Log* log, const Window::State* windowState) = 0;
+	virtual Res<> Init(Allocator* allocator, TempAllocator* tempAllocator, Logger* logger, const Window::State* windowState) = 0;
 	virtual void  Shutdown() = 0;
 	virtual Res<> Events(Span<Event::Event> events) = 0;
 	virtual Res<> Update(double secs) = 0;

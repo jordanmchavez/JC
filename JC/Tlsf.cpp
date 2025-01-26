@@ -3,7 +3,7 @@
 #include "JC/Bit.h"
 #include "JC/UnitTest.h"
 
-namespace JC {
+namespace JC::TLSF {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -43,20 +43,24 @@ static constexpr u64 BlockSizeMax     = ((u64)1 << FirstMax) - 8;	// 1TB - 8 byt
 
 static_assert(AlignSize == SmallBlockSize / SecondCount);
 
+
 struct Index {
-	u32 f;
-	u32 s;
+	u32 f = 0;
+	u32 s = 0;
 };
 
-struct Ctx {
+struct Allocator : Mem::Allocator {
     Block  nullBlock                       = {};
     u64    first                           = 0;
     u64    second[FirstCount]              = {};
     Block* blocks[FirstCount][SecondCount] = {};
 	Chunk* chunks                          = 0;
+
+	void* Alloc() override {
+	}
+
+	voi
 };
-static_assert(sizeof(Ctx) % 8 == 0);
-static_assert(alignof(Ctx) == 8);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -67,7 +71,7 @@ static Index CalcIndex(u64 size) {
 			.s = (u32)size / (SmallBlockSize / SecondCount),
 		};
 	} else {
-		const u32 bit = Bsr64(size);
+		const u32 bit = Bit::Bsr64(size);
 		return Index {
 			.f = bit - FirstShift + 1,
 			.s = (u32)(size >> (bit - SecondCountLog2)) & (SecondCount - 1),
@@ -603,4 +607,4 @@ UnitTest("Tlsf") {
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC
+}	// namespace JC::TLSF
