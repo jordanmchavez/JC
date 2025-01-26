@@ -252,6 +252,21 @@ struct TempAllocator : Allocator {
 
 //--------------------------------------------------------------------------------------------------
 
+enum struct LogLevel {
+	Log,
+	Err,
+};
+
+struct Logger {
+	virtual               void VPrintf(SrcLoc sl, LogLevel level, Str          fmt, VArgs args) = 0;
+	template <class... A> void  Printf(SrcLoc sl, LogLevel level, FmtStr<A...> fmt, A...  args);
+};
+
+#define Logf(fmt, ...) logger->Printf(SrcLoc::Here(), LogLevel::Log, fmt, __VA_ARGS__)
+#define Errf(fmt, ...) logger->Printf(SrcLoc::Here(), LogLevel::Err, fmt, __VA_ARGS__)
+
+//--------------------------------------------------------------------------------------------------
+
 template <class T> struct Array;
 template <class K, class V> struct Map;
 

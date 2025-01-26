@@ -16,13 +16,14 @@ struct Logger {
 	template <class... A> void  Printf(SrcLoc sl, Level level, FmtStr<A...> fmt, A...  args) { VPrintf(sl, level, fmt, MakeVArgs(args...)); }
 };
 
+#define Logf(fmt, ...) logger->Printf(SrcLoc::Here(), Log::Level::Log, fmt, __VA_ARGS__)
+#define Errf(fmt, ...) logger->Printf(SrcLoc::Here(), Log::Level::Err, fmt, __VA_ARGS__)
+
 using Fn = void (const char* msg, u64 len);
 
 Logger* GetLogger();
 void AddFn(Fn fn);
 
-#define Logf(fmt, ...) logger->Printf(SrcLoc::Here(), Log::Level::Log, fmt, __VA_ARGS__)
-#define Errf(fmt, ...) logger->Printf(SrcLoc::Here(), Log::Level::Err, fmt, __VA_ARGS__)
 
 //--------------------------------------------------------------------------------------------------
 
