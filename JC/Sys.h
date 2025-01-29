@@ -1,14 +1,14 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
 namespace JC::Sys {
 
 //--------------------------------------------------------------------------------------------------
 
-void  Abort();
+void Abort();
 
-void  Print(Str msg);
+void Print(Str msg);
 
 #if defined Compiler_Msvc
 	#define Sys_DebuggerBreak() __debugbreak()
@@ -24,17 +24,6 @@ void* VirtualReserve(u64 size);
 void  VirtualCommit(void* p, u64 size);
 void  VirtualFree(void* p);
 void  VirtualDecommit(void* p, u64 size);
-
-struct Mutex {
-	#if defined Platform_Windows
-		u64 opaque = 0;
-	#endif	// Platform
-};
-
-void InitMutex(Mutex* mutex);
-void LockMutex(Mutex* mutex);
-void UnlockMutex(Mutex* mutex);
-void ShutdownMutex(Mutex* mutex);
 
 //--------------------------------------------------------------------------------------------------
 

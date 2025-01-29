@@ -1,4 +1,4 @@
-#include "JC/Common.h"
+#include "JC/Core.h"
 /*#include "JC/App.h"
 #include "JC/Array.h"
 #include "JC/Event.h"

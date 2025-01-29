@@ -1,20 +1,21 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
-namespace JC {
+namespace JC { template <class T> struct Array; }
+
+namespace JC::Fmt {
 
 //--------------------------------------------------------------------------------------------------
 
-inline void BadFmtStr_UnmatchedOpenBrace() {}
+inline void BadFmtStr_BadPlaceholderSpecOrUnmatchedOpenBrace() {}
 inline void BadFmtStr_NotEnoughArgs() {}
 inline void BadFmtStr_CloseBraceNotEscaped() {}
 inline void BadFmtStr_TooManyArgs() {}
-inline void BadFmtStr_BadPlaceholderSpec() {}
 
-consteval const char* CheckFmtSpec(const char* i, const char* end) {
+consteval const char* CheckFmtSpec(const char* i) {
 	bool flagsDone = false;
-	while (!flagsDone && i < end) {
+	while (!flagsDone) {
 		switch (*i) {
 			case '}': i++; return i;
 			case '<': i++; break;
@@ -24,16 +25,16 @@ consteval const char* CheckFmtSpec(const char* i, const char* end) {
 			default:       flagsDone = true; break;
 		}
 	}
-	while (i < end && *i >= '0' && *i <= '9') {
+	while (*i >= '0' && *i <= '9') {
 		i++;
 	}
-	if (i < end && *i == '.') {
+	if (*i == '.') {
 		i++;
-		while (i < end && *i >= '0' && *i <= '9') {
+		while (*i >= '0' && *i <= '9') {
 			i++;
 		}
 	}
-	if (i >= end) { BadFmtStr_BadPlaceholderSpec(); }
+	if (!*i) { BadFmtStr_BadPlaceholderSpecOrUnmatchedOpenBrace(); }
 
 	switch (*i) {
 		case 'x': i++; break;
@@ -43,27 +44,27 @@ consteval const char* CheckFmtSpec(const char* i, const char* end) {
 		case 'e': i++; break;
 		default:       break;
 	}
-	if (i >= end || *i != '}') { BadFmtStr_BadPlaceholderSpec(); }
+	if (*i != '}') { BadFmtStr_BadPlaceholderSpecOrUnmatchedOpenBrace(); }
 	i++;
 	return i;
 }
 
-consteval void CheckFmtStr(Str fmt, size_t argsLen) {
-	const char* i = fmt.data;
-	const char* const end = i + fmt.len;
+consteval void CheckFmtStr(const char* fmt, size_t argsLen) {
+	const char* i = fmt;
 	u32 nextArg = 0;
 
 	for (;;) {
-		if (i >= end) {
+		if (!*i) {
 			if (nextArg != argsLen) { BadFmtStr_TooManyArgs(); }
 			return;
-		} else if (*i == '{') {
+		}
+
+		if (*i == '{') {
 			i++;
-			if (i >= end) { BadFmtStr_UnmatchedOpenBrace(); }
 			if (*i == '{') {
 				i++;
 			} else {
-				i = CheckFmtSpec(i, end);
+				i = CheckFmtSpec(i);
 				if (nextArg >= argsLen) { BadFmtStr_NotEnoughArgs(); }
 				nextArg++;
 			}
@@ -71,21 +72,24 @@ consteval void CheckFmtStr(Str fmt, size_t argsLen) {
 			i++;
 		} else {
 			i++;
-			if (i >= end || *i != '}') { BadFmtStr_CloseBraceNotEscaped(); }
+			if (*i != '}') { BadFmtStr_CloseBraceNotEscaped(); }
 			i++;
 		}
 	}
 }
 
+template <class... A> struct _FmtStr {
+	const char* fmt;
+	consteval _FmtStr(const char* fmtIn) { CheckFmtStr(fmtIn, sizeof...(A)); fmt = fmtIn; }
+	operator const char*() const { return fmt; }
+};
+template <class... A> using FmtStr = _FmtStr<typename TypeIdentity<A>::Type...>;
+
 //--------------------------------------------------------------------------------------------------
 
-template <class... A> consteval _FmtStr<A...>::_FmtStr(Str         fmtIn) { CheckFmtStr(fmtIn, sizeof...(A)); fmt = fmtIn; }
-template <class... A> consteval _FmtStr<A...>::_FmtStr(const char* fmtIn) { CheckFmtStr(fmtIn, sizeof...(A)); fmt = fmtIn; }
-
-template <class... A> consteval _FmtStrSrcLoc<A...>::_FmtStrSrcLoc(Str         fmtIn, SrcLoc slIn) { CheckFmtStr(fmtIn, sizeof...(A)); fmt = fmtIn; sl = slIn; }
-template <class... A> consteval _FmtStrSrcLoc<A...>::_FmtStrSrcLoc(const char* fmtIn, SrcLoc slIn) { CheckFmtStr(fmtIn, sizeof...(A)); fmt = fmtIn; sl = slIn; }
-
-//--------------------------------------------------------------------------------------------------
+char* VFmt(char* outBegin, char* outEnd, const char* fmt, Span<Arg> args);
+void  VFmt(Array<char>* out,             const char* fmt, Span<Arg> args);
+Str   VFmt(Allocator* allocator,         const char* fmt, Span<Arg> args);
 
 template <class... A> char* Fmt(char* outBegin, char* outEnd, FmtStr<A...> fmt, A... args) { return VFmt(outBegin, outEnd, fmt.fmt, MakeVArgs(args...)); }
 template <class... A> void  Fmt(Array<char>* out,             FmtStr<A...> fmt, A... args) {        VFmt(out,              fmt.fmt, MakeVArgs(args...)); }
@@ -93,4 +97,4 @@ template <class... A> Str   Fmt(Allocator* allocator,         FmtStr<A...> fmt, 
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC
+}	// namespace JC::Fmt

@@ -2,14 +2,15 @@
 
 #include "JC/Common.h"
 
-namespace JC::Mem { struct Allocator; };
-
 namespace JC::TLSF {
 
 //--------------------------------------------------------------------------------------------------
 
-Mem::Allocator* CreateAllocator(void* ptr, u64 size);
-void            ExtendAllocator(Mem::Allocator* allocator, void* ptr, u64 size);
+struct Allocator : JC::Allocator {
+	virtual void AddMem(void* ptr, u64 size) = 0;
+};
+
+Allocator* Create(void* ptr, u64 size);
 
 //--------------------------------------------------------------------------------------------------
 

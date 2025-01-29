@@ -1,8 +1,6 @@
 #include "JC/UnitTest.h"
 
 #include "JC/Array.h"
-#include "JC/Fmt.h"
-#include "JC/Log.h"
 #include <stdio.h>
 
 namespace JC::UnitTest {
@@ -20,8 +18,8 @@ struct TestObj {
 
 enum struct State { Run, Pop, Done };
 
-static Mem::TempAllocator* tempAllocator;
-static Log::Logger*        logger;
+static TempAllocator*      tempAllocator;
+static Logger*             logger;
 static TestObj             tests[MaxTests];
 static u32                 testsLen;
 static Subtest::Sig        cur[MaxSubtests];
@@ -87,9 +85,9 @@ Subtest::~Subtest() {
 	}
 }
 
-bool Run() {
-	tempAllocator = context->tempAllocator;
-	logger        = context->logger;
+bool Run(TempAllocator* tempAllocatorIn, Logger* loggerIn) {
+	tempAllocator = tempAllocatorIn;
+	logger        = loggerIn;
 
 	u32 passedTests = 0;
 	u32 failedTests = 0;

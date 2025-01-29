@@ -1,4 +1,4 @@
-#include "JC/Common.h"
+#include "JC/Core.h"
 
 #include "JC/Sys.h"
 
@@ -14,7 +14,7 @@ PanicFn* SetPanicFn(PanicFn* newPanicFn) {
 	return oldPanicFn;
 }
 
-void VPanic(SrcLoc sl, Str expr, Str fmt, VArgs args) {
+void VPanic(const char* expr, const char* fmt, Span<Arg> args, SrcLoc sl) {
 	static bool recursive = false;
 	if (recursive) {
 		Sys::Abort();
@@ -22,7 +22,7 @@ void VPanic(SrcLoc sl, Str expr, Str fmt, VArgs args) {
 	recursive = true;
 
 	if (panicFn) {
-		panicFn(sl, expr, fmt, args);
+		panicFn(expr, fmt, args, sl);
 	} else {
 		if (Sys::IsDebuggerPresent()) {
 			Sys_DebuggerBreak();

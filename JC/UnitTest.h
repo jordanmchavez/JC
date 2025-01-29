@@ -35,7 +35,7 @@ template <class X, class Y> bool CheckSpanEq(SrcLoc sl, Str expr, Span<X> x, Spa
 	return true;
 }
 
-using TestFn = void();
+using TestFn = void([[maybe_unused]] Allocator* testAllocator);
 
 struct TestRegistrar {
 	TestRegistrar(Str name, SrcLoc sl, TestFn* fn);
@@ -56,9 +56,9 @@ struct Subtest {
 #define TestDebuggerBreak ([]() { Sys_DebuggerBreak(); return false; }())
 
 #define UnitTestImpl(name, fn, registrarVar) \
-	static void fn(); \
+	static void fn([[maybe_unused]] JC::Allocator* testAllocator); \
 	static UnitTest::TestRegistrar registrarVar = UnitTest::TestRegistrar(name, SrcLoc::Here(), fn); \
-	static void fn()
+	static void fn([[maybe_unused]] JC::Allocator* testAllocator)
 
 #define UnitTest(name) \
 	UnitTestImpl(name, MacroName(UnitTestFn_), MacroName(UnitTestRegistrar_))

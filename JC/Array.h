@@ -1,25 +1,25 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
 template <class T> struct Array {
-	Mem::Allocator* allocator = 0;
-	T*              data      = 0;
-	u64             len       = 0;
-	u64             cap       = 0;
+	Allocator* allocator = 0;
+	T*         data      = 0;
+	u64        len       = 0;
+	u64        cap       = 0;
 
-	Array(Mem::Allocator* allocatorIn) {
+	Array(Allocator* allocatorIn) {
 		allocator = allocatorIn;
 		data      = 0;
 		len       = 0;
 		cap       = 0;
 	}
 
-	void Init(Mem::Allocator* allocatorIn) {
+	void Init(Allocator* allocatorIn) {
 		allocator = allocatorIn;
 		data      = 0;
 		len       = 0;
@@ -150,7 +150,7 @@ template <class T> struct Array {
 	void Grow(u64 newCap, SrcLoc sl = SrcLoc::Here()) {
 		Assert(newCap > cap);
 		newCap = Max(Max((u64)16, newCap), cap * 2);
-		data = allocator->ReallocT(data, cap, newCap, sl);
+		data = allocator->ReallocT(data, newCap, sl);
 		cap = newCap;
 	}
 

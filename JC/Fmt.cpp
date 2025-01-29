@@ -1,4 +1,4 @@
-﻿#include "JC/Fmt.h"
+﻿#include "JC/Core.h"
 
 #include "JC/Array.h"
 #include "JC/UnitTest.h"
@@ -449,13 +449,13 @@ void VFmtImpl(Out out, Str fmt, VArgs args) {
 		const VArg* varg = &args.vargs[nextArg++];
 		switch (varg->type)
 		{
-			case VArgType::Bool: WriteStr(out, varg->b ? "true" : "false",     flags, width, prec); break;
-			case VArgType::Char: WriteStr(out, Str(&varg->c, 1),               flags, width, prec); break;
-			case VArgType::I64:  WriteI64(out, varg->i,                        flags, width);       break;													   
-			case VArgType::U64:  WriteU64(out, varg->u,                        flags, width);       break;													   
-			case VArgType::F64:  WriteF64(out, varg->f,                        flags, width, prec); break;
-			case VArgType::Str:  WriteStr(out, Str(varg->s.data, varg->s.len), flags, width, prec); break;
-			case VArgType::Ptr:  WritePtr(out, varg->p,                        flags, width);       break;
+			case ArgType::Bool: WriteStr(out, varg->b ? "true" : "false",     flags, width, prec); break;
+			case ArgType::Char: WriteStr(out, Str(&varg->c, 1),               flags, width, prec); break;
+			case ArgType::I64:  WriteI64(out, varg->i,                        flags, width);       break;													   
+			case ArgType::U64:  WriteU64(out, varg->u,                        flags, width);       break;													   
+			case ArgType::F64:  WriteF64(out, varg->f,                        flags, width, prec); break;
+			case ArgType::Str:  WriteStr(out, Str(varg->s.data, varg->s.len), flags, width, prec); break;
+			case ArgType::Ptr:  WritePtr(out, varg->p,                        flags, width);       break;
 			default: Panic("Unhandled varg type {}", varg->type);
 		}
 	}
@@ -473,7 +473,7 @@ void VFmt(Array<char>* out, Str fmt, VArgs args) {
 	VFmtImpl(out, fmt, args);
 }
 	
-Str VFmt(Mem::Allocator* allocator, Str fmt, VArgs args) {
+Str VFmt(Allocator* allocator, Str fmt, VArgs args) {
 	Array<char> out(allocator);
 	VFmtImpl(&out, fmt, args);
 	return Str(out.data, out.len);
@@ -482,7 +482,7 @@ Str VFmt(Mem::Allocator* allocator, Str fmt, VArgs args) {
 //--------------------------------------------------------------------------------------------------
 
 UnitTest("Fmt") {
-	#define CheckFmt(expect, fmt, ...) { CheckEq(expect, Fmt(context->tempAllocator, fmt, ##__VA_ARGS__)); }
+	#define CheckFmt(expect, fmt, ...) { CheckEq(expect, Fmt(testAllocator, fmt, ##__VA_ARGS__)); }
 
 	// Escape sequences
 	CheckFmt("{", "{{");

@@ -8,12 +8,6 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-Str Copy(Str s, Mem::Allocator* allocator, SrcLoc sl) {
-	return Str((const char*)allocator->Alloc(s.len, sl), s.len);
-}
-
-//--------------------------------------------------------------------------------------------------
-
 void Err::Init(SrcLoc sl, Str ns, Str code, Span<NamedArg> namedArgs) {
 	Assert(namedArgs.len <= MaxNamedArgs);
 
