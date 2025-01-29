@@ -18,7 +18,7 @@ UnitTest("Map") {
 		CheckEq(map.buckets[i].df, (u32)expectDf); \
 		CheckEq(map.elems[map.buckets[i].idx].key.key, (u64)expectKey)
 
-	Map<Key, u64> map(testArena);
+	Map<Key, u64> map(testAllocator);
 	CheckTrue(!map.Find(Key {0, 0}));
 
 	map.Put(Key {0, 0}, (u64)0);

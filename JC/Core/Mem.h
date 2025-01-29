@@ -1,6 +1,6 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
 namespace JC::Mem {
 
@@ -16,13 +16,15 @@ struct Allocator {
 	void* Realloc(void* ptr, u64 size, SrcLoc sl = SrcLoc::Here()) { return Alloc(ptr, size, 0, sl); }
 	void  Free   (void* ptr,           SrcLoc sl = SrcLoc::Here()) {        Alloc(ptr, 0,    0, sl); }
 
-	template <class T> T* AllocT  (        u64 n = 1, SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(0    n * sizeof(T), 0, sl); }
+	template <class T> T* AllocT  (        u64 n = 1, SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(0,   n * sizeof(T), 0, sl); }
 	template <class T> T* ReallocT(T* ptr, u64 n,     SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(ptr, n * sizeof(T), 0, sl); }
 };
 
+struct TempAllocator : Allocator {
+	virtual void Reset() = 0;
+};
 
-Allocator* CreateTrackingAllocator(Allocator* allocator);
-Allocator* CreateAllocator(u64 reserveSize);
+Allocator*     CreateAllocator(u64 reserveSize);
 TempAllocator* CreateTempAllocator(u64 reserveSize);
 
 //--------------------------------------------------------------------------------------------------

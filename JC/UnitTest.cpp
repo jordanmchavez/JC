@@ -1,7 +1,7 @@
 #include "JC/UnitTest.h"
 
 #include "JC/Array.h"
-#include <stdio.h>
+#include "JC/Log.h"
 
 namespace JC::UnitTest {
 
@@ -18,8 +18,8 @@ struct TestObj {
 
 enum struct State { Run, Pop, Done };
 
-static TempAllocator*      tempAllocator;
-static Logger*             logger;
+static Mem::TempAllocator* tempAllocator;
+static Log::Logger*        logger;
 static TestObj             tests[MaxTests];
 static u32                 testsLen;
 static Subtest::Sig        cur[MaxSubtests];
@@ -85,7 +85,7 @@ Subtest::~Subtest() {
 	}
 }
 
-bool Run(TempAllocator* tempAllocatorIn, Logger* loggerIn) {
+bool Run(Mem::TempAllocator* tempAllocatorIn, Log::Logger* loggerIn) {
 	tempAllocator = tempAllocatorIn;
 	logger        = loggerIn;
 
@@ -162,7 +162,7 @@ bool CheckSpanEqFail_Len(SrcLoc sl, Str expr, u64 xLen, u64 yLen) {
 	return false;
 }
 
-bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, u64 i, VArg x, VArg y) {
+bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, u64 i, Arg x, Arg y) {
 	Logf("***CHECK FAILED***");
 	Logf("{}({})", sl.file, sl.line);
 	Logf("  {}", expr);

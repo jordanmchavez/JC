@@ -1,27 +1,15 @@
-#include "JC/Common.h"
+#include "JC/Core.h"
 
 #include "JC/Array.h"
 #include "JC/Bit.h"
 #include "JC/Map.h"
 #include "JC/Sys.h"
 
-namespace JC {
+namespace JC::Mem {
 
 //--------------------------------------------------------------------------------------------------
 
-struct Trace {
-	SrcLoc sl     = {};
-	u64    bytes  = 0;
-	u32    allocs = 0;
-};
-
-static constexpr u64 AlignSize = 8;
-
-static Array<Trace>     traces;
-static Map<u64, u64>    slToTrace;
-static Map<void*, u64>  ptrToTrace;
-
-//--------------------------------------------------------------------------------------------------
+static constexpr u64 Align = 8;
 
 struct TempAllocatorObj : TempAllocator {
 	u8* begin      = 0;
@@ -124,4 +112,4 @@ void Arena::Reset(u64 mark) {
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC
+}	// namespace JC::Mem

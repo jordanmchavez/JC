@@ -114,24 +114,37 @@
     <ClInclude Include="3rd\vulkan\vk_platform.h" />
     <ClInclude Include="3rd\vulkan\vulkan_core.h" />
     <ClInclude Include="3rd\vulkan\vulkan_win32.h" />
+    <ClInclude Include="JC\Array.h" />
+    <ClInclude Include="JC\Bit.h" />
     <ClInclude Include="JC\Core.h" />
     <ClInclude Include="JC\Core\Arg.h" />
+    <ClInclude Include="JC\Core\Err.h" />
+    <ClInclude Include="JC\Core\FmtStr.h" />
+    <ClInclude Include="JC\Core\Res.h" />
     <ClInclude Include="JC\Fmt.h" />
     <ClInclude Include="JC\Core\Panic.h" />
     <ClInclude Include="JC\Core\Span.h" />
     <ClInclude Include="JC\Core\SrcLoc.h" />
     <ClInclude Include="JC\Core\Str.h" />
     <ClInclude Include="JC\Core\TypeTraits.h" />
+    <ClInclude Include="JC\Core\Mem.h" />
+    <ClInclude Include="JC\Log.h" />
+    <ClInclude Include="JC\Map.h" />
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Sys_Win.h" />
+    <ClInclude Include="JC\UnitTest.h" />
     <ClInclude Include="Notes\Scratch.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
+    <ClCompile Include="JC\Bit.cpp" />
     <ClCompile Include="JC\Core\Panic.cpp" />
+    <ClCompile Include="JC\Log.cpp" />
     <ClCompile Include="JC\Main.cpp" />
+    <ClCompile Include="JC\Map.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
+    <ClCompile Include="JC\UnitTest.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Notes\Game Notes.md" />

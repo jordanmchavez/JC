@@ -1,6 +1,6 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
 namespace JC::Log {
 
@@ -8,20 +8,20 @@ namespace JC::Log {
 
 enum struct Level {
 	Log,
-	Err,
+	Error,
 };
 
 struct Logger {
-	virtual               void VPrintf(SrcLoc sl, Level level, Str          fmt, VArgs args) = 0;
-	template <class... A> void  Printf(SrcLoc sl, Level level, FmtStr<A...> fmt, A...  args) { VPrintf(sl, level, fmt, MakeVArgs(args...)); }
+	virtual               void VPrintf(Level level, const char*       fmt, Span<Arg> args, SrcLoc sl) = 0;
+	template <class... A> void  Printf(Level level, Fmt::FmtStr<A...> fmt, A...      args, SrcLoc sl) { VPrintf(level, fmt, Span<Arg>({ MakeArg(args...), }), sl); }
 };
 
-#define Logf(fmt, ...) logger->Printf(SrcLoc::Here(), Log::Level::Log, fmt, __VA_ARGS__)
-#define Errf(fmt, ...) logger->Printf(SrcLoc::Here(), Log::Level::Err, fmt, __VA_ARGS__)
+#define Logf(fmt, ...)   logger->Printf(Log::Level::Log,   fmt, __VA_ARGS__, SrcLoc::Here())
+#define Errorf(fmt, ...) logger->Printf(Log::Level::Error, fmt, __VA_ARGS__, SrcLoc::Here())
 
 using Fn = void (const char* msg, u64 len);
 
-Logger* GetLogger();
+Logger* InitLogger(Mem::TempAllocator* tempAllocator);
 void AddFn(Fn fn);
 
 

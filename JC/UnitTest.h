@@ -1,26 +1,28 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 #include "JC/Sys.h"
+
+namespace JC::Log { struct Logger; }
 
 namespace JC::UnitTest {
 
 //--------------------------------------------------------------------------------------------------
 
-bool Run();
+bool Run(Mem::TempAllocator* tempAllocatorIn, Log::Logger* loggerIn);
 
 bool CheckFailImpl(SrcLoc sl);
 bool CheckExprFail(SrcLoc sl, Str expr);
-bool CheckRelFail(SrcLoc sl, Str expr, VArg x, VArg y);
+bool CheckRelFail(SrcLoc sl, Str expr, Arg x, Arg y);
 bool CheckSpanEqFail_Len(SrcLoc sl, Str expr, u64 xLen, u64 yLen);
-bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, u64 i, VArg x, VArg y);
+bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, u64 i, Arg x, Arg y);
 
 template <class X, class Y> bool CheckEq(SrcLoc sl, Str expr, X x, Y y) {
-	return (x == y) || CheckRelFail(sl, expr, MakeVArg(x), MakeVArg(y));
+	return (x == y) || CheckRelFail(sl, expr, MakeArg(x), MakeArg(y));
 }
 
 template <class X, class Y> bool CheckNeq(SrcLoc sl, Str expr, X x, Y y) {
-	return (x != y) || CheckRelFail(sl, expr, MakeVArg(x), MakeVArg(y));
+	return (x != y) || CheckRelFail(sl, expr, MakeArg(x), MakeArg(y));
 }
 
 template <class X, class Y> bool CheckSpanEq(SrcLoc sl, Str expr, Span<X> x, Span<Y> y) {
@@ -35,7 +37,7 @@ template <class X, class Y> bool CheckSpanEq(SrcLoc sl, Str expr, Span<X> x, Spa
 	return true;
 }
 
-using TestFn = void([[maybe_unused]] Allocator* testAllocator);
+using TestFn = void([[maybe_unused]] Mem::Allocator* testAllocator);
 
 struct TestRegistrar {
 	TestRegistrar(Str name, SrcLoc sl, TestFn* fn);
@@ -56,9 +58,9 @@ struct Subtest {
 #define TestDebuggerBreak ([]() { Sys_DebuggerBreak(); return false; }())
 
 #define UnitTestImpl(name, fn, registrarVar) \
-	static void fn([[maybe_unused]] JC::Allocator* testAllocator); \
+	static void fn([[maybe_unused]] JC::Mem::Allocator* testAllocator); \
 	static UnitTest::TestRegistrar registrarVar = UnitTest::TestRegistrar(name, SrcLoc::Here(), fn); \
-	static void fn([[maybe_unused]] JC::Allocator* testAllocator)
+	static void fn([[maybe_unused]] JC::Mem::Allocator* testAllocator)
 
 #define UnitTest(name) \
 	UnitTestImpl(name, MacroName(UnitTestFn_), MacroName(UnitTestRegistrar_))

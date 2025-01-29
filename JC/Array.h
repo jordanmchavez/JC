@@ -4,22 +4,24 @@
 
 namespace JC {
 
+namespace Log { struct Logger; }
+
 //--------------------------------------------------------------------------------------------------
 
 template <class T> struct Array {
-	Allocator* allocator = 0;
-	T*         data      = 0;
-	u64        len       = 0;
-	u64        cap       = 0;
+	Mem::Allocator* allocator = 0;
+	T*              data      = 0;
+	u64             len       = 0;
+	u64             cap       = 0;
 
-	Array(Allocator* allocatorIn) {
+	Array(Mem::Allocator* allocatorIn) {
 		allocator = allocatorIn;
 		data      = 0;
 		len       = 0;
 		cap       = 0;
 	}
 
-	void Init(Allocator* allocatorIn) {
+	void Init(Mem::Allocator* allocatorIn) {
 		allocator = allocatorIn;
 		data      = 0;
 		len       = 0;

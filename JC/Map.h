@@ -1,6 +1,6 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
 namespace JC {
 
@@ -28,11 +28,11 @@ template <class K, class V> struct Map {
 	u64             elemsCap        = 0;
 	u64             mask            = 16 - 1;
 
-	Map(Mem::Allocator* allocatorIn = context->allocator) {
+	Map(Mem::Allocator* allocatorIn) {
 		allocator = allocatorIn;
 	}
 
-	void Init(Mem::Allocator* allocatorIn = context->allocator) {
+	void Init(Mem::Allocator* allocatorIn) {
 		allocator = allocatorIn;
 	}
 
@@ -83,13 +83,13 @@ template <class K, class V> struct Map {
 			} else if (df > bucket->df) {
 				if (elemsLen >= elemsCap) {
 					u64 newCap = Max(16ull, elemsCap * 2u);
-					elems = allocator->ReallocT(elems, elemsCap, newCap, sl);
+					elems = allocator->ReallocT(elems, newCap, sl);
 					elemsCap = newCap;
 				}
 				elems[elemsLen++] = Elem { .key = k, .val = v };
 				if (elemsLen > (7 * (bucketsCap >> 3))) {	// max load factor = 7/8 = 87.5%
 					u64 newBucketsCap = bucketsCap << 1;
-					allocator->FreeT(buckets, bucketsCap);
+					allocator->Free(buckets);
 					buckets = allocator->AllocT<Bucket>(newBucketsCap);
 					memset(buckets, 0, newBucketsCap * sizeof(Bucket));
 					bucketsCap = newBucketsCap;
