@@ -8,11 +8,11 @@
 
 namespace JC::Render {
 
-static void Add(Array<char>* a, s8 s) { a->Add(s.data, s.len); }
+static void Add(Array<char>* a, Str s) { a->Add(s.data, s.len); }
 
 //--------------------------------------------------------------------------------------------------
 
-s8 ColorSpaceStr(VkColorSpaceKHR c) {
+Str ColorSpaceStr(VkColorSpaceKHR c) {
 	switch (c) {
 		case VK_COLOR_SPACE_SRGB_NONLINEAR_KHR: return "VK_COLOR_SPACE_SRGB_NONLINEAR_KHR";
 		case VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT: return "VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT";
@@ -35,7 +35,7 @@ s8 ColorSpaceStr(VkColorSpaceKHR c) {
 }
 //--------------------------------------------------------------------------------------------------
 
-s8 FormatStr(VkFormat f) {
+Str FormatStr(VkFormat f) {
 	switch (f) {
 		case VK_FORMAT_UNDEFINED: return "VK_FORMAT_UNDEFINED";
 		case VK_FORMAT_R4G4_UNORM_PACK8: return "VK_FORMAT_R4G4_UNORM_PACK8";
@@ -293,20 +293,20 @@ s8 FormatStr(VkFormat f) {
 
 //--------------------------------------------------------------------------------------------------
 
-s8 MemoryHeapFlagsStr(Arena* arena, VkMemoryHeapFlags f) {
-	Array<char> a(arena);
+Str MemoryHeapFlagsStr(Mem::Allocator* allocator, VkMemoryHeapFlags f) {
+	Array<char> a(allocator);
 	if (f & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)   { Add(&a, "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT|"); }
 	if (f & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT) { Add(&a, "VK_MEMORY_HEAP_MULTI_INSTANCE_BIT|"); }       
 	if (a.len > 0) {
 		a.len--;
 	}
-	return s8(a.data, a.len);
+	return Str(a.data, a.len);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-s8 MemoryPropertyFlagsStr(Arena* arena, VkMemoryPropertyFlags f) {
-	Array<char> a(arena);
+Str MemoryPropertyFlagsStr(Mem::Allocator* allocator, VkMemoryPropertyFlags f) {
+	Array<char> a(allocator);
 	if (f & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)        { Add(&a, "VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT|"); }
 	if (f & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)        { Add(&a, "VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|"); }       
 	if (f & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)       { Add(&a, "VK_MEMORY_PROPERTY_HOST_COHERENT_BIT|"); }
@@ -319,12 +319,12 @@ s8 MemoryPropertyFlagsStr(Arena* arena, VkMemoryPropertyFlags f) {
 	if (a.len > 0) {
 		a.len--;
 	}
-	return s8(a.data, a.len);
+	return Str(a.data, a.len);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-s8 PresentModeStr(VkPresentModeKHR m) {
+Str PresentModeStr(VkPresentModeKHR m) {
 	switch (m) {
 		case VK_PRESENT_MODE_IMMEDIATE_KHR: return "VK_PRESENT_MODE_IMMEDIATE_KHR";
 		case VK_PRESENT_MODE_MAILBOX_KHR: return "VK_PRESENT_MODE_MAILBOX_KHR";
@@ -338,8 +338,8 @@ s8 PresentModeStr(VkPresentModeKHR m) {
 
 //--------------------------------------------------------------------------------------------------
 
-s8 QueueFlagsStr(Arena* arena, VkQueueFlags f) {
-	Array<char> a(arena);
+Str QueueFlagsStr(Mem::Allocator* allocator, VkQueueFlags f) {
+	Array<char> a(allocator);
 	if (f & VK_QUEUE_GRAPHICS_BIT)         { Add(&a, "VK_QUEUE_GRAPHICS_BIT|"); }
 	if (f & VK_QUEUE_COMPUTE_BIT)          { Add(&a, "VK_QUEUE_COMPUTE_BIT|"); }
 	if (f & VK_QUEUE_TRANSFER_BIT)         { Add(&a, "VK_QUEUE_TRANSFER_BIT|"); }
@@ -351,12 +351,12 @@ s8 QueueFlagsStr(Arena* arena, VkQueueFlags f) {
 	if (a.len > 0) {
 		a.len--;
 	}
-	return s8(a.data, a.len);
+	return Str(a.data, a.len);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-s8 ResultStr(VkResult vkResult) {
+Str ResultStr(VkResult vkResult) {
 	switch (vkResult) {
 		case VK_SUCCESS: return "VK_SUCCESS";
 		case VK_NOT_READY: return "VK_NOT_READY";
@@ -414,7 +414,7 @@ s8 ResultStr(VkResult vkResult) {
 
 //--------------------------------------------------------------------------------------------------
 
-s8 PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
+Str PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
 	switch (v) {
 		case VK_PHYSICAL_DEVICE_TYPE_OTHER: return "VK_PHYSICAL_DEVICE_TYPE_OTHER";
 		case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: return "VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU";
@@ -427,23 +427,23 @@ s8 PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
 
 //--------------------------------------------------------------------------------------------------
 
-s8 VersionStr(Arena* arena, u32 v) {
-	return Fmt(arena, "{}.{}.{}", VK_API_VERSION_MAJOR(v), VK_API_VERSION_MINOR(v), VK_API_VERSION_PATCH(v));
+Str VersionStr(Mem::Allocator* allocator, u32 v) {
+	return Fmt::Printf(allocator, "{}.{}.{}", VK_API_VERSION_MAJOR(v), VK_API_VERSION_MINOR(v), VK_API_VERSION_PATCH(v));
 }
 
 //--------------------------------------------------------------------------------------------------
 
-s8 SizeStr(Arena* arena, u64 size) {
+Str SizeStr(Mem::Allocator* allocator, u64 size) {
 	if (size > 1024 * 1024 * 1024) {
-		return Fmt(arena, "{.1}gb", (f64)size / (1024.0 * 1024.0 * 1024.0));
+		return Fmt::Printf(allocator, "{.1}gb", (f64)size / (1024.0 * 1024.0 * 1024.0));
 	}
 	if (size > 1024 * 1024) {
-		return Fmt(arena, "{.1}mb", (f64)size / (1024.0 * 1024.0));
+		return Fmt::Printf(allocator, "{.1}mb", (f64)size / (1024.0 * 1024.0));
 	}
 	if (size > 1024) {
-		return Fmt(arena, "{.1}kb", (f64)size / 1024.0);
+		return Fmt::Printf(allocator, "{.1}kb", (f64)size / 1024.0);
 	}
-	return Fmt(arena, "{}", size);
+	return Fmt::Printf(allocator, "{}", size);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -723,7 +723,7 @@ u32 FormatSize(VkFormat vkFormat) {
 		case VK_FORMAT_A1B5G5R5_UNORM_PACK16_KHR:
 		case VK_FORMAT_A8_UNORM_KHR:
 		default:
-			Panic("Unhandled VkFormat {}", vkFormat);
+			Panic("Unhandled VkFormat", "vkformat", vkFormat);
 
 	}
 }
@@ -752,7 +752,7 @@ ImageFormat VkFormatToImageFormat(VkFormat vkFormat) {
 		case VK_FORMAT_B8G8R8A8_UNORM: return ImageFormat::B8G8R8A8_UNorm;
 		case VK_FORMAT_R8G8B8A8_UNORM: return ImageFormat::R8G8B8A8_UNorm;
 		case VK_FORMAT_D32_SFLOAT:     return ImageFormat::D32_Float;
-		default: Panic("Unhandled VkFormat {}", vkFormat);
+		default: Panic("Unhandled VkFormat", "vkformat", vkFormat);
 	}
 }
 
@@ -764,7 +764,7 @@ VkFormat ImageFormatToVkFormat(ImageFormat imageFormat) {
 		case ImageFormat::B8G8R8A8_UNorm: return VK_FORMAT_B8G8R8A8_UNORM;
 		case ImageFormat::R8G8B8A8_UNorm: return VK_FORMAT_R8G8B8A8_UNORM;
 		case ImageFormat::D32_Float :     return VK_FORMAT_D32_SFLOAT;
-		default: Panic("Unhandled ImageFormat {}", imageFormat);
+		default: Panic("Unhandled ImageFormat", "imageformat", imageFormat);
 	}
 }
 

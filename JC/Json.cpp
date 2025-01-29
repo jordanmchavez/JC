@@ -8,15 +8,6 @@ namespace JC::Json {
 
 //--------------------------------------------------------------------------------------------------
 
-template <class... A> struct Err_Barf : JC::Err::Error {
-	Err_Barf(A... args, SrcLoc sl = SrcLoc::Here()) {
-		NamedArg namedArgs[sizeof...(A) / 2 + 1];
-		BuildNamedArgs(namedArgs, args...);
-		Init("Json", "Barf", Span<NamedArg>(namedArgs, sizeof...(A) / 2), sl);
-	} \
-}; \
-template <class...A> Err_Barf(A...) -> Err_Barf<A...>
-
 DefErr(Json, WrongType);
 DefErr(Json, UnmatchedComment);
 DefErr(Json, Eof);
@@ -32,49 +23,49 @@ DefErr(Json, BadKey);
 
 //--------------------------------------------------------------------------------------------------
 
-static Elem AddI64(Arena* arena, u64 val) {
-	u64* ptr = (u64*)arena->Alloc(sizeof(val));
+static Elem AddI64(Mem::Allocator* allocator, u64 val) {
+	u64* ptr = (u64*)allocator->Alloc(sizeof(val));
 	*ptr = val;
 	return Elem { .handle = ((u64)ptr) | (u64)Type::I64 };
 }
 
-static Elem AddF64(Arena* arena, f64 val) {
-	f64* ptr = (f64*)arena->Alloc(sizeof(val));
+static Elem AddF64(Mem::Allocator* allocator, f64 val) {
+	f64* ptr = (f64*)allocator->Alloc(sizeof(val));
 	*ptr = val;
 	return Elem { .handle = ((u64)ptr) | (u64)Type::F64 };
 }
 
-static Elem AddS8(Arena* arena, s8 val) {
-	u64* ptr = (u64*)arena->Alloc(sizeof(val.len) + val.len);
+static Elem AddStr(Mem::Allocator* allocator, Str val) {
+	u64* ptr = (u64*)allocator->Alloc(sizeof(val.len) + val.len);
 	*ptr = val.len;
 	memcpy(ptr + 1, val.data, val.len);
-	return Elem { .handle = ((u64)ptr) | (u64)Type::S8 };
+	return Elem { .handle = ((u64)ptr) | (u64)Type::Str };
 }
 
-static Elem AddArr(Arena* arena, Span<Elem> elems) {
-	u64* ptr = (u64*)arena->Alloc(sizeof(u64) + (elems.len * sizeof(Elem)));
+static Elem AddArr(Mem::Allocator* allocator, Span<Elem> elems) {
+	u64* ptr = (u64*)allocator->Alloc(sizeof(u64) + (elems.len * sizeof(Elem)));
 	*ptr = elems.len;
 	memcpy(ptr + 1, elems.data, elems.len * sizeof(Elem));
 	return Elem { .handle = ((u64)ptr) | (u64)Type::Arr };
 }
 
-static Elem AddObj(Arena* arena, Span<KeyVal> keyVals) {
+static Elem AddObj(Mem::Allocator* allocator, Span<KeyVal> keyVals) {
 	u64 keysSize = 0;
 	for (u64 i = 0; i < keyVals.len; i++) {
 		keysSize += keyVals[i].key.len;
 	}
 
-	char* keysPtr = (char*)arena->Alloc(keysSize);
-	u64* ptr = (u64*)arena->Alloc(sizeof(u64) + (keyVals.len * sizeof(KeyVal)));
+	char* keysPtr = (char*)allocator->Alloc(keysSize);
+	u64* ptr = (u64*)allocator->Alloc(sizeof(u64) + (keyVals.len * sizeof(KeyVal)));
 	*ptr = keyVals.len;
 	KeyVal* keyValsPtr = (KeyVal*)(ptr + 1);
 	for (u64 i = 0; i < keyVals.len; i++) {
 		char* const keyPtr = keysPtr;
-		s8 key = keyVals[i].key;
+		Str key = keyVals[i].key;
 		memcpy(keyPtr, key.data, key.len);
 		keysPtr += key.len;
-		keyValsPtr->key = s8(keyPtr, key.len);
-		keyValsPtr->val  = keyVals[i].val;
+		keyValsPtr->key = Str(keyPtr, key.len);
+		keyValsPtr->val = keyVals[i].val;
 		keyValsPtr++;
 	}
 
@@ -144,23 +135,23 @@ static Res<> Expect(ParseCtx* p, char c) {
 }
 
 static Res<Elem> ParseTrue(ParseCtx* p) {
-	if (Res<> r = Expect(p, 't'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 'r'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 'u'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 'e'); !r) { return r.err; }
+	if (Res<> r = Expect(p, 't'); !r) { return r.error; }
+	if (Res<> r = Expect(p, 'r'); !r) { return r.error; }
+	if (Res<> r = Expect(p, 'u'); !r) { return r.error; }
+	if (Res<> r = Expect(p, 'e'); !r) { return r.error; }
 	return TrueElem;
 }
 
 static Res<Elem> ParseFalse(ParseCtx* p) {
-	if (Res<> r = Expect(p, 'f'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 'a'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 'l'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 's'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 'e'); !r) { return r.err; }
+	if (Res<> r = Expect(p, 'f'); !r) { return r.error; }
+	if (Res<> r = Expect(p, 'a'); !r) { return r.error; }
+	if (Res<> r = Expect(p, 'l'); !r) { return r.error; }
+	if (Res<> r = Expect(p, 's'); !r) { return r.error; }
+	if (Res<> r = Expect(p, 'e'); !r) { return r.error; }
 	return FalseElem;
 }
 
-static Res<Elem> ParseNum(Arena* arena, ParseCtx* p) {
+static Res<Elem> ParseNum(Mem::Allocator* allocator, ParseCtx* p) {
 	Assert(p->iter < p->end);
 
 	i64 sign = 1;
@@ -186,7 +177,7 @@ static Res<Elem> ParseNum(Arena* arena, ParseCtx* p) {
 	}
 
 	if (p->iter >= p->end || *p->iter != '.') {
-		return AddI64(arena, sign * intVal);
+		return AddI64(allocator, sign * intVal);
 	}
 
 	u64 fracVal = 0;
@@ -226,13 +217,13 @@ static Res<Elem> ParseNum(Arena* arena, ParseCtx* p) {
 		}
 	}
 
-	return AddF64(arena, (double)sign * ((double)intVal + ((double)fracVal / fracDenom)) * pow(10.0, expSign * (double)exp));
+	return AddF64(allocator, (double)sign * ((double)intVal + ((double)fracVal / fracDenom)) * pow(10.0, expSign * (double)exp));
 }
 
-static Res<s8> ParseStrRaw(Arena* temp, ParseCtx* p) {
+static Res<Str> ParseStrRaw(Mem::TempAllocator* tempAllocator, ParseCtx* p) {
 	const u32 openLine = p->line;
-	if (Res<> r = Expect(p, '"'); !r) { return r; }
-	Array<char> a(temp);
+	if (Res<> r = Expect(p, '"'); !r) { return r.error; }
+	Array<char> a(tempAllocator);
 
 	for (;;) {
 		if (p->iter >= p->end) { return Err_UnmatchedStringQuote("line", openLine); }
@@ -265,46 +256,46 @@ static Res<s8> ParseStrRaw(Arena* temp, ParseCtx* p) {
 
 	Assert(p->iter < p->end && *p->iter == '"');
 	p->iter++;
-	return s8(a.data, a.len);
+	return Str(a.data, a.len);
 }
 
-static Res<Elem> ParseStr(Arena* perm, Arena* temp, ParseCtx* p) {
-	s8 s = {};
-	if (Res<> r = ParseStrRaw(temp, p).To(s); !r) { return r; }
-	return AddS8(perm, s);
+static Res<Elem> ParseStr(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, ParseCtx* p) {
+	Str s = {};
+	if (Res<> r = ParseStrRaw(tempAllocator, p).To(s); !r) { return r.error; }
+	return AddStr(allocator, s);
 }
 
-static Res<Elem> ParseElem(Arena* perm, Arena* temp, ParseCtx* p);
+static Res<Elem> ParseElem(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, ParseCtx* p);
 
-static Res<Elem> ParseArr(Arena* perm, Arena* temp, ParseCtx* p) {
+static Res<Elem> ParseArr(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, ParseCtx* p) {
 	const u32 openLine = p->line;
-	if (Res<> r = Expect(p, '['); !r) { return r; }
+	if (Res<> r = Expect(p, '['); !r) { return r.error; }
 
-	Array<Elem> elems(temp);
+	Array<Elem> elems(tempAllocator);
 	for (;;) {
-		if (Res<> r = SkipWhitespace(p); !r) { return r; }
+		if (Res<> r = SkipWhitespace(p); !r) { return r.error; }
 		if (p->iter >= p->end) { return Err_UnmatchedArrayBracket("line", openLine); }
 		if (*p->iter == ']') { break; }
 
 		Elem e = {};
-		if (Res<> r = ParseElem(perm, temp, p).To(e); !r) { return r; }
+		if (Res<> r = ParseElem(allocator, tempAllocator, p).To(e); !r) { return r.error; }
 		elems.Add(e);
 		
-		if (Res<> r = SkipWhitespace(p); !r) { return r; }
+		if (Res<> r = SkipWhitespace(p); !r) { return r.error; }
 		if (p->iter >= p->end) { return Err_UnmatchedArrayBracket("line", openLine); }
 		if (*p->iter == ']') { break; }
-		if (Res<> r = Expect(p, ','); !r) { return r; }
+		if (Res<> r = Expect(p, ','); !r) { return r.error; }
 	}
 
 	Assert(p->iter < p->end && *p->iter == ']');
 	p->iter++;
-	return AddArr(perm, elems);
+	return AddArr(allocator, elems);
 }
 
-static Res<s8> ParseKey(Arena* temp, ParseCtx* p) {
+static Res<Str> ParseKey(Mem::TempAllocator* tempAllocator, ParseCtx* p) {
 	Assert(p->iter < p->end);
 	if (char c = *p->iter; c == '"') {
-		return ParseStrRaw(temp, p);
+		return ParseStrRaw(tempAllocator, p);
 		
 	} else if (
 		(c >= 'a' && c <= 'z') ||
@@ -327,49 +318,49 @@ static Res<s8> ParseKey(Arena* temp, ParseCtx* p) {
 				break;
 			}
 		}
-		return s8(begin, p->iter);
+		return Str(begin, p->iter);
 	} else {
 		return Err_BadKey("line", p->line, "ch", c);
 	}
 }
 
-static Res<Elem> ParseObj(Arena* perm, Arena* temp, ParseCtx* p) {
+static Res<Elem> ParseObj(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, ParseCtx* p) {
 	const u32 openLine = p->line;
-	if (Res<> r = Expect(p, '{'); !r) { return r; }
+	if (Res<> r = Expect(p, '{'); !r) { return r.error; }
 
-	Array<KeyVal> keyVals(temp);
+	Array<KeyVal> keyVals(tempAllocator);
 	for (;;) {
-		if (Res<> r = SkipWhitespace(p); !r) { return r; }
+		if (Res<> r = SkipWhitespace(p); !r) { return r.error; }
 		if (p->iter >= p->end) { return Err_UnmatchedObjectBrace("line", openLine); }
 		if (*p->iter == '}') { break; }
 
 		KeyVal kv = {};
-		if (Res<> r = ParseKey(temp, p).To(kv.key); !r) { return r; }
+		if (Res<> r = ParseKey(tempAllocator, p).To(kv.key); !r) { return r.error; }
 
-		if (Res<> r = SkipWhitespace(p); !r) { return r; }
+		if (Res<> r = SkipWhitespace(p); !r) { return r.error; }
 		if (p->iter >= p->end) { return Err_UnmatchedObjectBrace("line", openLine); }
 
-		if (Res<> r = Expect(p, ':'); !r) { return r; }
+		if (Res<> r = Expect(p, ':'); !r) { return r.error; }
 
-		if (Res<> r = SkipWhitespace(p); !r) { return r; }
+		if (Res<> r = SkipWhitespace(p); !r) { return r.error; }
 		if (p->iter >= p->end) { return Err_UnmatchedObjectBrace("line", openLine); }
 
-		if (Res<> r = ParseElem(perm, temp, p).To(kv.val); !r) { return r; }
+		if (Res<> r = ParseElem(allocator, tempAllocator, p).To(kv.val); !r) { return r.error; }
 
 		keyVals.Add(kv);
 		
-		if (Res<> r = SkipWhitespace(p); !r) { return r; }
+		if (Res<> r = SkipWhitespace(p); !r) { return r.error; }
 		if (p->iter >= p->end) { return Err_UnmatchedObjectBrace("line", openLine); }
 		if (*p->iter == '}') { break; }
-		if (Res<> r = Expect(p, ','); !r) { return r; }
+		if (Res<> r = Expect(p, ','); !r) { return r.error; }
 	}
 
 	Assert(p->iter < p->end && *p->iter == '}');
 	p->iter++;
-	return AddObj(perm, keyVals);
+	return AddObj(allocator, keyVals);
 }
 
-static Res<Elem> ParseElem(Arena* perm, Arena* temp, ParseCtx* p) {
+static Res<Elem> ParseElem(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, ParseCtx* p) {
 	Assert(p->iter < p->end);
 
 	switch (p->iter[0]) {
@@ -386,29 +377,29 @@ static Res<Elem> ParseElem(Arena* perm, Arena* temp, ParseCtx* p) {
 		case '7':
 		case '8':
 		case '9':
-		case '-': return ParseNum(perm, p);
+		case '-': return ParseNum(allocator, p);
 
-		case '"': return ParseStr(perm, temp, p);
+		case '"': return ParseStr(allocator, tempAllocator, p);
 		
-		case '[': return ParseArr(perm, temp, p);
+		case '[': return ParseArr(allocator, tempAllocator, p);
 
-		case '{': return ParseObj(perm, temp, p);
+		case '{': return ParseObj(allocator, tempAllocator, p);
 
 		default: return Err_BadChar("line", p->line, "ch", p->iter[0]);
 	}
 }
 
-Res<Elem> Parse(Arena* perm, Arena* temp, s8 str) {
+Res<Elem> Parse(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, Str str) {
 	ParseCtx p = {
 		.iter = str.data,
 		.end  = str.data + str.len,
 		.line = 1,
 	};
 
-	if (Res<> r = SkipWhitespace(&p); !r) { return r.err; }
+	if (Res<> r = SkipWhitespace(&p); !r) { return r.error; }
 	Elem elem = {};
-	if (Res<> r = ParseElem(perm, temp, &p).To(elem); !r) { return r; };
-	if (Res<> r = SkipWhitespace(&p); !r) { return r.err; }
+	if (Res<> r = ParseElem(allocator, tempAllocator, &p).To(elem); !r) { return r.error; };
+	if (Res<> r = SkipWhitespace(&p); !r) { return r.error; }
 	if (p.iter < p.end) {
 		return Err_BadChar("line", p.line, "ch", *p.iter);
 	}
@@ -448,11 +439,11 @@ Res<f64> GetF64(Elem elem) {
 	return *ptr;
 }
 
-Res<s8> GetS8(Elem elem) {
+Res<Str> GetStr(Elem elem) {
 	const Type type = (Type)(elem.handle & 0x7);
-	if (type != Type::S8) { return Err_WrongType("actualtype", type); }
+	if (type != Type::Str) { return Err_WrongType("actualtype", type); }
 	const u64* const ptr = (u64*)(elem.handle & ~0x7);
-	return s8((const char*)(ptr + 1), *ptr);
+	return Str((const char*)(ptr + 1), *ptr);
 }
 
 Res<Span<Elem>> GetArr(Elem elem) {
@@ -474,7 +465,7 @@ Res<Span<KeyVal>> GetObj(Elem elem) {
 UnitTest("Json") {
 	{
 		Elem e = {};
-		CheckTrue(Parse(testArena, testArena, "123").To(e));
+		CheckTrue(Parse(testAllocator, testAllocator, "123").To(e));
 		CheckEq(GetType(e), Type::I64);
 		i64 val = 0;
 		CheckTrue(GetI64(e).To(val));
@@ -483,15 +474,15 @@ UnitTest("Json") {
 
 	{
 		Elem e = {};
-		CheckTrue(Parse(testArena, testArena, "{ foo: \"hello\", \"foo bar\": 1.25 }").To(e));
+		CheckTrue(Parse(testAllocator, testAllocator, "{ foo: \"hello\", \"foo bar\": 1.25 }").To(e));
 		Span<KeyVal> keyVals = {};
 		CheckTrue(GetObj(e).To(keyVals));
 
 		CheckEq(keyVals.len, 2);
 		CheckEq(keyVals[0].key, "foo");
 
-		s8 s = {};
-		CheckTrue(GetS8(keyVals[0].val).To(s));
+		Str s = {};
+		CheckTrue(GetStr(keyVals[0].val).To(s));
 		CheckEq(s, "hello");
 
 		f64 f = {};

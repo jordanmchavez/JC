@@ -1,6 +1,6 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
 namespace JC {
 
@@ -13,20 +13,20 @@ template <class T, class H> struct HandleArray {
 		u32 idx = 0;
 	};
 
-	Arena* arena   = 0;
-	Entry* entries = 0;
-	u32    len     = 0;
-	u32    cap     = 0;
-	u32    gen     = 1;
-	u32    free    = 0;
+	Mem::Allocator* allocator = 0;
+	Entry*          entries   = 0;
+	u32             len       = 0;
+	u32             cap       = 0;
+	u32             gen       = 1;
+	u32             free      = 0;
 
-	void Init(Arena* arenaIn) {
-		arena   = arenaIn;
-		entries = arena->AllocT<Entry>(16);
-		len     = 1;	// rserve index 0 for invalid
-		cap     = 16;
-		gen     = 1;
-		free    = 0;
+	void Init(Mem::Allocator* allocatorIn) {
+		allocator = allocatorIn;
+		entries   = allocator->AllocT<Entry>(16);
+		len       = 1;	// rserve index 0 for invalid
+		cap       = 16;
+		gen       = 1;
+		free      = 0;
 	}
 
 	Entry* GetEntry(H h) {
@@ -52,11 +52,7 @@ template <class T, class H> struct HandleArray {
 		} else {
 			if (len >= cap) {
 				const u32 newCap = cap * 2;
-				if (!arena->ExtendT<Entry>(entries, cap, newCap, sl)) {
-					Entry* newEntries = arena->AllocT<Entry>(newCap, sl);
-					memcpy(newEntries, entries, len * sizeof(Entry));
-					entries = newEntries;
-				}
+				entries = allocator->ReallocT<Entry>(entries, cap, newCap, sl);
 				cap = newCap;
 			}
 			i = len;

@@ -9,7 +9,7 @@ namespace JC {
 [[noreturn]] void VPanic(const char* expr, const char* msg, Span<NamedArg> namedArgs, SrcLoc sl);
 
 template <class... A> [[noreturn]] void Panic(SrcLocWrapper<const char*> msgSl, A... args) {
-	NamedArg namedArgs[sizeof...(A) / 2 + 1];
+	NamedArg namedArgs[1 + sizeof...(A) / 2];
 	BuildNamedArgs(namedArgs, args...);
 	VPanic(0, msgSl.val, Span<NamedArg>(namedArgs, sizeof...(A) / 2), msgSl.sl);
 }
@@ -18,7 +18,7 @@ template <class... A> [[noreturn]] void Panic(SrcLocWrapper<const char*> msgSl, 
 	VPanic(expr, "",  Span<NamedArg>{}, sl);
 }
 template <class... A> [[noreturn]] void _AssertFail(const char* expr, const char* msg, A... args, SrcLoc sl) {
-	NamedArg namedArgs[sizeof...(A) / 2 + 1];
+	NamedArg namedArgs[1 + sizeof...(A) / 2];
 	BuildNamedArgs(namedArgs, args...);
 	VPanic(expr, msg, Span<NamedArg>(namedArgs, sizeof...(A) / 2), sl);
 }

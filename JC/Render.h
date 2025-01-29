@@ -1,10 +1,10 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
 namespace JC {
 
-struct Log;
+namespace Log { struct Logger; }
 namespace Window { struct PlatformDesc; }
 
 namespace Render {
@@ -19,9 +19,9 @@ enum struct SwapchainStatus {
 };
 
 struct InitDesc {
-	Arena*                      perm               = 0;
-	Arena*                      temp               = 0;
-	Log*                        log                = 0;
+	Mem::Allocator*             allocator          = 0;
+	Mem::TempAllocator*         tempAllocator      = 0;
+	Log::Logger*                logger             = 0;
 	u32                         width              = 0;
 	u32                         height             = 0;
 	const Window::PlatformDesc* windowPlatformDesc = {};

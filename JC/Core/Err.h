@@ -25,7 +25,7 @@ struct [[nodiscard]] Error {
 	Error() = default;
 
 	template <class...A> Error(Str ns, Str code, A... args, SrcLoc sl) {
-		NamedArg namedArgs[sizeof...(A) / 2 + 1];
+		NamedArg namedArgs[1 + sizeof...(A) / 2];
 		BuildNamedArgs(namedArgs, args...);
 		Init(ns, code, Span<NamedArg>(namedArgs, sizeof...(A) / 2), sl);
 	}
@@ -36,9 +36,9 @@ struct [[nodiscard]] Error {
 };
 
 #define DefErr(Ns, Code) \
-	struct Err_##Code : JC::Err::Error { \
-		template <class... A> Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) { \
-			NamedArg namedArgs[sizeof...(A) / 2 + 1]; \
+	template <class... A> struct Err_##Code : JC::Err::Error { \
+		Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) { \
+			NamedArg namedArgs[1 + sizeof...(A) / 2]; \
 			BuildNamedArgs(namedArgs, args...); \
 			Init(#Ns, #Code, Span<NamedArg>(namedArgs, sizeof...(A) / 2), sl); \
 		} \

@@ -4,8 +4,6 @@
 
 namespace JC {
 
-namespace Log { struct Logger; }
-
 //--------------------------------------------------------------------------------------------------
 
 template <class T> struct Array {

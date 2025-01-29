@@ -7,7 +7,6 @@
 #include "JC/Bit.h"
 #include "JC/Config.h"
 #include "JC/Fmt.h"
-#include "JC/FS.h"
 #include "JC/HandleArray.h"
 #include "JC/Log.h"
 #include "JC/Math.h"
@@ -197,9 +196,9 @@ struct StagingArena {
 	u8* end   = 0;
 };
 
-static Arena*                             perm;
-static Arena*                             temp;
-static Log*                               log;
+static JC::Mem::Allocator*                allocator;
+static JC::Mem::TempAllocator*            tempAllocator;
+static Log::Logger*                       logger;
 static Sys::Mutex                         mutex;
 static HandleArray<BufferObj, Buffer>     bufferObjs;
 static HandleArray<ImageObj, Image>       imageObjs;
@@ -236,7 +235,7 @@ static VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT 
 	if (data && data->pMessage) {
 		Sys::LockMutex(&mutex);
 		if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-			log->Error("{}", data->pMessage);
+			Errorf("{}", data->pMessage);
 			#if defined DebugBreakOnErr
 				if (Sys::IsDebuggerPresent()) {
 					Sys_DebuggerBreak();
@@ -245,7 +244,7 @@ static VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT 
 		} else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
 			//log->Error("{}", data->pMessage);
 		} else {
-			log->Print("{}", data->pMessage);
+			Logf("{}", data->pMessage);
 		}
 		Sys::UnlockMutex(&mutex);
 	}
@@ -264,7 +263,7 @@ static Res<> InitInstance() {
 	}
 
 	u32 n = 0;
-	Array<VkLayerProperties> layers(temp);
+	Array<VkLayerProperties> layers(tempAllocator);
 	CheckVk(vkEnumerateInstanceLayerProperties(&n, 0));
 	CheckVk(vkEnumerateInstanceLayerProperties(&n, layers.Resize(n)));
 	Logf("{} layers:", layers.len);
@@ -272,8 +271,8 @@ static Res<> InitInstance() {
 		Logf(
 			"  {}: implementationVersion={}, specVersion={}, description={}",
 			layers[i].layerName,
-			VersionStr(temp, layers[i].implementationVersion),
-			VersionStr(temp, layers[i].specVersion),
+			VersionStr(tempAllocator, layers[i].implementationVersion),
+			VersionStr(tempAllocator, layers[i].specVersion),
 			layers[i].description
 		);
 	}
@@ -298,13 +297,13 @@ static Res<> InitInstance() {
 		}
 	}
 	
-	Array<VkExtensionProperties> instExts(temp);
+	Array<VkExtensionProperties> instExts(tempAllocator);
 	CheckVk(vkEnumerateInstanceExtensionProperties(0, &n, 0));
 	CheckVk(vkEnumerateInstanceExtensionProperties(0, &n, instExts.Resize(n)));
 
 	Logf("{} instance extensions:", instExts.len);
 	for (u64 i = 0; i < instExts.len; i++) {
-		Logf("  {}: specVersion={}", instExts[i].extensionName, VersionStr(temp, instExts[i].specVersion));
+		Logf("  {}: specVersion={}", instExts[i].extensionName, VersionStr(tempAllocator, instExts[i].specVersion));
 	}
 
 	constexpr const char* RequiredInstExts[] = {
@@ -416,7 +415,7 @@ static Res<> InitDevice() {
 	};
 
 	u32 n = 0;
-	Array<VkPhysicalDevice> vkPhysicalDevices(temp);
+	Array<VkPhysicalDevice> vkPhysicalDevices(tempAllocator);
 	CheckVk(vkEnumeratePhysicalDevices(vkInstance, &n, nullptr));
 	CheckVk(vkEnumeratePhysicalDevices(vkInstance, &n, vkPhysicalDevices.Resize(n)));
 
@@ -433,8 +432,8 @@ static Res<> InitDevice() {
 		Logf(
 			"{}: apiVersion={}, driverVersion={}, vendorID={}, deviceId={}, deviceType={}",
 			pd->vkPhysicalDeviceProperties.deviceName,
-			VersionStr(temp, pd->vkPhysicalDeviceProperties.apiVersion),
-			VersionStr(temp, pd->vkPhysicalDeviceProperties.driverVersion),
+			VersionStr(tempAllocator, pd->vkPhysicalDeviceProperties.apiVersion),
+			VersionStr(tempAllocator, pd->vkPhysicalDeviceProperties.driverVersion),
 			pd->vkPhysicalDeviceProperties.vendorID,
 			pd->vkPhysicalDeviceProperties.deviceID,
 			PhysicalDeviceTypeStr(pd->vkPhysicalDeviceProperties.deviceType)
@@ -447,7 +446,7 @@ static Res<> InitDevice() {
 			case VK_PHYSICAL_DEVICE_TYPE_OTHER:          pd->score +=    1; break;
 		};
 		if (pd->vkPhysicalDeviceProperties.apiVersion < VK_API_VERSION_1_3) {
-			Logf("  Rejecting device: need Vulkan 1.3: apiVersion={}", VersionStr(temp, pd->vkPhysicalDeviceProperties.apiVersion));
+			Logf("  Rejecting device: need Vulkan 1.3: apiVersion={}", VersionStr(tempAllocator, pd->vkPhysicalDeviceProperties.apiVersion));
 			pd->score = 0;
 		}
 
@@ -481,30 +480,30 @@ static Res<> InitDevice() {
 		Logf("  {} memory types:", pd->vkPhysicalDeviceMemoryProperties.memoryTypeCount);
 		for (u64 j = 0; j < pd->vkPhysicalDeviceMemoryProperties.memoryTypeCount; j++) {
 			const VkMemoryType mt = pd->vkPhysicalDeviceMemoryProperties.memoryTypes[j];
-			Logf("    [{}] heapIndex={}, flags={}", j, mt.heapIndex, MemoryPropertyFlagsStr(temp, mt.propertyFlags));
+			Logf("    [{}] heapIndex={}, flags={}", j, mt.heapIndex, MemoryPropertyFlagsStr(tempAllocator, mt.propertyFlags));
 		}
 		Logf("  {} memory heaps:", pd->vkPhysicalDeviceMemoryProperties.memoryHeapCount);
 		for (u64 j = 0; j < pd->vkPhysicalDeviceMemoryProperties.memoryHeapCount; j++) {
 			const VkMemoryHeap mh = pd->vkPhysicalDeviceMemoryProperties.memoryHeaps[j];
-			Logf("    [{}] size={}, flags={}", j, SizeStr(temp, mh.size), MemoryHeapFlagsStr(temp, mh.flags));
+			Logf("    [{}] size={}, flags={}", j, SizeStr(tempAllocator, mh.size), MemoryHeapFlagsStr(tempAllocator, mh.flags));
 		}
 
-		Array<VkQueueFamilyProperties> vkQueueFamilyProperties(temp);
+		Array<VkQueueFamilyProperties> vkQueueFamilyProperties(tempAllocator);
 		vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, &n, nullptr);
 		vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, &n, vkQueueFamilyProperties.Resize(n));
 
-		pd->vkExtensionProperties.Init(perm);
+		pd->vkExtensionProperties.Init(allocator);
 		CheckVk(vkEnumerateDeviceExtensionProperties(pd->vkPhysicalDevice, 0, &n, 0));
 		CheckVk(vkEnumerateDeviceExtensionProperties(pd->vkPhysicalDevice, 0, &n, pd->vkExtensionProperties.Resize(n)));
 
-		Array<char> extensionsStr(temp);
+		Array<char> extensionsStr(tempAllocator);
 		for (u64 j = 0; j < pd->vkExtensionProperties.len; j++) {
-			Fmt(&extensionsStr, "{}(specVersion={}), ", pd->vkExtensionProperties[j].extensionName, VersionStr(temp, pd->vkExtensionProperties[j].specVersion));
+			Fmt::Printf(&extensionsStr, "{}(specVersion={}), ", pd->vkExtensionProperties[j].extensionName, VersionStr(tempAllocator, pd->vkExtensionProperties[j].specVersion));
 		}
 		if (extensionsStr.len >= 2) {
 			extensionsStr.len -= 2;
 		}
-		Logf("  {} device extensions: {}",  pd->vkExtensionProperties.len, s8(extensionsStr.data, extensionsStr.len));
+		Logf("  {} device extensions: {}",  pd->vkExtensionProperties.len, Str(extensionsStr.data, extensionsStr.len));
 		for (u64 j = 0; j < LenOf(RequiredDeviceExts); j++) {
 			bool found = false;
 			for (u64 k = 0; k < pd->vkExtensionProperties.len; k++) {
@@ -519,7 +518,7 @@ static Res<> InitDevice() {
 			}
 		}
 
-		pd->vkSurfaceFormats.Init(perm);
+		pd->vkSurfaceFormats.Init(allocator);
 		CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(pd->vkPhysicalDevice, vkSurface, &n, 0));
 		CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(pd->vkPhysicalDevice, vkSurface, &n, pd->vkSurfaceFormats.Resize(n)));
 		for (u64 j = 0; j < pd->vkSurfaceFormats.len; j++) {
@@ -544,7 +543,7 @@ static Res<> InitDevice() {
 		}
 		Logf("  Selected surface format: {}/{}", FormatStr(pd->vkSwapchainFormat), ColorSpaceStr(pd->vkSwapchainColorSpace));
 
-		pd->vkPresentModes.Init(perm);
+		pd->vkPresentModes.Init(allocator);
 		CheckVk(vkGetPhysicalDeviceSurfacePresentModesKHR(pd->vkPhysicalDevice, vkSurface, &n, 0));
 		CheckVk(vkGetPhysicalDeviceSurfacePresentModesKHR(pd->vkPhysicalDevice, vkSurface, &n, pd->vkPresentModes.Resize(n)));
 		Logf("  {} present modes:", pd->vkPresentModes.len);
@@ -552,7 +551,7 @@ static Res<> InitDevice() {
 			Logf("    {}", PresentModeStr(pd->vkPresentModes[j]));
 		}
 
-		pd->queueFamilies.Init(perm);
+		pd->queueFamilies.Init(allocator);
 		pd->queueFamilies.Resize(vkQueueFamilyProperties.len);
 		Logf("  {} queue families:", pd->queueFamilies.len);
 		for (u64 j = 0; j < pd->queueFamilies.len; j++) {
@@ -561,7 +560,7 @@ static Res<> InitDevice() {
 			CheckVk(vkGetPhysicalDeviceSurfaceSupportKHR(pd->vkPhysicalDevice, (u32)j, vkSurface, &supportsPresent));
 			pd->queueFamilies[j].vkQueueFamilyProperties = vkQueueFamilyProperties[j];
 			pd->queueFamilies[j].supportsPresent         = (supportsPresent == VK_TRUE);
-			Logf("    [{}] count={}, flags={}, supportsPresent={}", j, props->queueCount, QueueFlagsStr(temp, props->queueFlags), pd->queueFamilies[j].supportsPresent);
+			Logf("    [{}] count={}, flags={}, supportsPresent={}", j, props->queueCount, QueueFlagsStr(tempAllocator, props->queueFlags), pd->queueFamilies[j].supportsPresent);
 			const VkQueueFlags flags = pd->queueFamilies[j].vkQueueFamilyProperties.queueFlags;
 			if (pd->queueFamily == VK_QUEUE_FAMILY_IGNORED && (flags & VK_QUEUE_GRAPHICS_BIT) && pd->queueFamilies[j].supportsPresent) {
 				pd->queueFamily = (u32)j;
@@ -702,7 +701,7 @@ static Res<> InitSwapchain(u32 width, u32 height) {
 
 	u32 n = 0;
 	CheckVk(vkGetSwapchainImagesKHR(vkDevice, vkSwapchain, &n, 0));
-	VkImage* const vkSwapchainImages = temp->AllocT<VkImage>(n);
+	VkImage* const vkSwapchainImages = tempAllocator->AllocT<VkImage>(n);
 	CheckVk(vkGetSwapchainImagesKHR(vkDevice, vkSwapchain, &n, vkSwapchainImages));
 
 	swapchainImages.Resize(n);
@@ -991,7 +990,7 @@ static Res<BufferObj> CreateBufferInternal(
 	Mem mem = {};
 	if (Res<> r = AllocateMem(vkMemoryRequirements, vkMemoryPropertyFlags, vkMemoryAllocateFlags).To(mem); !r) {
 		vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
-		return r.err;
+		return r.error;
 	}
 
 	if (const VkResult r = vkBindBufferMemory(vkDevice, vkBuffer, mem.vkDeviceMemory, 0); r != VK_SUCCESS) {
@@ -1061,20 +1060,20 @@ static Res<> BeginCmds() {
 //-------------------------------------------------------------------------------------------------
 
 Res<> Init(const InitDesc* initDesc) {
-	perm = initDesc->perm;
-	temp = initDesc->temp;
-	log  = initDesc->log;
+	allocator     = initDesc->allocator;
+	tempAllocator = initDesc->tempAllocator;
+	logger        = initDesc->logger;
 
-	bufferObjs.Init(perm);
-	imageObjs.Init(perm);
-	shaderObjs.Init(perm);
-	pipelineObjs.Init(perm);
-	physicalDevices.Init(perm);
-	swapchainImages.Init(perm);
-	vkFrameAcquireImageSemaphores.Init(perm, MaxFrames);
-	vkFrameRenderSemaphores.Init(perm, MaxFrames);
-	vkFrameFences.Init(perm, MaxFrames);
-	vkFrameCommandBuffers.Init(perm, MaxFrames);
+	bufferObjs.Init(allocator);
+	imageObjs.Init(allocator);
+	shaderObjs.Init(allocator);
+	pipelineObjs.Init(allocator);
+	physicalDevices.Init(allocator);
+	swapchainImages.Init(allocator);
+	vkFrameAcquireImageSemaphores.Init(allocator); vkFrameAcquireImageSemaphores.Resize(MaxFrames);
+	vkFrameRenderSemaphores.Init(allocator);       vkFrameRenderSemaphores.Resize(MaxFrames);
+	vkFrameFences.Init(allocator);                 vkFrameFences.Resize(MaxFrames);
+	vkFrameCommandBuffers.Init(allocator);         vkFrameCommandBuffers.Resize(MaxFrames);
 
 	LoadRootFns();
 	if (Res<> r = InitInstance();                                   !r) { return r; }
@@ -1200,7 +1199,7 @@ Res<Buffer> CreateBuffer(u64 size, BufferUsage usage) {
 		vkMemoryAllocateFlags
 	).To(*bufferObj); !r) {
 		bufferObjs.Free(buffer);
-		return r.err;
+		return r.error;
 	}
 
 	return buffer;
@@ -1276,7 +1275,7 @@ Res<Image> CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usa
 	Mem mem = {};
 	if (Res<> r = AllocateMem(vkMemoryRequirements, vkMemoryPropertyFlags, 0).To(mem); !r) {
 		vkDestroyImage(vkDevice, vkImage, vkAllocationCallbacks);
-		return r.err;
+		return r.error;
 	}
 		
 	if (const VkResult r = vkBindImageMemory(vkDevice, vkImage, mem.vkDeviceMemory, 0); r != VK_SUCCESS) {
@@ -1450,7 +1449,7 @@ Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> col
 
 	VkShaderStageFlags vkShaderStageFlags = 0;
 	VkPushConstantRange vkPushConstantRange = {};
-	VkPipelineShaderStageCreateInfo* const vkPipelineShaderStageCreateInfos = temp->AllocT<VkPipelineShaderStageCreateInfo>(shaders.len);
+	VkPipelineShaderStageCreateInfo* const vkPipelineShaderStageCreateInfos = tempAllocator->AllocT<VkPipelineShaderStageCreateInfo>(shaders.len);
 	for (u64 i = 0; i < shaders.len; i++) {
 		ShaderObj* const shaderObj = shaderObjs.Get(shaders[i]);
 
@@ -1602,7 +1601,7 @@ Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> col
 		.colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
 	};
 
-	VkPipelineColorBlendAttachmentState* const vkPipelineColorBlendAttachmentStates = temp->AllocT<VkPipelineColorBlendAttachmentState>(colorAttachmentFormats.len);
+	VkPipelineColorBlendAttachmentState* const vkPipelineColorBlendAttachmentStates = tempAllocator->AllocT<VkPipelineColorBlendAttachmentState>(colorAttachmentFormats.len);
 	for (u64 i = 0; i < colorAttachmentFormats.len; i++) {
 		vkPipelineColorBlendAttachmentStates[i] = {
 			.blendEnable         = VK_FALSE,
@@ -1633,7 +1632,7 @@ Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> col
 		.dynamicStateCount = (u32)LenOf(vkDynamicStates),
 		.pDynamicStates    = vkDynamicStates,
 	};
-	VkFormat* const vkColorAttachmentFormats = temp->AllocT<VkFormat>(colorAttachmentFormats.len);
+	VkFormat* const vkColorAttachmentFormats = tempAllocator->AllocT<VkFormat>(colorAttachmentFormats.len);
 	for (u64 i = 0; i < colorAttachmentFormats.len; i++) {
 		vkColorAttachmentFormats[i] = ImageFormatToVkFormat(colorAttachmentFormats[i]);
 	}
@@ -1927,7 +1926,7 @@ Res<SwapchainStatus> EndFrame() {
 	stagingArenas[frameIdx].used = stagingArenas[frameIdx].begin;
 
 	if (Res<> r = BeginCmds(); !r) {
-		return r.err;
+		return r.error;
 	}
 
 	return SwapchainStatus::Ok;
@@ -1936,7 +1935,7 @@ Res<SwapchainStatus> EndFrame() {
 //-------------------------------------------------------------------------------------------------
 
 void BeginPass(const Pass* pass) {
-	VkRenderingAttachmentInfo* const vkColorRenderingAttachmentInfos = temp->AllocT<VkRenderingAttachmentInfo>(pass->colorAttachments.len);
+	VkRenderingAttachmentInfo* const vkColorRenderingAttachmentInfos = tempAllocator->AllocT<VkRenderingAttachmentInfo>(pass->colorAttachments.len);
 	for (u64 i = 0; i < pass->colorAttachments.len; i++) {
 		ImageObj* const imageObj = imageObjs.Get(pass->colorAttachments[i]);
 		vkColorRenderingAttachmentInfos[i] = {

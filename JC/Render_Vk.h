@@ -1,6 +1,6 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
 #define VK_NO_PROTOTYPES
 #include "vulkan/vulkan_core.h"
@@ -20,11 +20,13 @@ namespace JC::Render {
 
 //--------------------------------------------------------------------------------------------------
 
-template <class... A> struct [[nodiscard]] Err_Vk : JC::Err {
-	static_assert(sizeof...(A) % 2 == 0);
-	Err_Vk(VkResult vkResult, s8 fn, A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, "Vk", "", (i64)vkResult, "fn", fn, args...) {}
+template <class... A> struct [[nodiscard]] Err_Vk : JC::Err::Error {
+	Err_Vk(VkResult vkResult, Str fn, A... args, SrcLoc sl = SrcLoc::Here()) {
+		NamedArg namedArgs[1 + sizeof...(A) / 2];	// includes "fn"
+		BuildNamedArgs(namedArgs, "fn", fn, args...);
+		Init("Vk", code, Span<NamedArg>(namedArgs, 1 + sizeof...(A) / 2), sl);
 };
-template <typename... A> Err_Vk(s8, VkResult, A...) -> Err_Vk<A...>;
+template <typename... A> Err_Vk(Str, VkResult, A...) -> Err_Vk<A...>;
 
 #define CheckVk(expr) { \
 	if (const VkResult r = expr; r != VK_SUCCESS) { \
@@ -39,16 +41,16 @@ void  LoadInstanceFns(VkInstance vkInstance);
 void  LoadDeviceFns(VkDevice vkDevice);
 void  FreeFns();
 
-s8 ColorSpaceStr(VkColorSpaceKHR c);
-s8 FormatStr(VkFormat f);
-s8 MemoryHeapFlagsStr(Arena* arena, VkMemoryHeapFlags f);
-s8 MemoryPropertyFlagsStr(Arena* arena, VkMemoryPropertyFlags f);
-s8 QueueFlagsStr(Arena* arena, VkQueueFlags f);
-s8 PresentModeStr(VkPresentModeKHR m);
-s8 ResultStr(VkResult r);
-s8 PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
-s8 VersionStr(Arena* arena, u32 v);
-s8 SizeStr(Arena* arena, u64 size);
+Str ColorSpaceStr(VkColorSpaceKHR c);
+Str FormatStr(VkFormat f);
+Str MemoryHeapFlagsStr(Mem::Allocator* allocator, VkMemoryHeapFlags f);
+Str MemoryPropertyFlagsStr(Mem::Allocator* allocator, VkMemoryPropertyFlags f);
+Str QueueFlagsStr(Mem::Allocator* allocator, VkQueueFlags f);
+Str PresentModeStr(VkPresentModeKHR m);
+Str ResultStr(VkResult r);
+Str PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
+Str VersionStr(Mem::Allocator* allocator, u32 v);
+Str SizeStr(Mem::Allocator* allocator, u64 size);
 u32 FormatSize(VkFormat vkFormat);
 bool IsDepthFormat(VkFormat vkFormat);
 

@@ -1,11 +1,8 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
-namespace JC {
-	struct Log;
-	namespace Event { struct Api; }
-}
+namespace JC::Log { struct Logger; };
 
 namespace JC::Window {
 
@@ -46,13 +43,13 @@ struct State {
 };
 
 struct InitDesc {
-	Arena* temp       = 0;
-	Log*   log        = 0;
-	s8     title      = {};
-	Style  style      = {};
-	u32    width      = 0;
-	u32    height     = 0;
-	u32    displayIdx = 0;
+	Mem::TempAllocator* tempAllocator = 0;
+	Log::Logger*        logger        = 0;
+	Str                 title         = {};
+	Style               style         = {};
+	u32                 width         = 0;
+	u32                 height        = 0;
+	u32                 displayIdx    = 0;
 };
 
 struct PlatformDesc {
