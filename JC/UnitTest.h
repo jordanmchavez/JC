@@ -31,13 +31,13 @@ template <class X, class Y> bool CheckSpanEq(SrcLoc sl, Str expr, Span<X> x, Spa
 	}
 	for (u64 i = 0; i < x.len; i++) {
 		if (x[i] != y[i]) {
-			return CheckSpanEqFail_Elem(sl, expr, i, MakeVArg(x[i]), MakeVArg(y[i]));
+			return CheckSpanEqFail_Elem(sl, expr, i, MakeArg(x[i]), MakeArg(y[i]));
 		}
 	}
 	return true;
 }
 
-using TestFn = void([[maybe_unused]] Mem::Allocator* testAllocator);
+using TestFn = void([[maybe_unused]] Mem::TempAllocator* testAllocator);
 
 struct TestRegistrar {
 	TestRegistrar(Str name, SrcLoc sl, TestFn* fn);
@@ -58,9 +58,9 @@ struct Subtest {
 #define TestDebuggerBreak ([]() { Sys_DebuggerBreak(); return false; }())
 
 #define UnitTestImpl(name, fn, registrarVar) \
-	static void fn([[maybe_unused]] JC::Mem::Allocator* testAllocator); \
+	static void fn([[maybe_unused]] JC::Mem::TempAllocator* testAllocator); \
 	static UnitTest::TestRegistrar registrarVar = UnitTest::TestRegistrar(name, SrcLoc::Here(), fn); \
-	static void fn([[maybe_unused]] JC::Mem::Allocator* testAllocator)
+	static void fn([[maybe_unused]] JC::Mem::TempAllocator* testAllocator)
 
 #define UnitTest(name) \
 	UnitTestImpl(name, MacroName(UnitTestFn_), MacroName(UnitTestRegistrar_))

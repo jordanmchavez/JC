@@ -3,12 +3,12 @@
 #include "JC/Array.h"
 #include "JC/UnitTest.h"
 
-namespace JC {
+namespace JC::Unicode {
 
 //--------------------------------------------------------------------------------------------------
 
 Str16z Utf8ToWtf16z(Mem::Allocator* allocator, Str s) {
-	Array<wchar_t> out(arena);
+	Array<wchar_t> out(allocator);
 
 	const u8* p = (const u8*)s.data;
 	const u8* end = p + s.len;
@@ -90,7 +90,7 @@ Str16z Utf8ToWtf16z(Mem::Allocator* allocator, Str s) {
 
 #define CheckUtf8ToWtf16z(from8, to16z) \
 	{ \
-		CheckTrue(Utf8ToWtf16z(testArena, from8) == to16z); \
+		CheckTrue(Utf8ToWtf16z(testAllocator, from8) == to16z); \
 	}
 
 UnitTest("Utf8ToWtf16z") {
@@ -159,8 +159,8 @@ UnitTest("Utf8ToWtf16z") {
 
 //--------------------------------------------------------------------------------------------------
 
-s8 Wtf16zToUtf8(Arena* arena, Str16z s) {
-	Array<char> out(arena);
+Str Wtf16zToUtf8(Mem::Allocator* allocator, Str16z s) {
+	Array<char> out(allocator);
 
 	const wchar_t* end = s.data + s.len;
 	const wchar_t* p = s.data;
@@ -193,7 +193,7 @@ s8 Wtf16zToUtf8(Arena* arena, Str16z s) {
 		}
 	}
 
-	return s8(out.data, out.len);
+	return Str(out.data, out.len);
 }
 
 // High surrogate range
@@ -204,7 +204,7 @@ s8 Wtf16zToUtf8(Arena* arena, Str16z s) {
 	// 1101111111111111 dfff
 
 UnitTest("Unicode::Wtf16zToUtf8") {
-	#define CheckWtf16zToUtf8(from16z, to8) { CheckEq(Wtf16zToUtf8(testArena, from16z), to8);  }
+	#define CheckWtf16zToUtf8(from16z, to8) { CheckEq(Wtf16zToUtf8(testAllocator, from16z), to8);  }
 
 	// General 
 	CheckWtf16zToUtf8(L"", "");
@@ -251,4 +251,4 @@ UnitTest("Unicode::Wtf16zToUtf8") {
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC
+}	// namespace JC::Unicode

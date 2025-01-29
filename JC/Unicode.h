@@ -1,8 +1,8 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
-namespace JC {
+namespace JC::Unicode {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -39,9 +39,9 @@ constexpr bool operator!=(Str16z s1, Str16z s2) { return s1.len != s2.len && mem
 
 //--------------------------------------------------------------------------------------------------
 
-Str16z Utf8ToWtf16z(Allocator* allocator, Str s);
-Str    Wtf16zToUtf8(Allocator* allocator, Str16z s);
+Str16z Utf8ToWtf16z(Mem::Allocator* allocator, Str s);
+Str    Wtf16zToUtf8(Mem::Allocator* allocator, Str16z s);
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC
+}	// namespace JC::Unicode

@@ -83,10 +83,10 @@ template <class T> constexpr T Clamp(T x, T lo, T hi) { return x < lo ? lo : (x 
 #include "JC/Core/TypeTraits.h"
 #include "JC/Core/Arg.h"
 #include "JC/Core/Panic.h"
+#include "JC/Core/Mem.h"
 #include "JC/Core/Str.h"
 #include "JC/Core/Err.h"
 #include "JC/Core/Res.h"
-#include "JC/Core/Mem.h"
 #include "JC/Core/FmtStr.h"
 
 namespace JC {

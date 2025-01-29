@@ -1,4 +1,4 @@
-#include "JC/Core.h"
+#include "JC/Core.h"	// not Core/Panic.h to preserve core inclusion order
 
 #include "JC/Sys.h"
 
@@ -14,7 +14,7 @@ PanicFn* SetPanicFn(PanicFn* newPanicFn) {
 	return oldPanicFn;
 }
 
-void VPanic(const char* expr, const char* fmt, Span<Arg> args, SrcLoc sl) {
+void VPanic(const char* expr, const char* fmt, Span<NamedArg> namedArgs, SrcLoc sl) {
 	static bool recursive = false;
 	if (recursive) {
 		Sys::Abort();
@@ -22,7 +22,7 @@ void VPanic(const char* expr, const char* fmt, Span<Arg> args, SrcLoc sl) {
 	recursive = true;
 
 	if (panicFn) {
-		panicFn(expr, fmt, args, sl);
+		panicFn(expr, fmt, namedArgs, sl);
 	} else {
 		if (Sys::IsDebuggerPresent()) {
 			Sys_DebuggerBreak();

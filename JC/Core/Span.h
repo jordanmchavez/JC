@@ -11,6 +11,7 @@ namespace JC {
 		const T* _begin = 0;
 		const T* _end   = 0;
 
+		constexpr initializer_list() = default;
 		constexpr initializer_list(const T* b, const T* e) { _begin = b; _end = e; }
 		constexpr const T* begin() const { return _begin; }
 		constexpr const T* end() const { return _end; }

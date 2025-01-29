@@ -1,6 +1,6 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
 namespace JC {
 
@@ -11,7 +11,7 @@ namespace Window { struct State; }
 //--------------------------------------------------------------------------------------------------
 
 struct App {
-	virtual Res<> Init(Allocator* allocator, TempAllocator* tempAllocator, Logger* logger, const Window::State* windowState) = 0;
+	virtual Res<> Init(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, Log::Logger* logger, const Window::State* windowState) = 0;
 	virtual void  Shutdown() = 0;
 	virtual Res<> Events(Span<Event::Event> events) = 0;
 	virtual Res<> Update(double secs) = 0;

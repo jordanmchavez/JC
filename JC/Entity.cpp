@@ -3,7 +3,6 @@
 #include "JC/Array.h"
 #include "JC/Bit.h"
 #include "JC/Hash.h"
-#include "JC/Mem.h"
 #include "JC/Map.h"
 #include "JC/UnitTest.h"
 
@@ -160,9 +159,9 @@ static TypeId CreateType(const ComponentMask* componentMask) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Init() {
-	allocator = context->allocator;
-	tempAllocator = context->tempAllocator;
+void Init(Mem::Allocator* allocatorIn, Mem::TempAllocator* tempAllocatorIn) {
+	allocator     = allocatorIn;
+	tempAllocator = tempAllocatorIn;
 
 	entityObjs.Init(allocator);
 	entityObjs.Add();	// reserve 0 for invalid
@@ -319,7 +318,7 @@ Component CreateComponent(Str name, u32 size) {
 	Assert(componentObjsLen < MaxComponents);
 	size = (u32)Bit::AlignUp(size, 8);
 	componentObjs[componentObjsLen++] = {
-		.name = Copy(name, allocator),
+		.name = Copy(allocator, name),
 		.size = size,
 	};
 	return Component { .id = componentObjsLen - 1 };
@@ -448,7 +447,7 @@ struct B { u8 data[91]; };
 struct C { u8 data[1]; };
 
 UnitTest("Entity") {
-	Init();
+	Init(testAllocator, testAllocator);
 
 	const Component a = CreateComponent("A", sizeof(A));
 	const Component b = CreateComponent("B", sizeof(B));

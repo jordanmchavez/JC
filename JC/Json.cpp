@@ -8,6 +8,15 @@ namespace JC::Json {
 
 //--------------------------------------------------------------------------------------------------
 
+template <class... A> struct Err_Barf : JC::Err::Error {
+	Err_Barf(A... args, SrcLoc sl = SrcLoc::Here()) {
+		NamedArg namedArgs[sizeof...(A) / 2 + 1];
+		BuildNamedArgs(namedArgs, args...);
+		Init("Json", "Barf", Span<NamedArg>(namedArgs, sizeof...(A) / 2), sl);
+	} \
+}; \
+template <class...A> Err_Barf(A...) -> Err_Barf<A...>
+
 DefErr(Json, WrongType);
 DefErr(Json, UnmatchedComment);
 DefErr(Json, Eof);

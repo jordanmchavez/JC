@@ -14,11 +14,10 @@ template <class T> struct Array {
 	u64             len       = 0;
 	u64             cap       = 0;
 
+	Array() = default;
+
 	Array(Mem::Allocator* allocatorIn) {
 		allocator = allocatorIn;
-		data      = 0;
-		len       = 0;
-		cap       = 0;
 	}
 
 	void Init(Mem::Allocator* allocatorIn) {
@@ -152,7 +151,7 @@ template <class T> struct Array {
 	void Grow(u64 newCap, SrcLoc sl = SrcLoc::Here()) {
 		Assert(newCap > cap);
 		newCap = Max(Max((u64)16, newCap), cap * 2);
-		data = allocator->ReallocT(data, newCap, sl);
+		data = allocator->ReallocT(data, cap, newCap, sl);
 		cap = newCap;
 	}
 

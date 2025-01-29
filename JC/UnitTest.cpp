@@ -142,7 +142,7 @@ bool CheckExprFail(SrcLoc sl, Str expr) {
 	return false;
 }
 
-bool CheckRelFail(SrcLoc sl, Str expr, VArg x, VArg y) {
+bool CheckRelFail(SrcLoc sl, Str expr, Arg x, Arg y) {
 	Logf("***CHECK FAILED***");
 	Logf("{}({})", sl.file, sl.line);
 	Logf("  {}", expr);

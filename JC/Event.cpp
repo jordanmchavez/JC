@@ -134,8 +134,8 @@ Str KeyStr(Key k) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Init() {
-	logger    = context->logger;
+void Init(Log::Logger* loggerIn) {
+	logger    = loggerIn;
 	eventsLen = 0;
 }
 
@@ -163,9 +163,9 @@ Str EventStr(Mem::Allocator* allocator, Event e) {
 		case Type::WindowUnfocused: return "WindowUnfocused";
 		case Type::WindowMinimized: return "WindowMinimized";
 		case Type::WindowRestored:  return "WindowRestored";
-		case Type::Key:             return Fmt(allocator, "Key(key={}, down={})", e.key.key, e.key.down);
-		case Type::MouseMove:       return Fmt(allocator, "MouseMove(x={}, y={})", e.mouseMove.x, e.mouseMove.y);
-		default:                    Panic("Unhandled EventType {}", e.type);
+		case Type::Key:             return Fmt::Printf(allocator, "Key(key={}, down={})", e.key.key, e.key.down);
+		case Type::MouseMove:       return Fmt::Printf(allocator, "MouseMove(x={}, y={})", e.mouseMove.x, e.mouseMove.y);
+		default:                    Panic("Unhandled EventType", "type", e.type);
 	}
 }
 

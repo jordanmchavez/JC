@@ -1,6 +1,8 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
+
+namespace JC::Log { struct Logger; }
 
 namespace JC::Event {
 
@@ -164,7 +166,7 @@ struct Event {
 	};
 };
 
-void        Init();
+void        Init(Log::Logger* loggerIn);
 void        Add(Event e);
 Span<Event> Get();
 void        Clear();

@@ -114,13 +114,17 @@
     <ClInclude Include="3rd\vulkan\vk_platform.h" />
     <ClInclude Include="3rd\vulkan\vulkan_core.h" />
     <ClInclude Include="3rd\vulkan\vulkan_win32.h" />
+    <ClInclude Include="JC\App.h" />
     <ClInclude Include="JC\Array.h" />
     <ClInclude Include="JC\Bit.h" />
+    <ClInclude Include="JC\Config.h" />
     <ClInclude Include="JC\Core.h" />
     <ClInclude Include="JC\Core\Arg.h" />
     <ClInclude Include="JC\Core\Err.h" />
     <ClInclude Include="JC\Core\FmtStr.h" />
     <ClInclude Include="JC\Core\Res.h" />
+    <ClInclude Include="JC\Entity.h" />
+    <ClInclude Include="JC\Event.h" />
     <ClInclude Include="JC\Fmt.h" />
     <ClInclude Include="JC\Core\Panic.h" />
     <ClInclude Include="JC\Core\Span.h" />
@@ -128,22 +132,40 @@
     <ClInclude Include="JC\Core\Str.h" />
     <ClInclude Include="JC\Core\TypeTraits.h" />
     <ClInclude Include="JC\Core\Mem.h" />
+    <ClInclude Include="JC\Hash.h" />
+    <ClInclude Include="JC\Json.h" />
     <ClInclude Include="JC\Log.h" />
     <ClInclude Include="JC\Map.h" />
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Sys_Win.h" />
+    <ClInclude Include="JC\Time.h" />
+    <ClInclude Include="JC\TLSF.h" />
+    <ClInclude Include="JC\Unicode.h" />
     <ClInclude Include="JC\UnitTest.h" />
     <ClInclude Include="Notes\Scratch.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
+    <ClCompile Include="JC\Array.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
+    <ClCompile Include="JC\Config.cpp" />
+    <ClCompile Include="JC\Core\Err.cpp" />
+    <ClCompile Include="JC\Core\Mem.cpp" />
     <ClCompile Include="JC\Core\Panic.cpp" />
+    <ClCompile Include="JC\Core\Str.cpp" />
+    <ClCompile Include="JC\Entity.cpp" />
+    <ClCompile Include="JC\Event.cpp" />
+    <ClCompile Include="JC\Fmt.cpp" />
+    <ClCompile Include="JC\Hash.cpp" />
+    <ClCompile Include="JC\Json.cpp" />
     <ClCompile Include="JC\Log.cpp" />
     <ClCompile Include="JC\Main.cpp" />
     <ClCompile Include="JC\Map.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
+    <ClCompile Include="JC\Time_Win.cpp" />
+    <ClCompile Include="JC\TLSF.cpp" />
+    <ClCompile Include="JC\Unicode.cpp" />
     <ClCompile Include="JC\UnitTest.cpp" />
   </ItemGroup>
   <ItemGroup>

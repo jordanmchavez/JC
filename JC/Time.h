@@ -1,6 +1,6 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
 namespace JC::Time {
 
@@ -24,4 +24,4 @@ u64 FromMils (double mils);
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::T
+}	// namespace JC::Time

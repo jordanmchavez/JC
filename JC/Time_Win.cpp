@@ -1,6 +1,8 @@
 #include "JC/Time.h"
 
-#include "JC/MinimalWindows.h"
+#define WIN32_LEAN_AND_MEAN
+#define VC_EXTRALEAN
+#include <Windows.h>
 
 namespace JC::Time {
 

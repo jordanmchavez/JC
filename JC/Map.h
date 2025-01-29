@@ -28,6 +28,8 @@ template <class K, class V> struct Map {
 	u64             elemsCap        = 0;
 	u64             mask            = 16 - 1;
 
+	Map() = default;
+
 	Map(Mem::Allocator* allocatorIn) {
 		allocator = allocatorIn;
 	}
@@ -83,13 +85,13 @@ template <class K, class V> struct Map {
 			} else if (df > bucket->df) {
 				if (elemsLen >= elemsCap) {
 					u64 newCap = Max(16ull, elemsCap * 2u);
-					elems = allocator->ReallocT(elems, newCap, sl);
+					elems = allocator->ReallocT(elems, elemsCap, newCap, sl);
 					elemsCap = newCap;
 				}
 				elems[elemsLen++] = Elem { .key = k, .val = v };
 				if (elemsLen > (7 * (bucketsCap >> 3))) {	// max load factor = 7/8 = 87.5%
 					u64 newBucketsCap = bucketsCap << 1;
-					allocator->Free(buckets);
+					allocator->Free(buckets, bucketsCap);
 					buckets = allocator->AllocT<Bucket>(newBucketsCap);
 					memset(buckets, 0, newBucketsCap * sizeof(Bucket));
 					bucketsCap = newBucketsCap;

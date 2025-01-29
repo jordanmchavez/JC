@@ -1,6 +1,6 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
 namespace JC::Entity {
 
@@ -20,7 +20,7 @@ struct RowSet {
 	u32     len;
 };
 
-void         Init();
+void         Init(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator);
 
 Span<Entity> CreateEntities(u32 n, Span<Component> components);
 void         DestroyEntities(Span<Entity> entitys);

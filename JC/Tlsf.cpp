@@ -108,10 +108,35 @@ struct AllocatorObj : Allocator {
 
 	//-------------------------------------------------------------------------------------------------
 
-	void* Alloc(u64 size, SrcLoc = SrcLoc::Here()) override {
-		if (!size) {
-			return 0;
+	void* Alloc(void* ptr, u64 ptrSize, u64 size, u32 flags, SrcLoc) override {
+		if (!ptr) {
+			ptr = Alloc(size);
+			if (!(flags & Mem::AllocFlag_NoInit)) {
+				memset(ptr, 0, size);
+			}
+
+		} else if (size) {
+			if (!Extend(ptr, ptrSize)) {
+				void* const oldPtr = ptr;
+				ptr = Alloc(size);
+				if (!(flags & Mem::AllocFlag_NoInit)) {
+					memcpy(ptr, oldPtr, size);
+				}
+				Free(oldPtr);
+			}
+			if (size > ptrSize && !(flags & Mem::AllocFlag_NoInit)) {
+				memset((u8*)ptr + ptrSize, 0, size - ptrSize);
+			}
+
+		} else {
+			Free(ptr);
 		}
+		return ptr;
+	}
+
+	//-------------------------------------------------------------------------------------------------
+
+	void* Alloc(u64 size) {
 		Assert(size < BlockSizeMax);
 
 		size = Max(Bit::AlignUp(size, Align), BlockSizeMin);
@@ -164,19 +189,15 @@ struct AllocatorObj : Allocator {
 
 	//-------------------------------------------------------------------------------------------------
 
-	bool Extend(void* oldPtr, u64 size, SrcLoc = SrcLoc::Here()) override {
-		if (!oldPtr) {
-			return false;
-		}
+	bool Extend(void* ptr, u64 ptrSize) {
+		ptrSize = Max(Bit::AlignUp(ptrSize, Align), BlockSizeMin);
+		Assert(ptrSize <= BlockSizeMax);
 
-		size = Max(Bit::AlignUp(size, Align), BlockSizeMin);
-		Assert(size <= BlockSizeMax);
-
-		Block* const block = (Block*)((u8*)oldPtr - 16);
+		Block* const block = (Block*)((u8*)ptr - 16);
 		Assert(!block->IsFree());
 
 		const u64 blockSize = block->Size();
-		if (size <= blockSize) {
+		if (ptrSize <= blockSize) {
 			return true;
 		}
 
@@ -187,16 +208,16 @@ struct AllocatorObj : Allocator {
 
 		const u64 nextSize = next->Size();
 		const u64 combinedSize = blockSize + nextSize + 8;
-		if (combinedSize < size) {
+		if (combinedSize < ptrSize) {
 			return false;
 		}
 		RemoveFreeBlock(next, CalcIndex(nextSize));
 
-		if (combinedSize - size >= sizeof(Block)) {
-			block->size = size;
+		if (combinedSize - ptrSize >= sizeof(Block)) {
+			block->size = ptrSize;
 			Block* const rem = block->Next();
 			rem->prev = block;
-			rem->size = (combinedSize - size - 8) | FreeBit;
+			rem->size = (combinedSize - ptrSize - 8) | FreeBit;
 			next = rem->Next();
 			next->prev = rem;
 			next->size |= PrevFreeBit;
@@ -214,11 +235,7 @@ struct AllocatorObj : Allocator {
 
 	//-------------------------------------------------------------------------------------------------
 
-	void Free(void* ptr) override {
-		if (!ptr) {
-			return;
-		}
-
+	void Free(void* ptr) {
 		Block* block = (Block*)((u8*)ptr - 16);
 		Assert(!block->IsFree());
 		block->size |= FreeBit;

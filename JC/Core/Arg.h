@@ -56,12 +56,28 @@ Arg MakeArg(T val) {
 	else if constexpr (IsPointer<Underlying>)                      { return { .type = ArgType::Ptr,  .p = val }; }
 	else if constexpr (IsSameType<Underlying, decltype(nullptr)>)  { return { .type = ArgType::Ptr,  .p = nullptr }; }
 	else if constexpr (IsEnum<Underlying>)                         { return { .type = ArgType::U64,  .u = (u64)val }; }
+	else if constexpr (IsSameType<Underlying, Arg>)                { return val; }
 	else if constexpr (IsSameType<Underlying, Span<Arg>>)          { static_assert(AlwaysFalse<T>, "You passed Span<Arg> as a placeholder variable: you probably meant to call VFmt() instead of Fmt()"); }
 	else                                                           { static_assert(AlwaysFalse<T>, "Unsupported arg type"); }
 }
 
 template <u64 N> constexpr Arg MakeArg(char (&val)[N])       { return { .type = ArgType::Str, .s = { .data = val, .len = ConstExprStrLen(val) } }; }
 template <u64 N> constexpr Arg MakeArg(const char (&val)[N]) { return { .type = ArgType::Str, .s = { .data = val, .len = ConstExprStrLen(val) } }; }
+
+struct NamedArg {
+	const char* name = {};
+	Arg         arg  = {};
+};
+
+template <class A, class... As> void BuildNamedArgs(NamedArg* namedArgs, const char* name, A arg, As... args) {
+	namedArgs->name = name;
+	namedArgs->arg  = MakeArg(arg);
+	if constexpr (sizeof...(As) > 0) {
+		BuildNamedArgs(namedArgs + 1, args...);
+	}
+}
+
+inline void BuildNamedArgs(NamedArg*) {}
 
 //--------------------------------------------------------------------------------------------------
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
 namespace JC::Config {
 
@@ -9,7 +9,7 @@ namespace JC::Config {
 #define DebugBreakOnErr
 #define RenderDebug
 
-void Init();
+void Init(Mem::Allocator);
 
 u32  GetU32(Str name, u32 def);
 u64  GetU64(Str name, u64 def);

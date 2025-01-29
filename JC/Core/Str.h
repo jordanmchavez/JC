@@ -36,6 +36,7 @@ inline bool operator==(Str s1,         Str s2)         { return s1.len == s2.len
 inline bool operator==(Str s1,         const char* s2) { return !strcmp(s1.data, s2); }
 inline bool operator==(const char* s1, Str s2)         { return !strcmp(s1,      s2.data);  }
 
+Str Copy(Mem::Allocator* allocator, Str s);
 
 //--------------------------------------------------------------------------------------------------
 

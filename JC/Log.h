@@ -12,12 +12,12 @@ enum struct Level {
 };
 
 struct Logger {
-	virtual               void VPrintf(Level level, const char*       fmt, Span<Arg> args, SrcLoc sl) = 0;
-	template <class... A> void  Printf(Level level, Fmt::FmtStr<A...> fmt, A...      args, SrcLoc sl) { VPrintf(level, fmt, Span<Arg>({ MakeArg(args...), }), sl); }
+	virtual               void VPrintf(SrcLoc sl, Level level, const char*       fmt, Span<Arg> args) = 0;
+	template <class... A> void  Printf(SrcLoc sl, Level level, Fmt::FmtStr<A...> fmt, A...      args) { VPrintf(sl, level, fmt, Span<Arg>({ MakeArg(args)..., })); }
 };
 
-#define Logf(fmt, ...)   logger->Printf(Log::Level::Log,   fmt, __VA_ARGS__, SrcLoc::Here())
-#define Errorf(fmt, ...) logger->Printf(Log::Level::Error, fmt, __VA_ARGS__, SrcLoc::Here())
+#define Logf(fmt, ...)   logger->Printf(SrcLoc::Here(), Log::Level::Log,   fmt, __VA_ARGS__)
+#define Errorf(fmt, ...) logger->Printf(SrcLoc::Here(), Log::Level::Error, fmt, __VA_ARGS__)
 
 using Fn = void (const char* msg, u64 len);
 

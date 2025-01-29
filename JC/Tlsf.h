@@ -1,16 +1,16 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
 namespace JC::TLSF {
 
 //--------------------------------------------------------------------------------------------------
 
-struct Allocator : JC::Allocator {
+struct Allocator : JC::Mem::Allocator {
 	virtual void AddMem(void* ptr, u64 size) = 0;
 };
 
-Allocator* Create(void* ptr, u64 size);
+Allocator* CreateAllocator(void* ptr, u64 size);
 
 //--------------------------------------------------------------------------------------------------
 
