@@ -132,6 +132,7 @@
     <ClInclude Include="JC\Core\Str.h" />
     <ClInclude Include="JC\Core\TypeTraits.h" />
     <ClInclude Include="JC\Core\Mem.h" />
+    <ClInclude Include="JC\FS.h" />
     <ClInclude Include="JC\HandleArray.h" />
     <ClInclude Include="JC\Hash.h" />
     <ClInclude Include="JC\Json.h" />
@@ -153,6 +154,7 @@
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
+    <ClCompile Include="JC\App.cpp" />
     <ClCompile Include="JC\Array.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
     <ClCompile Include="JC\Config.cpp" />
@@ -163,6 +165,7 @@
     <ClCompile Include="JC\Entity.cpp" />
     <ClCompile Include="JC\Event.cpp" />
     <ClCompile Include="JC\Fmt.cpp" />
+    <ClCompile Include="JC\FS_Win.cpp" />
     <ClCompile Include="JC\HandleArray.cpp" />
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Json.cpp" />

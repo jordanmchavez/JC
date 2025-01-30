@@ -2,13 +2,11 @@
 
 #include "JC/Core.h"
 
-namespace JC::Err {
+namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-void Init(Mem::TempAllocator* tempAllocator);
-
-struct [[nodiscard]] Error {
+struct [[nodiscard]] Err {
 	static constexpr u32 MaxArgs = 32;
 
 	struct Data {
@@ -22,30 +20,32 @@ struct [[nodiscard]] Error {
 
 	Data* data = 0;
 
-	Error() = default;
+	static void SetTempAllocator(Mem::TempAllocator* tempAllocator);
 
-	template <class...A> Error(Str ns, Str code, A... args, SrcLoc sl) {
-		NamedArg namedArgs[1 + sizeof...(A) / 2];
+	Err() = default;
+
+	template <class...A> Err(Str ns, Str code, A... args, SrcLoc sl) {
+		NamedArg namedArgs[1 + (sizeof...(A) / 2)];
 		BuildNamedArgs(namedArgs, args...);
 		Init(ns, code, Span<NamedArg>(namedArgs, sizeof...(A) / 2), sl);
 	}
 
 	void Init(Str ns, Str code, Span<NamedArg> namedArgs, SrcLoc sl);
+	void Init(Str ns, i64 code, Span<NamedArg> namedArgs, SrcLoc sl);
 
-	Error Push(Error error);
+	Err Push(Err err);
 };
 
 #define DefErr(Ns, Code) \
-	template <class... A> struct Err_##Code : JC::Err::Error { \
+	template <class... A> struct Err_##Code : JC::Err { \
 		Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) { \
-			NamedArg namedArgs[1 + sizeof...(A) / 2]; \
+			NamedArg namedArgs[1 + (sizeof...(A) / 2)]; \
 			BuildNamedArgs(namedArgs, args...); \
 			Init(#Ns, #Code, Span<NamedArg>(namedArgs, sizeof...(A) / 2), sl); \
 		} \
 	}; \
 	template <class...A> Err_##Code(A...) -> Err_##Code<A...>
 
-
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Err
+}	// namespace JC

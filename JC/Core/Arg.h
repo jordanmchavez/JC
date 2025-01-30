@@ -51,8 +51,8 @@ Arg MakeArg(T val) {
 	else if constexpr (IsSameType<Underlying, unsigned long long>) { return { .type = ArgType::U64,  .u = val }; }
 	else if constexpr (IsSameType<Underlying, float>)              { return { .type = ArgType::F64,  .f = val }; }
 	else if constexpr (IsSameType<Underlying, double>)             { return { .type = ArgType::F64,  .f = val }; }
-	else if constexpr (IsSameType<Underlying, char*>)              { return { .type = ArgType::Str,  .s = { .data = val,      .len = ConstExprStrLen(val) } }; }
-	else if constexpr (IsSameType<Underlying, const char*>)        { return { .type = ArgType::Str,  .s = { .data = val,      .len = ConstExprStrLen(val) } }; }
+	else if constexpr (IsSameType<Underlying, char*>)              { return { .type = ArgType::Str,  .s = { .data = val, .len = strlen(val) } }; }
+	else if constexpr (IsSameType<Underlying, const char*>)        { return { .type = ArgType::Str,  .s = { .data = val, .len = strlen(val) } }; }
 	else if constexpr (IsPointer<Underlying>)                      { return { .type = ArgType::Ptr,  .p = val }; }
 	else if constexpr (IsSameType<Underlying, decltype(nullptr)>)  { return { .type = ArgType::Ptr,  .p = nullptr }; }
 	else if constexpr (IsEnum<Underlying>)                         { return { .type = ArgType::U64,  .u = (u64)val }; }

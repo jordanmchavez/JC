@@ -9,7 +9,7 @@ namespace JC::UnitTest {
 
 //--------------------------------------------------------------------------------------------------
 
-bool Run(Mem::TempAllocator* tempAllocatorIn, Log::Logger* loggerIn);
+bool Run(Mem::TempAllocator* tempAllocator, Log::Logger* logger);
 
 bool CheckFailImpl(SrcLoc sl);
 bool CheckExprFail(SrcLoc sl, Str expr);

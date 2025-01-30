@@ -9,27 +9,27 @@ namespace JC {
 template <class T = void> struct [[nodiscard]] Res;
 
 template <> struct [[nodiscard]] Res<void> {
-	Err::Error error = {};
+	Err err = {};
 
 	constexpr Res() = default;
-	constexpr Res(Err::Error e) { error = e; }	// implicit
+	constexpr Res(Err e) { err = e; }	// implicit
 	constexpr Res(const Res<>&) = default;
-	constexpr operator bool() const { return error.data != 0; }
+	constexpr operator bool() const { return err.data != 0; }
 };
 
 template <class T> struct [[nodiscard]] Res {
 	union {
-		T          val;
-		Err::Error error;
+		T   val;
+		Err err;
 	};
 	bool hasVal = false;
 
 	constexpr Res() = default;
 	constexpr Res(T v)   { val = v; hasVal = true;  }	// implicit
-	constexpr Res(Err::Error e) { error = e; hasVal = false; }	// implicit
+	constexpr Res(Err e) { err = e; hasVal = false; }	// implicit
 	constexpr Res(const Res<T>&) = default;
 	constexpr operator bool() const { return hasVal; }
-	constexpr Res<> To(T& out) { if (hasVal) { out = val; return Res<>{}; } return Res<>(error); }
+	constexpr Res<> To(T& out) { if (hasVal) { out = val; return Res<>{}; } return Res<>(err); }
 	constexpr T Or(T def) { return hasVal ? val : def; }
 };
 

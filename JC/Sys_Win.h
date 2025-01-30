@@ -1,6 +1,6 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Core.h"
 
 #define WIN32_LEAN_AND_MEAN
 #define VC_EXTRALEAN
@@ -12,10 +12,11 @@ namespace JC {
 
 template <class... A> struct [[nodiscard]] Err_WinLast : Err {
 	static_assert(sizeof...(A) % 2 == 0);
-	const u32 code = GetLastError();
-	Err_WinLast(Str fn, A... args, SrcLoc sl = SrcLoc::Here())
-		: Err(sl, "Win", "", code, "fn", fn, args...)
-	{}
+	Err_WinLast(Str fn, A... args, SrcLoc sl = SrcLoc::Here()) {
+		NamedArg namedArgs[1 + (sizeof...(A) / 2)];
+		BuildNamedArgs(namedArgs, "fn", fn, args...);
+		Init("Win", (i64)GetLastError(), Span<NamedArg>(namedArgs, 1 + (sizeof...(A) / 2)), sl);
+	}
 };
 template <typename... A> Err_WinLast(Str, A...) -> Err_WinLast<A...>;
 

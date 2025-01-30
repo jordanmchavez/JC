@@ -49,16 +49,6 @@ template <class F> struct DeferInvoker {
 enum struct DeferHelper {};
 template <class F> DeferInvoker<F> operator+(DeferHelper, F&& fn) { return DeferInvoker<F>((F&&)fn); }
 
-constexpr u64 ConstExprStrLen(const char* s) {
-	IfConsteval {
-		const char* i = s; 
-		for (; *i; i++) {}
-		return (u64)(i - s);
-	} else {
-		return strlen(s);
-	}
-}
-
 //--------------------------------------------------------------------------------------------------
 
 struct Rect {
@@ -89,13 +79,13 @@ template <class T> constexpr T Clamp(T x, T lo, T hi) { return x < lo ? lo : (x 
 #include "JC/Core/Res.h"
 #include "JC/Core/FmtStr.h"
 
+//--------------------------------------------------------------------------------------------------
+
 namespace JC {
 
 template <class T> constexpr const T& Span<T>::operator[](u64 i) const {
 	Assert(i < len);
 	return data[i];
 }
-
-//--------------------------------------------------------------------------------------------------
 
 }	// namespace JC

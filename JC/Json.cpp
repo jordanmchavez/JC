@@ -135,19 +135,19 @@ static Res<> Expect(ParseCtx* p, char c) {
 }
 
 static Res<Elem> ParseTrue(ParseCtx* p) {
-	if (Res<> r = Expect(p, 't'); !r) { return r.error; }
-	if (Res<> r = Expect(p, 'r'); !r) { return r.error; }
-	if (Res<> r = Expect(p, 'u'); !r) { return r.error; }
-	if (Res<> r = Expect(p, 'e'); !r) { return r.error; }
+	if (Res<> r = Expect(p, 't'); !r) { return r.err; }
+	if (Res<> r = Expect(p, 'r'); !r) { return r.err; }
+	if (Res<> r = Expect(p, 'u'); !r) { return r.err; }
+	if (Res<> r = Expect(p, 'e'); !r) { return r.err; }
 	return TrueElem;
 }
 
 static Res<Elem> ParseFalse(ParseCtx* p) {
-	if (Res<> r = Expect(p, 'f'); !r) { return r.error; }
-	if (Res<> r = Expect(p, 'a'); !r) { return r.error; }
-	if (Res<> r = Expect(p, 'l'); !r) { return r.error; }
-	if (Res<> r = Expect(p, 's'); !r) { return r.error; }
-	if (Res<> r = Expect(p, 'e'); !r) { return r.error; }
+	if (Res<> r = Expect(p, 'f'); !r) { return r.err; }
+	if (Res<> r = Expect(p, 'a'); !r) { return r.err; }
+	if (Res<> r = Expect(p, 'l'); !r) { return r.err; }
+	if (Res<> r = Expect(p, 's'); !r) { return r.err; }
+	if (Res<> r = Expect(p, 'e'); !r) { return r.err; }
 	return FalseElem;
 }
 
@@ -222,7 +222,7 @@ static Res<Elem> ParseNum(Mem::Allocator* allocator, ParseCtx* p) {
 
 static Res<Str> ParseStrRaw(Mem::TempAllocator* tempAllocator, ParseCtx* p) {
 	const u32 openLine = p->line;
-	if (Res<> r = Expect(p, '"'); !r) { return r.error; }
+	if (Res<> r = Expect(p, '"'); !r) { return r.err; }
 	Array<char> a(tempAllocator);
 
 	for (;;) {
@@ -261,7 +261,7 @@ static Res<Str> ParseStrRaw(Mem::TempAllocator* tempAllocator, ParseCtx* p) {
 
 static Res<Elem> ParseStr(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, ParseCtx* p) {
 	Str s = {};
-	if (Res<> r = ParseStrRaw(tempAllocator, p).To(s); !r) { return r.error; }
+	if (Res<> r = ParseStrRaw(tempAllocator, p).To(s); !r) { return r.err; }
 	return AddStr(allocator, s);
 }
 
@@ -269,22 +269,22 @@ static Res<Elem> ParseElem(Mem::Allocator* allocator, Mem::TempAllocator* tempAl
 
 static Res<Elem> ParseArr(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, ParseCtx* p) {
 	const u32 openLine = p->line;
-	if (Res<> r = Expect(p, '['); !r) { return r.error; }
+	if (Res<> r = Expect(p, '['); !r) { return r.err; }
 
 	Array<Elem> elems(tempAllocator);
 	for (;;) {
-		if (Res<> r = SkipWhitespace(p); !r) { return r.error; }
+		if (Res<> r = SkipWhitespace(p); !r) { return r.err; }
 		if (p->iter >= p->end) { return Err_UnmatchedArrayBracket("line", openLine); }
 		if (*p->iter == ']') { break; }
 
 		Elem e = {};
-		if (Res<> r = ParseElem(allocator, tempAllocator, p).To(e); !r) { return r.error; }
+		if (Res<> r = ParseElem(allocator, tempAllocator, p).To(e); !r) { return r.err; }
 		elems.Add(e);
 		
-		if (Res<> r = SkipWhitespace(p); !r) { return r.error; }
+		if (Res<> r = SkipWhitespace(p); !r) { return r.err; }
 		if (p->iter >= p->end) { return Err_UnmatchedArrayBracket("line", openLine); }
 		if (*p->iter == ']') { break; }
-		if (Res<> r = Expect(p, ','); !r) { return r.error; }
+		if (Res<> r = Expect(p, ','); !r) { return r.err; }
 	}
 
 	Assert(p->iter < p->end && *p->iter == ']');
@@ -326,33 +326,33 @@ static Res<Str> ParseKey(Mem::TempAllocator* tempAllocator, ParseCtx* p) {
 
 static Res<Elem> ParseObj(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, ParseCtx* p) {
 	const u32 openLine = p->line;
-	if (Res<> r = Expect(p, '{'); !r) { return r.error; }
+	if (Res<> r = Expect(p, '{'); !r) { return r.err; }
 
 	Array<KeyVal> keyVals(tempAllocator);
 	for (;;) {
-		if (Res<> r = SkipWhitespace(p); !r) { return r.error; }
+		if (Res<> r = SkipWhitespace(p); !r) { return r.err; }
 		if (p->iter >= p->end) { return Err_UnmatchedObjectBrace("line", openLine); }
 		if (*p->iter == '}') { break; }
 
 		KeyVal kv = {};
-		if (Res<> r = ParseKey(tempAllocator, p).To(kv.key); !r) { return r.error; }
+		if (Res<> r = ParseKey(tempAllocator, p).To(kv.key); !r) { return r.err; }
 
-		if (Res<> r = SkipWhitespace(p); !r) { return r.error; }
+		if (Res<> r = SkipWhitespace(p); !r) { return r.err; }
 		if (p->iter >= p->end) { return Err_UnmatchedObjectBrace("line", openLine); }
 
-		if (Res<> r = Expect(p, ':'); !r) { return r.error; }
+		if (Res<> r = Expect(p, ':'); !r) { return r.err; }
 
-		if (Res<> r = SkipWhitespace(p); !r) { return r.error; }
+		if (Res<> r = SkipWhitespace(p); !r) { return r.err; }
 		if (p->iter >= p->end) { return Err_UnmatchedObjectBrace("line", openLine); }
 
-		if (Res<> r = ParseElem(allocator, tempAllocator, p).To(kv.val); !r) { return r.error; }
+		if (Res<> r = ParseElem(allocator, tempAllocator, p).To(kv.val); !r) { return r.err; }
 
 		keyVals.Add(kv);
 		
-		if (Res<> r = SkipWhitespace(p); !r) { return r.error; }
+		if (Res<> r = SkipWhitespace(p); !r) { return r.err; }
 		if (p->iter >= p->end) { return Err_UnmatchedObjectBrace("line", openLine); }
 		if (*p->iter == '}') { break; }
-		if (Res<> r = Expect(p, ','); !r) { return r.error; }
+		if (Res<> r = Expect(p, ','); !r) { return r.err; }
 	}
 
 	Assert(p->iter < p->end && *p->iter == '}');
@@ -396,10 +396,10 @@ Res<Elem> Parse(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, St
 		.line = 1,
 	};
 
-	if (Res<> r = SkipWhitespace(&p); !r) { return r.error; }
+	if (Res<> r = SkipWhitespace(&p); !r) { return r.err; }
 	Elem elem = {};
-	if (Res<> r = ParseElem(allocator, tempAllocator, &p).To(elem); !r) { return r.error; };
-	if (Res<> r = SkipWhitespace(&p); !r) { return r.error; }
+	if (Res<> r = ParseElem(allocator, tempAllocator, &p).To(elem); !r) { return r.err; };
+	if (Res<> r = SkipWhitespace(&p); !r) { return r.err; }
 	if (p.iter < p.end) {
 		return Err_BadChar("line", p.line, "ch", *p.iter);
 	}

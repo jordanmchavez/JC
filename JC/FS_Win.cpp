@@ -1,20 +1,20 @@
 #include "JC/FS.h"
 
+#include "JC/Sys_Win.h"
 #include "JC/Unicode.h"
-#include "JC/MinimalWindows.h"
 
 namespace JC::FS {
 
 //--------------------------------------------------------------------------------------------------
 
-static Mem::Allocator* tempAllocator = 0;
+static Mem::TempAllocator* tempAllocator;
 
-void Init(Arena* tempIn) {
-	temp = tempIn;
+void Init(Mem::TempAllocator* tempAllocatorIn) {
+	tempAllocator = tempAllocatorIn;
 }
 
 Res<File> Open(Str path) {
-	HANDLE h = CreateFileW(Utf8ToWtf16z(temp, path).data, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+	HANDLE h = CreateFileW(Unicode::Utf8ToWtf16z(tempAllocator, path).data, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 	if (!IsValidHandle(h)) {
 		return Err_WinLast("CreateFileW", "path", path);
 	}
@@ -43,7 +43,7 @@ Res<> Read(File file, void* out, u64 outLen) {
 	return Ok();
 }
 
-Res<Span<u8>> ReadAll(Arena* arena, s8 path) {
+Res<Span<u8>> ReadAll(Str path) {
 	File file;
 	if (Res<> r = Open(path).To(file); !r) {
 		return r.err;
@@ -55,7 +55,7 @@ Res<Span<u8>> ReadAll(Arena* arena, s8 path) {
 		return r.err;
 	}
 
-	u8* buf = (u8*)arena->Alloc(len);
+	u8* buf = (u8*)tempAllocator->Alloc(len);
 	if (Res<> r = Read(file, buf, len); !r) {
 		return r.err;
 	}

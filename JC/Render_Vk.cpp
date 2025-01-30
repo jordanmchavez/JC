@@ -59,7 +59,7 @@ static VkPipelineStageFlags2 StageToVkPipelineStage2(Stage stage) {
 		case Stage::ColorAttachment:      return VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 		case Stage::PresentOld:           return VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 		case Stage::Present:              return VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
-		default:                          Panic("Unhandled Stage {}", stage);
+		default:                          Panic("Unhandled Stage", "stage", stage);
 	}
 }
 
@@ -73,7 +73,7 @@ static VkAccessFlags2 StageToVkAccessFlags2(Stage stage) {
 		case Stage::ColorAttachment:      return VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 		case Stage::PresentOld:           return VK_ACCESS_2_NONE;
 		case Stage::Present:              return VK_ACCESS_2_NONE;
-		default:                          Panic("Unhandled Stage {}", stage);
+		default:                          Panic("Unhandled Stage", "stage", stage);
 	}
 }
 
@@ -87,7 +87,7 @@ static VkImageLayout StageToVkImageLayout(Stage stage) {
 		case Stage::ColorAttachment:      return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		case Stage::PresentOld:           return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 		case Stage::Present:              return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		default:                          Panic("Unhandled Stage {}", stage);
+		default:                          Panic("Unhandled Stage", "stage", stage);
 	}
 }
 
@@ -990,7 +990,7 @@ static Res<BufferObj> CreateBufferInternal(
 	Mem mem = {};
 	if (Res<> r = AllocateMem(vkMemoryRequirements, vkMemoryPropertyFlags, vkMemoryAllocateFlags).To(mem); !r) {
 		vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
-		return r.error;
+		return r.err;
 	}
 
 	if (const VkResult r = vkBindBufferMemory(vkDevice, vkBuffer, mem.vkDeviceMemory, 0); r != VK_SUCCESS) {
@@ -1187,7 +1187,7 @@ Res<Buffer> CreateBuffer(u64 size, BufferUsage usage) {
 			vkMemoryAllocateFlags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
 			break;
 
-		default: Panic("Unhandled BufferUsage {}", usage);
+		default: Panic("Unhandled BufferUsage", "usage", usage);
 	};
 
 	const Buffer buffer = bufferObjs.Alloc();
@@ -1199,7 +1199,7 @@ Res<Buffer> CreateBuffer(u64 size, BufferUsage usage) {
 		vkMemoryAllocateFlags
 	).To(*bufferObj); !r) {
 		bufferObjs.Free(buffer);
-		return r.error;
+		return r.err;
 	}
 
 	return buffer;
@@ -1246,7 +1246,7 @@ Res<Image> CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usa
 			vkMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			break;
 
-		default: Panic("Unhandled ImageUsage {}", usage);
+		default: Panic("Unhandled ImageUsage", "imageusage", usage);
 	}
 
 	const VkImageCreateInfo vkImageCreateInfo = {
@@ -1275,7 +1275,7 @@ Res<Image> CreateImage(u32 width, u32 height, ImageFormat format, ImageUsage usa
 	Mem mem = {};
 	if (Res<> r = AllocateMem(vkMemoryRequirements, vkMemoryPropertyFlags, 0).To(mem); !r) {
 		vkDestroyImage(vkDevice, vkImage, vkAllocationCallbacks);
-		return r.error;
+		return r.err;
 	}
 		
 	if (const VkResult r = vkBindImageMemory(vkDevice, vkImage, mem.vkDeviceMemory, 0); r != VK_SUCCESS) {
@@ -1926,7 +1926,7 @@ Res<SwapchainStatus> EndFrame() {
 	stagingArenas[frameIdx].used = stagingArenas[frameIdx].begin;
 
 	if (Res<> r = BeginCmds(); !r) {
-		return r.error;
+		return r.err;
 	}
 
 	return SwapchainStatus::Ok;

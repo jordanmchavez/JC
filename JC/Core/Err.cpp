@@ -1,23 +1,25 @@
 #include "JC/Core.h"	// not Core/Err.h to preserve core inclusion order
 
-namespace JC::Err {
+#include "JC/Fmt.h"	// not Core/Err.h to preserve core inclusion order
+
+namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
 static Mem::TempAllocator* tempAllocator;
 
-void Init(Mem::TempAllocator* tempAllocatorIn) {
+void Err::SetTempAllocator(Mem::TempAllocator* tempAllocatorIn) {
 	tempAllocator = tempAllocatorIn;
 }
 
-void Error::Init(Str ns, Str code, Span<NamedArg> namedArgs, SrcLoc sl) {
+void Err::Init(Str ns, Str code, Span<NamedArg> namedArgs, SrcLoc sl) {
 	Assert(namedArgs.len <= MaxArgs);
 
 	data = tempAllocator->AllocT<Data>();
-	data->prev  = 0;
-	data->sl    = sl;
-	data->ns    = ns;
-	data->code  = code;
+	data->prev = 0;
+	data->sl   = sl;
+	data->ns   = ns;
+	data->code = code;
 	for (u64 i = 0; i < namedArgs.len; i++) {
 		data->namedArgs[i].name = namedArgs[i].name;
 		data->namedArgs[i].arg  = namedArgs[i].arg;	// TODO: should this be a string copy here?
@@ -31,13 +33,17 @@ void Error::Init(Str ns, Str code, Span<NamedArg> namedArgs, SrcLoc sl) {
 	#endif	// DebugBreakOnErr
 }
 
-Error Error::Push(Error error) {
-	error.data->prev = data;
-	return error;
+void Err::Init(Str ns, i64 code, Span<NamedArg> namedArgs, SrcLoc sl) {
+	Init(ns, Fmt::Printf(tempAllocator, "{}", code), namedArgs, sl);
+}
+
+Err Err::Push(Err err) {
+	err.data->prev = data;
+	return err;
 }
 
 //--------------------------------------------------------------------------------------------------
 
 // TODO: res/err tests
 
-}	// namespace JC::Err
+}	// namespace JC

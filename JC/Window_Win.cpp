@@ -3,9 +3,9 @@
 #include "JC/Array.h"
 #include "JC/Event.h"
 #include "JC/Log.h"
+#include "JC/Sys_Win.h"
 #include "JC/Unicode.h"
 
-#include "JC/MinimalWindows.h"
 #include <ShellScalingApi.h>
 
 #pragma comment(lib, "shcore.lib")
@@ -32,12 +32,12 @@ struct Window {
 	bool        minimized  = false;
 	bool        focused    = false;
 };
-static Arena*      temp;
-static Log*        log;
-static Display     displays[MaxDisplays];
-static u32         displaysLen;
-static Window      window;
-static bool        exitRequested;
+static Mem::TempAllocator* tempAllocator;
+static Log::Logger*        logger;
+static Display             displays[MaxDisplays];
+static u32                 displaysLen;
+static Window              window;
+static bool                exitRequested;
 
 //----------------------------------------------------------------------------------------------
 
@@ -80,7 +80,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 			const HRAWINPUT hrawInput = (HRAWINPUT)lparam;
 			UINT size = 0;
 			GetRawInputData(hrawInput, RID_INPUT, 0, &size, sizeof(RAWINPUTHEADER));
-			RAWINPUT* rawInput = (RAWINPUT*)temp->Alloc(size);
+			RAWINPUT* rawInput = (RAWINPUT*)tempAllocator->Alloc(size);
 			GetRawInputData(hrawInput, RID_INPUT, rawInput, &size, sizeof(RAWINPUTHEADER));
 			if (rawInput->header.dwType == RIM_TYPEMOUSE) {
 				const RAWMOUSE* const m = &rawInput->data.mouse;
@@ -232,8 +232,8 @@ static BOOL MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
 //----------------------------------------------------------------------------------------------
 
 Res<> Init(const InitDesc* initDesc) {
-	temp = initDesc->temp;
-	log  = initDesc->log;
+	tempAllocator = initDesc->tempAllocator;
+	logger       = initDesc->logger;
 
 	if (EnumDisplayMonitors(0, 0, MonitorEnumFn, 0) == FALSE) {
 		return Err_WinLast("EnumDisplayMonitors");
@@ -262,7 +262,7 @@ Res<> Init(const InitDesc* initDesc) {
 		return Err_WinLast("RegisterClassExW");
 	}
 
-	const s16z titlew = Utf8ToWtf16z(temp, initDesc->title);
+	const WStrZ titlew = Unicode::Utf8ToWtf16z(tempAllocator, initDesc->title);
 
 	window.style = initDesc->style;
 	window.winStyle = 0;

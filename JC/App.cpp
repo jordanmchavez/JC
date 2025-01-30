@@ -17,32 +17,32 @@ namespace JC {
 
 DefErr(App, Init);
 
-static Arena  tempInst;
-static Arena  permInst;
-static Arena* temp;
-static Arena* perm;
-static Log*   log;
-static bool   exit;
+static Mem::Allocator*     allocator;
+static Mem::TempAllocator* tempAllocator;
+static Log::Logger*        logger;
+static bool                exit;
 
 //--------------------------------------------------------------------------------------------------
 
 void App::Exit() { exit = true; }
 
-static void AppPanicFn(SrcLoc sl, s8 expr, s8 fmt, VArgs args) {
-	char msg[1024];
-	char* iter = msg;
-	char* end = msg + sizeof(msg) - 1;
-	iter = Fmt(iter, end, "\n***PANIC***\n");
-	iter = Fmt(iter, end, "{}({})\n", sl.file, sl.line);
-	if (expr.len > 0) {
-		iter = Fmt(iter, end, "expr: '{}'\n", expr);
+static void AppPanicFn(const char* expr, const char* msg, Span<NamedArg> namedArgs, SrcLoc sl) {
+	char buf[1024];
+	char* iter = buf;
+	char* end = buf + sizeof(msg) - 1;
+	iter = Fmt::Printf(iter, end, "\n***PANIC***\n");
+	iter = Fmt::Printf(iter, end, "{}({})\n", sl.file, sl.line);
+	if (expr) {
+		iter = Fmt::Printf(iter, end, "expr: '{}'\n", expr);
 	}
-	if (fmt.len > 0) {
-		iter = VFmt(iter, end, fmt, args);
-		iter = Fmt(iter, end, "\n");
+	if (msg) {
+		iter = Fmt::Printf(iter, end, "{}\n", msg);
+	}
+	for (u64 i = 0; i < namedArgs.len; i++) {
+		iter = Fmt::Printf(iter, end, "  {}={}", namedArgs[i].name, namedArgs[i].arg);
 	}
 	iter--;
-	Logf("{}", s8(msg, (u64)(iter - msg)));
+	Logf("{}", Str(msg, (u64)(iter - msg)));
 
 	if (Sys::IsDebuggerPresent()) {
 		Sys_DebuggerBreak();
@@ -53,44 +53,41 @@ static void AppPanicFn(SrcLoc sl, s8 expr, s8 fmt, VArgs args) {
 //--------------------------------------------------------------------------------------------------
 
 static Res<> RunAppInternal(App* app, int argc, const char** argv) {
-	tempInst = CreateArena((u64) 4 * 1024 * 1024 * 1024);
-	permInst = CreateArena((u64)16 * 1024 * 1024 * 1024);
-	temp = &tempInst;
-	perm = &permInst;
+	allocator = Mem::CreateAllocator((u64) 4 * 1024 * 1024 * 1024);
+	tempAllocator = Mem::CreateTempAllocator((u64)16 * 1024 * 1024 * 1024);
 
-	Err::SetArena(temp);
+	Err::SetTempAllocator(tempAllocator);
 
 	SetPanicFn(AppPanicFn);
 
-	log = GetLog();
-	log->Init(temp);
-	log->AddFn([](const char* msg, u64 len) {
-		Sys::Print(s8(msg, len));
+	logger = Log::InitLogger(tempAllocator);
+	Log::AddFn([](const char* msg, u64 len) {
+		Sys::Print(Str(msg, len));
 		if (Sys::IsDebuggerPresent()) {
 			Sys::DebuggerPrint(msg);
 		}
 	});
 
 	Time::Init();
-	FS::Init(temp);
-	Config::Init(perm);
+	FS::Init();
+	Config::Init(allocator);
 
-	if (argc == 2 && argv[1] == s8("test")) {
-		UnitTest::Run(log);
+	if (argc == 2 && argv[1] == Str("test")) {
+		UnitTest::Run(tempAllocator, logger);
 		return Ok();
 	}
 
-	Event::Init(log);
+	Event::Init(logger);
 
 	const Window::Style windowStyle = (Window::Style)Config::GetU32("App.WindowStyle", (u32)Window::Style::BorderedResizable);
 	Window::InitDesc windowInitDesc = {
-		.temp       = temp,
-		.log        = log,
-		.title      = Config::GetS8("App.WindowTitlye", "test window"),
-		.style      = windowStyle,
-		.width      = windowStyle == Window::Style::Fullscreen ? 0 : Config::GetU32("App.WindowWidth",  1600),
-		.height     = windowStyle == Window::Style::Fullscreen ? 0 : Config::GetU32("App.WindowHeight", 1200),
-		.displayIdx = Config::GetU32("App.DisplayIdx", 0),
+		.tempAllocator = tempAllocator,
+		.logger        = logger,
+		.title         = Config::GetStr("App.WindowTitlye", "test window"),
+		.style         = windowStyle,
+		.width         = windowStyle == Window::Style::Fullscreen ? 0 : Config::GetU32("App.WindowWidth",  1600),
+		.height        = windowStyle == Window::Style::Fullscreen ? 0 : Config::GetU32("App.WindowHeight", 1200),
+		.displayIdx    = Config::GetU32("App.DisplayIdx", 0),
 	};
 	if (Res<> r = Window::Init(&windowInitDesc); !r) {
 		return r.err.Push(Err_Init());
@@ -101,9 +98,9 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 
 	const Window::PlatformDesc windowPlatformDesc = Window::GetPlatformDesc();
 	Render::InitDesc renderInitDesc = {
-		.perm               = perm,
-		.temp               = temp,
-		.log                = log,
+		.allocator          = allocator,
+		.tempAllocator      = tempAllocator,
+		.logger             = logger,
 		.width              = windowState.width,
 		.height             = windowState.height,
 		.windowPlatformDesc = &windowPlatformDesc,
@@ -112,13 +109,13 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		return r;
 	}
 
-	if (Res<> r = app->Init(perm, temp, log, &windowState); !r) {
+	if (Res<> r = app->Init(allocator, tempAllocator, logger, &windowState); !r) {
 		return r;
 	}
 
 	u64 lastTicks = Time::Now();
 	for (exit = false; !exit ;) {
-		temp->Reset(0);
+		tempAllocator->Reset();
 
 		const u64 ticks = Time::Now();
 		const double secs = Time::Secs(ticks - lastTicks);
@@ -218,7 +215,7 @@ void Shutdown(App* app) {
 
 void RunApp(App* app, int argc, const char** argv) {
 	if (Res<> r = RunAppInternal(app, argc, argv); !r) {
-		if (log) {
+		if (logger) {
 			Errorf(r.err);
 		}
 	}
