@@ -34,6 +34,8 @@ struct [[nodiscard]] Err {
 	void Init(Str ns, i64 code, Span<NamedArg> namedArgs, SrcLoc sl);
 
 	Err Push(Err err);
+
+	Str GetStr();
 };
 
 #define DefErr(Ns, Code) \

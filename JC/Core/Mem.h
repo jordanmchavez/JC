@@ -23,8 +23,8 @@ struct TempAllocator : Allocator {
 	virtual void Reset() = 0;
 };
 
-Allocator*     CreateAllocator(u64 reserveSize);
-TempAllocator* CreateTempAllocator(u64 reserveSize);
+Allocator*     InitDefaultAllocator(u64 commitSize, u64 reserveSize);
+TempAllocator* InitTempAllocator(u64 reserveSize);
 
 //--------------------------------------------------------------------------------------------------
 

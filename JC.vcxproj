@@ -132,7 +132,6 @@
     <ClInclude Include="JC\Core\Str.h" />
     <ClInclude Include="JC\Core\TypeTraits.h" />
     <ClInclude Include="JC\Core\Mem.h" />
-    <ClInclude Include="JC\FS.h" />
     <ClInclude Include="JC\HandleArray.h" />
     <ClInclude Include="JC\Hash.h" />
     <ClInclude Include="JC\Json.h" />
@@ -145,7 +144,6 @@
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Sys_Win.h" />
     <ClInclude Include="JC\Time.h" />
-    <ClInclude Include="JC\TLSF.h" />
     <ClInclude Include="JC\Unicode.h" />
     <ClInclude Include="JC\UnitTest.h" />
     <ClInclude Include="JC\Window.h" />
@@ -165,7 +163,7 @@
     <ClCompile Include="JC\Entity.cpp" />
     <ClCompile Include="JC\Event.cpp" />
     <ClCompile Include="JC\Fmt.cpp" />
-    <ClCompile Include="JC\FS_Win.cpp" />
+    <ClCompile Include="JC\Game.cpp" />
     <ClCompile Include="JC\HandleArray.cpp" />
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Json.cpp" />
@@ -179,7 +177,6 @@
     <ClCompile Include="JC\Render_Vk_Win.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
     <ClCompile Include="JC\Time_Win.cpp" />
-    <ClCompile Include="JC\TLSF.cpp" />
     <ClCompile Include="JC\Unicode.cpp" />
     <ClCompile Include="JC\UnitTest.cpp" />
     <ClCompile Include="JC\Window_Win.cpp" />

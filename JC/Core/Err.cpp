@@ -1,6 +1,7 @@
 #include "JC/Core.h"	// not Core/Err.h to preserve core inclusion order
 
-#include "JC/Fmt.h"	// not Core/Err.h to preserve core inclusion order
+#include "JC/Array.h"
+#include "JC/Fmt.h"
 
 namespace JC {
 
@@ -11,6 +12,8 @@ static Mem::TempAllocator* tempAllocator;
 void Err::SetTempAllocator(Mem::TempAllocator* tempAllocatorIn) {
 	tempAllocator = tempAllocatorIn;
 }
+
+//--------------------------------------------------------------------------------------------------
 
 void Err::Init(Str ns, Str code, Span<NamedArg> namedArgs, SrcLoc sl) {
 	Assert(namedArgs.len <= MaxArgs);
@@ -37,9 +40,32 @@ void Err::Init(Str ns, i64 code, Span<NamedArg> namedArgs, SrcLoc sl) {
 	Init(ns, Fmt::Printf(tempAllocator, "{}", code), namedArgs, sl);
 }
 
+//--------------------------------------------------------------------------------------------------
+
 Err Err::Push(Err err) {
 	err.data->prev = data;
 	return err;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Str Err::GetStr() {
+	Assert(data);
+	Array<char> a(tempAllocator);
+	Fmt::Printf(&a, "Error: ");
+	for (Data* d = data; d; d = d->prev) {
+		Fmt::Printf(&a, "{}.{} -> ", d->ns, d->code);
+	}
+	a.len -= 4;
+	a.Add('\n');
+	for (Data* d = data; d; d = d->prev) {
+		Fmt::Printf(&a, "{}.{}:\n", d->ns, d->code);
+		for (u32 i = 0; i < d->namedArgsLen; d++) {
+			Fmt::Printf(&a, "  {}={}\n", d->namedArgs[i].name, d->namedArgs[i].arg);
+		}
+	}
+	a.len--;
+	return Str(a.data, a.len);
 }
 
 //--------------------------------------------------------------------------------------------------

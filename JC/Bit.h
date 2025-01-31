@@ -28,6 +28,8 @@ constexpr u64 AlignPow2(u64 u) {
 	return u + 1;
 }
 
+constexpr bool IsPow2(u64 u) { return (u & (u - 1)) == 0; }
+
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC::Bit

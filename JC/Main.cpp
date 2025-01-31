@@ -1,26 +1,5 @@
-#include "JC/Core.h"
-/*#include "JC/App.h"
-#include "JC/Array.h"
-#include "JC/Event.h"
-#include "JC/Fmt.h"
-#include "JC/FS.h"
-#include "JC/Hash.h"
-#include "JC/Json.h"
-#include "JC/Log.h"
-#include "JC/Map.h"
-#include "JC/Math.h"
-#include "JC/Random.h"
-#include "JC/Render.h"
-#include "JC/UnitTest.h"
-#include "JC/Window.h"
-#include "stb/stb_image.h"
-#include "JC/Render_Vk.h"
-#include <math.h>
+#include "JC/App.h"
 
-#undef LoadImage
-
-using namespace JC;
-*/
 //--------------------------------------------------------------------------------------------------
 /*
 DefErr(Game, LoadImage);
@@ -519,10 +498,9 @@ struct Game : App {
 */
 //--------------------------------------------------------------------------------------------------
 
-//namespace JC { App* GetApp(); }
+namespace JC { App* GetApp(); }
 
 int main(int argc, const char** argv) {
-	argc;argv;
-	//RunApp(GetApp(), argc, argv);
+	JC::RunApp(JC::GetApp(), argc, argv);
 	return 0;
 }

@@ -46,12 +46,7 @@ struct Str {
 };
 
 inline bool operator==(Str         s1, Str         s2) { return s1.len == s2.len && !memcmp(s1.data, s2.data, s1.len); }
-inline bool operator==(Str         s1, const char* s2) { return !strcmp(s1.data, s2); }
-inline bool operator==(const char* s1, Str         s2) { return !strcmp(s1,      s2.data);  }
-
 inline bool operator!=(Str         s1, Str         s2) { return s1.len != s2.len || memcmp(s1.data, s2.data, s1.len); }
-inline bool operator!=(Str         s1, const char* s2) { return strcmp(s1.data, s2); }
-inline bool operator!=(const char* s1, Str         s2) { return strcmp(s1,      s2.data);  }
 
 constexpr Arg MakeArg(Str val) { return { .type = ArgType::Str, .s = { .data = val.data, .len = val.len } }; }
 

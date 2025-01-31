@@ -101,10 +101,11 @@ static Map<PreHash, QueryId>        componentMaskHashToQueryId;
 //--------------------------------------------------------------------------------------------------
 
 static bool Contains(const ComponentMask* m1, const ComponentMask* m2) {
-	for (u32 i = 0; i < MaxComponents / 64; i++) {
+	const u32 bitsLen = (componentObjsLen + 63) >> 6;
+	for (u32 i = 0; i < bitsLen; i++) {
 		const u64 b1 = m1->bits[i];
 		const u64 b2 = m2->bits[i];
-		if ((b1 & b2) != b1) {
+		if ((b1 | b2) != b1) {
 			return false;
 		}
 	}
@@ -113,16 +114,17 @@ static bool Contains(const ComponentMask* m1, const ComponentMask* m2) {
 
 //--------------------------------------------------------------------------------------------------
 
-static TypeId CreateType(const ComponentMask* componentMask) {
+static TypeId CreateType(const ComponentMask* mask) {
 	Assert(typesLen < MaxTypes);
 	const TypeId typeId = typesLen;
 	Type* const type = &types[typesLen++];
 
-	type->componentMask = *componentMask;
+	type->componentMask = *mask;
 	type->rowSize       = sizeof(EntityId);
 
-	for (u32 i = 0; i < MaxComponents / 64; i++) {
-		u64 bits = componentMask->bits[i];
+	const u32 bitsLen = (componentObjsLen + 63) >> 6;
+	for (u32 i = 0; i < bitsLen; i++) {
+		u64 bits = mask->bits[i];
 		if (!bits) { continue; }
 
 		while (const u32 bit = Bit::Bsf64(bits)) {
@@ -148,8 +150,11 @@ static TypeId CreateType(const ComponentMask* componentMask) {
 	type->len   = 0;
 	type->cap   = TypeInitialCap;
 
+	const PreHash maskHash = Hash(mask, sizeof(*mask));
+	componentMaskHashToTypeId.Put(maskHash, typeId);
+
 	for (u32 i = 0; i < queryObjsLen; i++) {
-		if (Contains(componentMask, &queryObjs[i].componentMask)) {
+		if (Contains(mask, &queryObjs[i].componentMask)) {
 			queryObjs[i].typeMask.bits[typeId / 64] |= (u64)1 << (typeId & 63);
 		}
 	}
@@ -163,6 +168,10 @@ void Init(Mem::Allocator* allocatorIn, Mem::TempAllocator* tempAllocatorIn) {
 	allocator     = allocatorIn;
 	tempAllocator = tempAllocatorIn;
 
+	typeIdComponentIdToColumnId.Init(allocator);
+	componentMaskHashToTypeId.Init(allocator);
+	componentMaskHashToQueryId.Init(allocator);
+
 	entityObjs.Init(allocator);
 	entityObjs.Add();	// reserve 0 for invalid
 
@@ -172,10 +181,6 @@ void Init(Mem::Allocator* allocatorIn, Mem::TempAllocator* tempAllocatorIn) {
 
 	componentObjsLen = 1;	// reserve 0 for invalid
 	queryObjsLen = 1;	// reserve 0 for invalid
-
-	typeIdComponentIdToColumnId.Init(allocator);
-	componentMaskHashToTypeId.Init(allocator);
-	componentMaskHashToQueryId.Init(allocator);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -373,8 +378,8 @@ void* ComponentData(Entity entity, Component component) {
 Query CreateQuery(Span<Component> components) {
 	Assert(components.len < MaxQueryComponents);
 
-	const ComponentMask componentMask = BuildComponentMask(components);
-	const PreHash maskHash = Hash(&componentMask, sizeof(componentMask));
+	const ComponentMask mask = BuildComponentMask(components);
+	const PreHash maskHash = Hash(&mask, sizeof(mask));
 
 	QueryId* queryIdPtr = componentMaskHashToQueryId.Find(maskHash);
 	if (queryIdPtr) {
@@ -385,11 +390,11 @@ Query CreateQuery(Span<Component> components) {
 	QueryObj* const queryObj = &queryObjs[queryObjsLen];
 	const QueryId queryId = queryObjsLen++;
 
-	queryObj->componentMask = componentMask;
+	queryObj->componentMask = mask;
 	memcpy(queryObj->components, components.data, components.len * sizeof(components[0]));
 	queryObj->componentsLen = (u32)components.len;
 	for (u32 i = 0; i < typesLen; i++) {
-		if (Contains(&types[i].componentMask, &componentMask)) {
+		if (Contains(&types[i].componentMask, &mask)) {
 			queryObj->typeMask.bits[i / 64] |= (u64)1 << (i & 63);
 		}
 	}
@@ -458,7 +463,7 @@ UnitTest("Entity") {
 	AddComponent(e, b);
 	AddComponent(e, c);
 
-	Span<Entity> e_a   = CreateEntities(1, { a,      });
+	Span<Entity> e_a   = CreateEntities(1, { a       });
 	Span<Entity> e_b   = CreateEntities(2, {    b    });
 	Span<Entity> e_c   = CreateEntities(3, {       c });
 	Span<Entity> e_ab  = CreateEntities(2, { a, b    });
@@ -466,11 +471,18 @@ UnitTest("Entity") {
 	Span<Entity> e_bc  = CreateEntities(1, {    b, c });
 	Span<Entity> e_abc = CreateEntities(3, { a, b, c });
 
-	Query q = CreateQuery({a, b});
+	Query q = CreateQuery({ a, b });
 	Iter* i = RunQuery(q);
-	while (RowSet* rs = Next(i)) {
-		rs;
-	}
+	RowSet* rs = Next(i); CheckTrue(rs);
+	CheckEq(rs->len, 2u);
+	CheckEq(rs->entities[0].id, e_ab[0].id);
+	CheckEq(rs->entities[1].id, e_ab[1].id);
+	rs = Next(i); CheckTrue(rs);
+	CheckEq(rs->len, 3u);
+	CheckEq(rs->entities[0].id, e_abc[0].id);
+	CheckEq(rs->entities[1].id, e_abc[1].id);
+	CheckEq(rs->entities[2].id, e_abc[2].id);
+	rs = Next(i); CheckFalse(rs);
 
 	//Span<Entity> CreateEntities(u32 n, Span<Component> components);
 	//void         DestroyEntities(Span<Entity> entitys);

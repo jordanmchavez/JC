@@ -3,7 +3,6 @@
 #include "JC/Config.h"
 #include "JC/Event.h"
 #include "JC/Fmt.h"
-#include "JC/FS.h"
 #include "JC/Log.h"
 #include "JC/Render.h"
 #include "JC/Sys.h"
@@ -53,11 +52,11 @@ static void AppPanicFn(const char* expr, const char* msg, Span<NamedArg> namedAr
 //--------------------------------------------------------------------------------------------------
 
 static Res<> RunAppInternal(App* app, int argc, const char** argv) {
-	allocator = Mem::CreateAllocator((u64) 4 * 1024 * 1024 * 1024);
-	tempAllocator = Mem::CreateTempAllocator((u64)16 * 1024 * 1024 * 1024);
+	allocator = Mem::InitDefaultAllocator((u64)4 * 1024 * 1024, (u64) 4 * 1024 * 1024 * 1024);
+	tempAllocator = Mem::InitTempAllocator((u64)16 * 1024 * 1024 * 1024);
 
 	Err::SetTempAllocator(tempAllocator);
-
+	Sys::Init(tempAllocator);
 	SetPanicFn(AppPanicFn);
 
 	logger = Log::InitLogger(tempAllocator);
@@ -69,7 +68,6 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	});
 
 	Time::Init();
-	FS::Init();
 	Config::Init(allocator);
 
 	if (argc == 2 && argv[1] == Str("test")) {
@@ -216,7 +214,7 @@ void Shutdown(App* app) {
 void RunApp(App* app, int argc, const char** argv) {
 	if (Res<> r = RunAppInternal(app, argc, argv); !r) {
 		if (logger) {
-			Errorf(r.err);
+			Errorf("{}", r.err.GetStr());
 		}
 	}
 

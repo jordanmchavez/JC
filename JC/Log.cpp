@@ -7,11 +7,11 @@ namespace JC::Log {
 
 //--------------------------------------------------------------------------------------------------
 
-struct DefaultLogger : Logger {
-	static constexpr u32 MaxLogFns = 32;
+struct LoggerObj : Logger {
+	static constexpr u32 MaxFns = 32;
 
 	Mem::TempAllocator* tempAllocator = 0;
-	Fn*                 fns[MaxLogFns] = {};
+	Fn*                 fns[MaxFns] = {};
 	u32                 fnsLen         = 0;
 
 	void Init(Mem::TempAllocator* tempAllocatorIn) {
@@ -50,28 +50,34 @@ struct DefaultLogger : Logger {
 			}
 		}
 		arr.data[arr.len] = '\0';	// replace trailing '\n'
-		for (u32 i = 0; i < logFnsLen; i++) {
-			(*logFns[i])(arr.data, arr.len);
+		for (u32 i = 0; i < fnsLen; i++) {
+			(*fns[i])(arr.data, arr.len);
 		}
 	}
 */
 /*
-	void AddFn(LogFn* fn) {
-		Assert(logFnsLen < MaxLogFns);
-		logFns[logFnsLen++] = fn;
-	}
-
-	void RemoveFn(LogFn* fn) {
-		for (u32 i = 0; i < logFnsLen; i++) {
-			if (logFns[i] == fn) {
-				logFns[i] = logFns[logFnsLen - 1];
-				logFnsLen--;
-			}
-		}
-	}
 */
 };
 
+static LoggerObj loggerObj;
+
+Logger* InitLogger(Mem::TempAllocator* tempAllocator) {
+	loggerObj.Init(tempAllocator);
+	return &loggerObj;	
+}
+
+void AddFn(Fn* fn) {
+	Assert(loggerObj.fnsLen < LoggerObj::MaxFns);
+	loggerObj.fns[loggerObj.fnsLen++] = fn;
+}
+
+void RemoveFn(Fn* fn) {
+	for (u32 i = 0; i < loggerObj.fnsLen; i++) {
+		if (loggerObj.fns[i] == fn) {
+			loggerObj.fns[i] = loggerObj.fns[--loggerObj.fnsLen];
+		}
+	}
+}
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC::Log

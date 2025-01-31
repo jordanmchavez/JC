@@ -3,8 +3,8 @@
 namespace JC {
 
 struct Game : App {
-	Res<> Init(Arena* perm, Arena* temp, Log* log, const Window::State* windowState) override {
-		perm;temp;log;windowState;
+	Res<> Init(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, Log::Logger* logger, const Window::State* windowState) override {
+		allocator;tempAllocator;logger;windowState;
 		return Ok();
 	}
 

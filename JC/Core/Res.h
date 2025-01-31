@@ -14,7 +14,7 @@ template <> struct [[nodiscard]] Res<void> {
 	constexpr Res() = default;
 	constexpr Res(Err e) { err = e; }	// implicit
 	constexpr Res(const Res<>&) = default;
-	constexpr operator bool() const { return err.data != 0; }
+	constexpr operator bool() const { return !err.data; }
 };
 
 template <class T> struct [[nodiscard]] Res {
