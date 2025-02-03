@@ -38,7 +38,7 @@ template <class K, class V> struct Map {
 		allocator = allocatorIn;
 	}
 
-	V* Find(K k) const {
+	V* FindOrNull(K k) const {
 		u64 h = Hash(k);
 		u32 df = 0x100 | (h & 0xff);
 		u64 i = h & mask;
@@ -69,6 +69,12 @@ template <class K, class V> struct Map {
 			i = (i + 1 == bucketsCap) ? 0 : i + 1;
 			bucket = &buckets[i];
 		}
+	}
+
+	V* FindChecked(K k) {
+		V* v = FindOrNull(k);
+		Assert(v);
+		return v;
 	}
 
 	V* Put(K k, V v, SrcLoc sl = SrcLoc::Here()) {

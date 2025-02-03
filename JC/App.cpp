@@ -28,7 +28,7 @@ void App::Exit() { exit = true; }
 static void AppPanicFn(const char* expr, const char* msg, Span<NamedArg> namedArgs, SrcLoc sl) {
 	char buf[1024];
 	char* iter = buf;
-	char* end = buf + sizeof(msg) - 1;
+	char* end = buf + sizeof(buf) - 1;
 	iter = Fmt::Printf(iter, end, "\n***PANIC***\n");
 	iter = Fmt::Printf(iter, end, "{}({})\n", sl.file, sl.line);
 	if (expr) {
@@ -41,7 +41,7 @@ static void AppPanicFn(const char* expr, const char* msg, Span<NamedArg> namedAr
 		iter = Fmt::Printf(iter, end, "  {}={}", namedArgs[i].name, namedArgs[i].arg);
 	}
 	iter--;
-	Logf("{}", Str(msg, (u64)(iter - msg)));
+	Logf("{}", Str(buf, (u64)(iter - buf)));
 
 	if (Sys::IsDebuggerPresent()) {
 		Sys_DebuggerBreak();

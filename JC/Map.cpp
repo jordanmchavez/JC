@@ -19,7 +19,7 @@ UnitTest("Map") {
 		CheckEq(map.elems[map.buckets[i].idx].key.key, (u64)expectKey)
 
 	Map<Key, u64> map(testAllocator);
-	CheckTrue(!map.Find(Key {0, 0}));
+	CheckTrue(!map.FindOrNull(Key {0, 0}));
 
 	map.Put(Key {0, 0}, (u64)0);
 	CheckMap(0, 0x100 | 0, 0);

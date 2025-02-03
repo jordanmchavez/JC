@@ -26,9 +26,9 @@ Span<Entity> CreateEntities(u32 n, Span<Component> components);
 void         DestroyEntities(Span<Entity> entitys);
 
 Component    CreateComponent(Str name, u32 len);
-void         AddComponent(Entity entity, Component component);
-void         RemoveComponent(Entity entity, Component component);
-void*        ComponentData(Entity entity, Component component);
+void         AddComponents(Entity entity, Span<Component> components);
+void         RemoveComponents(Entity entity, Span<Component> components);
+Span<void*>  GetComponentData(Entity entity, Span<Component> components);
 
 Query        CreateQuery(Span<Component> components);
 Iter*        RunQuery(Query query);

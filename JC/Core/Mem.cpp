@@ -362,65 +362,82 @@ struct TempAllocatorObj : TempAllocator {
 
 	//----------------------------------------------------------------------------------------------
 
+	void* Alloc(u64 size) {
+		// alloc
+		size = Bit::AlignUp(size, Align);
+		Assert(endCommit >= end);
+		const u64 avail = (u64)(endCommit - end);
+		if (avail < size) {
+			const u64 commitSize = (u64)(endCommit - begin);
+			u64 extendSize = Max((u64)4096, commitSize);
+			while (avail + extendSize < size) {
+				extendSize *= 2;
+				Assert(endCommit + extendSize < endReserve);
+			}
+			Sys::VirtualCommit(endCommit, extendSize);
+			endCommit += extendSize;
+		}
+		u8* const oldEnd = end;
+		end += size;
+
+
+		Assert(end <= endCommit);
+		Assert(endCommit <= endReserve);
+		last = oldEnd;
+
+		return oldEnd;
+	}
+
+	void Extend(void* ptr, u64 size) {
+		Assert(end >= last);
+		size = Bit::AlignUp(size, Align);
+		end = (u8*)ptr;
+		Assert(endCommit >= end);
+		const u64 avail = (u64)(endCommit - end);
+		if (avail < size) {
+			const u64 commitSize = (u64)(endCommit - begin);
+			u64 extendSize = Max((u64)4096, commitSize);
+			while (avail + extendSize < size) {
+				extendSize *= 2;
+				Assert(endCommit + extendSize < endReserve);
+			}
+			Sys::VirtualCommit(endCommit, extendSize);
+			endCommit += extendSize;
+		}
+		end += size;
+
+		Assert(end <= endCommit);
+		Assert(endCommit <= endReserve);
+	}
+
 	void* Alloc(void* ptr, u64 ptrSize, u64 size, u32 flags, SrcLoc) override {
-		if (ptr && ptr == last && size) {
-			// realloc
-			Assert(end >= last);
-			size = Bit::AlignUp(size, Align);
-			end = (u8*)ptr;
-			Assert(endCommit >= end);
-			const u64 avail = (u64)(endCommit - end);
-			if (avail < size) {
-				const u64 commitSize = (u64)(endCommit - begin);
-				u64 extendSize = Max((u64)4096, commitSize);
-				while (avail + extendSize < size) {
-					extendSize *= 2;
-					Assert(endCommit + extendSize < endReserve);
-				}
-				Sys::VirtualCommit(endCommit, extendSize);
-				endCommit += extendSize;
-			}
-			end += size;
-
-			if (size > ptrSize && !(flags & AllocFlag_NoInit)) {
-				memset((u8*)ptr + ptrSize, 0, size - ptrSize);
-			}
-
-			Assert(end <= endCommit);
-			Assert(endCommit <= endReserve);
-
-			return ptr;
-
-		} else if (size) {
-			// alloc
-			size = Bit::AlignUp(size, Align);
-			Assert(endCommit >= end);
-			const u64 avail = (u64)(endCommit - end);
-			if (avail < size) {
-				const u64 commitSize = (u64)(endCommit - begin);
-				u64 extendSize = Max((u64)4096, commitSize);
-				while (avail + extendSize < size) {
-					extendSize *= 2;
-					Assert(endCommit + extendSize < endReserve);
-				}
-				Sys::VirtualCommit(endCommit, extendSize);
-				endCommit += extendSize;
-			}
-			u8* const oldEnd = end;
-			end += size;
-
+		if (!ptr) {
+			Assert(!ptrSize);
+			ptr = Alloc(size);
 			if (!(flags & AllocFlag_NoInit)) {
-				memset(oldEnd, 0x0, size);
+				memset(ptr, 0x0, size);
 			}
-
-			Assert(end <= endCommit);
-			Assert(endCommit <= endReserve);
-			last = oldEnd;
-
-			return oldEnd;
-
+			return ptr;
+		} else if (size) {
+			// realloc
+			if (ptr == last) {
+				Extend(ptr, size);
+				if (size > ptrSize && !(flags & AllocFlag_NoInit)) {
+					memset((u8*)ptr + ptrSize, 0, size - ptrSize);
+				}
+				return ptr;
+			} else {
+				void* const newPtr = Alloc(size);
+				if (!(flags & AllocFlag_NoInit)) {
+					memcpy(newPtr, ptr, ptrSize);
+					if (size > ptrSize && !(flags & AllocFlag_NoInit)) {
+						memset((u8*)newPtr + ptrSize, 0, size - ptrSize);
+					}
+				}
+				return newPtr;
+			}
 		} else {
-			// free: nop
+			// free: no-op
 			return 0;
 		}
 	}

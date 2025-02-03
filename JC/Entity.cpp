@@ -2,11 +2,17 @@
 
 #include "JC/Array.h"
 #include "JC/Bit.h"
+#include "JC/Fmt.h"
 #include "JC/Hash.h"
 #include "JC/Map.h"
 #include "JC/UnitTest.h"
 
 namespace JC::Entity {
+
+struct A { char b; u8 data[  48]; char e; };
+struct B { char b; u8 data[  91]; char e; };
+struct C { char b;                char e; };
+struct D { char b; u8 data[5000]; char e; };
 
 //--------------------------------------------------------------------------------------------------
 
@@ -58,6 +64,7 @@ struct Type {
 	u8*           data;
 	u32           len;
 	u32           cap;
+	Str           name;
 };
 
 struct EntityObj {
@@ -80,7 +87,8 @@ struct Iter {
 	Component    components[MaxQueryComponents];
 	u32          componentsLen;
 	TypeMask     typeMask;
-	u32          idx;
+	u64*         bits;
+	u64*         bitsEnd;
 	RowSet       rowSet;
 };
 
@@ -122,12 +130,12 @@ static TypeId CreateType(const ComponentMask* mask) {
 	type->componentMask = *mask;
 	type->rowSize       = sizeof(EntityId);
 
-	const u32 bitsLen = (componentObjsLen + 63) >> 6;
-	for (u32 i = 0; i < bitsLen; i++) {
+	const u32 maxIdx = (componentObjsLen + 63) >> 6;
+	Array<char> name(tempAllocator);
+	for (u32 i = 0; i < maxIdx; i++) {
 		u64 bits = mask->bits[i];
-		if (!bits) { continue; }
-
-		while (const u32 bit = Bit::Bsf64(bits)) {
+		while (bits) {
+			const u32 bit = Bit::Bsf64(bits);
 			bits &= ~((u64)1 << bit);
 
 			u32 componentId = (i * 64) + bit;
@@ -144,11 +152,15 @@ static TypeId CreateType(const ComponentMask* mask) {
 			};
 
 			type->rowSize += componentObj->size;
+
+			Fmt::Printf(&name, "{},", componentObj->name);
 		}
 	}
-	type->data  = (u8*)allocator->Alloc(TypeInitialCap * type->rowSize);
-	type->len   = 0;
-	type->cap   = TypeInitialCap;
+	if (name.len > 0) { name.len--; } else { Fmt::Printf(&name, "<empty>"); }
+	type->data = (u8*)allocator->Alloc(TypeInitialCap * type->rowSize);
+	type->len  = 0;
+	type->cap  = TypeInitialCap;
+	type->name = Copy(allocator, Str(name.data, name.len));
 
 	const PreHash maskHash = Hash(mask, sizeof(*mask));
 	componentMaskHashToTypeId.Put(maskHash, typeId);
@@ -232,12 +244,12 @@ static Span<u32> AddRows(Type* type, u32 n) {
 static void RemoveRow(Type* type, u32 row) {
 	const u32 lastRow = type->len - 1;
 
-	((EntityId*)type->data)[row] = ((EntityId*)type->data)[lastRow];
+	((Entity*)type->data)[row] = ((Entity*)type->data)[lastRow];
 	for (u32 c = 0; c < type->columnsLen; c++) {
 		Column* col = &type->columns[c];
 		memcpy(
-			type->data + (col->offset * type->cap) + (lastRow * col->size),
 			type->data + (col->offset * type->cap) + (row     * col->size),
+			type->data + (col->offset * type->cap) + (lastRow * col->size),
 			col->size
 		);
 	}
@@ -247,7 +259,7 @@ static void RemoveRow(Type* type, u32 row) {
 //--------------------------------------------------------------------------------------------------
 
 static void CopyRow(Type* srcType, u32 srcRow, Type* dstType, u32 dstRow) {
-	((EntityId*)srcType->data)[srcRow] = ((EntityId*)dstType->data)[dstRow];
+	((Entity*)dstType->data)[dstRow] = ((Entity*)srcType->data)[srcRow];
 	u32 srcColIdx = 0;
 	u32 dstColIdx = 0;
 	while (srcColIdx < srcType->columnsLen && dstColIdx < dstType->columnsLen) {
@@ -255,8 +267,8 @@ static void CopyRow(Type* srcType, u32 srcRow, Type* dstType, u32 dstRow) {
 		const Column* const dstCol = &dstType->columns[dstColIdx];
 		if (srcCol->componentId == dstCol->componentId) {
 			memcpy(
-				srcType->data + (srcCol->offset * srcType->cap) + (srcRow * srcCol->size),
 			    dstType->data + (dstCol->offset * dstType->cap) + (dstRow * dstCol->size),
+				srcType->data + (srcCol->offset * srcType->cap) + (srcRow * srcCol->size),
 				componentObjs[srcCol->componentId].size
 			);
 			srcColIdx++;
@@ -274,7 +286,7 @@ static void CopyRow(Type* srcType, u32 srcRow, Type* dstType, u32 dstRow) {
 Span<Entity> CreateEntities(u32 n, Span<Component> components) {
 	const ComponentMask mask = BuildComponentMask(components);
 	const PreHash maskHash = Hash(&mask, sizeof(mask));
-	const TypeId* const typeIdPtr = componentMaskHashToTypeId.Find(maskHash);
+	const TypeId* const typeIdPtr = componentMaskHashToTypeId.FindOrNull(maskHash);
 	TypeId typeId = typeIdPtr ? *typeIdPtr : CreateType(&mask);
 	Type* const type = &types[typeId];
 	Span<u32> rows = AddRows(type, n);
@@ -288,13 +300,17 @@ Span<Entity> CreateEntities(u32 n, Span<Component> components) {
 		entityObj->typeId = typeId;
 		entityObj->gen++;
 		entityObj->row = rows[i];
-		result[i].id = (u64)(entityObj - entityObjs.data) | ((u64)entityObj->gen << 32);
+		const u64 entityId = (u64)(entityObj - entityObjs.data) | ((u64)entityObj->gen << 32);;
+		((Entity*)type->data)[rows[i]].id = entityId;
+		result[i].id = entityId;
 	}
 	for (EntityObj* entityObj = entityObjs.Extend(n - i); i < n; i++, entityObj++) {
 		entityObj->typeId = typeId;
 		entityObj->gen++;
 		entityObj->row = rows[i];
-		result[i].id = (u64)(entityObj - entityObjs.data) | ((u64)entityObj->gen << 32);
+		const u64 entityId = (u64)(entityObj - entityObjs.data) | ((u64)entityObj->gen << 32);;
+		((Entity*)type->data)[rows[i]].id = entityId;
+		result[i].id = entityId;
 	}
 
 	return result;
@@ -331,46 +347,77 @@ Component CreateComponent(Str name, u32 size) {
 
 //--------------------------------------------------------------------------------------------------
 
-void AddComponent(Entity entity, Component component) {
+static EntityObj* GetEntityObj(Entity entity) {
 	const u32 idx = (u32)(entity.id & 0xffffffff);
 	const u32 gen = (u32)(entity.id >> 32);
-
 	Assert(idx < entityObjs.len);
 	EntityObj* const entityObj = &entityObjs[idx];
 	Assert(gen == entityObj->gen);
-	Assert(component.id < componentObjsLen);
+	return entityObj;
+}
 
-	const TypeId oldTypeId = entityObj->typeId;
-	Type* const  oldType   = &types[oldTypeId];
-	const u32    oldRow    = entityObj->row;
+//--------------------------------------------------------------------------------------------------
 
-	if (oldType->componentMask.bits[component.id / 64] & (component.id & 63)) {
-		return;
-	}
+void AddComponents(Entity entity, Span<Component> components) {
+	EntityObj* const entityObj = GetEntityObj(entity);
+	Type* const oldType = &types[entityObj->typeId];
 
 	ComponentMask newMask = oldType->componentMask;
-	newMask.bits[component.id / 64] |= (u64)1 << (component.id & 63);
-	const TypeId* const newTypeIdPtr = componentMaskHashToTypeId.Find(Hash(&newMask, sizeof(newMask)));
-	const u32 newTypeId = newTypeIdPtr ? *newTypeIdPtr : CreateType(&newMask);
+	for (u64 i = 0; i < components.len; i++) {
+		newMask.bits[components[i].id / 64] |= (u64)1 << (components[i].id & 63);
+	}
+	const TypeId* const newTypeIdPtr = componentMaskHashToTypeId.FindOrNull(Hash(&newMask, sizeof(newMask)));
+	const TypeId newTypeId = newTypeIdPtr ? *newTypeIdPtr : CreateType(&newMask);
 	Type* const newType = &types[newTypeId];
 
-	// TODO: AddRow() singular?
-	const u32 newRow = AddRows(oldType, 1)[0];
-	CopyRow(oldType, oldRow, newType, newRow);
-	RemoveRow(oldType, oldRow);
+	if (oldType != newType) {
+		const u32 oldRow = entityObj->row;
+		const u32 newRow = AddRows(newType, 1)[0];
+		CopyRow(oldType, oldRow, newType, newRow);
+		RemoveRow(oldType, oldRow);
+		entityObj->typeId = newTypeId;
+		entityObj->row    = newRow;
+	}
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void RemoveComponent(Entity entity, Component component) {
-	entity;component;
+void RemoveComponents(Entity entity, Span<Component> components) {
+	EntityObj* const entityObj = GetEntityObj(entity);
+	Type* const oldType = &types[entityObj->typeId];
+
+	ComponentMask newMask = oldType->componentMask;
+	for (u64 i = 0; i < components.len; i++) {
+		newMask.bits[components[i].id / 64] &= ~((u64)1 << (components[i].id & 63));
+	}
+	const TypeId* const newTypeIdPtr = componentMaskHashToTypeId.FindOrNull(Hash(&newMask, sizeof(newMask)));
+	const TypeId newTypeId = newTypeIdPtr ? *newTypeIdPtr : CreateType(&newMask);
+	Type* const newType = &types[newTypeId];
+
+	if (oldType != newType) {
+		const u32 oldRow = entityObj->row;
+		const u32 newRow = AddRows(newType, 1)[0];
+		CopyRow(oldType, oldRow, newType, newRow);
+		RemoveRow(oldType, oldRow);
+		entityObj->typeId = newTypeId;
+		entityObj->row    = newRow;
+	}
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void* ComponentData(Entity entity, Component component) {
-	entity;component;
-	return 0;
+Span<void*> GetComponentData(Entity entity, Span<Component> components) {
+	EntityObj* const entityObj = GetEntityObj(entity);
+	Type* const type = &types[entityObj->typeId];
+
+	void** data = tempAllocator->AllocT<void*>(components.len);
+	for (u64 i = 0; i < components.len; i++) {
+		const u32 key = entityObj->typeId | (components[i].id << MaxTypesShift);
+		const Column column = type->columns[*typeIdComponentIdToColumnId.FindChecked(key)];
+		data[i] = type->data + (type->cap * column.offset) + (entityObj->row * column.size);
+	}
+
+	return Span<void*>(data, components.len);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -381,7 +428,7 @@ Query CreateQuery(Span<Component> components) {
 	const ComponentMask mask = BuildComponentMask(components);
 	const PreHash maskHash = Hash(&mask, sizeof(mask));
 
-	QueryId* queryIdPtr = componentMaskHashToQueryId.Find(maskHash);
+	QueryId* queryIdPtr = componentMaskHashToQueryId.FindOrNull(maskHash);
 	if (queryIdPtr) {
 		return Query { .id = *queryIdPtr };
 	}
@@ -413,7 +460,8 @@ Iter* RunQuery(Query query) {
 	memcpy(iter->components, queryObj->components, queryObj->componentsLen * sizeof(ComponentId));
 	iter->componentsLen = queryObj->componentsLen;
 	iter->typeMask      = queryObj->typeMask; 
-	iter->idx           = 0;
+	iter->bits          = iter->typeMask.bits;
+	iter->bitsEnd       = iter->typeMask.bits + ((typesLen + 63) / 64);
 
 	return iter;
 }
@@ -421,19 +469,18 @@ Iter* RunQuery(Query query) {
 //--------------------------------------------------------------------------------------------------
 
 RowSet* Next(Iter* iter) {
-	for (; iter->idx < MaxTypes / 64; iter->idx++) {
-		u64* const bits = iter->typeMask.bits;
-		if (!bits[iter->idx]) { continue; }
+	while (iter->bits < iter->bitsEnd) {
+		while (*iter->bits) {
+			const u32 bit = Bit::Bsf64(*iter->bits);
+			*iter->bits &= ~((u64)1 << bit);
 
-		if (const u32 bit = Bit::Bsf64(bits[iter->idx])) {
-			bits[iter->idx] &= ~((u64)1 << bit);
-
-			const TypeId typeId = (iter->idx * 64) + bit;
+			const TypeId typeId = ((u32)(iter->bits - iter->typeMask.bits) * 64) + bit;
 			Type* const type = &types[typeId];
+			if (type->len == 0) { continue; }
 
-			iter->rowSet.entities = (Entity*)&type->data;
+			iter->rowSet.entities = (Entity*)type->data;
 			for (u32 i = 0; i < iter->componentsLen; i++) {
-				ColumnId colId = *typeIdComponentIdToColumnId.Find(typeId | (iter->components[i].id << MaxTypesShift));
+				ColumnId colId = *typeIdComponentIdToColumnId.FindChecked(typeId | (iter->components[i].id << MaxTypesShift));
 				iter->rowSet.componentData[i] = type->data + (type->cap * type->columns[colId].offset);
 			}
 			iter->rowSet.len = type->len;
@@ -447,21 +494,40 @@ RowSet* Next(Iter* iter) {
 
 //--------------------------------------------------------------------------------------------------
 
-struct A { u8 data[64]; };
-struct B { u8 data[91]; };
-struct C { u8 data[1]; };
-
 UnitTest("Entity") {
+A aa;aa;
+B bb;bb;
+
 	Init(testAllocator, testAllocator);
 
 	const Component a = CreateComponent("A", sizeof(A));
 	const Component b = CreateComponent("B", sizeof(B));
 	const Component c = CreateComponent("C", sizeof(C));
+	const Component d = CreateComponent("D", sizeof(D));
 
 	Entity e = CreateEntities(1, {})[0];
-	AddComponent(e, a);
-	AddComponent(e, b);
-	AddComponent(e, c);
+	AddComponents(e, { a, b });
+	Span<void*> data = GetComponentData(e, { a, b });
+	*(A*)data[0] =  { .b = 'a', .e = 'a' };
+	*(B*)data[1] =  { .b = 'b', .e = 'b' };
+
+	AddComponents(e, { c, d });
+	data = GetComponentData(e, { a, b, c, d });
+	CheckEq(((A*)data[0])->b, 'a');
+	CheckEq(((A*)data[0])->e, 'a');
+	CheckEq(((B*)data[1])->b, 'b');
+	CheckEq(((B*)data[1])->e, 'b');
+	*(C*)data[2] =  { .b = 'c', .e = 'c' };
+	*(D*)data[3] =  { .b = 'd', .e = 'd' };
+
+	RemoveComponents(e, { c });
+	data = GetComponentData(e, { a, b, d });
+	CheckEq(((A*)data[0])->b, 'a');
+	CheckEq(((A*)data[0])->e, 'a');
+	CheckEq(((B*)data[1])->b, 'b');
+	CheckEq(((B*)data[1])->e, 'b');
+	CheckEq(((D*)data[2])->b, 'd');
+	CheckEq(((D*)data[2])->e, 'd');
 
 	Span<Entity> e_a   = CreateEntities(1, { a       });
 	Span<Entity> e_b   = CreateEntities(2, {    b    });
@@ -471,25 +537,51 @@ UnitTest("Entity") {
 	Span<Entity> e_bc  = CreateEntities(1, {    b, c });
 	Span<Entity> e_abc = CreateEntities(3, { a, b, c });
 
-	Query q = CreateQuery({ a, b });
-	Iter* i = RunQuery(q);
-	RowSet* rs = Next(i); CheckTrue(rs);
-	CheckEq(rs->len, 2u);
-	CheckEq(rs->entities[0].id, e_ab[0].id);
-	CheckEq(rs->entities[1].id, e_ab[1].id);
-	rs = Next(i); CheckTrue(rs);
-	CheckEq(rs->len, 3u);
-	CheckEq(rs->entities[0].id, e_abc[0].id);
-	CheckEq(rs->entities[1].id, e_abc[1].id);
-	CheckEq(rs->entities[2].id, e_abc[2].id);
-	rs = Next(i); CheckFalse(rs);
+	Query q_ab = CreateQuery({ a, b });
+	Iter* i = RunQuery(q_ab);
+	RowSet* rs = Next(i);
+	if (CheckTrue(rs)) {
+		CheckEq(rs->len, 2u);
+		CheckEq(rs->entities[0].id, e_ab[0].id);
+		CheckEq(rs->entities[1].id, e_ab[1].id);
+	}
+	rs = Next(i);
+	if (CheckTrue(rs)) {
+		dis broken VVVV
+		CheckEq(rs->len, 3u);
+		CheckEq(rs->entities[0].id, e_abc[0].id);
+		CheckEq(rs->entities[1].id, e_abc[1].id);
+		CheckEq(rs->entities[2].id, e_abc[2].id);
+	}
+	rs = Next(i);
+	if (CheckTrue(rs)) {
+		CheckEq(rs->len, 1u);
+		CheckEq(rs->entities[0].id, e.id);
+	}
+	CheckFalse(Next(i));
 
-	//Span<Entity> CreateEntities(u32 n, Span<Component> components);
-	//void         DestroyEntities(Span<Entity> entitys);
+	RemoveComponents(e_ab[1],  { a });
+	RemoveComponents(e_abc[0], { b });
 
-	//Component    CreateComponent(s8 name, u32 len);
-	//void         AddComponent(Entity entity, Component component);
-	//void         RemoveComponent(Entity entity, Component component);
+	i = RunQuery(q_ab);
+	rs = Next(i);
+	if (CheckTrue(rs)) {
+		CheckEq(rs->len, 1u);
+		CheckEq(rs->entities[0].id, e_ab[0].id);
+	}
+	rs = Next(i);
+	if (CheckTrue(rs)) {
+		CheckEq(rs->len, 3u);
+		CheckEq(rs->entities[0].id, e.id);
+		CheckEq(rs->entities[1].id, e_abc[2].id);	// 2,1 not 1,2 because unordered remove
+		CheckEq(rs->entities[2].id, e_abc[1].id);
+	}
+	CheckFalse(Next(i));
+
+	Query q_d = CreateQuery({ d });
+	i = RunQuery(q_d);
+	CheckFalse(Next(i));
+
 	//void*        ComponentData(Entity entity, Component component);
 
 	//Query        CreateQuery(Span<Component> components);
