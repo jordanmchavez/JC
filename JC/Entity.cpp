@@ -469,7 +469,7 @@ Iter* RunQuery(Query query) {
 //--------------------------------------------------------------------------------------------------
 
 RowSet* Next(Iter* iter) {
-	while (iter->bits < iter->bitsEnd) {
+	for (; iter->bits < iter->bitsEnd; iter->bits++) {
 		while (*iter->bits) {
 			const u32 bit = Bit::Bsf64(*iter->bits);
 			*iter->bits &= ~((u64)1 << bit);
@@ -547,16 +547,15 @@ B bb;bb;
 	}
 	rs = Next(i);
 	if (CheckTrue(rs)) {
-		dis broken VVVV
+		CheckEq(rs->len, 1u);
+		CheckEq(rs->entities[0].id, e.id);
+	}
+	rs = Next(i);
+	if (CheckTrue(rs)) {
 		CheckEq(rs->len, 3u);
 		CheckEq(rs->entities[0].id, e_abc[0].id);
 		CheckEq(rs->entities[1].id, e_abc[1].id);
 		CheckEq(rs->entities[2].id, e_abc[2].id);
-	}
-	rs = Next(i);
-	if (CheckTrue(rs)) {
-		CheckEq(rs->len, 1u);
-		CheckEq(rs->entities[0].id, e.id);
 	}
 	CheckFalse(Next(i));
 
@@ -571,15 +570,19 @@ B bb;bb;
 	}
 	rs = Next(i);
 	if (CheckTrue(rs)) {
-		CheckEq(rs->len, 3u);
+		CheckEq(rs->len, 1u);
 		CheckEq(rs->entities[0].id, e.id);
-		CheckEq(rs->entities[1].id, e_abc[2].id);	// 2,1 not 1,2 because unordered remove
-		CheckEq(rs->entities[2].id, e_abc[1].id);
+	}
+	rs = Next(i);
+	if (CheckTrue(rs)) {
+		CheckEq(rs->len, 2u);
+		CheckEq(rs->entities[0].id, e_abc[2].id);	// 2,1 not 1,2 because unordered remove
+		CheckEq(rs->entities[1].id, e_abc[1].id);
 	}
 	CheckFalse(Next(i));
 
-	Query q_d = CreateQuery({ d });
-	i = RunQuery(q_d);
+	Query q_cd = CreateQuery({ c, d });
+	i = RunQuery(q_cd);
 	CheckFalse(Next(i));
 
 	//void*        ComponentData(Entity entity, Component component);
