@@ -584,12 +584,6 @@ B bb;bb;
 	Query q_cd = CreateQuery({ c, d });
 	i = RunQuery(q_cd);
 	CheckFalse(Next(i));
-
-	//void*        ComponentData(Entity entity, Component component);
-
-	//Query        CreateQuery(Span<Component> components);
-	//Iter*        RunQuery(Query query);
-	//RowSet*      Next(Iter* iter);
 }
 
 

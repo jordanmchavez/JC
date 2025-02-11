@@ -2,11 +2,9 @@
 
 #include "JC/Core.h"
 
-namespace JC {
-
 //--------------------------------------------------------------------------------------------------
 
-} namespace std {
+namespace std {
 	template <class T> struct initializer_list {
 		const T* _begin = 0;
 		const T* _end   = 0;
