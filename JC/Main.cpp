@@ -1,35 +1,12 @@
 #include "JC/App.h"
 
 //--------------------------------------------------------------------------------------------------
-/*
+
 DefErr(Game, LoadImage);
 DefErr(Game, ImageFmt);
 DefErr(Game, AtlasNameAlreadyExists);
 
 //--------------------------------------------------------------------------------------------------
-
-struct OrthoCamera {
-	Vec3 pos        = {};
-	f32  halfWidth  = 0.0f;
-	f32  halfHeight = 0.0f;
-
-	void Set(f32 fov, f32 aspect, f32 z) {
-		pos.z      = z;
-		halfWidth  = z * tanf(fov / 2.0f);
-		halfHeight = halfWidth / aspect;
-	}
-
-	Mat4 GetProjView() {
-		return Mat4::Ortho(
-			pos.x - halfWidth,
-			pos.x + halfWidth,
-			pos.y - halfHeight,
-			pos.y + halfHeight,
-			10.0f,
-			-10.0f
-		);
-	};
-};
 
 struct PerspectiveCamera {
 	Vec3 pos    = {};
