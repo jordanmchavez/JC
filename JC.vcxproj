@@ -141,6 +141,7 @@
     <ClInclude Include="JC\Random.h" />
     <ClInclude Include="JC\Render.h" />
     <ClInclude Include="JC\Render_Vk.h" />
+    <ClInclude Include="JC\Sprite.h" />
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Sys_Win.h" />
     <ClInclude Include="JC\Time.h" />
@@ -175,6 +176,7 @@
     <ClCompile Include="JC\Render_Vk.cpp" />
     <ClCompile Include="JC\Render_Vk_Util.cpp" />
     <ClCompile Include="JC\Render_Vk_Win.cpp" />
+    <ClCompile Include="JC\Sprite.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
     <ClCompile Include="JC\Time_Win.cpp" />
     <ClCompile Include="JC\Unicode.cpp" />

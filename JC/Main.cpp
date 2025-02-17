@@ -472,12 +472,3 @@ struct Game : App {
 		return Ok();
 	}
 };
-*/
-//--------------------------------------------------------------------------------------------------
-
-namespace JC { App* GetApp(); }
-
-int main(int argc, const char** argv) {
-	JC::RunApp(JC::GetApp(), argc, argv);
-	return 0;
-}
