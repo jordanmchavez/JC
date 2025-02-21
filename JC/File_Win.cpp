@@ -7,7 +7,7 @@ namespace JC::File {
 //--------------------------------------------------------------------------------------------------
 
 Res<File> Open(Str path) {
-	HANDLE h = CreateFileW(Unicode::Utf8ToWtf16z(tempAllocator, path).data, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+	HANDLE h = CreateFileW(Unicode::Utf8ToWtf16z(Mem::tempAllocator, path).data, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 	if (!IsValidHandle(h)) {
 		return Err_WinLast("CreateFileW", "path", path);
 	}
@@ -42,7 +42,7 @@ Res<> Read(File file, void* out, u64 outLen) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Span<u8>> ReadAll(Str path) {
+Res<Span<u8>> ReadAll(Mem::Allocator* allocator, Str path) {
 	File file;
 	if (Res<> r = Open(path).To(file); !r) {
 		return r.err;
@@ -54,7 +54,7 @@ Res<Span<u8>> ReadAll(Str path) {
 		return r.err;
 	}
 
-	u8* buf = (u8*)tempAllocator->Alloc(len);
+	u8* buf = (u8*)allocator->Alloc(len);
 	if (Res<> r = Read(file, buf, len); !r) {
 		return r.err;
 	}

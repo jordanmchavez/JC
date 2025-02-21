@@ -1,6 +1,4 @@
 #include "JC/Sys.h"
-
-#include "JC/Unicode.h"
 #include "JC/Sys_Win.h"
 
 namespace JC::Sys {

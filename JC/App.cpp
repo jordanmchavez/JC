@@ -52,8 +52,9 @@ static void AppPanicFn(const char* expr, const char* msg, Span<NamedArg> namedAr
 //--------------------------------------------------------------------------------------------------
 
 static Res<> RunAppInternal(App* app, int argc, const char** argv) {
-	allocator = Mem::InitDefaultAllocator((u64)4 * 1024 * 1024, (u64) 4 * 1024 * 1024 * 1024);
-	tempAllocator = Mem::InitTempAllocator((u64)16 * 1024 * 1024 * 1024);
+	Mem::Init((u64)16 * 1024 * 1024 * 1024, (u64)16 * 1024 * 1024 * 1024);
+	allocator     = Mem::allocator;
+	tempAllocator = Mem::tempAllocator;
 
 	Err::SetTempAllocator(tempAllocator);
 	Sys::Init(tempAllocator);

@@ -1,7 +1,7 @@
 #include "JC/App.h"
 
 //--------------------------------------------------------------------------------------------------
-
+/*
 DefErr(Game, LoadImage);
 DefErr(Game, ImageFmt);
 DefErr(Game, AtlasNameAlreadyExists);
@@ -432,3 +432,4 @@ struct Game : App {
 		return Ok();
 	}
 };
+*/
