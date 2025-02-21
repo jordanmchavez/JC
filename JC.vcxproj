@@ -114,6 +114,10 @@
     <ClInclude Include="3rd\vulkan\vk_platform.h" />
     <ClInclude Include="3rd\vulkan\vulkan_core.h" />
     <ClInclude Include="3rd\vulkan\vulkan_win32.h" />
+    <ClInclude Include="Foo.h">
+      <SubType>
+      </SubType>
+    </ClInclude>
     <ClInclude Include="JC\App.h" />
     <ClInclude Include="JC\Array.h" />
     <ClInclude Include="JC\Bit.h" />
@@ -125,6 +129,10 @@
     <ClInclude Include="JC\Core\Res.h" />
     <ClInclude Include="JC\Entity.h" />
     <ClInclude Include="JC\Event.h" />
+    <ClInclude Include="JC\File.h">
+      <SubType>
+      </SubType>
+    </ClInclude>
     <ClInclude Include="JC\Fmt.h" />
     <ClInclude Include="JC\Core\Panic.h" />
     <ClInclude Include="JC\Core\Span.h" />
@@ -163,6 +171,7 @@
     <ClCompile Include="JC\Core\Str.cpp" />
     <ClCompile Include="JC\Entity.cpp" />
     <ClCompile Include="JC\Event.cpp" />
+    <ClCompile Include="JC\File_Win.cpp" />
     <ClCompile Include="JC\Fmt.cpp" />
     <ClCompile Include="JC\Game.cpp" />
     <ClCompile Include="JC\HandleArray.cpp" />
