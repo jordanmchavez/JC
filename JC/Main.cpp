@@ -110,69 +110,6 @@ struct Game : App {
 		return Render::CreateShader(data.data, data.len);
 	}
 
-	Res<Json::Elem> LoadJson(s8 path) {
-		Span<u8> data;
-		if (Res<> r = FS::ReadAll(temp, path).To(data); !r) { return r.err; }
-		return Json::Parse(temp, temp, s8((const char*)data.data, data.len));
-	}
-
-	Res<> LoadAtlas(s8 fileName) {
-		Render::Image image = {};
-		if (Res<> r = LoadImage(Fmt(temp, "Assets/{}.png", fileName)).To(image); !r) { return r; }
-		atlasImages.Add(image);
-		const u32 imageIdx = Render::BindImage(image);
-
-		Json::Elem jsonRoot = {};
-		if (Res<> r = LoadJson(Fmt(temp, "Assets/{}.atlas", fileName)).To(jsonRoot); !r) { return r; }
-
-		Span<Json::Elem> jsonArr = {};
-		if (Res<> r = Json::GetArr(jsonRoot).To(jsonArr); !r) { return r; }
-
-		const f32 imageWidth  = (float)Render::GetImageWidth(image);
-		const f32 imageHeight = (float)Render::GetImageHeight(image);
-		for (u64 i = 0; i < jsonArr.len; i++) {
-			Span<Json::KeyVal> jsonObj = {};
-			if (Res<> r = Json::GetObj(jsonArr[i]).To(jsonObj); !r) { return r; }
-			Assert(jsonObj[0].key == "x");
-			Assert(jsonObj[1].key == "y");
-			Assert(jsonObj[2].key == "w");
-			Assert(jsonObj[3].key == "h");
-			Assert(jsonObj[4].key == "name");
-
-			i64 ix    = 0;
-			i64 iy    = 0;
-			i64 iw    = 0;
-			i64 ih    = 0;
-			s8  name = {};
-
-			if (Res<> r = Json::GetI64(jsonObj[0].val).To(ix);   !r) { return r; }
-			if (Res<> r = Json::GetI64(jsonObj[1].val).To(iy);   !r) { return r; }
-			if (Res<> r = Json::GetI64(jsonObj[2].val).To(iw);   !r) { return r; }
-			if (Res<> r = Json::GetI64(jsonObj[3].val).To(ih);   !r) { return r; }
-			if (Res<> r = Json::GetS8 (jsonObj[4].val).To(name); !r) { return r; }
-
-			const f32 x = (f32)ix / imageWidth;
-			const f32 y = (f32)iy / imageHeight;
-			const f32 w = (f32)iw / imageWidth;
-			const f32 h = (f32)ih / imageHeight;
-
-			AtlasEntry* entry = atlasEntries.Add();
-			entry->imageIdx = imageIdx;
-			entry->uv1      = { x, y },
-			entry->uv2      = { x + w, y + h },
-			entry->name     = Copy(perm, name);
-
-			if (name != "") {
-				if (atlasEntryMap.Find(name)) {
-					return Err_AtlasNameAlreadyExists("filename", fileName, "name", name);
-				}
-				atlasEntryMap.Put(entry->name, (u32)(entry - atlasEntries.data));
-			}
-		}
-
-		return Ok();
-	}
-
 	const AtlasEntry* FindAtlasEntry(s8 name) {
 		Opt<u32> idx = atlasEntryMap.Find(name);
 		Assert(idx.hasVal);
