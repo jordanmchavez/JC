@@ -1,10 +1,44 @@
 #include "JC/Sprite.h"
+
+#include "JC/Array.h"
 #include "JC/File.h"
 #include "JC/Json.h"
+#include "JC/Map.h"
+#include "JC/Math.h"
 #include "JC/Render.h"
 #include "3rd/stb/stb_image.h"
 
 namespace JC::Sprite {
+
+//--------------------------------------------------------------------------------------------------
+
+DefErr(Sprite, LoadImage);
+DefErr(Sprite, ImageFmt);
+DefErr(Sprite, AtlasFmt);
+DefErr(Sprite, AlreadyExists);
+
+//--------------------------------------------------------------------------------------------------
+
+struct AtlasEntry {
+	u32  imageIdx = 0;
+	Str  name     = {};
+	Vec2 uv1      = {};
+	Vec2 uv2      = {};
+};
+
+static Mem::Allocator*      allocator;
+static Array<Render::Image> atlasImages;
+static Array<AtlasEntry>    atlasEntries;
+static Map<Str, u32>        atlasEntryMap;
+
+//--------------------------------------------------------------------------------------------------
+
+void Init(Mem::Allocator* allocatorIn) {
+	allocator = allocatorIn;
+	atlasImages.Init(allocatorIn);
+	atlasEntries.Init(allocatorIn);
+	atlasEntryMap.Init(allocatorIn);
+}
 
 //--------------------------------------------------------------------------------------------------
 
@@ -51,40 +85,34 @@ Res<Render::Image> LoadImage(Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> LoadAtlas(Str path) {
+Res<> LoadAtlas(Str path, Render::Image image, u32 imageIdx) {
 	Span<u8> data;
-	if (Res<> r = File::ReadAll(Mem::tempAllocator, path).To(data); !r) { return r.err; }
-	return Json::Parse(, temp, s8((const char*)data.data, data.len));
+	if (Res<> r = File::ReadAll(Mem::tempAllocator, path).To(data); !r) { return r.err; }	// TODO: ctx
+	Json::Doc* doc = 0;
+	if (Res<> r = Json::Parse(Mem::tempAllocator, Str((const char*)data.data, data.len)).To(doc); !r) { return r.err; }	// TODO: ctx
 
-	Json::Elem jsonRoot = {};
-	if (Res<> r = LoadJson(Fmt(temp, "Assets/{}.atlas", fileName)).To(jsonRoot); !r) { return r; }
+	Json::Elem root = Json::GetRoot(doc);
+	if (root.type != Json::Type::Arr) { return Err_AtlasFmt(); }	// TODO: ctx
+	Span<Json::Elem> elems = Json::GetArr(doc, root);
 
-	Span<Json::Elem> jsonArr = {};
-	if (Res<> r = Json::GetArr(jsonRoot).To(jsonArr); !r) { return r; }
+	for (u64 i = 0; i < elems.len; i++) {
+		if (elems[i].type != Json::Type::Obj) { return Err_AtlasFmt(); }	// TODO: ctx
+		Json::Obj obj = Json::GetObj(doc, elems[i]);
+		if (obj.keys.len != 5) { return Err_AtlasFmt(); }
+		if (Json::GetStr(doc, obj.keys[0]) != "x"   ) { return Err_AtlasFmt(); }
+		if (Json::GetStr(doc, obj.keys[0]) != "y"   ) { return Err_AtlasFmt(); }
+		if (Json::GetStr(doc, obj.keys[0]) != "w"   ) { return Err_AtlasFmt(); }
+		if (Json::GetStr(doc, obj.keys[0]) != "h"   ) { return Err_AtlasFmt(); }
+		if (Json::GetStr(doc, obj.keys[0]) != "name") { return Err_AtlasFmt(); }
 
-	const f32 imageWidth  = (float)Render::GetImageWidth(image);
-	const f32 imageHeight = (float)Render::GetImageHeight(image);
-	for (u64 i = 0; i < jsonArr.len; i++) {
-		Span<Json::KeyVal> jsonObj = {};
-		if (Res<> r = Json::GetObj(jsonArr[i]).To(jsonObj); !r) { return r; }
-		Assert(jsonObj[0].key == "x");
-		Assert(jsonObj[1].key == "y");
-		Assert(jsonObj[2].key == "w");
-		Assert(jsonObj[3].key == "h");
-		Assert(jsonObj[4].key == "name");
+		const u64 ix   = Json::GetU64(doc, obj.vals[0]);
+		const u64 iy   = Json::GetU64(doc, obj.vals[1]);
+		const u64 iw   = Json::GetU64(doc, obj.vals[2]);
+		const u64 ih   = Json::GetU64(doc, obj.vals[3]);
+		const Str name = Json::GetStr(doc, obj.vals[4]);
 
-		i64 ix    = 0;
-		i64 iy    = 0;
-		i64 iw    = 0;
-		i64 ih    = 0;
-		s8  name = {};
-
-		if (Res<> r = Json::GetI64(jsonObj[0].val).To(ix);   !r) { return r; }
-		if (Res<> r = Json::GetI64(jsonObj[1].val).To(iy);   !r) { return r; }
-		if (Res<> r = Json::GetI64(jsonObj[2].val).To(iw);   !r) { return r; }
-		if (Res<> r = Json::GetI64(jsonObj[3].val).To(ih);   !r) { return r; }
-		if (Res<> r = Json::GetS8 (jsonObj[4].val).To(name); !r) { return r; }
-
+		const f32 imageWidth = (f32)Render::GetImageWidth(image);
+		const f32 imageHeight = (f32)Render::GetImageHeight(image);
 		const f32 x = (f32)ix / imageWidth;
 		const f32 y = (f32)iy / imageHeight;
 		const f32 w = (f32)iw / imageWidth;
@@ -94,14 +122,12 @@ Res<> LoadAtlas(Str path) {
 		entry->imageIdx = imageIdx;
 		entry->uv1      = { x, y },
 		entry->uv2      = { x + w, y + h },
-		entry->name     = Copy(perm, name);
+		entry->name     = Copy(allocator, name);
 
-		if (name != "") {
-			if (atlasEntryMap.Find(name)) {
-				return Err_AtlasNameAlreadyExists("filename", fileName, "name", name);
-			}
-			atlasEntryMap.Put(entry->name, (u32)(entry - atlasEntries.data));
+		if (atlasEntryMap.FindOrNull(name)) {
+			return Err_AlreadyExists("path", path, "name", name);
 		}
+		atlasEntryMap.Put(entry->name, (u32)(entry - atlasEntries.data));
 	}
 
 	return Ok();
@@ -110,20 +136,19 @@ Res<> LoadAtlas(Str path) {
 //--------------------------------------------------------------------------------------------------
 
 Res<> Load(Str imagePath, Str atlasPath) {
-	LoadImage(imagePath);
-	LoadAtlas(atlasPath);
+	Render::Image image;
+	if (Res<> r = LoadImage(imagePath).To(image); !r) { return r; }
 	const u32 imageIdx = Render::BindImage(image);
+	return LoadAtlas(atlasPath, image, imageIdx);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Sprite Get(Str name) {
-}
+//Sprite Get(Str name) {}
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Draw(Span<Sprite> sprites) {
-}
+//Res<> Draw(Span<Sprite> sprites) {}
 
 //--------------------------------------------------------------------------------------------------
 

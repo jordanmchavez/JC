@@ -16,7 +16,7 @@ namespace JC {
 
 DefErr(App, Init);
 
-static Mem::Allocator*     allocator;
+static Mem::Allocator*     permAllocator;
 static Mem::TempAllocator* tempAllocator;
 static Log::Logger*        logger;
 static bool                exit;
@@ -53,7 +53,7 @@ static void AppPanicFn(const char* expr, const char* msg, Span<NamedArg> namedAr
 
 static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	Mem::Init((u64)16 * 1024 * 1024 * 1024, (u64)16 * 1024 * 1024 * 1024);
-	allocator     = Mem::allocator;
+	permAllocator = Mem::permAllocator;
 	tempAllocator = Mem::tempAllocator;
 
 	Err::SetTempAllocator(tempAllocator);
@@ -69,7 +69,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	});
 
 	Time::Init();
-	Config::Init(allocator);
+	Config::Init(permAllocator);
 
 	if (argc == 2 && argv[1] == Str("test")) {
 		UnitTest::Run(tempAllocator, logger);
@@ -97,7 +97,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 
 	const Window::PlatformDesc windowPlatformDesc = Window::GetPlatformDesc();
 	Render::InitDesc renderInitDesc = {
-		.allocator          = allocator,
+		.allocator          = permAllocator,
 		.tempAllocator      = tempAllocator,
 		.logger             = logger,
 		.width              = windowState.width,
@@ -108,7 +108,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		return r;
 	}
 
-	if (Res<> r = app->Init(allocator, tempAllocator, logger, &windowState); !r) {
+	if (Res<> r = app->Init(permAllocator, tempAllocator, logger, &windowState); !r) {
 		return r;
 	}
 

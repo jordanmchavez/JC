@@ -71,13 +71,6 @@ struct Game : App {
 		u64  sceneBufferAddr = 0;
 	};
 
-	struct AtlasEntry {
-		u32  imageIdx = 0;
-		s8   name     = {};
-		Vec2 uv1      = {};
-		Vec2 uv2      = {};
-	};
-
 	Arena*               temp                                        = 0;
 	Arena*               perm                                        = 0;
 	Log*                 log                                         = 0;
@@ -86,9 +79,6 @@ struct Game : App {
 	Render::Image        depthImage                                  = {};
 	Render::Buffer       sceneBuffers[Render::MaxFrames]             = {};
 	u64                  sceneBufferAddrs[Render::MaxFrames]         = {};
-	Array<Render::Image> atlasImages                                 = {};
-	Array<AtlasEntry>    atlasEntries                                = {};
-	Map<s8, u32>         atlasEntryMap                               = {};
 	Render::Buffer       spriteDrawCmdBuffers[Render::MaxFrames]     = {};
 	u64                  spriteDrawCmdBufferAddrs[Render::MaxFrames] = {};
 	Render::Shader       vertexShader                                = {};

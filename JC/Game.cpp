@@ -43,10 +43,10 @@ struct Game : App {
 		logger        = loggerIn;
 		windowState;
 
-		LoadTextureAtlas("Assets/Texture.png", "Assets/Texture.atlas");
-		GetTexture("
-		load atlas;
-		generate map iles
+		//LoadTextureAtlas("Assets/Texture.png", "Assets/Texture.atlas");
+		//GetTexture("
+		//load atlas;
+		//generate map iles
 
 		return Ok();
 	}

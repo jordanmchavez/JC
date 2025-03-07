@@ -25,7 +25,7 @@ struct TempAllocator : Allocator {
 
 void Init(u64 permReserveSize, u64 tempReserveSize);
 
-extern Allocator*     allocator;
+extern Allocator*     permAllocator;
 extern TempAllocator* tempAllocator;
 
 //--------------------------------------------------------------------------------------------------

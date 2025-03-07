@@ -6,29 +6,38 @@ namespace JC::Json {
 
 //--------------------------------------------------------------------------------------------------
 
-enum struct Type { Bool, I64, U64, F64, Str, Arr, Obj };
+namespace Type {
+	constexpr u32 Bool = 1 << 0;
+	constexpr u32 I64  = 1 << 1;
+	constexpr u32 F64  = 1 << 3;
+	constexpr u32 Str  = 1 << 4;
+	constexpr u32 Arr  = 1 << 5;
+	constexpr u32 Obj  = 1 << 6;
+};
 
 struct Doc;
 
-struct Elem;
+struct Elem {
+	u32 type   : 3;
+	u32 offset : 29;
+};
 
 struct Obj {
-	Span<Str>  keys;
+	Span<Elem> keys;
 	Span<Elem> vals;
 };
 
-Res<Doc*>        Parse(Mem::Allocator allocator, Str json);
-void             Free(Doc* doc);
+Res<Doc*>  Parse(Mem::Allocator* allocator, Str json);
+void       Free(Doc* doc);
 
-Elem             GetRoot(Doc* doc);
-Type             GetType(Elem* elem);
-Res<bool>        GetBool(Elem* elem);
-Res<i64>         GetI64 (Elem* elem);
-Res<u64>         GetU64 (Elem* elem);
-Res<f64>         GetF64 (Elem* elem);
-Res<Str>         GetStr (Elem* elem);
-Res<Span<Elem*>> GetArr (Elem* elem);
-Res<Obj>         GetObj (Elem* elem);
+Elem       GetRoot(Doc* doc);
+bool       GetBool(const Doc* doc, Elem elem);
+i64        GetI64 (const Doc* doc, Elem elem);
+u64        GetU64 (const Doc* doc, Elem elem);
+f64        GetF64 (const Doc* doc, Elem elem);
+Str        GetStr (const Doc* doc, Elem elem);
+Span<Elem> GetArr (const Doc* doc, Elem elem);
+Obj        GetObj (const Doc* doc, Elem elem);
 
 //--------------------------------------------------------------------------------------------------
 
