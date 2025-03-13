@@ -2,6 +2,7 @@
 
 #include "JC/Array.h"
 #include "JC/File.h"
+#include "JC/Hash.h"
 #include "JC/Json.h"
 #include "JC/Map.h"
 #include "JC/Math.h"
