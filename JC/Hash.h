@@ -12,11 +12,11 @@ constexpr u64 HashSeed = 0xbdd89aa982704029;
 struct PreHash {
 	u64 hash;
 
-	PreHash() = default;
-	PreHash(const PreHash&) = default;
-	PreHash(u64 h) { hash = h; };	// Implicit
-	PreHash& operator=(const PreHash& p) = default;
-	PreHash& operator=(u64 h) { hash = h; return *this; }
+	constexpr PreHash() = default;
+	constexpr PreHash(const PreHash&) = default;
+	constexpr PreHash(u64 h) { hash = h; };	// Implicit
+	constexpr PreHash& operator=(const PreHash& p) = default;
+	constexpr PreHash& operator=(u64 h) { hash = h; return *this; }
 };
 inline bool operator==(PreHash p1, PreHash p2) { return p1.hash == p2.hash; }
 

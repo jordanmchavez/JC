@@ -15,7 +15,7 @@ template <class... A> struct [[nodiscard]] Err_WinLast : Err {
 	Err_WinLast(Str fn, A... args, SrcLoc sl = SrcLoc::Here()) {
 		NamedArg namedArgs[1 + (sizeof...(A) / 2)];
 		BuildNamedArgs(namedArgs, "fn", fn, args...);
-		Init("Win", (i64)GetLastError(), Span<NamedArg>(namedArgs, 1 + (sizeof...(A) / 2)), sl);
+		Init("Win", (u64)GetLastError(), Span<const NamedArg>(namedArgs, 1 + (sizeof...(A) / 2)), sl);
 	}
 };
 template <typename... A> Err_WinLast(Str, A...) -> Err_WinLast<A...>;

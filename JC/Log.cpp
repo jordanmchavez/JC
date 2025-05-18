@@ -18,7 +18,7 @@ struct LoggerObj : Logger {
 		tempAllocator = tempAllocatorIn;
 	}
 
-	void VPrintf(SrcLoc sl, Level level, const char* fmt, Span<Arg> args) override {
+	void VPrintf(SrcLoc sl, Level level, const char* fmt, Span<const Arg> args) override {
 		Array<char> arr(tempAllocator);
 		Fmt::Printf(
 			&arr,

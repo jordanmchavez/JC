@@ -450,15 +450,6 @@ struct TempAllocatorObj : TempAllocator {
 
 //--------------------------------------------------------------------------------------------------
 
-static TempAllocatorObj tempAllocatorObj;
-
-TempAllocator* InitTempAllocator(u64 reserveSize) {
-	tempAllocatorObj.Init(reserveSize);
-	return &tempAllocatorObj;
-}
-
-//--------------------------------------------------------------------------------------------------
-
 struct ExpectedBlock {
 	u64  size;
 	bool free;
@@ -534,6 +525,20 @@ void CheckAllocator(AllocatorObj* allocator, Span<ExpectedBlock> expectedBlocks)
 			CheckTrue(!freeBlockCount[f][s]);
 		}
 	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static AllocatorObj     permAllocatorObj;
+static TempAllocatorObj tempAllocatorObj;
+
+Allocator*     permAllocator = &permAllocatorObj;
+TempAllocator* tempAllocator = &tempAllocatorObj;
+
+void Init(u64 permCommitSize, u64 permReserveSize, u64 tempReserveSize)
+{
+	permAllocatorObj.Init(permCommitSize, permReserveSize);
+	tempAllocatorObj.Init(tempReserveSize);
 }
 
 //--------------------------------------------------------------------------------------------------

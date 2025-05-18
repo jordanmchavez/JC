@@ -58,6 +58,13 @@ UnitTest("Bit") {
 	CheckEq(PopCount64((u64)0b10101010), 4u);
 	CheckEq(PopCount64((u64)0xffffffffffffffff), 64u);
 
+	CheckEq(AlignUp(0, 0), 0);
+	CheckEq(AlignUp(0, 8), 0);
+	CheckEq(AlignUp(1, 8), 8);
+	CheckEq(AlignUp(7, 8), 8);
+	CheckEq(AlignUp(8, 8), 8);
+	CheckEq(AlignUp(9, 8), 16);
+
 	CheckEq(AlignPow2(0), 0);
 	CheckEq(AlignPow2(1), 1);
 	CheckEq(AlignPow2(2), 2);

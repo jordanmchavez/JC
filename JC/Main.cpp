@@ -1,14 +1,11 @@
 #include "JC/App.h"
+#include "JC/UnitTest.h"
 
-//--------------------------------------------------------------------------------------------------
-/*
-DefErr(Game, LoadImage);
-DefErr(Game, ImageFmt);
-DefErr(Game, AtlasNameAlreadyExists);
+using namespace JC;
 
 //--------------------------------------------------------------------------------------------------
 
-struct PerspectiveCamera {
+/*struct PerspectiveCamera {
 	Vec3 pos    = {};
 	Vec3 x      = { -1.0f, 0.0f,  0.0f };
 	Vec3 y      = {  0.0f, 1.0f,  0.0f };
@@ -41,9 +38,9 @@ struct PerspectiveCamera {
 		);
 	}
 };
-
+*/
 //--------------------------------------------------------------------------------------------------
-
+/*
 struct Game : App {
 	struct SpriteDrawCmd {
 		Mat4 model      = {};
@@ -359,4 +356,40 @@ struct Game : App {
 		return Ok();
 	}
 };
+
 */
+
+struct Game : App {
+	Res<> Init(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, Log::Logger* logger, const Window::State* windowState) override {
+		allocator;
+		tempAllocator;
+		logger;
+		windowState;
+		return Ok();
+	}
+
+	void  Shutdown() override {
+	}
+
+	Res<> Events(Span<Event::Event> events) override {
+		events;
+		return Ok();
+	}
+
+	Res<> Update(double secs) override {
+		secs;
+		return Ok();
+	}
+
+	Res<> Draw() override {
+		return Ok();
+	}
+
+};
+
+int main(u32 argc, const char* argv[])
+{
+	Game game;
+	RunApp(&game, argc, argv);
+	return 0;
+}

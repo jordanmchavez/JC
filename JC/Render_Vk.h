@@ -24,7 +24,7 @@ template <class... A> struct [[nodiscard]] Err_Vk : JC::Err {
 	Err_Vk(VkResult vkResult, Str fn, A... args, SrcLoc sl = SrcLoc::Here()) {
 		NamedArg namedArgs[1 + sizeof...(A) / 2];	// includes "fn"
 		BuildNamedArgs(namedArgs, "fn", fn, args...);
-		Init("Vk", (i64)vkResult, Span<NamedArg>(namedArgs, 1 + sizeof...(A) / 2), sl);
+		Init("Vk", (i64)vkResult, Span<const NamedArg>(namedArgs, 1 + sizeof...(A) / 2), sl);
 	}
 };
 template <typename... A> Err_Vk(Str, VkResult, A...) -> Err_Vk<A...>;

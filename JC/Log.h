@@ -12,8 +12,8 @@ enum struct Level {
 };
 
 struct Logger {
-	virtual               void VPrintf(SrcLoc sl, Level level, const char*       fmt, Span<Arg> args) = 0;
-	template <class... A> void  Printf(SrcLoc sl, Level level, Fmt::FmtStr<A...> fmt, A...      args) { VPrintf(sl, level, fmt, Span<Arg>({ MakeArg(args)..., })); }
+	virtual               void VPrintf(SrcLoc sl, Level level, const char*       fmt, Span<const Arg> args) = 0;
+	template <class... A> void  Printf(SrcLoc sl, Level level, Fmt::FmtStr<A...> fmt, A...            args) { VPrintf(sl, level, fmt, { MakeArg(args)..., }); }
 };
 
 #define Logf(fmt, ...)   logger->Printf(SrcLoc::Here(), Log::Level::Log,   fmt, __VA_ARGS__)

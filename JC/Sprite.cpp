@@ -90,7 +90,7 @@ Res<> LoadAtlas(Str path, Render::Image image, u32 imageIdx) {
 	Span<u8> data;
 	if (Res<> r = File::ReadAll(Mem::tempAllocator, path).To(data); !r) { return r.err; }	// TODO: ctx
 	Json::Doc* doc = 0;
-	if (Res<> r = Json::Parse(Mem::tempAllocator, Str((const char*)data.data, data.len)).To(doc); !r) { return r.err; }	// TODO: ctx
+	if (Res<> r = Json::Parse(Mem::tempAllocator, Mem::tempAllocator, Str((const char*)data.data, data.len)).To(doc); !r) { return r.err; }	// TODO: ctx
 
 	Json::Elem root = Json::GetRoot(doc);
 	if (root.type != Json::Type::Arr) { return Err_AtlasFmt(); }	// TODO: ctx

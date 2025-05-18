@@ -9,11 +9,6 @@
 
 namespace JC::Entity {
 
-struct A { char b; u8 data[  48]; char e; };
-struct B { char b; u8 data[  91]; char e; };
-struct C { char b;                char e; };
-struct D { char b; u8 data[5000]; char e; };
-
 //--------------------------------------------------------------------------------------------------
 
 // Win64 virtual reserve overhead:
@@ -495,8 +490,10 @@ RowSet* Next(Iter* iter) {
 //--------------------------------------------------------------------------------------------------
 
 UnitTest("Entity") {
-A aa;aa;
-B bb;bb;
+	struct A { char b; u8 data[  48]; char e; };
+	struct B { char b; u8 data[  91]; char e; };
+	struct C { char b;                char e; };
+	struct D { char b; u8 data[5000]; char e; };
 
 	Init(testAllocator, testAllocator);
 

@@ -114,10 +114,6 @@
     <ClInclude Include="3rd\vulkan\vk_platform.h" />
     <ClInclude Include="3rd\vulkan\vulkan_core.h" />
     <ClInclude Include="3rd\vulkan\vulkan_win32.h" />
-    <ClInclude Include="Foo.h">
-      <SubType>
-      </SubType>
-    </ClInclude>
     <ClInclude Include="JC\App.h" />
     <ClInclude Include="JC\Array.h" />
     <ClInclude Include="JC\Bit.h" />
@@ -183,6 +179,7 @@
     <ClCompile Include="JC\Math.cpp" />
     <ClCompile Include="JC\Random.cpp" />
     <ClCompile Include="JC\Render_Vk.cpp" />
+    <ClCompile Include="JC\Render_Vk_Mem.cpp" />
     <ClCompile Include="JC\Render_Vk_Util.cpp" />
     <ClCompile Include="JC\Render_Vk_Win.cpp" />
     <ClCompile Include="JC\Sprite.cpp" />
@@ -193,7 +190,7 @@
     <ClCompile Include="JC\Window_Win.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Notes\Game Notes.md" />
+    <None Include="Notes\Game Design.md" />
     <None Include="Notes\Guidebook.md" />
     <None Include="Notes\Todo.md" />
     <None Include="Shaders\sprite.common.glsl" />

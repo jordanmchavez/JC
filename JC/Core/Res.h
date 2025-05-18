@@ -17,6 +17,8 @@ template <> struct [[nodiscard]] Res<void> {
 	constexpr operator bool() const { return !err.data; }
 };
 
+static_assert(sizeof(Res<>) == 8);
+
 template <class T> struct [[nodiscard]] Res {
 	union {
 		T   val;

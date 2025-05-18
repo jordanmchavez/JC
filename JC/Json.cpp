@@ -1,6 +1,7 @@
 #include "JC/Json.h"
 
 #include "JC/Array.h"
+#include "JC/Bit.h"
 #include "JC/UnitTest.h"
 #include <math.h>
 
@@ -31,7 +32,7 @@ struct Doc {
 };
 
 static u8* Extend(Doc* doc, u32 size) {
-	doc->size = (doc->size + 7) & ~7;
+	doc->size = (u32)Bit::AlignUp(doc->size, 8);
 	const u32 newSize = doc->size + size;
 	if (newSize > doc->cap) {
 		const u32 newCap = Max(doc->cap * 2, newSize);
@@ -73,15 +74,24 @@ static Elem AddObj(Doc* doc, Span<Elem> keys, Span<Elem> vals) {
 	Assert(keys.len == vals.len);
 	u8* ptr = Extend(doc, (u32)(sizeof(u64) + (keys.len * 2 * sizeof(Elem))));
 	*((u32*)ptr) = (u32)keys.len;
-	ptr += sizeof(u32);
-	memcpy(ptr, keys.data, keys.len * sizeof(Elem));
-	ptr += keys.len * sizeof(Elem);
-	memcpy(ptr, vals.data, vals.len * sizeof(Elem));
-
+	memcpy(ptr + sizeof(u32), keys.data, keys.len * sizeof(Elem));
+	memcpy(ptr + sizeof(u32) + (keys.len * sizeof(Elem)), vals.data, vals.len * sizeof(Elem));
 	return Elem { .type = (u32)Type::Obj, .offset = (u32)((u8*)ptr - doc->data) };
 }
 
 //--------------------------------------------------------------------------------------------------
+
+Elem GetRoot(Doc* doc) {
+	return doc->root;
+}
+
+void Free(Doc* doc) {
+	doc->allocator->Free(doc->data, doc->cap);
+	doc->data = 0;
+	doc->size = 0;
+	doc->cap  = 0;
+	doc->root = {};
+}
 
 bool GetBool(const Doc*, Elem elem) {
 	Assert(elem.type == Type::Bool);
@@ -90,17 +100,17 @@ bool GetBool(const Doc*, Elem elem) {
 
 i64 GetI64(const Doc* doc, Elem elem) {
 	Assert(elem.type == Type::I64);
-	return *((i64*)doc->data + elem.offset);
+	return *(i64*)(doc->data + elem.offset);
 }
 
 u64 GetU64(const Doc* doc, Elem elem) {
-	Assert(elem.type == Type::I64);	// intentional, this is just a simple conversion
-	return *((u64*)doc->data + elem.offset);
+	Assert(elem.type == Type::I64);	// We store u64 as i64
+	return *(u64*)(doc->data + elem.offset);
 }
 
 f64 GetF64(const Doc* doc, Elem elem) {
 	Assert(elem.type == Type::F64);
-	return *((f64*)doc->data + elem.offset);
+	return *(f64*)(doc->data + elem.offset);
 }
 
 Str GetStr(const Doc* doc, Elem elem) {
@@ -120,50 +130,52 @@ Obj GetObj(const Doc* doc, Elem elem) {
 	const u8* ptr = doc->data + elem.offset;
 	const u64 len = (u64)(*((u32*)ptr));
 	ptr += sizeof(u32);
-	const Elem* keys = (Elem*)ptr;
+	Elem* keys = (Elem*)ptr;
 	ptr += len * sizeof(Elem);
-	const Elem* vals = (Elem*)ptr;
+	Elem* vals = (Elem*)ptr;
 	return Obj { .keys = Span<Elem>(keys, len), .vals = Span<Elem>(vals, len) };
 }
 
 //--------------------------------------------------------------------------------------------------
 
 struct ParseCtx {
-	const char* iter = 0;
-	const char* end  = 0;
-	u32         line = 0;
+	Doc*                doc           = 0;
+	Mem::TempAllocator* tempAllocator = 0;
+	const char*         iter          = 0;
+	const char*         end           = 0;
+	u32                 line          = 0;
 };
 
 static constexpr bool IsSpace(char c) { return c <= 32; }
 
-static Res<> SkipWhitespace(ParseCtx* p) {
-	while (p->iter < p->end) {
-		const char c = *p->iter;
+static Res<> SkipWhitespace(ParseCtx* ctx) {
+	while (ctx->iter < ctx->end) {
+		const char c = *ctx->iter;
 		if (c == '\n') {
-			p->line++;
-			p->iter++;
+			ctx->line++;
+			ctx->iter++;
 		} else if (IsSpace(c)) {
-			p->iter++;
-		} else if (c == '/' && p->iter + 1 < p->end) {
-			if (p->iter[1] == '/') {
-				p->iter += 2;
-				while (p->iter < p->end && *p->iter != '\n') {
-					p->iter++;
+			ctx->iter++;
+		} else if (c == '/' && ctx->iter + 1 < ctx->end) {
+			if (ctx->iter[1] == '/') {
+				ctx->iter += 2;
+				while (ctx->iter < ctx->end && *ctx->iter != '\n') {
+					ctx->iter++;
 				}
-				p->iter++;	// okay if we go past end
-				p->line++;
+				ctx->iter++;	// okay if we go past end
+				ctx->line++;
 
-			} else if (p->iter[1] == '*') {
-				p->iter += 2;
-				const u32 commentStartLine = p->line;
+			} else if (ctx->iter[1] == '*') {
+				ctx->iter += 2;
+				const u32 commentStartLine = ctx->line;
 				for (;;) {
-					if (p->iter >= p->end) {
+					if (ctx->iter >= ctx->end) {
 						return Err_UnmatchedComment("line", commentStartLine);
-					} else if (p->iter + 1 < p->end && p->iter[0] == '*' && p->iter[1] == '/') {
-						p->iter += 2;
+					} else if (ctx->iter + 1 < ctx->end && ctx->iter[0] == '*' && ctx->iter[1] == '/') {
+						ctx->iter += 2;
 						break;
-					} else if (p->iter[0] == '\n') {
-						p->line++;
+					} else if (ctx->iter[0] == '\n') {
+						ctx->line++;
 					}
 				}
 			}
@@ -174,120 +186,120 @@ static Res<> SkipWhitespace(ParseCtx* p) {
 	return Ok();
 }
 
-static Res<> Expect(ParseCtx* p, char c) {
-	if (p->iter >= p->end) {
-		return Err_Eof("line", p->line, "expected", c);
+static Res<> Expect(ParseCtx* ctx, char c) {
+	if (ctx->iter >= ctx->end) {
+		return Err_Eof("line", ctx->line, "expected", c);
 	}
-	if (p->iter[0] != c) {
-		return Err_BadChar("line", p->line, "expected", c, "actual", p->iter[0]);
+	if (ctx->iter[0] != c) {
+		return Err_BadChar("line", ctx->line, "expected", c, "actual", ctx->iter[0]);
 	}
-	p->iter++;
+	ctx->iter++;
 	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static Res<Elem> ParseTrue(ParseCtx* p) {
-	if (Res<> r = Expect(p, 't'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 'r'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 'u'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 'e'); !r) { return r.err; }
+static Res<Elem> ParseTrue(ParseCtx* ctx) {
+	if (Res<> r = Expect(ctx, 't'); !r) { return r.err; }
+	if (Res<> r = Expect(ctx, 'r'); !r) { return r.err; }
+	if (Res<> r = Expect(ctx, 'u'); !r) { return r.err; }
+	if (Res<> r = Expect(ctx, 'e'); !r) { return r.err; }
 	return Elem { .type = Type::Bool, .offset = 1 };
 }
 
-static Res<Elem> ParseFalse(ParseCtx* p) {
-	if (Res<> r = Expect(p, 'f'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 'a'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 'l'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 's'); !r) { return r.err; }
-	if (Res<> r = Expect(p, 'e'); !r) { return r.err; }
+static Res<Elem> ParseFalse(ParseCtx* ctx) {
+	if (Res<> r = Expect(ctx, 'f'); !r) { return r.err; }
+	if (Res<> r = Expect(ctx, 'a'); !r) { return r.err; }
+	if (Res<> r = Expect(ctx, 'l'); !r) { return r.err; }
+	if (Res<> r = Expect(ctx, 's'); !r) { return r.err; }
+	if (Res<> r = Expect(ctx, 'e'); !r) { return r.err; }
 	return Elem { .type = Type::Bool, .offset = 0 };
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static Res<Elem> ParseNum(Doc* doc, ParseCtx* p) {
-	Assert(p->iter < p->end);
+static Res<Elem> ParseNum(ParseCtx* ctx) {
+	Assert(ctx->iter < ctx->end);
 
 	i64 sign = 1;
-	if (*p->iter == '-') {
+	if (*ctx->iter == '-') {
 		sign = -1;
-		p->iter++;
+		ctx->iter++;
 	}
 
 	i64 intVal = 0;
-	if (p->iter < p->end) {
-		if (*p->iter == '0') {
-			p->iter++;
-		} else if (*p->iter >= '1' && *p->iter <= '9') {
-			intVal = *p->iter - '0';
-			p->iter++;
-			while (p->iter < p->end && *p->iter >= '0' && *p->iter <= '9') {
-				intVal = (intVal * 10) + (*p->iter - '0');
-				p->iter++;
+	if (ctx->iter < ctx->end) {
+		if (*ctx->iter == '0') {
+			ctx->iter++;
+		} else if (*ctx->iter >= '1' && *ctx->iter <= '9') {
+			intVal = *ctx->iter - '0';
+			ctx->iter++;
+			while (ctx->iter < ctx->end && *ctx->iter >= '0' && *ctx->iter <= '9') {
+				intVal = (intVal * 10) + (*ctx->iter - '0');
+				ctx->iter++;
 			}
 		} else {
-			return Err_BadNumber("line", p->line, "ch", *p->iter);
+			return Err_BadNumber("line", ctx->line, "ch", *ctx->iter);
 		}
 	}
 
-	if (p->iter >= p->end || *p->iter != '.') {
-		return AddI64(doc, sign * intVal);
+	if (ctx->iter >= ctx->end || *ctx->iter != '.') {
+		return AddI64(ctx->doc, sign * intVal);
 	}
 
 	u64 fracVal = 0;
 	f64 fracDenom = 1;
-	p->iter++;
-	while (p->iter < p->end && *p->iter >= '0' && *p->iter <= '9') {
-		const u64 newFracVal = (fracVal * 10) + (*p->iter - '0');
+	ctx->iter++;
+	while (ctx->iter < ctx->end && *ctx->iter >= '0' && *ctx->iter <= '9') {
+		const u64 newFracVal = (fracVal * 10) + (*ctx->iter - '0');
 		if (newFracVal < fracVal) {
 			// overflow, skip remainder
-			while (p->iter < p->end && *p->iter >= '0' && *p->iter <= '9') {
-				p->iter++;
+			while (ctx->iter < ctx->end && *ctx->iter >= '0' && *ctx->iter <= '9') {
+				ctx->iter++;
 			}
 			break;
 		}
 		fracVal = newFracVal;
 		fracDenom *= 10;
-		p->iter++;
+		ctx->iter++;
 	}
 
 	f64 expSign = 1.0;
 	u32 exp = 0;
-	if (p->iter < p->end && *p->iter == 'e' || *p->iter == 'E') {
-		p->iter++;
-		if (p->iter >= p->end) { return Err_BadExponent("line", p->line); }
-		if (*p->iter == '+') {
-			p->iter++;
-		} else if (*p->iter == '-') {
+	if (ctx->iter < ctx->end && *ctx->iter == 'e' || *ctx->iter == 'E') {
+		ctx->iter++;
+		if (ctx->iter >= ctx->end) { return Err_BadExponent("line", ctx->line); }
+		if (*ctx->iter == '+') {
+			ctx->iter++;
+		} else if (*ctx->iter == '-') {
 			expSign = -1.0;
-			p->iter++;
+			ctx->iter++;
 		}
-		if (p->iter >= p->end || *p->iter < '1' || *p->iter > '9') {  return Err_BadExponent("line", p->line); }
-		exp = *p->iter - '0';
-		p->iter++;
-		while (p->iter < p->end && *p->iter >= '0' && *p->iter <= '9') {
-			exp = (exp * 10) + (*p->iter - '0');
-			p->iter++;
+		if (ctx->iter >= ctx->end || *ctx->iter < '1' || *ctx->iter > '9') {  return Err_BadExponent("line", ctx->line); }
+		exp = *ctx->iter - '0';
+		ctx->iter++;
+		while (ctx->iter < ctx->end && *ctx->iter >= '0' && *ctx->iter <= '9') {
+			exp = (exp * 10) + (*ctx->iter - '0');
+			ctx->iter++;
 		}
 	}
 
-	return AddF64(doc, (double)sign * ((double)intVal + ((double)fracVal / fracDenom)) * pow(10.0, expSign * (double)exp));
+	return AddF64(ctx->doc, (double)sign * ((double)intVal + ((double)fracVal / fracDenom)) * pow(10.0, expSign * (double)exp));
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static Res<Str> ParseStrRaw(ParseCtx* p) {
-	const u32 openLine = p->line;
-	if (Res<> r = Expect(p, '"'); !r) { return r.err; }
-	Array<char> a(Mem::tempAllocator);
+static Res<Str> ParseStrRaw(ParseCtx* ctx) {
+	const u32 openLine = ctx->line;
+	if (Res<> r = Expect(ctx, '"'); !r) { return r.err; }
+	Array<char> a(ctx->tempAllocator);
 	for (;;) {
-		if (p->iter >= p->end) { return Err_UnmatchedStringQuote("line", openLine); }
-		if (*p->iter == '"') { break; }
-		if (*p->iter == '\\') {
-			p->iter++;
-			if (p->iter >= p->end) { return Err_BadEscapedChar("line", p->line); }
-			switch (*p->iter) {
+		if (ctx->iter >= ctx->end) { return Err_UnmatchedStringQuote("line", openLine); }
+		if (*ctx->iter == '"') { break; }
+		if (*ctx->iter == '\\') {
+			ctx->iter++;
+			if (ctx->iter >= ctx->end) { return Err_BadEscapedChar("line", ctx->line); }
+			switch (*ctx->iter) {
 				case '\\': a.Add('\\'); break;
 				case '"':  a.Add('"');  break;
 				case '/':  a.Add('/');  break;
@@ -300,139 +312,143 @@ static Res<Str> ParseStrRaw(ParseCtx* p) {
 				case 'u': // TODO: UTF-8 support
 
 				default:
-					return Err_BadChar("line", p->line, "ch", *p->iter);
+					return Err_BadChar("line", ctx->line, "ch", *ctx->iter);
 			}
-			p->iter++;
+			ctx->iter++;
 
 		} else {
-			a.Add(*p->iter);
-			p->iter++;
+			a.Add(*ctx->iter);
+			ctx->iter++;
 		}
 	}
 
-	Assert(p->iter < p->end && *p->iter == '"');
-	p->iter++;
+	Assert(ctx->iter < ctx->end && *ctx->iter == '"');
+	ctx->iter++;
 	return Str(a.data, a.len);
 }
 
-static Res<Elem> ParseStr(Doc* doc, ParseCtx* p) {
+static Res<Elem> ParseStr(ParseCtx* ctx) {
 	Str s = {};
-	if (Res<> r = ParseStrRaw(p).To(s); !r) { return r.err; }
-	return AddStr(doc, s);
+	if (Res<> r = ParseStrRaw(ctx).To(s); !r) { return r.err; }
+	return AddStr(ctx->doc, s);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static Res<Elem> ParseElem(Doc* doc, ParseCtx* p);
+static Res<Elem> ParseElem(ParseCtx* ctx);
 
-static Res<Elem> ParseArr(Doc* doc, ParseCtx* p) {
-	const u32 openLine = p->line;
-	if (Res<> r = Expect(p, '['); !r) { return r.err; }
+static Res<Elem> ParseArr(ParseCtx* ctx) {
+	const u32 openLine = ctx->line;
+	if (Res<> r = Expect(ctx, '['); !r) { return r.err; }
 
-	Array<Elem> elems(Mem::tempAllocator);
+	Array<Elem> elems(ctx->tempAllocator);
 	for (;;) {
-		if (Res<> r = SkipWhitespace(p); !r) { return r.err; }
-		if (p->iter >= p->end) { return Err_UnmatchedArrayBracket("line", openLine); }
-		if (*p->iter == ']') { break; }
+		if (Res<> r = SkipWhitespace(ctx); !r) { return r.err; }
+		if (ctx->iter >= ctx->end) { return Err_UnmatchedArrayBracket("line", openLine); }
+		if (*ctx->iter == ']') { break; }
 
 		Elem e = {};
-		if (Res<> r = ParseElem(doc, p).To(e); !r) { return r.err; }
+		if (Res<> r = ParseElem(ctx).To(e); !r) { return r.err; }
 		elems.Add(e);
 		
-		if (Res<> r = SkipWhitespace(p); !r) { return r.err; }
-		if (p->iter >= p->end) { return Err_UnmatchedArrayBracket("line", openLine); }
-		if (*p->iter == ']') { break; }
-		if (Res<> r = Expect(p, ','); !r) { return r.err; }
+		if (Res<> r = SkipWhitespace(ctx); !r) { return r.err; }
+		if (ctx->iter >= ctx->end) { return Err_UnmatchedArrayBracket("line", openLine); }
+		if (*ctx->iter == ']') { break; }
+		if (Res<> r = Expect(ctx, ','); !r) { return r.err; }
 	}
 
-	Assert(p->iter < p->end && *p->iter == ']');
-	p->iter++;
-	return AddArr(doc, elems);
+	Assert(ctx->iter < ctx->end && *ctx->iter == ']');
+	ctx->iter++;
+	if (Res<> r = SkipWhitespace(ctx); !r) { return r.err; }
+	if (ctx->iter < ctx->end && *ctx->iter == ',') { ctx->iter++; }
+	return AddArr(ctx->doc, elems);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static Res<Elem> ParseKey(Doc* doc, ParseCtx* p) {
-	Assert(p->iter < p->end);
-	if (char c = *p->iter; c == '"') {
-		return ParseStr(doc, p);
+static Res<Elem> ParseKey(ParseCtx* ctx) {
+	Assert(ctx->iter < ctx->end);
+	if (char c = *ctx->iter; c == '"') {
+		return ParseStr(ctx);
 		
 	} else if (
 		(c >= 'a' && c <= 'z') ||
 		(c >= 'A' && c <= 'Z') ||
 		(c == '_')
 	) {
-		const char* begin = p->iter;
-		p->iter++;
+		const char* begin = ctx->iter;
+		ctx->iter++;
 		for (;;) {
-			if (p->iter >= p->end) { return Err_BadKey("line", p->line); }
-			c = *p->iter; 
+			if (ctx->iter >= ctx->end) { return Err_BadKey("line", ctx->line); }
+			c = *ctx->iter; 
 			if (
 				(c >= '0' && c <= '9') ||
 				(c >= 'a' && c <= 'z') ||
 				(c >= 'A' && c <= 'Z') ||
 				(c == '_')
 			) {
-				p->iter++;
+				ctx->iter++;
 			} else {
 				break;
 			}
 		}
-		return AddStr(doc, Str(begin, p->iter));
+		return AddStr(ctx->doc, Str(begin, ctx->iter));
 
 	} else {
-		return Err_BadKey("line", p->line, "ch", c);
+		return Err_BadKey("line", ctx->line, "ch", c);
 	}
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static Res<Elem> ParseObj(Doc* doc, ParseCtx* p) {
-	const u32 openLine = p->line;
-	if (Res<> r = Expect(p, '{'); !r) { return r.err; }
+static Res<Elem> ParseObj(ParseCtx* ctx) {
+	const u32 openLine = ctx->line;
+	if (Res<> r = Expect(ctx, '{'); !r) { return r.err; }
 
-	Array<Elem> keys(Mem::tempAllocator);
-	Array<Elem> vals(Mem::tempAllocator);
+	Array<Elem> keys(ctx->tempAllocator);
+	Array<Elem> vals(ctx->tempAllocator);
 	for (;;) {
-		if (Res<> r = SkipWhitespace(p); !r) { return r.err; }
-		if (p->iter >= p->end) { return Err_UnmatchedObjectBrace("line", openLine); }
-		if (*p->iter == '}') { break; }
+		if (Res<> r = SkipWhitespace(ctx); !r) { return r.err; }
+		if (ctx->iter >= ctx->end) { return Err_UnmatchedObjectBrace("line", openLine); }
+		if (*ctx->iter == '}') { break; }
 
 		Elem key;
-		if (Res<> r = ParseKey(doc, p).To(key); !r) { return r.err; }
+		if (Res<> r = ParseKey(ctx).To(key); !r) { return r.err; }
 		keys.Add(key);
 
-		if (Res<> r = SkipWhitespace(p); !r) { return r.err; }
-		if (p->iter >= p->end) { return Err_UnmatchedObjectBrace("line", openLine); }
+		if (Res<> r = SkipWhitespace(ctx); !r) { return r.err; }
+		if (ctx->iter >= ctx->end) { return Err_UnmatchedObjectBrace("line", openLine); }
 
-		if (Res<> r = Expect(p, ':'); !r) { return r.err; }
+		if (Res<> r = Expect(ctx, ':'); !r) { return r.err; }
 
-		if (Res<> r = SkipWhitespace(p); !r) { return r.err; }
-		if (p->iter >= p->end) { return Err_UnmatchedObjectBrace("line", openLine); }
+		if (Res<> r = SkipWhitespace(ctx); !r) { return r.err; }
+		if (ctx->iter >= ctx->end) { return Err_UnmatchedObjectBrace("line", openLine); }
 
 		Elem val;
-		if (Res<> r = ParseElem(doc, p).To(val); !r) { return r.err; }
+		if (Res<> r = ParseElem(ctx).To(val); !r) { return r.err; }
 		vals.Add(val);
 		
-		if (Res<> r = SkipWhitespace(p); !r) { return r.err; }
-		if (p->iter >= p->end) { return Err_UnmatchedObjectBrace("line", openLine); }
-		if (*p->iter == '}') { break; }
-		if (Res<> r = Expect(p, ','); !r) { return r.err; }
+		if (Res<> r = SkipWhitespace(ctx); !r) { return r.err; }
+		if (ctx->iter >= ctx->end) { return Err_UnmatchedObjectBrace("line", openLine); }
+		if (*ctx->iter == '}') { break; }
+		if (Res<> r = Expect(ctx, ','); !r) { return r.err; }
 	}
 
-	Assert(p->iter < p->end && *p->iter == '}');
-	p->iter++;
-	return AddObj(doc, keys, vals);
+	Assert(ctx->iter < ctx->end && *ctx->iter == '}');
+	ctx->iter++;
+	if (Res<> r = SkipWhitespace(ctx); !r) { return r.err; }
+	if (ctx->iter < ctx->end && *ctx->iter == ',') { ctx->iter++; }
+	return AddObj(ctx->doc, keys, vals);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static Res<Elem> ParseElem(Doc* doc, ParseCtx* p) {
-	Assert(p->iter < p->end);
+static Res<Elem> ParseElem(ParseCtx* ctx) {
+	Assert(ctx->iter < ctx->end);
 
-	switch (p->iter[0]) {
-		case 't': return ParseTrue(p);
-		case 'f': return ParseFalse(p);
+	switch (ctx->iter[0]) {
+		case 't': return ParseTrue(ctx);
+		case 'f': return ParseFalse(ctx);
 
 		case '0':
 		case '1':
@@ -444,41 +460,34 @@ static Res<Elem> ParseElem(Doc* doc, ParseCtx* p) {
 		case '7':
 		case '8':
 		case '9':
-		case '-': return ParseNum(doc, p);
+		case '-': return ParseNum(ctx);
 
-		case '"': return ParseStr(doc, p);
+		case '"': return ParseStr(ctx);
 		
-		case '[': return ParseArr(doc, p);
+		case '[': return ParseArr(ctx);
 
-		case '{': return ParseObj(doc, p);
+		case '{': return ParseObj(ctx);
 
-		default: return Err_BadChar("line", p->line, "ch", p->iter[0]);
+		default: return Err_BadChar("line", ctx->line, "ch", ctx->iter[0]);
 	}
 }
 
-Res<Doc*> Parse(Mem::Allocator* allocator, Str json) {
-	Doc* doc = allocator->AllocT<Doc>();
-	ParseCtx p = {
-		.iter = json.data,
-		.end  = json.data + json.len,
-		.line = 1,
+Res<Doc*> Parse(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, Str json) {
+	ParseCtx ctx = {
+		.doc           = allocator->AllocT<Doc>(),
+		.tempAllocator = tempAllocator,
+		.iter          = json.data,
+		.end           = json.data + json.len,
+		.line          = 1,
 	};
+	ctx.doc->allocator = allocator;
 
-	if (Res<> r = SkipWhitespace(&p); !r) { return r.err; }
-	Elem elem = {};
-	if (Res<> r = ParseElem(doc, &p).To(elem); !r) { return r.err; };
-	if (Res<> r = SkipWhitespace(&p); !r) { return r.err; }
-	if (p.iter < p.end) {
-		return Err_BadChar("line", p.line, "ch", *p.iter);
-	}
+	if (Res<> r = SkipWhitespace(&ctx); !r)              { Free(ctx.doc); return r.err; }
+	if (Res<> r = ParseElem(&ctx).To(ctx.doc->root); !r) { Free(ctx.doc); return r.err; };
+	if (Res<> r = SkipWhitespace(&ctx); !r)              { Free(ctx.doc); return r.err; }
+	if (ctx.iter < ctx.end)                              { Free(ctx.doc); return Err_BadChar("line", ctx.line, "ch", *ctx.iter); }
 
-	return doc;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-void Free(Doc* doc) {
-	doc->allocator->Free(doc->data, doc->cap);
+	return ctx.doc;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -486,7 +495,7 @@ void Free(Doc* doc) {
 UnitTest("Json") {
 	{
 		Doc* doc = 0;
-		CheckTrue(Parse(testAllocator, "123").To(doc));
+		CheckTrue(Parse(testAllocator, testAllocator, "123").To(doc));
 		Elem root = GetRoot(doc);
 		CheckEq(GetI64(doc, root), 123);
 		Free(doc);
@@ -494,16 +503,39 @@ UnitTest("Json") {
 
 	{
 		Doc* doc = 0;
-		CheckTrue(Parse(testAllocator, "{ foo: \"hello\", \"foo bar\": 1.25 }").To(doc));
+		const Str json = "{"
+			"foo: \"hello\","
+			"\"foo bar\": 1.25,"
+			"\"arr\": ["
+				"\"qux\","
+				"456,"
+				"{"
+					"\"another\": \"key\","
+					"\"day\": 1,"
+				"},"
+			"],"
+		"},";
+		CheckTrue(Parse(testAllocator, testAllocator, json).To(doc));
 		Elem root = GetRoot(doc);
 		Obj obj = GetObj(doc, root);
-
-		CheckEq(obj.keys.len, 2);
-		CheckEq(obj.vals.len, 2);
+		CheckEq(obj.keys.len, 3);
+		CheckEq(obj.vals.len, 3);
 		CheckEq(GetStr(doc, obj.keys[0]), "foo");
 		CheckEq(GetStr(doc, obj.vals[0]), "hello");
 		CheckEq(GetStr(doc, obj.keys[1]), "foo bar");
 		CheckEq(GetF64(doc, obj.vals[1]), 1.25);
+		CheckEq(GetStr(doc, obj.keys[2]), "arr");
+		Span<Elem> arr = GetArr(doc, obj.vals[2]);
+		CheckEq(arr.len, 3);
+		CheckEq(GetStr(doc, arr[0]), "qux");
+		CheckEq(GetU64(doc, arr[1]), 456);
+		Obj subObj = GetObj(doc, arr[2]);
+		CheckEq(subObj.keys.len, 2);
+		CheckEq(subObj.vals.len, 2);
+		CheckEq(GetStr(doc, subObj.keys[0]), "another");
+		CheckEq(GetStr(doc, subObj.vals[0]), "key");
+		CheckEq(GetStr(doc, subObj.keys[1]), "day");
+		CheckEq(GetU64(doc, subObj.vals[1]), 1);
 
 		Free(doc);
 	}

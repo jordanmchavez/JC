@@ -83,9 +83,4 @@ template <class T> constexpr T Clamp(T x, T lo, T hi) { return x < lo ? lo : (x 
 
 namespace JC {
 
-template <class T> constexpr const T& Span<T>::operator[](u64 i) const {
-	Assert(i < len);
-	return data[i];
-}
-
 }	// namespace JC

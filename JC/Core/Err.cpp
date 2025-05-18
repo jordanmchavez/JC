@@ -9,13 +9,13 @@ namespace JC {
 
 static Mem::TempAllocator* tempAllocator;
 
-void Err::SetTempAllocator(Mem::TempAllocator* tempAllocatorIn) {
+void Err::Init(Mem::TempAllocator* tempAllocatorIn) {
 	tempAllocator = tempAllocatorIn;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void Err::Init(Str ns, Str code, Span<NamedArg> namedArgs, SrcLoc sl) {
+void Err::Init(Str ns, Str code, Span<const NamedArg> namedArgs, SrcLoc sl) {
 	Assert(namedArgs.len <= MaxArgs);
 
 	data = tempAllocator->AllocT<Data>();
@@ -36,7 +36,7 @@ void Err::Init(Str ns, Str code, Span<NamedArg> namedArgs, SrcLoc sl) {
 	#endif	// DebugBreakOnErr
 }
 
-void Err::Init(Str ns, i64 code, Span<NamedArg> namedArgs, SrcLoc sl) {
+void Err::Init(Str ns, u64 code, Span<const NamedArg> namedArgs, SrcLoc sl) {
 	Init(ns, Fmt::Printf(tempAllocator, "{}", code), namedArgs, sl);
 }
 
@@ -54,12 +54,12 @@ Str Err::GetStr() {
 	Array<char> a(tempAllocator);
 	Fmt::Printf(&a, "Error: ");
 	for (Data* d = data; d; d = d->prev) {
-		Fmt::Printf(&a, "{}.{} -> ", d->ns, d->code);
+		Fmt::Printf(&a, "{}-{} -> ", d->ns, d->code);
 	}
 	a.len -= 4;
 	a.Add('\n');
 	for (Data* d = data; d; d = d->prev) {
-		Fmt::Printf(&a, "{}.{}:\n", d->ns, d->code);
+		Fmt::Printf(&a, "{}-{}:\n", d->ns, d->code);
 		for (u32 i = 0; i < d->namedArgsLen; d++) {
 			Fmt::Printf(&a, "  {}={}\n", d->namedArgs[i].name, d->namedArgs[i].arg);
 		}

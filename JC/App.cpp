@@ -25,7 +25,7 @@ static bool                exit;
 
 void App::Exit() { exit = true; }
 
-static void AppPanicFn(const char* expr, const char* msg, Span<NamedArg> namedArgs, SrcLoc sl) {
+static void AppPanicFn(const char* expr, const char* msg, Span<const NamedArg> namedArgs, SrcLoc sl) {
 	char buf[1024];
 	char* iter = buf;
 	char* end = buf + sizeof(buf) - 1;
@@ -52,11 +52,15 @@ static void AppPanicFn(const char* expr, const char* msg, Span<NamedArg> namedAr
 //--------------------------------------------------------------------------------------------------
 
 static Res<> RunAppInternal(App* app, int argc, const char** argv) {
-	Mem::Init((u64)16 * 1024 * 1024 * 1024, (u64)16 * 1024 * 1024 * 1024);
+	Mem::Init(
+		(u64)8 * 1024 * 1024,
+		(u64)16 * 1024 * 1024 * 1024,
+		(u64)16 * 1024 * 1024 * 1024
+	);
 	permAllocator = Mem::permAllocator;
 	tempAllocator = Mem::tempAllocator;
 
-	Err::SetTempAllocator(tempAllocator);
+	Err::Init(tempAllocator);
 	Sys::Init(tempAllocator);
 	SetPanicFn(AppPanicFn);
 

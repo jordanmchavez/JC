@@ -20,19 +20,22 @@ namespace std {
 //--------------------------------------------------------------------------------------------------
 
 template <class T> struct Span {
-	const T* data = 0;
-	u64      len  = 0;
+	T*  data = 0;
+	u64 len  = 0;
 
 	constexpr Span() = default;
-	constexpr Span(const T* d, u64 l) { data = d; len = l; }
-	constexpr Span(std::initializer_list<T> il) { data = il.begin(); len = il.size(); }
+	constexpr Span(T* d, u64 l) { data = d; len = l; }
+	constexpr Span(std::initializer_list<T> il) { data = const_cast<T*>(il.begin()); len = il.size(); }
 	constexpr Span(const Span&) = default;
 
 	constexpr Span& operator=(const Span&) = default;
 	
-	constexpr const T& operator[](u64 i) const;
+	constexpr       T& operator[](u64 i)       { return data[i]; }
+	constexpr const T& operator[](u64 i) const { return data[i]; }
 
+	constexpr       T* Begin()       { return data; }
 	constexpr const T* Begin() const { return data; }
+	constexpr       T* End()         { return data + len; }
 	constexpr const T* End()   const { return data + len; }
 };
 

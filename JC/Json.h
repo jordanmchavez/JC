@@ -7,12 +7,12 @@ namespace JC::Json {
 //--------------------------------------------------------------------------------------------------
 
 namespace Type {
-	constexpr u32 Bool = 1 << 0;
-	constexpr u32 I64  = 1 << 1;
-	constexpr u32 F64  = 1 << 3;
-	constexpr u32 Str  = 1 << 4;
-	constexpr u32 Arr  = 1 << 5;
-	constexpr u32 Obj  = 1 << 6;
+	constexpr u32 Bool = 0;
+	constexpr u32 I64  = 1;
+	constexpr u32 F64  = 2;
+	constexpr u32 Str  = 3;
+	constexpr u32 Arr  = 4;
+	constexpr u32 Obj  = 5;
 };
 
 struct Doc;
@@ -27,7 +27,7 @@ struct Obj {
 	Span<Elem> vals;
 };
 
-Res<Doc*>  Parse(Mem::Allocator* allocator, Str json);
+Res<Doc*>  Parse(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, Str json);
 void       Free(Doc* doc);
 
 Elem       GetRoot(Doc* doc);

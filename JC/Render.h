@@ -109,7 +109,7 @@ u32                  BindImage(Image image);
 void                 UpdateImage(Image image, StagingMem stagingMem);
 void                 ImageBarrier(Image image, Stage src, Stage dst);
 
-Res<Shader>          CreateShader(const void* data, u64 len);
+Res<Shader>          CreateShader	(const void* data, u64 len);
 void                 DestroyShader(Shader shader);
 
 Res<Pipeline>        CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> colorAttachmentFormats, ImageFormat depthAttachmentFormat);

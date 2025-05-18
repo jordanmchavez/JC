@@ -64,7 +64,7 @@ Res<Span<u8>> ReadAll(Mem::Allocator* allocator, Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
-void CloseFile(File file) {
+void Close(File file) {
 	if (file.handle) {
 		CloseHandle((HANDLE)file.handle);
 	}

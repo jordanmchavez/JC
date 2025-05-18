@@ -60,10 +60,10 @@ struct WStrZ {
 
 	constexpr WStrZ() = default;
 	constexpr WStrZ(const WStrZ&) = default;
-	constexpr WStrZ(const wchar_t* sz)       { data = sz;     len = ConstExprWStrLen(sz); }
-	constexpr WStrZ(const wchar_t* p, u64 l) { Assert(!l || p); data = p;      len = l; }
+	constexpr WStrZ(const wchar_t* sz)       { data = sz;                  len = ConstExprWStrLen(sz); }
+	constexpr WStrZ(const wchar_t* p, u64 l) { Assert(!l || p); data = p;  len = l; }
 
-	constexpr WStrZ& operator=(const WStrZ& s)    { data = s.data;  len = s.len;                 return *this; }
+	constexpr WStrZ& operator=(const WStrZ& s)    { data = s.data;  len = s.len;                return *this; }
 	constexpr WStrZ& operator=(const wchar_t* sz) { data = sz;      len = ConstExprWStrLen(sz); return *this; }
 
 	constexpr wchar_t operator[](u64 i) const { Assert(i < len); return data[i]; }

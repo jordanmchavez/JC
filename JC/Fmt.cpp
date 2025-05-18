@@ -377,7 +377,7 @@ void WritePtr(Out* out, const void* p, u32 flags, u32 width) {
 //--------------------------------------------------------------------------------------------------	
 
 template <class Out>
-void VPrintfImpl(Out out, const char* fmt, Span<Arg> args) {
+void VPrintfImpl(Out out, const char* fmt, Span<const Arg> args) {
 	const char* i = fmt;
 	u32 nextArg = 0;
 
@@ -460,17 +460,17 @@ void VPrintfImpl(Out out, const char* fmt, Span<Arg> args) {
 
 //--------------------------------------------------------------------------------------------------
 
-char* VPrintf(char* outBegin, char* outEnd, const char* fmt, Span<Arg> args) {
+char* VPrintf(char* outBegin, char* outEnd, const char* fmt, Span<const Arg> args) {
 	FixedOut out = { .begin = outBegin, .end = outEnd };
 	VPrintfImpl(&out, fmt, args);
 	return out.begin;
 }
 
-void VPrintf(Array<char>* out, const char* fmt, Span<Arg> args) {
+void VPrintf(Array<char>* out, const char* fmt, Span<const Arg> args) {
 	VPrintfImpl(out, fmt, args);
 }
 	
-Str VPrintf(Mem::Allocator* allocator, const char* fmt, Span<Arg> args) {
+Str VPrintf(Mem::Allocator* allocator, const char* fmt, Span<const Arg> args) {
 	Array<char> out(allocator);
 	VPrintfImpl(&out, fmt, args);
 	return Str(out.data, out.len);

@@ -14,7 +14,7 @@ PanicFn* SetPanicFn(PanicFn* newPanicFn) {
 	return oldPanicFn;
 }
 
-void VPanic(const char* expr, const char* fmt, Span<NamedArg> namedArgs, SrcLoc sl) {
+void VPanic(const char* expr, const char* fmt, Span<const NamedArg> namedArgs, SrcLoc sl) {
 	static bool recursive = false;
 	if (recursive) {
 		if (Sys::IsDebuggerPresent()) {

@@ -22,10 +22,11 @@ struct RowSet {
 
 void         Init(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator);
 
+Component    CreateComponent(Str name, u32 size);
+
 Span<Entity> CreateEntities(u32 n, Span<Component> components);
 void         DestroyEntities(Span<Entity> entitys);
 
-Component    CreateComponent(Str name, u32 size);
 void         AddComponents(Entity entity, Span<Component> components);
 void         RemoveComponents(Entity entity, Span<Component> components);
 Span<void*>  GetComponentData(Entity entity, Span<Component> components);
