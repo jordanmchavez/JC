@@ -18,17 +18,17 @@ enum struct ArgType {
 
 struct ArgStr {
 	const char* data;
-	u64         len;
+	U64         len;
 };
 
 struct Arg {
 	ArgType type;
 	union {
-		bool        b;
+		Bool        b;
 		char        c;
-		i64         i;
-		u64         u;
-		f64         f;
+		I64         i;
+		U64         u;
+		F64         f;
 		ArgStr      s;
 		const void* p;
 	};
@@ -37,7 +37,7 @@ struct Arg {
 template <class T>
 Arg MakeArg(T val) {
 	using Underlying = typename RemoveConst<typename RemoveVolatile<typename RemoveRef<T>::Type>::Type>::Type;
-	     if constexpr (IsSameType<Underlying, bool>)               { return { .type = ArgType::Bool, .b = val }; }
+	     if constexpr (IsSameType<Underlying, Bool>)               { return { .type = ArgType::Bool, .b = val }; }
 	else if constexpr (IsSameType<Underlying, char>)               { return { .type = ArgType::Char, .c = val }; }
 	else if constexpr (IsSameType<Underlying, signed char>)        { return { .type = ArgType::I64,  .i = val }; }
 	else if constexpr (IsSameType<Underlying, signed short>)       { return { .type = ArgType::U64,  .i = val }; }
@@ -55,14 +55,14 @@ Arg MakeArg(T val) {
 	else if constexpr (IsSameType<Underlying, const char*>)        { return { .type = ArgType::Str,  .s = { .data = val, .len = strlen(val) } }; }
 	else if constexpr (IsPointer<Underlying>)                      { return { .type = ArgType::Ptr,  .p = val }; }
 	else if constexpr (IsSameType<Underlying, decltype(nullptr)>)  { return { .type = ArgType::Ptr,  .p = nullptr }; }
-	else if constexpr (IsEnum<Underlying>)                         { return { .type = ArgType::U64,  .u = (u64)val }; }
+	else if constexpr (IsEnum<Underlying>)                         { return { .type = ArgType::U64,  .u = (U64)val }; }
 	else if constexpr (IsSameType<Underlying, Arg>)                { return val; }
 	else if constexpr (IsSameType<Underlying, Span<Arg>>)          { static_assert(AlwaysFalse<T>, "You passed Span<Arg> as a placeholder variable: you probably meant to call VFmt() instead of Fmt()"); }
 	else                                                           { static_assert(AlwaysFalse<T>, "Unsupported arg type"); }
 }
 
-template <u64 N> constexpr Arg MakeArg(char (&val)[N])       { return { .type = ArgType::Str, .s = { .data = val, .len = ConstExprStrLen(val) } }; }
-template <u64 N> constexpr Arg MakeArg(const char (&val)[N]) { return { .type = ArgType::Str, .s = { .data = val, .len = ConstExprStrLen(val) } }; }
+template <U64 N> constexpr Arg MakeArg(char (&val)[N])       { return { .type = ArgType::Str, .s = { .data = val, .len = ConstExprStrLen(val) } }; }
+template <U64 N> constexpr Arg MakeArg(const char (&val)[N]) { return { .type = ArgType::Str, .s = { .data = val, .len = ConstExprStrLen(val) } }; }
 
 //--------------------------------------------------------------------------------------------------
 

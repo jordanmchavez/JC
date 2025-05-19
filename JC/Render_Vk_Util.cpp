@@ -427,28 +427,28 @@ Str PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str VersionStr(Mem::Allocator* allocator, u32 v) {
+Str VersionStr(Mem::Allocator* allocator, U32 v) {
 	return Fmt::Printf(allocator, "{}.{}.{}", VK_API_VERSION_MAJOR(v), VK_API_VERSION_MINOR(v), VK_API_VERSION_PATCH(v));
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Str SizeStr(Mem::Allocator* allocator, u64 size) {
+Str SizeStr(Mem::Allocator* allocator, U64 size) {
 	if (size > 1024 * 1024 * 1024) {
-		return Fmt::Printf(allocator, "{.1}gb", (f64)size / (1024.0 * 1024.0 * 1024.0));
+		return Fmt::Printf(allocator, "{.1}gb", (F64)size / (1024.0 * 1024.0 * 1024.0));
 	}
 	if (size > 1024 * 1024) {
-		return Fmt::Printf(allocator, "{.1}mb", (f64)size / (1024.0 * 1024.0));
+		return Fmt::Printf(allocator, "{.1}mb", (F64)size / (1024.0 * 1024.0));
 	}
 	if (size > 1024) {
-		return Fmt::Printf(allocator, "{.1}kb", (f64)size / 1024.0);
+		return Fmt::Printf(allocator, "{.1}kb", (F64)size / 1024.0);
 	}
 	return Fmt::Printf(allocator, "{}", size);
 }
 
 //-------------------------------------------------------------------------------------------------
 
-u32 FormatSize(VkFormat vkFormat) {
+U32 FormatSize(VkFormat vkFormat) {
 	switch (vkFormat) {
 		case VK_FORMAT_UNDEFINED:
 			return 0;
@@ -730,7 +730,7 @@ u32 FormatSize(VkFormat vkFormat) {
 
 //-------------------------------------------------------------------------------------------------
 
-bool IsDepthFormat(VkFormat vkFormat) {
+Bool IsDepthFormat(VkFormat vkFormat) {
 	switch (vkFormat) {
 		case VK_FORMAT_D16_UNORM:
 		case VK_FORMAT_D16_UNORM_S8_UINT:

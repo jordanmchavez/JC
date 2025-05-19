@@ -21,7 +21,7 @@ DefErr(Sprite, AlreadyExists);
 //--------------------------------------------------------------------------------------------------
 
 struct AtlasEntry {
-	u32  imageIdx = 0;
+	U32  imageIdx = 0;
 	Str  name     = {};
 	Vec2 uv1      = {};
 	Vec2 uv2      = {};
@@ -30,7 +30,7 @@ struct AtlasEntry {
 static Mem::Allocator*      allocator;
 static Array<Render::Image> atlasImages;
 static Array<AtlasEntry>    atlasEntries;
-static Map<Str, u32>        atlasEntryMap;
+static Map<Str, U32>        atlasEntryMap;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -44,13 +44,13 @@ void Init(Mem::Allocator* allocatorIn) {
 //--------------------------------------------------------------------------------------------------
 
 Res<Render::Image> LoadImage(Str path) {
-	Span<u8> data;
+	Span<U8> data;
 	if (Res<> r = File::ReadAll(Mem::tempAllocator, path).To(data); !r) { return r.err; }
 
 	int width = 0;
 	int height = 0;
 	int channels = 0;
-	u8* imageData = (u8*)stbi_load_from_memory(data.data, (int)data.len, &width, &height, &channels, 0);
+	U8* imageData = (U8*)stbi_load_from_memory(data.data, (int)data.len, &width, &height, &channels, 0);
 	if (!imageData) {
 		return Err_LoadImage("path", path, "desc", stbi_failure_reason());
 	}
@@ -67,8 +67,8 @@ Res<Render::Image> LoadImage(Str path) {
 	if (channels == 4) {
 		memcpy(stagingMem.ptr, imageData, width * height * channels);
 	} else {
-		u8* in = imageData;
-		u8* out = (u8*)stagingMem.ptr;
+		U8* in = imageData;
+		U8* out = (U8*)stagingMem.ptr;
 		for (int y = 0; y < height; y++) {
 			for (int x = 0; x < width; x++) {
 				*out++ = *in++;
@@ -86,8 +86,8 @@ Res<Render::Image> LoadImage(Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> LoadAtlas(Str path, Render::Image image, u32 imageIdx) {
-	Span<u8> data;
+Res<> LoadAtlasImpl(Str path, Render::Image image, U32 imageIdx) {
+	Span<U8> data;
 	if (Res<> r = File::ReadAll(Mem::tempAllocator, path).To(data); !r) { return r.err; }	// TODO: ctx
 	Json::Doc* doc = 0;
 	if (Res<> r = Json::Parse(Mem::tempAllocator, Mem::tempAllocator, Str((const char*)data.data, data.len)).To(doc); !r) { return r.err; }	// TODO: ctx
@@ -96,7 +96,7 @@ Res<> LoadAtlas(Str path, Render::Image image, u32 imageIdx) {
 	if (root.type != Json::Type::Arr) { return Err_AtlasFmt(); }	// TODO: ctx
 	Span<Json::Elem> elems = Json::GetArr(doc, root);
 
-	for (u64 i = 0; i < elems.len; i++) {
+	for (U64 i = 0; i < elems.len; i++) {
 		if (elems[i].type != Json::Type::Obj) { return Err_AtlasFmt(); }	// TODO: ctx
 		Json::Obj obj = Json::GetObj(doc, elems[i]);
 		if (obj.keys.len != 5) { return Err_AtlasFmt(); }
@@ -106,18 +106,18 @@ Res<> LoadAtlas(Str path, Render::Image image, u32 imageIdx) {
 		if (Json::GetStr(doc, obj.keys[0]) != "h"   ) { return Err_AtlasFmt(); }
 		if (Json::GetStr(doc, obj.keys[0]) != "name") { return Err_AtlasFmt(); }
 
-		const u64 ix   = Json::GetU64(doc, obj.vals[0]);
-		const u64 iy   = Json::GetU64(doc, obj.vals[1]);
-		const u64 iw   = Json::GetU64(doc, obj.vals[2]);
-		const u64 ih   = Json::GetU64(doc, obj.vals[3]);
+		const U64 ix   = Json::GetU64(doc, obj.vals[0]);
+		const U64 iy   = Json::GetU64(doc, obj.vals[1]);
+		const U64 iw   = Json::GetU64(doc, obj.vals[2]);
+		const U64 ih   = Json::GetU64(doc, obj.vals[3]);
 		const Str name = Json::GetStr(doc, obj.vals[4]);
 
-		const f32 imageWidth = (f32)Render::GetImageWidth(image);
-		const f32 imageHeight = (f32)Render::GetImageHeight(image);
-		const f32 x = (f32)ix / imageWidth;
-		const f32 y = (f32)iy / imageHeight;
-		const f32 w = (f32)iw / imageWidth;
-		const f32 h = (f32)ih / imageHeight;
+		const F32 imageWidth = (F32)Render::GetImageWidth(image);
+		const F32 imageHeight = (F32)Render::GetImageHeight(image);
+		const F32 x = (F32)ix / imageWidth;
+		const F32 y = (F32)iy / imageHeight;
+		const F32 w = (F32)iw / imageWidth;
+		const F32 h = (F32)ih / imageHeight;
 
 		AtlasEntry* entry = atlasEntries.Add();
 		entry->imageIdx = imageIdx;
@@ -128,7 +128,7 @@ Res<> LoadAtlas(Str path, Render::Image image, u32 imageIdx) {
 		if (atlasEntryMap.FindOrNull(name)) {
 			return Err_AlreadyExists("path", path, "name", name);
 		}
-		atlasEntryMap.Put(entry->name, (u32)(entry - atlasEntries.data));
+		atlasEntryMap.Put(entry->name, (U32)(entry - atlasEntries.data));
 	}
 
 	return Ok();
@@ -136,20 +136,26 @@ Res<> LoadAtlas(Str path, Render::Image image, u32 imageIdx) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Load(Str imagePath, Str atlasPath) {
+Res<> LoadAtlas(Str imagePath, Str atlasPath) {
 	Render::Image image;
 	if (Res<> r = LoadImage(imagePath).To(image); !r) { return r; }
-	const u32 imageIdx = Render::BindImage(image);
-	return LoadAtlas(atlasPath, image, imageIdx);
+	const U32 imageIdx = Render::BindImage(image);
+	return LoadAtlasImpl(atlasPath, image, imageIdx);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-//Sprite Get(Str name) {}
+Sprite Get(Str name) {
+	name;
+	return Sprite();
+}
 
 //--------------------------------------------------------------------------------------------------
 
-//Res<> Draw(Span<Sprite> sprites) {}
+Res<> Draw(Span<Sprite> sprites) {
+	sprites;
+	return Ok();
+}
 
 //--------------------------------------------------------------------------------------------------
 

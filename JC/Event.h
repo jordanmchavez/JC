@@ -138,18 +138,18 @@ enum struct Key {
 Str KeyStr(Key k);
 
 struct WindowResizedEvent {
-	u32 width;
-	u32 height;
+	U32 width;
+	U32 height;
 };
 
 struct KeyEvent {
-	bool down;
+	Bool down;
 	Key  key;
 };
 
 struct MouseMoveEvent {
-	i32 x;
-	i32 y;
+	I32 x;
+	I32 y;
 };
 
 struct MouseWheelEvent {

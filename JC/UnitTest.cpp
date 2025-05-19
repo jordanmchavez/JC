@@ -7,8 +7,8 @@ namespace JC::UnitTest {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr u32 MaxTests    = 1024;
-static constexpr u32 MaxSubtests = 1024;
+static constexpr U32 MaxTests    = 1024;
+static constexpr U32 MaxSubtests = 1024;
 
 struct TestObj {
 	Str      name = {};
@@ -21,17 +21,17 @@ enum struct State { Run, Pop, Done };
 static Mem::TempAllocator* tempAllocator;
 static Log::Logger*        logger;
 static TestObj             tests[MaxTests];
-static u32                 testsLen;
+static U32                 testsLen;
 static Subtest::Sig        cur[MaxSubtests];
-static u32                 curLen;
+static U32                 curLen;
 static Subtest::Sig        next[MaxSubtests];
-static u32                 nextLen;
+static U32                 nextLen;
 static Subtest::Sig        last[MaxSubtests];
-static u32                 lastLen;
+static U32                 lastLen;
 static State               state;
-static u32                 checkFails;
+static U32                 checkFails;
 
-bool operator==(Subtest::Sig s1, Subtest::Sig s2) {
+Bool operator==(Subtest::Sig s1, Subtest::Sig s2) {
 	// order by most likely fast fail
 	return s1.sl.line == s2.sl.line && s1.name == s2.name && s1.sl.file == s2.sl.file;
 }
@@ -85,13 +85,13 @@ Subtest::~Subtest() {
 	}
 }
 
-bool Run(Mem::TempAllocator* tempAllocatorIn, Log::Logger* loggerIn) {
+Bool Run(Mem::TempAllocator* tempAllocatorIn, Log::Logger* loggerIn) {
 	tempAllocator = tempAllocatorIn;
 	logger        = loggerIn;
 
-	u32 passedTests = 0;
-	u32 failedTests = 0;
-	for (u32 i = 0; i < testsLen; i++)  {
+	U32 passedTests = 0;
+	U32 failedTests = 0;
+	for (U32 i = 0; i < testsLen; i++)  {
 		nextLen = 0;
 		do {
 			state      = State::Run;
@@ -103,7 +103,7 @@ bool Run(Mem::TempAllocator* tempAllocatorIn, Log::Logger* loggerIn) {
 			tests[i].fn(tempAllocator);
 
 			Array<char> lastStr(tempAllocator);
-			for (u32 j = 0; j < lastLen; j++) {
+			for (U32 j = 0; j < lastLen; j++) {
 				lastStr.Add(last[j].name.data, last[j].name.len);
 				lastStr.Add("::", 2);
 			}
@@ -127,14 +127,14 @@ bool Run(Mem::TempAllocator* tempAllocatorIn, Log::Logger* loggerIn) {
 	return failedTests == 0;
 }
 
-bool CheckFailImpl(SrcLoc sl) {
+Bool CheckFailImpl(SrcLoc sl) {
 	Logf("***CHECK FAILED***");
 	Logf("{}({})", sl.file, sl.line);
 	checkFails++;
 	return false;
 }
 
-bool CheckExprFail(SrcLoc sl, Str expr) {
+Bool CheckExprFail(SrcLoc sl, Str expr) {
 	Logf("***CHECK FAILED***");
 	Logf("{}({})", sl.file, sl.line);
 	Logf("  {}\n", expr);
@@ -142,7 +142,7 @@ bool CheckExprFail(SrcLoc sl, Str expr) {
 	return false;
 }
 
-bool CheckRelFail(SrcLoc sl, Str expr, Arg x, Arg y) {
+Bool CheckRelFail(SrcLoc sl, Str expr, Arg x, Arg y) {
 	Logf("***CHECK FAILED***");
 	Logf("{}({})", sl.file, sl.line);
 	Logf("  {}", expr);
@@ -152,7 +152,7 @@ bool CheckRelFail(SrcLoc sl, Str expr, Arg x, Arg y) {
 	return false;
 }
 
-bool CheckSpanEqFail_Len(SrcLoc sl, Str expr, u64 xLen, u64 yLen) {
+Bool CheckSpanEqFail_Len(SrcLoc sl, Str expr, U64 xLen, U64 yLen) {
 	Logf("***CHECK FAILED***");
 	Logf("{}({})", sl.file, sl.line);
 	Logf("  {}", expr);
@@ -162,7 +162,7 @@ bool CheckSpanEqFail_Len(SrcLoc sl, Str expr, u64 xLen, u64 yLen) {
 	return false;
 }
 
-bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, u64 i, Arg x, Arg y) {
+Bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, U64 i, Arg x, Arg y) {
 	Logf("***CHECK FAILED***");
 	Logf("{}({})", sl.file, sl.line);
 	Logf("  {}", expr);
@@ -174,10 +174,10 @@ bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, u64 i, Arg x, Arg y) {
 
 //--------------------------------------------------------------------------------------------------
 
-static u32 records[128];
-static u32 recordsLen;
+static U32 records[128];
+static U32 recordsLen;
 
-void Record(u32 u) {
+void Record(U32 u) {
 	Assert(recordsLen < (sizeof(records) / sizeof(records[0])));
 	records[recordsLen++] = u;
 }
@@ -204,7 +204,7 @@ UnitTest("UnitTest") {
 
 UnitTest("Test.Verify subtest recording")
 {
-	CheckSpanEq(Span(records, recordsLen), Span<u32>({
+	CheckSpanEq(Span(records, recordsLen), Span<U32>({
 		0, 1, 2, 3,
 		0, 1, 2, 4,
 		0, 1, 2, 5,

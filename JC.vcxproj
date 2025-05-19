@@ -117,6 +117,7 @@
     <ClInclude Include="JC\App.h" />
     <ClInclude Include="JC\Array.h" />
     <ClInclude Include="JC\Bit.h" />
+    <ClInclude Include="JC\Camera.h" />
     <ClInclude Include="JC\Config.h" />
     <ClInclude Include="JC\Core.h" />
     <ClInclude Include="JC\Core\Arg.h" />
@@ -160,6 +161,7 @@
     <ClCompile Include="JC\App.cpp" />
     <ClCompile Include="JC\Array.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
+    <ClCompile Include="JC\Camera.cpp" />
     <ClCompile Include="JC\Config.cpp" />
     <ClCompile Include="JC\Core\Err.cpp" />
     <ClCompile Include="JC\Core\Mem.cpp" />

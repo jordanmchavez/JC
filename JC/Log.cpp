@@ -8,11 +8,11 @@ namespace JC::Log {
 //--------------------------------------------------------------------------------------------------
 
 struct LoggerObj : Logger {
-	static constexpr u32 MaxFns = 32;
+	static constexpr U32 MaxFns = 32;
 
 	Mem::TempAllocator* tempAllocator = 0;
 	Fn*                 fns[MaxFns] = {};
-	u32                 fnsLen         = 0;
+	U32                 fnsLen         = 0;
 
 	void Init(Mem::TempAllocator* tempAllocatorIn) {
 		tempAllocator = tempAllocatorIn;
@@ -29,7 +29,7 @@ struct LoggerObj : Logger {
 		);
 		Fmt::VPrintf(&arr, fmt, args);
 		arr.Add("\n", 2);
-		for (u32 i = 0; i < fnsLen; i++) {
+		for (U32 i = 0; i < fnsLen; i++) {
 			(*fns[i])(arr.data, arr.len);
 		}
 	}
@@ -45,12 +45,12 @@ struct LoggerObj : Logger {
 				Fmt(&arr, "{}({}): {}:{}\n", e.GetSrcLoc().file, e.GetSrcLoc().line, e.GetNs(), e.GetI64Code());
 			}
 			Span<NamedArg> namedArgs = e.GetNamedArgs();
-			for (u32 i = 0; i < namedArgs.len; i++) {
+			for (U32 i = 0; i < namedArgs.len; i++) {
 				Fmt(&arr, "  '{}' = {}\n", namedArgs[i].name, namedArgs[i].varg);
 			}
 		}
 		arr.data[arr.len] = '\0';	// replace trailing '\n'
-		for (u32 i = 0; i < fnsLen; i++) {
+		for (U32 i = 0; i < fnsLen; i++) {
 			(*fns[i])(arr.data, arr.len);
 		}
 	}
@@ -72,7 +72,7 @@ void AddFn(Fn* fn) {
 }
 
 void RemoveFn(Fn* fn) {
-	for (u32 i = 0; i < loggerObj.fnsLen; i++) {
+	for (U32 i = 0; i < loggerObj.fnsLen; i++) {
 		if (loggerObj.fns[i] == fn) {
 			loggerObj.fns[i] = loggerObj.fns[--loggerObj.fnsLen];
 		}

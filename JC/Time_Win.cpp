@@ -29,25 +29,25 @@ void Init() {
 
 //--------------------------------------------------------------------------------------------------
 
-u64 Now() {
+U64 Now() {
 	LARGE_INTEGER count;
 	QueryPerformanceCounter(&count);
-	return (u64)count.QuadPart;
+	return (U64)count.QuadPart;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-double Days (u64 ticks) { return (double)ticks / ticksPerDay;  }
-double Hours(u64 ticks) { return (double)ticks / ticksPerHour; }
-double Mins (u64 ticks) { return (double)ticks / ticksPerMin;  }
-double Secs (u64 ticks) { return (double)ticks / ticksPerSec;  }
-double Mils (u64 ticks) { return (double)ticks / ticksPerMil;  }
+double Days (U64 ticks) { return (double)ticks / ticksPerDay;  }
+double Hours(U64 ticks) { return (double)ticks / ticksPerHour; }
+double Mins (U64 ticks) { return (double)ticks / ticksPerMin;  }
+double Secs (U64 ticks) { return (double)ticks / ticksPerSec;  }
+double Mils (U64 ticks) { return (double)ticks / ticksPerMil;  }
 
-u64 FromDays (double days)  { return (u64)(days  * ticksPerDay ); }
-u64 FromHours(double hours) { return (u64)(hours * ticksPerHour); }
-u64 FromMins (double mins)  { return (u64)(mins  * ticksPerMin ); }
-u64 FromSecs (double secs)  { return (u64)(secs  * ticksPerSec ); }
-u64 FromMils (double mils)  { return (u64)(mils  * ticksPerMil ); }
+U64 FromDays (double days)  { return (U64)(days  * ticksPerDay ); }
+U64 FromHours(double hours) { return (U64)(hours * ticksPerHour); }
+U64 FromMins (double mins)  { return (U64)(mins  * ticksPerMin ); }
+U64 FromSecs (double secs)  { return (U64)(secs  * ticksPerSec ); }
+U64 FromMils (double mils)  { return (U64)(mils  * ticksPerMil ); }
 
 //--------------------------------------------------------------------------------------------------
 

@@ -2,78 +2,45 @@
 
 #include "JC/Core.h"
 
-namespace JC {
+namespace JC::Math {
 
 //--------------------------------------------------------------------------------------------------
 
-constexpr f32 DegToRad(f32 deg) {
-	constexpr f32 PI = 3.14159265358979323846f;
+constexpr F32 DegToRad(F32 deg) {
+	constexpr F32 PI = 3.14159265358979323846f;
 	return deg * PI / 180.0f;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-struct Vec2 {
-	f32 x = 0.0f;
-	f32 y = 0.0f;
-};
-
-struct Vec3 {
-	f32 x = 0.0f;
-	f32 y = 0.0f;
-	f32 z = 0.0f;
-
-	static Vec3  Add(Vec3 u, Vec3 v);
-	static Vec3  AddScaled(Vec3 u, Vec3 v, f32 s);
-	static Vec3  Sub(Vec3 u, Vec3 v);
-	static Vec3  Scale(Vec3 v, f32 s);
-	static f32   Dot(Vec3 u, Vec3 v);
-	static Vec3  Cross(Vec3 u, Vec3 v);
-	static Vec3  Normalize(Vec3 v);
-};
-
-struct Vec4 {
-	f32 x = 0.0f;
-	f32 y = 0.0f;
-	f32 z = 0.0f;
-	f32 w = 0.0f;
-};
-
-struct Mat2 {
-	f32 m[2][2];
-
-	static Mat2 Identity();
-	static Mat2 Mul(Mat2 a, Mat2 b);
-};
-
-struct Mat3 {
-	f32 m[3][3];
-
-	static Mat3 Identity();
-	static Mat3 Mul(Mat3 a, Mat3 b);
-	static Vec3 Mul(Mat3 m, Vec3 v);
-	static Mat3 RotateX(f32 a);
-	static Mat3 RotateY(f32 a);
-	static Mat3 RotateZ(f32 a);
-	static Mat3 AxisAngle(Vec3 v, f32 a);
-};
-
-struct Mat4 {
-	f32 m[4][4];
-
-	static Mat4 Identity();
-	static Mat4 Mul(Mat4 a, Mat4 b);
-	static Vec4 Mul(Mat4 m, Vec4 v);
-	static Mat4 Translate(Vec3 v);
-	static Mat4 RotateX(f32 a);
-	static Mat4 RotateY(f32 a);
-	static Mat4 RotateZ(f32 a);
-	static Mat4 AxisAngle(Vec3 v, f32 a);
-	static Mat4 Look(Vec3 pos, Vec3 x, Vec3 y, Vec3 z);
-	static Mat4 Perspective(f32 fovy, f32 aspect, f32 zn, f32 zf);
-	static Mat4 Ortho(float l, float r, float b, float t, float n, float f);
-};
+Vec3 Add(Vec3 u, Vec3 v);
+Vec3 AddScaled(Vec3 u, Vec3 v, F32 s);
+Mat3 AxisAngleMat3(Vec3 v, F32 a);
+Mat4 AxisAngleMat4(Vec3 v, F32 a);
+F32  Dot(Vec3 u, Vec3 v);
+Vec3 Cross(Vec3 u, Vec3 v);
+Mat2 IdentityMat2();
+Mat3 IdentityMat3();
+Mat4 IdentityMat4();
+Mat4 Look(Vec3 pos, Vec3 x, Vec3 y, Vec3 z);
+Vec3 Mul(Mat3 m, Vec3 v);
+Vec4 Mul(Mat4 m, Vec4 v);
+Mat2 Mul(Mat2 a, Mat2 b);
+Mat3 Mul(Mat3 a, Mat3 b);
+Mat4 Mul(Mat4 a, Mat4 b);
+Vec3 Normalize(Vec3 v);
+Mat4 Ortho(float l, float r, float b, float t, float n, float f);
+Mat4 Perspective(F32 fovy, F32 aspect, F32 zn, F32 zf);
+Mat3 RotationXMat3(F32 a);
+Mat3 RotationYMat3(F32 a);
+Mat3 RotationZMat3(F32 a);
+Mat4 RotationXMat4(F32 a);
+Mat4 RotationYMat4(F32 a);
+Mat4 RotationZMat4(F32 a);
+Vec3 Scale(Vec3 v, F32 s);
+Vec3 Sub(Vec3 u, Vec3 v);
+Mat4 Translate(Vec3 v);
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC
+}	// namespace JC::Math

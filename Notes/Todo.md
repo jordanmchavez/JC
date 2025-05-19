@@ -145,7 +145,7 @@ address sanitizer
 lint
 clang format
 other static analysis tools
-move this lwoer and add assert	constexpr char operator[](u64 i) const { return ptr[i]; }
+move this lwoer and add assert	constexpr char operator[](U64 i) const { return ptr[i]; }
 cursor clipping/locking to screen as an option but only while focused
 wm_paint? is black brush sufficient?
 wm_syscommand? ignore SC_KEYMENU messages?

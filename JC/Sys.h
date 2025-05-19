@@ -18,22 +18,22 @@ void Print(Str msg);
 	#error("unsupported compiler")
 #endif	// Compiler_
 
-bool  IsDebuggerPresent();
+Bool  IsDebuggerPresent();
 void  DebuggerPrint(const char* msg);
 
 //--------------------------------------------------------------------------------------------------
 
-void* VirtualAlloc(u64 size);
-void* VirtualReserve(u64 size);
-void* VirtualCommit(void* p, u64 size);
+void* VirtualAlloc(U64 size);
+void* VirtualReserve(U64 size);
+void* VirtualCommit(void* p, U64 size);
 void  VirtualFree(void* p);
-void  VirtualDecommit(void* p, u64 size);
+void  VirtualDecommit(void* p, U64 size);
 
 //--------------------------------------------------------------------------------------------------
 
 struct Mutex {
 	#if defined Platform_Windows
-		u64 opaque = 0;
+		U64 opaque = 0;
 	#endif	// Platform
 };
 

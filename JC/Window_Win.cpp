@@ -14,11 +14,11 @@ namespace JC::Window {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr u32 MaxDisplays = 32;
+static constexpr U32 MaxDisplays = 32;
 
-static constexpr u32 HID_USAGE_PAGE_GENERIC     = 0x01;
-static constexpr u32 HID_USAGE_GENERIC_MOUSE    = 0x02;
-static constexpr u32 HID_USAGE_GENERIC_KEYBOARD = 0x06;
+static constexpr U32 HID_USAGE_PAGE_GENERIC     = 0x01;
+static constexpr U32 HID_USAGE_GENERIC_MOUSE    = 0x02;
+static constexpr U32 HID_USAGE_GENERIC_KEYBOARD = 0x06;
 
 struct Window {
 	HWND        hwnd       = 0;
@@ -27,17 +27,17 @@ struct Window {
 	CursorMode  cursorMode = {};
 	Rect        windowRect = {};
 	Rect        clientRect = {};
-	u32         dpi        = 0;
-	f32         dpiScale   = 0.0f;
-	bool        minimized  = false;
-	bool        focused    = false;
+	U32         dpi        = 0;
+	F32         dpiScale   = 0.0f;
+	Bool        minimized  = false;
+	Bool        focused    = false;
 };
 static Mem::TempAllocator* tempAllocator;
 static Log::Logger*        logger;
 static Display             displays[MaxDisplays];
-static u32                 displaysLen;
+static U32                 displaysLen;
 static Window              window;
-static bool                exitRequested;
+static Bool                exitRequested;
 
 //----------------------------------------------------------------------------------------------
 
@@ -65,7 +65,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 
 		case WM_DPICHANGED:
 			window.dpi      = LOWORD(wparam);
-			window.dpiScale = (f32)LOWORD(wparam) / (f32)USER_DEFAULT_SCREEN_DPI;
+			window.dpiScale = (F32)LOWORD(wparam) / (F32)USER_DEFAULT_SCREEN_DPI;
 			break;
 
 		case WM_EXITSIZEMOVE:
@@ -94,17 +94,17 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 				Event::Add({
 					.type = Event::Type::MouseMove,
 					.mouseMove = {
-						.x = (i32)m->lLastX,
-						.y = (i32)m->lLastY,
+						.x = (I32)m->lLastX,
+						.y = (I32)m->lLastY,
 					},
 				});
 					
 			} else if (rawInput->header.dwType == RIM_TYPEKEYBOARD) {
 				const RAWKEYBOARD* const k = &rawInput->data.keyboard;
-				u32 scanCode   = k->MakeCode;
-				u32 virtualKey = k->VKey;
-				const bool e0  = k->Flags & RI_KEY_E0;
-				const bool e1  = k->Flags & RI_KEY_E1;
+				U32 scanCode   = k->MakeCode;
+				U32 virtualKey = k->VKey;
+				const Bool e0  = k->Flags & RI_KEY_E0;
+				const Bool e1  = k->Flags & RI_KEY_E1;
 				if (virtualKey == 255) {
 					break;
 				} else if (virtualKey == VK_SHIFT) {
@@ -211,12 +211,12 @@ static BOOL MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
 
 	Assert(displaysLen < MaxDisplays);
 	displays[displaysLen] = {
-		.x      = (i32)rect->left,
-		.y      = (i32)rect->top,
-		.width  = (u32)(rect->right - rect->left),
-		.height = (u32)(rect->bottom - rect->top),
+		.x      = (I32)rect->left,
+		.y      = (I32)rect->top,
+		.width  = (U32)(rect->right - rect->left),
+		.height = (U32)(rect->bottom - rect->top),
 		.dpi       = dpi,
-		.dpiScale  = (f32)dpi / (f32)USER_DEFAULT_SCREEN_DPI,
+		.dpiScale  = (F32)dpi / (F32)USER_DEFAULT_SCREEN_DPI,
 	};
 	displaysLen++;
 
@@ -289,10 +289,10 @@ Res<> Init(const InitDesc* initDesc) {
 		r.right  = display->x + display->width;
 		r.bottom = display->y + display->height;
 	} else {
-		const u32 w = Min(initDesc->width,  display->width);
-		const u32 h = Min(initDesc->height, display->height);
-		const i32 x = display->x + (i32)(display->width  - w) / 2;
-		const i32 y = display->y + (i32)(display->height - h) / 2;
+		const U32 w = Min(initDesc->width,  display->width);
+		const U32 h = Min(initDesc->height, display->height);
+		const I32 x = display->x + (I32)(display->width  - w) / 2;
+		const I32 y = display->y + (I32)(display->height - h) / 2;
 		r.left =   x;
 		r.top    = y;
 		r.right  = x + w;
@@ -326,7 +326,7 @@ Res<> Init(const InitDesc* initDesc) {
 	window.windowRect.y = r.bottom;
 	window.windowRect.w = r.right - r.left;
 	window.windowRect.h = r.bottom - r.top;
-	window.dpiScale     = (f32)window.dpi / (f32)USER_DEFAULT_SCREEN_DPI;
+	window.dpiScale     = (F32)window.dpi / (F32)USER_DEFAULT_SCREEN_DPI;
 
 	SetFocus(window.hwnd);
 	ShowWindow(window.hwnd, SW_SHOW);
@@ -446,7 +446,7 @@ PlatformDesc GetPlatformDesc() {
 
 //----------------------------------------------------------------------------------------------
 
-bool IsExitRequested() {
+Bool IsExitRequested() {
 	return exitRequested;
 }
 

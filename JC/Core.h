@@ -12,30 +12,31 @@ namespace JC {
 	#define Compiler_Msvc
 	#define Platform_Windows
 
-	using  i8 = signed char;
-	using  u8 = unsigned char;
-	using i16 = signed short;
-	using u16 = unsigned short;
-	using i32 = signed int;
-	using u32 = unsigned int;
-	using i64 = signed long long;
-	using u64 = unsigned long long;
-	using f32 = float;
-	using f64 = double;
+	using  I8  = signed char;
+	using  U8  = unsigned char;
+	using I16  = signed short;
+	using U16  = unsigned short;
+	using I32  = signed int;
+	using U32  = unsigned int;
+	using I64  = signed long long;
+	using U64  = unsigned long long;
+	using F32  = float;
+	using F64  = double;
+	using Bool = bool;
 
 	#define BuiltinFile __builtin_FILE()
-	#define BuiltinLine ((u32)__builtin_LINE())
+	#define BuiltinLine ((U32)__builtin_LINE())
 	#define IfConsteval if (__builtin_is_constant_evaluated())
 	#define BuiltinIsEnum(T) __is_enum(T)
 #endif
 
-constexpr u32 U32Max = 0xffffffff;
-constexpr u64 U64Max = (u64)0xffffffffffffffff;
+constexpr U32 U32Max = 0xffffffff;
+constexpr U64 U64Max = (U64)0xffffffffffffffff;
 
 #define MacroConcat2(x, y) x##y
 #define MacroConcat(x, y)  MacroConcat2(x, y)
 #define MacroName(x) MacroConcat(x, __LINE__)
-#define LenOf(a) (u64)(sizeof(a) / sizeof(a[0]))
+#define LenOf(a) (U64)(sizeof(a) / sizeof(a[0]))
 
 #define Defer \
 	auto MacroName(Defer_) = DeferHelper() + [&]()
@@ -52,10 +53,40 @@ template <class F> DeferInvoker<F> operator+(DeferHelper, F&& fn) { return Defer
 //--------------------------------------------------------------------------------------------------
 
 struct Rect {
-	i32 x = 0;
-	i32 y = 0;
-	u32 w = 0;
-	u32 h = 0;
+	I32 x = 0;
+	I32 y = 0;
+	U32 w = 0;
+	U32 h = 0;
+};
+
+struct Vec2 {
+	F32 x = 0.0f;
+	F32 y = 0.0f;
+};
+
+struct Vec3 {
+	F32 x = 0.0f;
+	F32 y = 0.0f;
+	F32 z = 0.0f;
+};
+
+struct Vec4 {
+	F32 x = 0.0f;
+	F32 y = 0.0f;
+	F32 z = 0.0f;
+	F32 w = 0.0f;
+};
+
+struct Mat2 {
+	F32 m[2][2] = {};
+};
+
+struct Mat3 {
+	F32 m[3][3] = {};
+};
+
+struct Mat4 {
+	F32 m[4][4] = {};
 };
 
 //--------------------------------------------------------------------------------------------------

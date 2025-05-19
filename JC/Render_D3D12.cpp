@@ -41,19 +41,19 @@ Err* MakeHrErr(ArenaSrcLoc arenaSl, HRESULT hr, s8 fn, A... args) {
 struct Descriptor {
 	D3D12_CPU_DESCRIPTOR_HANDLE d3d12CpuDescriptorHandle = {};
 	D3D12_GPU_DESCRIPTOR_HANDLE d3d12GpuDescriptorHandle = {};
-	u32                         idx                      = 0;
+	U32                         idx                      = 0;
 };
 
 struct DescriptorHeap {
 	ID3D12DescriptorHeap*       d3d12DescriptorHeap      = 0;
 	D3D12_DESCRIPTOR_HEAP_TYPE  d3d12DescriptorHeapType  = {};
-	u32                         handleInc                = 0;
-	u32                         len                      = 0;
-	u32                         cap                      = 0;
+	U32                         handleInc                = 0;
+	U32                         len                      = 0;
+	U32                         cap                      = 0;
 	D3D12_CPU_DESCRIPTOR_HANDLE d3d12CpuDescriptorHandle = {};
 	D3D12_GPU_DESCRIPTOR_HANDLE d3d12GpuDescriptorHandle = {};
 
-	Res<> Init(D3D12_DESCRIPTOR_HEAP_TYPE d3d12DescriptorHeapType, u32 cap, D3D12_DESCRIPTOR_HEAP_FLAGS d3d12DescriptorHeapFlags) {
+	Res<> Init(D3D12_DESCRIPTOR_HEAP_TYPE d3d12DescriptorHeapType, U32 cap, D3D12_DESCRIPTOR_HEAP_FLAGS d3d12DescriptorHeapFlags) {
 		const D3D12_DESCRIPTOR_HEAP_DESC d3d12DescriptorHeapDesc = {
 			.Type           = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
 			.NumDescriptors = cap,
@@ -74,7 +74,7 @@ struct DescriptorHeap {
 	Descriptor Alloc() {
 		Assert(len < cap);
 
-		const u32 idx = len++;
+		const U32 idx = len++;
 		return Descriptor {
 			.d3d12CpuDescriptorHandle = d3d12CpuDescriptorHandle.ptr + (idx * handleInc),
 			.d3d12GpuDescriptorHandle = d3d12GpuDescriptorHandle.ptr + (idx * handleInc),
@@ -85,7 +85,7 @@ struct DescriptorHeap {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<ID3D12Resource*> CreateBuffer(u32 size, D3D12_HEAP_TYPE d3d12HeapType) {
+Res<ID3D12Resource*> CreateBuffer(U32 size, D3D12_HEAP_TYPE d3d12HeapType) {
 	const D3D12_HEAP_PROPERTIES d3d12HeapProperties = {
 		.Type                 = D3D12_HEAP_TYPE_DEFAULT,
 		.CPUPageProperty      = D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
@@ -122,16 +122,16 @@ Res<ID3D12Resource*> CreateBuffer(u32 size, D3D12_HEAP_TYPE d3d12HeapType) {
 
 struct UploadMem {
 	void* ptr  = 0;
-	u32   size = 0;
+	U32   size = 0;
 };
 
 struct UploadArena {
 	ID3D12Resource* d3d12Buffer = 0;
 	u8*             mappedPtr   = 0;
-	u32             used        = 0;
-	u32             cap         = 0;
+	U32             used        = 0;
+	U32             cap         = 0;
 
-	Res<> Init(u32 cap) {
+	Res<> Init(U32 cap) {
 		if (Res<> r = CreateBuffer(cap, D3D12_HEAP_TYPE_UPLOAD).To(d3d12Buffer); !r) {
 			return r;
 		}
@@ -148,8 +148,8 @@ struct UploadArena {
 		return Ok();
 	}
 
-	UploadMem Alloc(u32 size, u32 align) {
-		const u32 alignedUsed = AlignUp(used, align);
+	UploadMem Alloc(U32 size, U32 align) {
+		const U32 alignedUsed = AlignUp(used, align);
 		Assert(alignedUsed + size < cap);
 		const UploadMem uploadMem = {
 			.ptr  = mappedPtr + alignedUsed,
@@ -173,7 +173,7 @@ struct UploadArena {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr u32 MaxFrames = 3;
+static constexpr U32 MaxFrames = 3;
 static constexpr DXGI_FORMAT dxgiSwapChainFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
 struct Scene {
@@ -181,7 +181,7 @@ struct Scene {
 };
 
 struct Frame {
-	u64                        fenceValue                   = 0;
+	U64                        fenceValue                   = 0;
 	ID3D12CommandAllocator*    d3d12CommandAllocator        = 0;
 	ID3D12GraphicsCommandList* d3d12CommandList             = 0;
 	D3D12_RESOURCE_STATES      d3d12BackBufferResourceState = {};
@@ -196,8 +196,8 @@ static Log*                       log;
 static IDXGIFactory6*             dxgiFactory6;
 static ID3D12Device*              d3d12Device;
 static IDXGISwapChain3*           d3d12SwapChain3;
-static u32                        swapChainWidth;
-static u32                        swapChainHeight;
+static U32                        swapChainWidth;
+static U32                        swapChainHeight;
 static Frame                      frames[MaxFrames];
 static ID3D12CommandQueue*        d3d12CommandQueue;
 static ID3D12RootSignature*       d3d12BindlessRootSignature;
@@ -213,7 +213,7 @@ static void*                      constantBufferMappedPtrs[MaxFrames];
 static ID3D12Fence*               d3d12Fence;
 static UINT                       fenceValue;
 static HANDLE                     fenceHandle;
-static u32                        frameId3d12;
+static U32                        frameId3d12;
 static Scene                      scene;
 
 //--------------------------------------------------------------------------------------------------
@@ -265,7 +265,7 @@ Res<> InitInfoQueue() {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> InitSwapChain(u32 width, u32 height, HWND hwnd) {
+Res<> InitSwapChain(U32 width, U32 height, HWND hwnd) {
 	DXGI_SWAP_CHAIN_DESC1 d3d12SwapChainDesc1 = {
 		.Width       = width,
 		.Height      = height,
@@ -294,7 +294,7 @@ Res<> InitSwapChain(u32 width, u32 height, HWND hwnd) {
 
 	frameId3d12 = d3d12SwapChain3->GetCurrentBackBufferIndex();
 
-	for (u32 i = 0; i < MaxFrames; i++) {
+	for (U32 i = 0; i < MaxFrames; i++) {
 		CheckHr(d3d12SwapChain3->GetBuffer(i, IID_PPV_ARGS(&frames[i].d3d12BackBuffer)));
 		const D3D12_RENDER_TARGET_VIEW_DESC d3d12RenderTargetViewDesc = {
 			.Format         = dxgiSwapChainFormat,
@@ -322,7 +322,7 @@ Res<> InitCommands() {
 	};
 	CheckHr(d3d12Device->CreateCommandQueue(&d3d12CommandQueueDesc, IID_PPV_ARGS(&d3d12CommandQueue)));
 
-	for (u32 i = 0; i < MaxFrames; i++) {
+	for (U32 i = 0; i < MaxFrames; i++) {
 		CheckHr(d3d12Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&frames[i].d3d12CommandAllocator)));
 		CheckHr(d3d12Device->CreateCommandList(
 			0,
@@ -350,7 +350,7 @@ Res<> InitDescriptors() {
 //--------------------------------------------------------------------------------------------------
 
 Res<> InitUploadArenas() {
-	for (u32 i = 0; i < MaxFrames; i++) {
+	for (U32 i = 0; i < MaxFrames; i++) {
 		frames[i].uploadArena.Init(64 * 1024);
 	}
 	return Ok();
@@ -547,7 +547,7 @@ Res<Pipeline> CreateGraphicsPipeline(
 		},
 		.Flags                      = D3D12_PIPELINE_STATE_FLAG_NONE,
 	};
-	for (u64 i = 0; i < renderTargetFormats.len; i++) {
+	for (U64 i = 0; i < renderTargetFormats.len; i++) {
 		d3d12GraphicsPipelineStateDesc.BlendState.RenderTarget[i] = {
 			.BlendEnable            = FALSE,
 			.LogicOpEnable          = FALSE,
@@ -589,12 +589,12 @@ Res<Pipeline> CreateGraphicsPipeline(
 		.StrideInBytes = sizeof(Vertex),
 	};
 
-	constexpr u32 TextureWidth  = 256;
-	constexpr u32 TextureHeight = 256;
+	constexpr U32 TextureWidth  = 256;
+	constexpr U32 TextureHeight = 256;
 	D3D12_PLACED_SUBRESOURCE_FOOTPRINT d3d12PlacedSubresourceFootprint = {};
-	u32 textureUploadNumRows = 0;
-	u64 textureUploadRowSize = 0;
-	u64 textureUploadSize = 0;
+	U32 textureUploadNumRows = 0;
+	U64 textureUploadRowSize = 0;
+	U64 textureUploadSize = 0;
 	{
 		const D3D12_HEAP_PROPERTIES d3d12HeapProperties = {
 			.Type                 = D3D12_HEAP_TYPE_DEFAULT,
@@ -658,15 +658,15 @@ Res<Pipeline> CreateGraphicsPipeline(
 			IID_PPV_ARGS(&d3d12UploadBuffer)
 		));
 
-		u32* textureData = temp->AllocT<u32>(256 * 256);
-		for (u32 y = 0; y < 256; y++) {
-			for (u32 x = 0; x < 256; x++) {
+		U32* textureData = temp->AllocT<U32>(256 * 256);
+		for (U32 y = 0; y < 256; y++) {
+			for (U32 x = 0; x < 256; x++) {
 				if (x % 16 == 0 || y % 16 == 0) {
 					textureData[y * 256 + x] = 0;
 				} else {
-					const u32 r = x;
-					const u32 g = 0xff;
-					const u32 b = y;
+					const U32 r = x;
+					const U32 g = 0xff;
+					const U32 b = y;
 					textureData[y * 256 + x] = r | (g << 8) | (b << 16) | 0xff000000;
 				}
 			}
@@ -675,7 +675,7 @@ Res<Pipeline> CreateGraphicsPipeline(
 		{
 			void* mappedPtr = 0;
 			CheckHr(d3d12UploadBuffer->Map(0, 0, &mappedPtr));
-			for (u32 y = 0; y < 256; y++) {
+			for (U32 y = 0; y < 256; y++) {
 				MemCpy(
 					((u8*)mappedPtr) + y * d3d12PlacedSubresourceFootprint.Footprint.RowPitch,
 					textureData + y * 256,
@@ -732,7 +732,7 @@ Res<Pipeline> CreateGraphicsPipeline(
 	d3d12Device->CreateShaderResourceView(d3d12Texture, &d3d12ShaderResourceViewDesc, d3d12SrvCbvCpuDescriptorHandle);
 	d3d12SrvCbvCpuDescriptorHandle.ptr += srvCbvDescriptorSize;
 
-	for (u32 i = 0; i < MaxFrames; i++) {
+	for (U32 i = 0; i < MaxFrames; i++) {
 		const D3D12_HEAP_PROPERTIES d3d12HeapProperties = {
 			.Type                 = D3D12_HEAP_TYPE_UPLOAD,
 			.CPUPageProperty      = D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
@@ -812,7 +812,7 @@ struct ShaderObj {
 
 static HandleArray<ShaderObj, Shader> shaderObjs;
 
-Res<Shader> CreateShader(const void* data, u64 len, const char* entry) {
+Res<Shader> CreateShader(const void* data, U64 len, const char* entry) {
 	#if defined RenderDebug
 		constexpr UINT compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 	#else	// RenderDebug

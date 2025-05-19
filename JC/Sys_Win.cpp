@@ -21,7 +21,7 @@ void Print(Str msg) {
 	WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), msg.data, (DWORD)msg.len, 0, 0);
 }
 
-bool IsDebuggerPresent() {
+Bool IsDebuggerPresent() {
 	return ::IsDebuggerPresent();
 }
 
@@ -31,7 +31,7 @@ void DebuggerPrint(const char* msg) {
 
 //--------------------------------------------------------------------------------------------------
 
-void* VirtualAlloc(u64 size) {
+void* VirtualAlloc(U64 size) {
 	Assert(size % 4096 == 0);
 	void* p = ::VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	if (!p) {
@@ -40,7 +40,7 @@ void* VirtualAlloc(u64 size) {
 	return p;
 }
 
-void* VirtualReserve(u64 size) {
+void* VirtualReserve(U64 size) {
 	Assert(size % 65536 == 0);
 	void* p = ::VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
 	if (!p) {
@@ -49,14 +49,14 @@ void* VirtualReserve(u64 size) {
 	return p;
 }
 
-void* VirtualCommit(void* p, u64 size) {
+void* VirtualCommit(void* p, U64 size) {
 	Assert(p);
-	Assert((u64)p % 4096 == 0);
+	Assert((U64)p % 4096 == 0);
 	Assert(size % 4096 == 0);
 	if (::VirtualAlloc(p, size, MEM_COMMIT, PAGE_READWRITE) == nullptr) {
 		Panic("VirtualAlloc failed with MEM_COMMIT", "lasterror", GetLastError(), "size", size, "ptr", p);
 	}
-	return (u8*)p + size;
+	return (U8*)p + size;
 }
 
 void VirtualFree(void* p) {
@@ -65,7 +65,7 @@ void VirtualFree(void* p) {
 	}
 }
 
-void VirtualDecommit(void* p, u64 size) {
+void VirtualDecommit(void* p, U64 size) {
 	# pragma warning(push )
 	# pragma warning(disable: 6250)
 	::VirtualFree(p, size, MEM_DECOMMIT);

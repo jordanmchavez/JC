@@ -9,14 +9,14 @@ namespace JC::Fmt {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr u32 Flag_Left  = 1 << 0;
-static constexpr u32 Flag_Plus  = 1 << 1;
-static constexpr u32 Flag_Space = 1 << 2;
-static constexpr u32 Flag_Zero  = 1 << 3;
-static constexpr u32 Flag_Bin   = 1 << 4;
-static constexpr u32 Flag_Hex   = 1 << 5;
-static constexpr u32 Flag_Fix   = 1 << 6;
-static constexpr u32 Flag_Sci   = 1 << 7;
+static constexpr U32 Flag_Left  = 1 << 0;
+static constexpr U32 Flag_Plus  = 1 << 1;
+static constexpr U32 Flag_Space = 1 << 2;
+static constexpr U32 Flag_Zero  = 1 << 3;
+static constexpr U32 Flag_Bin   = 1 << 4;
+static constexpr U32 Flag_Hex   = 1 << 5;
+static constexpr U32 Flag_Fix   = 1 << 6;
+static constexpr U32 Flag_Sci   = 1 << 7;
 
 //--------------------------------------------------------------------------------------------------	
 
@@ -29,8 +29,8 @@ struct FixedOut {
 			*begin++ = c;
 		}
 	}
-	void Add(const char* vals, u64 valsLen) {
-		const u64 len = (u64)(end - begin);
+	void Add(const char* vals, U64 valsLen) {
+		const U64 len = (U64)(end - begin);
 		if (valsLen > len) {
 			valsLen = len;
 		}
@@ -39,13 +39,13 @@ struct FixedOut {
 	}
 
 	void Add(const char* valsBegin, const char* valsEnd) {
-		u64 valsLen = Min((u64)(valsEnd - valsBegin), (u64)(end - begin));
+		U64 valsLen = Min((U64)(valsEnd - valsBegin), (U64)(end - begin));
 		memcpy(begin, valsBegin, valsLen);
 		begin += valsLen;
 	}
 
-	void Fill(char c, u64 count) {
-		const u64 len = (u64)(end - begin);
+	void Fill(char c, U64 count) {
+		const U64 len = (U64)(end - begin);
 		if (count > len) {
 			count = len;
 		}
@@ -68,18 +68,18 @@ static constexpr const char* Tens =
 	"80" "81" "82" "83" "84" "85" "86" "87" "88" "89"
 	"90" "91" "92" "93" "94" "95" "96" "97" "98" "99";
 
-Str U64ToDigits(u64 u, char* out, u32 outLen) {
+Str U64ToDigits(U64 u, char* out, U32 outLen) {
 	// TODO: test and profile splitting into two 32-bit ints to avoid 64-bit divides
 	char* const end = out + outLen;
 	char* iter = end;
 	while (u >= 100) {
 		iter -= 2;
-		*(u16*)iter = *(u16*)&Tens[(u % 100) * 2];
+		*(U16*)iter = *(U16*)&Tens[(u % 100) * 2];
 		u /= 100;
 	}
 	if (u >= 10) {
 		iter -= 2;
-		*(u16*)iter = *(u16*)&Tens[u * 2];
+		*(U16*)iter = *(U16*)&Tens[u * 2];
 	}
 	else
 	{
@@ -88,7 +88,7 @@ Str U64ToDigits(u64 u, char* out, u32 outLen) {
 	return Str(iter, end);
 }
 
-Str U64ToHexits(u64 u, char* out, u32 outLen) {
+Str U64ToHexits(U64 u, char* out, U32 outLen) {
 	char* const end = out + outLen;
 	char* iter = end;
 	constexpr const char* hexits = "0123456789abcdef";
@@ -96,10 +96,10 @@ Str U64ToHexits(u64 u, char* out, u32 outLen) {
 		*--iter = hexits[u & 0xf];
 		u >>= 4;
 	} while (u > 0);
-	return Str(iter, (u64)(end - iter));
+	return Str(iter, (U64)(end - iter));
 }
 
-Str U64ToBits(u64 u, char* out, u32 outLen) {
+Str U64ToBits(U64 u, char* out, U32 outLen) {
 	char* const end = out + outLen;
 	char* iter = end;
 	constexpr const char* bits = "01";
@@ -107,13 +107,13 @@ Str U64ToBits(u64 u, char* out, u32 outLen) {
 		*--iter = bits[u & 0x1];
 		u >>= 1;
 	} while (u > 0);
-	return Str(iter, (u64)(end - iter));
+	return Str(iter, (U64)(end - iter));
 }
 
 //--------------------------------------------------------------------------------------------------	
 
 // This function assumes there's a space right before ptr to hold the possible rounding character
-bool Round(char* ptr, u64 len, u64 round) {
+Bool Round(char* ptr, U64 len, U64 round) {
 	const char rem = ptr[round];
 	if (
 		(rem < '5') ||
@@ -135,7 +135,7 @@ bool Round(char* ptr, u64 len, u64 round) {
 }
 
 template <class Out>
-void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
+void WriteF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
 	char sign;
 	if (signbit(f))              { sign = '-'; f = -f; }
 	else if (flags & Flag_Plus)  { sign = '+'; }
@@ -144,8 +144,8 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 
 	if (const int fpc = fpclassify(f); fpc == FP_INFINITE || fpc == FP_NAN) {
 		const Str str = (fpc == FP_INFINITE) ? "inf" : "nan";
-		const u32 len = (sign ? 1 : 0) + 3;
-		const u32 pad = (width > len) ? width - len: 0;
+		const U32 len = (sign ? 1 : 0) + 3;
+		const U32 pad = (width > len) ? width - len: 0;
 		if (!(flags & Flag_Left)) { out->Fill(' ', pad); }
 		if (sign) { out->Add(sign); }
 		out->Add(str.data, str.len);
@@ -153,17 +153,17 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 		return;
 	}
 
-	constexpr u32 MaxSigDigs = 17;
+	constexpr U32 MaxSigDigs = 17;
 	char sigBuf[MaxSigDigs + 1] = "";
 	Str  sigStr;
-	u32  intDigs        = 0;
-	u32  intTrailZeros  = 0;
-	u32  fracLeadZeros  = 0;
-	u32  fracDigs       = 0;
-	u32  fracTrailZeros = 0;
-	i32  exp            = 0;
+	U32  intDigs        = 0;
+	U32  intTrailZeros  = 0;
+	U32  fracLeadZeros  = 0;
+	U32  fracDigs       = 0;
+	U32  fracTrailZeros = 0;
+	I32  exp            = 0;
 	char dispExpSign    = '\0';
-	i32  dispExp        = 0;
+	I32  dispExp        = 0;
 
 	if (f == 0.0) {
 		sigBuf[0] = '0';
@@ -182,12 +182,12 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 		exp = db.exponent;
 	}
 
-	const bool sci = (flags & Flag_Sci) || (!(flags & Flag_Fix) && (exp >= 6 || ((i32)sigStr.len + exp) <= -4));
+	const Bool sci = (flags & Flag_Sci) || (!(flags & Flag_Fix) && (exp >= 6 || ((I32)sigStr.len + exp) <= -4));
 	if (sci) {
 		intDigs = 1u;
 		fracLeadZeros = (sigStr.len == 1u) ? 1u : 0u;
-		fracDigs = (u32)(sigStr.len - 1u);
-		dispExp = exp + (i32)sigStr.len - 1;
+		fracDigs = (U32)(sigStr.len - 1u);
+		dispExp = exp + (I32)sigStr.len - 1;
 		if (dispExp < 0) {
 			dispExp = -dispExp;
 			dispExpSign = '-';
@@ -195,22 +195,22 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 
 	// 12345e3 -> 12345000.0
 	} else if (exp >= 0) {
-		intDigs = (u32)sigStr.len;
-		intTrailZeros = (u32)exp;
+		intDigs = (U32)sigStr.len;
+		intTrailZeros = (U32)exp;
 		fracTrailZeros = (prec == 0) ? 1 : prec;
 
 	// 12345e-2 -> 123.45
-	} else if (sigStr.len > (u64)(-exp)) {
-		intDigs = (u32)((i32)sigStr.len + exp);
-		fracDigs = (u32)(-exp);
+	} else if (sigStr.len > (U64)(-exp)) {
+		intDigs = (U32)((I32)sigStr.len + exp);
+		fracDigs = (U32)(-exp);
 
 	// 12345e-9 -> 0.000012345
 	// 99999e-5 -> 0.99999
 	} else {	// sigDigs <= -exp
 		intDigs = 0;
 		intTrailZeros = 1;
-		fracLeadZeros = (u32)(-exp) - (u32)sigStr.len;
-		fracDigs = (u32)sigStr.len;
+		fracLeadZeros = (U32)(-exp) - (U32)sigStr.len;
+		fracDigs = (U32)sigStr.len;
 	}
 
 	if (prec > 0) {
@@ -235,7 +235,7 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 		}
 	}
 
-	u32 totalLen = (sign ? 1 : 0) + intDigs + intTrailZeros + 1 + fracLeadZeros + fracDigs + fracTrailZeros;
+	U32 totalLen = (sign ? 1 : 0) + intDigs + intTrailZeros + 1 + fracLeadZeros + fracDigs + fracTrailZeros;
 	if (sci) {
 		totalLen += 1 + (dispExpSign ? 1 : 0);
 		     if (exp <=   9) { totalLen += 1; }
@@ -243,9 +243,9 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 		else if (exp <= 999) { totalLen += 3; }
 		else                 { totalLen += 4; }
 	}
-	const u32 pad = (width > totalLen) ? width - totalLen : 0;
+	const U32 pad = (width > totalLen) ? width - totalLen : 0;
 
-	u32 intLeadZeros = 0;
+	U32 intLeadZeros = 0;
 	if (!(flags & Flag_Left)) {
 		if (flags & Flag_Zero) {
 			intLeadZeros = pad;
@@ -266,16 +266,16 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 		if (dispExpSign) {
 			out->Add('-');
 		}
-		i32 de = dispExp;	// local copy for mutation
+		I32 de = dispExp;	// local copy for mutation
 		if (de >= 100) {
-			const char* const ten = &Tens[(u64)(de / 100) * 2];
+			const char* const ten = &Tens[(U64)(de / 100) * 2];
 			if (de >= 10000) {
 				out->Add(ten[0]);
 			}
 			out->Add(ten[1]);
 			de %= 100;
 		}
-		const char* const ten = &Tens[(u64)de * 2];
+		const char* const ten = &Tens[(U64)de * 2];
 		if (dispExp >= 10) {
 			out->Add(ten[0]);
 		}
@@ -289,12 +289,12 @@ void WriteF64(Out* out, f64 f, u32 flags, u32 width, u32 prec) {
 //--------------------------------------------------------------------------------------------------
 
 template <class Out>
-void WriteStr(Out* out, Str str, u32 flags, u32 width, u32 prec) {
+void WriteStr(Out* out, Str str, U32 flags, U32 width, U32 prec) {
 	if (prec && str.len > prec) {
 		str.len = prec;
 	}
-	const u32 pad = (width > (u32)str.len) ? width - (u32)str.len : 0;
-	bool left = flags & Flag_Left;
+	const U32 pad = (width > (U32)str.len) ? width - (U32)str.len : 0;
+	Bool left = flags & Flag_Left;
 	if (!left) {
 		out->Fill(' ', pad);
 	}
@@ -307,19 +307,19 @@ void WriteStr(Out* out, Str str, u32 flags, u32 width, u32 prec) {
 //--------------------------------------------------------------------------------------------------	
 
 template <class Out>
-void WriteI64(Out* out, i64 i, u32 flags, u32 width) {
+void WriteI64(Out* out, I64 i, U32 flags, U32 width) {
 	char sign;
-	u32 totalLen = 0;
+	U32 totalLen = 0;
 	     if (i < 0)              { i = -i; sign = '-'; totalLen = 1; }
 	else if (flags & Flag_Plus)  {         sign = '+'; totalLen = 1; }
 	else if (flags & Flag_Space) {         sign = ' '; totalLen = 1; }
 	else                         {         sign = '\0'; }
 
 	char buf[72];
-	const Str str = U64ToDigits((u64)i, buf, sizeof(buf));
-	totalLen += (u32)str.len;
-	const u32 pad = (width > totalLen) ? width - totalLen : 0;
-	u32 zeros = 0;
+	const Str str = U64ToDigits((U64)i, buf, sizeof(buf));
+	totalLen += (U32)str.len;
+	const U32 pad = (width > totalLen) ? width - totalLen : 0;
+	U32 zeros = 0;
 	if (!(flags & Flag_Left)) {
 		if (flags & Flag_Zero) { zeros = pad; }
 		else { out->Fill(' ', pad); }
@@ -333,13 +333,13 @@ void WriteI64(Out* out, i64 i, u32 flags, u32 width) {
 //--------------------------------------------------------------------------------------------------	
 
 template <class Out>
-void WriteU64(Out* out, u64 u, u32 flags, u32 width) {
+void WriteU64(Out* out, U64 u, U32 flags, U32 width) {
 	char buf[72];
 	Str str;
 	     if (flags & Flag_Hex) { str = U64ToHexits(u, buf, sizeof(buf)); }
 	else if (flags & Flag_Bin) { str = U64ToBits  (u, buf, sizeof(buf)); }
 	else                       { str = U64ToDigits(u, buf, sizeof(buf)); }
-	const u32 pad = (width > (u32)str.len) ? width - (u32)str.len : 0;
+	const U32 pad = (width > (U32)str.len) ? width - (U32)str.len : 0;
 	if (!(flags & Flag_Left)) {
 		out->Fill((flags & Flag_Zero) ? '0' : ' ', pad);
 	}
@@ -352,18 +352,18 @@ void WriteU64(Out* out, u64 u, u32 flags, u32 width) {
 //--------------------------------------------------------------------------------------------------	
 
 template <class Out>
-void WritePtr(Out* out, const void* p, u32 flags, u32 width) {
+void WritePtr(Out* out, const void* p, U32 flags, U32 width) {
 	char buf[16];
 	char* bufIter = buf + sizeof(buf);
-	u64 u = (u64)p;
-	for (u32 i = 0; i < 16; i++) {
+	U64 u = (U64)p;
+	for (U32 i = 0; i < 16; i++) {
 		*--bufIter= "0123456789abcdef"[u & 0xf];
 		u >>= 4;
 	}
 
-	constexpr u32 totalLen = 18;
-	const u32 pad = (width > totalLen) ? width - totalLen : 0;
-	u32 zeros = 0;
+	constexpr U32 totalLen = 18;
+	const U32 pad = (width > totalLen) ? width - totalLen : 0;
+	U32 zeros = 0;
 	if (!(flags & Flag_Left)) {
 		if (flags & Flag_Zero) { zeros = pad; }
 		else { out->Fill(' ', pad); }
@@ -379,12 +379,12 @@ void WritePtr(Out* out, const void* p, u32 flags, u32 width) {
 template <class Out>
 void VPrintfImpl(Out out, const char* fmt, Span<const Arg> args) {
 	const char* i = fmt;
-	u32 nextArg = 0;
+	U32 nextArg = 0;
 
 	for (;;) {
-		u32 flags = 0;
-		u32 width = 0;
-		u32 prec = 0;
+		U32 flags = 0;
+		U32 width = 0;
+		U32 prec = 0;
 		ScanUntilPlaceholder:
 		const char* text = i;
 		for (;;) {
@@ -648,13 +648,13 @@ UnitTest("Fmt") {
 	CheckPrintf("12.34", "{}", 1234e-2);
 	CheckPrintf("0.001234", "{}", 1234e-6);
 	CheckPrintf("0.10000000149011612", "{}", 0.1f);
-	CheckPrintf("0.10000000149011612", "{}", (f64)0.1f);
+	CheckPrintf("0.10000000149011612", "{}", (F64)0.1f);
 	CheckPrintf("1.3563156426940112e-19", "{}", 1.35631564e-19f);
 
 	// NaN
 	// The standard allows implementation-specific suffixes following nan, for example as -nan formats as nan(ind) in MSVC.
 	// These tests may need to be changed when porting to different platforms.
-	constexpr f64 nan = std::numeric_limits<f64>::quiet_NaN();
+	constexpr F64 nan = std::numeric_limits<F64>::quiet_NaN();
 	CheckPrintf("nan", "{}", nan);
 	CheckPrintf("+nan", "{+}", nan);
 	CheckPrintf("  +nan", "{+6}", nan);
@@ -667,7 +667,7 @@ UnitTest("Fmt") {
 	CheckPrintf("    nan", "{7}", nan);
 
 	// Inf
-	constexpr f64 inf = std::numeric_limits<f64>::infinity();
+	constexpr F64 inf = std::numeric_limits<F64>::infinity();
 	CheckPrintf("inf", "{}", inf);
 	CheckPrintf("+inf", "{+}", inf);
 	CheckPrintf("-inf", "{}", -inf);

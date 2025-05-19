@@ -23,11 +23,11 @@ void Err::Init(Str ns, Str code, Span<const NamedArg> namedArgs, SrcLoc sl) {
 	data->sl   = sl;
 	data->ns   = ns;
 	data->code = code;
-	for (u64 i = 0; i < namedArgs.len; i++) {
+	for (U64 i = 0; i < namedArgs.len; i++) {
 		data->namedArgs[i].name = namedArgs[i].name;
 		data->namedArgs[i].arg  = namedArgs[i].arg;	// TODO: should this be a string copy here?
 	}
-	data->namedArgsLen = (u32)namedArgs.len;
+	data->namedArgsLen = (U32)namedArgs.len;
 
 	#if defined DebugBreakOnErr
 	if (Sys::IsDebuggerPresent()) {
@@ -36,7 +36,7 @@ void Err::Init(Str ns, Str code, Span<const NamedArg> namedArgs, SrcLoc sl) {
 	#endif	// DebugBreakOnErr
 }
 
-void Err::Init(Str ns, u64 code, Span<const NamedArg> namedArgs, SrcLoc sl) {
+void Err::Init(Str ns, U64 code, Span<const NamedArg> namedArgs, SrcLoc sl) {
 	Init(ns, Fmt::Printf(tempAllocator, "{}", code), namedArgs, sl);
 }
 
@@ -60,7 +60,7 @@ Str Err::GetStr() {
 	a.Add('\n');
 	for (Data* d = data; d; d = d->prev) {
 		Fmt::Printf(&a, "{}-{}:\n", d->ns, d->code);
-		for (u32 i = 0; i < d->namedArgsLen; d++) {
+		for (U32 i = 0; i < d->namedArgsLen; d++) {
 			Fmt::Printf(&a, "  {}={}\n", d->namedArgs[i].name, d->namedArgs[i].arg);
 		}
 	}

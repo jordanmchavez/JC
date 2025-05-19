@@ -6,35 +6,35 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-constexpr u64 HashSeed = 0xbdd89aa982704029;
+constexpr U64 HashSeed = 0xbdd89aa982704029;
 
 // Use PreHash if you're pre-hashing your data to avoid double hashing. Hash(PreHash) is a no-op
 struct PreHash {
-	u64 hash;
+	U64 hash;
 
 	constexpr PreHash() = default;
 	constexpr PreHash(const PreHash&) = default;
-	constexpr PreHash(u64 h) { hash = h; };	// Implicit
+	constexpr PreHash(U64 h) { hash = h; };	// Implicit
 	constexpr PreHash& operator=(const PreHash& p) = default;
-	constexpr PreHash& operator=(u64 h) { hash = h; return *this; }
+	constexpr PreHash& operator=(U64 h) { hash = h; return *this; }
 };
-inline bool operator==(PreHash p1, PreHash p2) { return p1.hash == p2.hash; }
+inline Bool operator==(PreHash p1, PreHash p2) { return p1.hash == p2.hash; }
 
-u64 HashCombine(u64 h, void const* data, u64 len);
+U64 HashCombine(U64 h, void const* data, U64 len);
 
-inline u64 HashCombine(u64 h, Str s)         { return HashCombine(h,        s.data, s.len); }
-inline u64 HashCombine(u64 h, const void* p) { return HashCombine(h,        &p,     sizeof(p)); }
-inline u64 HashCombine(u64 h, i64 i)         { return HashCombine(h,        &i,     sizeof(i)); }
-inline u64 HashCombine(u64 h, u64 u)         { return HashCombine(h,        &u,     sizeof(u)); }
+inline U64 HashCombine(U64 h, Str s)         { return HashCombine(h,        s.data, s.len); }
+inline U64 HashCombine(U64 h, const void* p) { return HashCombine(h,        &p,     sizeof(p)); }
+inline U64 HashCombine(U64 h, I64 i)         { return HashCombine(h,        &i,     sizeof(i)); }
+inline U64 HashCombine(U64 h, U64 u)         { return HashCombine(h,        &u,     sizeof(u)); }
 
-inline u64 Hash(void const* data, u64 len)   { return HashCombine(HashSeed, data,   len); }
-inline u64 Hash(Str s)                       { return HashCombine(HashSeed, s.data, s.len); }
-inline u64 Hash(const void* p)               { return HashCombine(HashSeed, &p,     sizeof(p)); }
-inline u64 Hash(i32 i)                       { return HashCombine(HashSeed, &i,     sizeof(i)); }
-inline u64 Hash(u32 u)                       { return HashCombine(HashSeed, &u,     sizeof(u)); }
-inline u64 Hash(i64 i)                       { return HashCombine(HashSeed, &i,     sizeof(i)); }
-inline u64 Hash(u64 u)                       { return HashCombine(HashSeed, &u,     sizeof(u)); }
-inline u64 Hash(PreHash h)                   { return h.hash; }
+inline U64 Hash(void const* data, U64 len)   { return HashCombine(HashSeed, data,   len); }
+inline U64 Hash(Str s)                       { return HashCombine(HashSeed, s.data, s.len); }
+inline U64 Hash(const void* p)               { return HashCombine(HashSeed, &p,     sizeof(p)); }
+inline U64 Hash(I32 i)                       { return HashCombine(HashSeed, &i,     sizeof(i)); }
+inline U64 Hash(U32 u)                       { return HashCombine(HashSeed, &u,     sizeof(u)); }
+inline U64 Hash(I64 i)                       { return HashCombine(HashSeed, &i,     sizeof(i)); }
+inline U64 Hash(U64 u)                       { return HashCombine(HashSeed, &u,     sizeof(u)); }
+inline U64 Hash(PreHash h)                   { return h.hash; }
 
 //--------------------------------------------------------------------------------------------------
 

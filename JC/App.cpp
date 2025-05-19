@@ -19,7 +19,7 @@ DefErr(App, Init);
 static Mem::Allocator*     permAllocator;
 static Mem::TempAllocator* tempAllocator;
 static Log::Logger*        logger;
-static bool                exit;
+static Bool                exit;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -37,11 +37,11 @@ static void AppPanicFn(const char* expr, const char* msg, Span<const NamedArg> n
 	if (msg) {
 		iter = Fmt::Printf(iter, end, "{}\n", msg);
 	}
-	for (u64 i = 0; i < namedArgs.len; i++) {
+	for (U64 i = 0; i < namedArgs.len; i++) {
 		iter = Fmt::Printf(iter, end, "  {}={}", namedArgs[i].name, namedArgs[i].arg);
 	}
 	iter--;
-	Logf("{}", Str(buf, (u64)(iter - buf)));
+	Logf("{}", Str(buf, (U64)(iter - buf)));
 
 	if (Sys::IsDebuggerPresent()) {
 		Sys_DebuggerBreak();
@@ -53,9 +53,9 @@ static void AppPanicFn(const char* expr, const char* msg, Span<const NamedArg> n
 
 static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	Mem::Init(
-		(u64)8 * 1024 * 1024,
-		(u64)16 * 1024 * 1024 * 1024,
-		(u64)16 * 1024 * 1024 * 1024
+		(U64)8 * 1024 * 1024,
+		(U64)16 * 1024 * 1024 * 1024,
+		(U64)16 * 1024 * 1024 * 1024
 	);
 	permAllocator = Mem::permAllocator;
 	tempAllocator = Mem::tempAllocator;
@@ -65,7 +65,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	SetPanicFn(AppPanicFn);
 
 	logger = Log::InitLogger(tempAllocator);
-	Log::AddFn([](const char* msg, u64 len) {
+	Log::AddFn([](const char* msg, U64 len) {
 		Sys::Print(Str(msg, len));
 		if (Sys::IsDebuggerPresent()) {
 			Sys::DebuggerPrint(msg);
@@ -82,7 +82,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 
 	Event::Init(logger);
 
-	const Window::Style windowStyle = (Window::Style)Config::GetU32("App.WindowStyle", (u32)Window::Style::BorderedResizable);
+	const Window::Style windowStyle = (Window::Style)Config::GetU32("App.WindowStyle", (U32)Window::Style::BorderedResizable);
 	Window::InitDesc windowInitDesc = {
 		.tempAllocator = tempAllocator,
 		.logger        = logger,
@@ -116,11 +116,11 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		return r;
 	}
 
-	u64 lastTicks = Time::Now();
+	U64 lastTicks = Time::Now();
 	for (exit = false; !exit ;) {
 		tempAllocator->Reset();
 
-		const u64 ticks = Time::Now();
+		const U64 ticks = Time::Now();
 		const double secs = Time::Secs(ticks - lastTicks);
 		lastTicks = ticks;
 

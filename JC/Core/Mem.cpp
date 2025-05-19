@@ -8,57 +8,57 @@ namespace JC::Mem {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr u32 AlignLog2        = 3;
-static constexpr u32 Align            = 1 << AlignLog2;
+static constexpr U32 AlignLog2        = 3;
+static constexpr U32 Align            = 1 << AlignLog2;
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr u64 FreeBit     = 1 << 0;
-static constexpr u64 PrevFreeBit = 1 << 1;
+static constexpr U64 FreeBit     = 1 << 0;
+static constexpr U64 PrevFreeBit = 1 << 1;
 
 struct Block {
 	Block* prev     = 0;	// prev is actually part of the previous block but can only be referenced if (size | PrevFreeBit)
 	// block starts here
-	u64    size     = 0;	// bottom two bits reserved for FreeBit and PrevFreeBit
+	U64    size     = 0;	// bottom two bits reserved for FreeBit and PrevFreeBit
 	// user area
 	Block* nextFree = 0;	// nextFree and prevFree are only used if the block is free
 	Block* prevFree = 0;	// so our minimum "user payload" is 24 bytes (nextFree+prevFree+prev)
 	// Block* prev (only if this block is free as defined by next block's (size | PrevFreeBit)
 
-	u64          Size()       const { return size & ~(FreeBit | PrevFreeBit); }
-	bool         IsFree()     const { return size & FreeBit; }
-	bool         IsPrevFree() const { return size & PrevFreeBit; }
-	Block*       Next()             { return (Block*)((u8*)this + Size() + 8); }
-	const Block* Next()       const { return (const Block*)((u8*)this + Size() + 8); }
+	U64          Size()       const { return size & ~(FreeBit | PrevFreeBit); }
+	Bool         IsFree()     const { return size & FreeBit; }
+	Bool         IsPrevFree() const { return size & PrevFreeBit; }
+	Block*       Next()             { return (Block*)((U8*)this + Size() + 8); }
+	const Block* Next()       const { return (const Block*)((U8*)this + Size() + 8); }
 };
 
-static constexpr u32 SecondCountLog2  = 5;
-static constexpr u32 SecondCount      = 1 << SecondCountLog2;    // 32
-static constexpr u32 FirstShift       = SecondCountLog2 + AlignLog2; // 8
-static constexpr u32 FirstMax         = 40;
-static constexpr u32 FirstCount       = FirstMax - FirstShift + 1;  // 40-8+1=33
-static constexpr u32 SmallBlockSize   = 1 << FirstShift; // 256
-static constexpr u64 BlockSizeMin     = 24;	// nextFree + prevFree + next->prev
-static constexpr u64 BlockSizeMax     = ((u64)1 << FirstMax) - 8;	// 1TB - 8 bytes
+static constexpr U32 SecondCountLog2  = 5;
+static constexpr U32 SecondCount      = 1 << SecondCountLog2;    // 32
+static constexpr U32 FirstShift       = SecondCountLog2 + AlignLog2; // 8
+static constexpr U32 FirstMax         = 40;
+static constexpr U32 FirstCount       = FirstMax - FirstShift + 1;  // 40-8+1=33
+static constexpr U32 SmallBlockSize   = 1 << FirstShift; // 256
+static constexpr U64 BlockSizeMin     = 24;	// nextFree + prevFree + next->prev
+static constexpr U64 BlockSizeMax     = ((U64)1 << FirstMax) - 8;	// 1TB - 8 bytes
 
 static_assert(Align == SmallBlockSize / SecondCount);
 
 struct Index {
-	u32 f = 0;
-	u32 s = 0;
+	U32 f = 0;
+	U32 s = 0;
 };
 
-static Index CalcIndex(u64 size) {
+static Index CalcIndex(U64 size) {
 	if (size < SmallBlockSize) {
 		return Index {
 			.f = 0,
-			.s = (u32)size / (SmallBlockSize / SecondCount),
+			.s = (U32)size / (SmallBlockSize / SecondCount),
 		};
 	} else {
-		const u32 bit = Bit::Bsr64(size);
+		const U32 bit = Bit::Bsr64(size);
 		return Index {
 			.f = bit - FirstShift + 1,
-			.s = (u32)(size >> (bit - SecondCountLog2)) & (SecondCount - 1),
+			.s = (U32)(size >> (bit - SecondCountLog2)) & (SecondCount - 1),
 		};
 	}
 }
@@ -67,24 +67,24 @@ static Index CalcIndex(u64 size) {
 
 struct AllocatorObj : Allocator {
     Block  nullBlock                       = {};
-    u64    first                           = 0;
-    u64    second[FirstCount]              = {};
+    U64    first                           = 0;
+    U64    second[FirstCount]              = {};
     Block* blocks[FirstCount][SecondCount] = {};
-	u8*    begin                           = 0;
-	u8*    endCommit                       = 0;
-	u8*    endReserve                      = 0;
+	U8*    begin                           = 0;
+	U8*    endCommit                       = 0;
+	U8*    endReserve                      = 0;
 
 	//----------------------------------------------------------------------------------------------
 
 	void InsertFreeBlock(Block* block) {
 		const Index idx = CalcIndex(block->Size());
-		Assert((u64)block % Align  == 0);
+		Assert((U64)block % Align  == 0);
 		block->nextFree = blocks[idx.f][idx.s];
 		block->prevFree = &nullBlock;
 		blocks[idx.f][idx.s]->prevFree = block;
 		blocks[idx.f][idx.s]           = block;
-		first         |= (u64)1 << idx.f;
-		second[idx.f] |= (u64)1 << idx.s;
+		first         |= (U64)1 << idx.f;
+		second[idx.f] |= (U64)1 << idx.s;
 	}
 
 	//----------------------------------------------------------------------------------------------
@@ -97,9 +97,9 @@ struct AllocatorObj : Allocator {
 		if (blocks[idx.f][idx.s] == block) {
 			blocks[idx.f][idx.s] = n;
 			if (n == &nullBlock) {
-				second[idx.f] &= ~((u64)1 << idx.s);
+				second[idx.f] &= ~((U64)1 << idx.s);
 				if (!second[idx.f]) {
-					first &= ~((u64)1 << idx.f);
+					first &= ~((U64)1 << idx.f);
 				}
 			}
 		}
@@ -109,16 +109,16 @@ struct AllocatorObj : Allocator {
 
 	//----------------------------------------------------------------------------------------------
 
-	bool FindFreeIndex(u64 size, Index* out) {
+	Bool FindFreeIndex(U64 size, Index* out) {
 		if (size >= SmallBlockSize) {
 			// Round up to next block size
-			const u64 round = ((u64)1 << (Bit::Bsr64(size) - SecondCountLog2)) - 1;
+			const U64 round = ((U64)1 << (Bit::Bsr64(size) - SecondCountLog2)) - 1;
 			size += round;
 		}
 		Index idx = CalcIndex(size);
-		u64 sMap = second[idx.f] & ((u64)-1 << idx.s);
+		U64 sMap = second[idx.f] & ((U64)-1 << idx.s);
 		if (!sMap) {
-			const u32 fMap = first & ((u64)-1 << (idx.f + 1));
+			const U32 fMap = first & ((U64)-1 << (idx.f + 1));
 			if (!fMap) {
 				return false;
 			}
@@ -135,10 +135,10 @@ struct AllocatorObj : Allocator {
 	//----------------------------------------------------------------------------------------------
 
 	void Commit() {
-		const u64 extendSize = Max((u64)4096, (u64)(endCommit - begin));
+		const U64 extendSize = Max((U64)4096, (U64)(endCommit - begin));
 		Assert(endCommit + extendSize <= endReserve);
-		u8* const oldEndCommit = endCommit;
-		endCommit = (u8*)Sys::VirtualCommit(endCommit, extendSize);
+		U8* const oldEndCommit = endCommit;
+		endCommit = (U8*)Sys::VirtualCommit(endCommit, extendSize);
 
 		Block* block = ((Block*)(oldEndCommit - 16))->prev;
 		Assert(block);	// block->prev should have been set during the last commit
@@ -156,7 +156,7 @@ struct AllocatorObj : Allocator {
 
 	//----------------------------------------------------------------------------------------------
 
-	void* Alloc(u64 size) {
+	void* Alloc(U64 size) {
 		Assert(size < BlockSizeMax);
 
 		size = Max(Bit::AlignUp(size, Align), BlockSizeMin);
@@ -177,7 +177,7 @@ struct AllocatorObj : Allocator {
 		Block* const next = block->Next();
 		Assert(next->IsPrevFree());
 		if (block->Size() >= sizeof(Block) + size) {
-			Block* const rem = (Block*)((u8*)block + size + 8);
+			Block* const rem = (Block*)((U8*)block + size + 8);
 			rem->prev = block;
 			rem->size = (block->Size() - size - 8) | FreeBit;
 			Assert(rem->Next() == next);
@@ -191,19 +191,19 @@ struct AllocatorObj : Allocator {
 			next->size  &= ~PrevFreeBit;
 		}
 
-		return (u8*)block + 16;
+		return (U8*)block + 16;
 	}
 
 	//----------------------------------------------------------------------------------------------
 
-	bool Extend(void* ptr, u64 ptrSize) {
+	Bool Extend(void* ptr, U64 ptrSize) {
 		ptrSize = Max(Bit::AlignUp(ptrSize, Align), BlockSizeMin);
 		Assert(ptrSize <= BlockSizeMax);
 
-		Block* const block = (Block*)((u8*)ptr - 16);
+		Block* const block = (Block*)((U8*)ptr - 16);
 		Assert(!block->IsFree());
 
-		const u64 blockSize = block->Size();
+		const U64 blockSize = block->Size();
 		if (ptrSize <= blockSize) {
 			return true;
 		}
@@ -213,8 +213,8 @@ struct AllocatorObj : Allocator {
 			return false;
 		}
 
-		const u64 nextSize = next->Size();
-		const u64 combinedSize = blockSize + nextSize + 8;
+		const U64 nextSize = next->Size();
+		const U64 combinedSize = blockSize + nextSize + 8;
 		if (combinedSize < ptrSize) {
 			return false;
 		}
@@ -243,7 +243,7 @@ struct AllocatorObj : Allocator {
 	//----------------------------------------------------------------------------------------------
 
 	void Free(void* ptr) {
-		Block* block = (Block*)((u8*)ptr - 16);
+		Block* block = (Block*)((U8*)ptr - 16);
 		Assert(!block->IsFree());
 		block->size |= FreeBit;
 
@@ -269,7 +269,7 @@ struct AllocatorObj : Allocator {
 
 	//----------------------------------------------------------------------------------------------
 
-	void* Alloc(void* ptr, u64 ptrSize, u64 size, u32 flags, SrcLoc) override {
+	void* Alloc(void* ptr, U64 ptrSize, U64 size, U32 flags, SrcLoc) override {
 		if (!ptr) {
 			ptr = Alloc(size);
 			if (!(flags & Mem::AllocFlag_NoInit)) {
@@ -288,7 +288,7 @@ struct AllocatorObj : Allocator {
 				Free(oldPtr);
 			}
 			if (size > ptrSize && !(flags & Mem::AllocFlag_NoInit)) {
-				memset((u8*)ptr + ptrSize, 0, size - ptrSize);
+				memset((U8*)ptr + ptrSize, 0, size - ptrSize);
 			}
 
 		} else {
@@ -299,7 +299,7 @@ struct AllocatorObj : Allocator {
 
 	//----------------------------------------------------------------------------------------------
 
-	void Init(u64 commitSize, u64 reserveSize) {
+	void Init(U64 commitSize, U64 reserveSize) {
 		Assert(Bit::IsPow2(commitSize));
 		Assert(Bit::IsPow2(reserveSize));
 		Assert(commitSize >= 48);	// 8 prev + 8 sz + 24 body + 8 sz
@@ -311,14 +311,14 @@ struct AllocatorObj : Allocator {
 
 		first = 0;
 		memset(second, 0, sizeof(second));
-		for (u32 i = 0; i < FirstCount; i++) {
-			for (u32 j = 0; j < SecondCount; j++) {
+		for (U32 i = 0; i < FirstCount; i++) {
+			for (U32 j = 0; j < SecondCount; j++) {
 				blocks[i][j] = &nullBlock;
 			}
 		}
 
-		begin      = (u8*)Sys::VirtualReserve(reserveSize);
-		endCommit  = (u8*)Sys::VirtualCommit(begin, commitSize);
+		begin      = (U8*)Sys::VirtualReserve(reserveSize);
+		endCommit  = (U8*)Sys::VirtualCommit(begin, commitSize);
 		endReserve = begin + reserveSize;
 
 		// Note thet the very first block will NEVER have PrevFreeBit, therefore it will never access Prev
@@ -337,7 +337,7 @@ struct AllocatorObj : Allocator {
 
 static AllocatorObj allocatorObj;
 
-Allocator* InitDefaultAllocator(u64 commitSize, u64 reserveSize) {
+Allocator* InitDefaultAllocator(U64 commitSize, U64 reserveSize) {
 	allocatorObj.Init(commitSize, reserveSize);
 	return &allocatorObj;
 }
@@ -345,16 +345,16 @@ Allocator* InitDefaultAllocator(u64 commitSize, u64 reserveSize) {
 //--------------------------------------------------------------------------------------------------
 
 struct TempAllocatorObj : TempAllocator {
-	u8* begin      = 0;
-	u8* end        = 0;
-	u8* endCommit  = 0;
-	u8* endReserve = 0;
-	u8* last       = 0;
+	U8* begin      = 0;
+	U8* end        = 0;
+	U8* endCommit  = 0;
+	U8* endReserve = 0;
+	U8* last       = 0;
 
 	//----------------------------------------------------------------------------------------------
 
-	void Init(u64 reserveSize) {
-		begin      = (u8*)Sys::VirtualReserve(reserveSize);
+	void Init(U64 reserveSize) {
+		begin      = (U8*)Sys::VirtualReserve(reserveSize);
 		end        = begin;
 		endCommit  = begin;
 		endReserve = begin + reserveSize;
@@ -362,14 +362,14 @@ struct TempAllocatorObj : TempAllocator {
 
 	//----------------------------------------------------------------------------------------------
 
-	void* Alloc(u64 size) {
+	void* Alloc(U64 size) {
 		// alloc
 		size = Bit::AlignUp(size, Align);
 		Assert(endCommit >= end);
-		const u64 avail = (u64)(endCommit - end);
+		const U64 avail = (U64)(endCommit - end);
 		if (avail < size) {
-			const u64 commitSize = (u64)(endCommit - begin);
-			u64 extendSize = Max((u64)4096, commitSize);
+			const U64 commitSize = (U64)(endCommit - begin);
+			U64 extendSize = Max((U64)4096, commitSize);
 			while (avail + extendSize < size) {
 				extendSize *= 2;
 				Assert(endCommit + extendSize < endReserve);
@@ -377,7 +377,7 @@ struct TempAllocatorObj : TempAllocator {
 			Sys::VirtualCommit(endCommit, extendSize);
 			endCommit += extendSize;
 		}
-		u8* const oldEnd = end;
+		U8* const oldEnd = end;
 		end += size;
 
 
@@ -388,15 +388,15 @@ struct TempAllocatorObj : TempAllocator {
 		return oldEnd;
 	}
 
-	void Extend(void* ptr, u64 size) {
+	void Extend(void* ptr, U64 size) {
 		Assert(end >= last);
 		size = Bit::AlignUp(size, Align);
-		end = (u8*)ptr;
+		end = (U8*)ptr;
 		Assert(endCommit >= end);
-		const u64 avail = (u64)(endCommit - end);
+		const U64 avail = (U64)(endCommit - end);
 		if (avail < size) {
-			const u64 commitSize = (u64)(endCommit - begin);
-			u64 extendSize = Max((u64)4096, commitSize);
+			const U64 commitSize = (U64)(endCommit - begin);
+			U64 extendSize = Max((U64)4096, commitSize);
 			while (avail + extendSize < size) {
 				extendSize *= 2;
 				Assert(endCommit + extendSize < endReserve);
@@ -410,7 +410,7 @@ struct TempAllocatorObj : TempAllocator {
 		Assert(endCommit <= endReserve);
 	}
 
-	void* Alloc(void* ptr, u64 ptrSize, u64 size, u32 flags, SrcLoc) override {
+	void* Alloc(void* ptr, U64 ptrSize, U64 size, U32 flags, SrcLoc) override {
 		if (!ptr) {
 			Assert(!ptrSize);
 			ptr = Alloc(size);
@@ -423,7 +423,7 @@ struct TempAllocatorObj : TempAllocator {
 			if (ptr == last) {
 				Extend(ptr, size);
 				if (size > ptrSize && !(flags & AllocFlag_NoInit)) {
-					memset((u8*)ptr + ptrSize, 0, size - ptrSize);
+					memset((U8*)ptr + ptrSize, 0, size - ptrSize);
 				}
 				return ptr;
 			} else {
@@ -431,7 +431,7 @@ struct TempAllocatorObj : TempAllocator {
 				if (!(flags & AllocFlag_NoInit)) {
 					memcpy(newPtr, ptr, ptrSize);
 					if (size > ptrSize && !(flags & AllocFlag_NoInit)) {
-						memset((u8*)newPtr + ptrSize, 0, size - ptrSize);
+						memset((U8*)newPtr + ptrSize, 0, size - ptrSize);
 					}
 				}
 				return newPtr;
@@ -451,21 +451,21 @@ struct TempAllocatorObj : TempAllocator {
 //--------------------------------------------------------------------------------------------------
 
 struct ExpectedBlock {
-	u64  size;
-	bool free;
+	U64  size;
+	Bool free;
 };
 
 void CheckAllocator(AllocatorObj* allocator, Span<ExpectedBlock> expectedBlocks) {
-	u32 freeBlockCount[FirstCount][SecondCount] = {};
+	U32 freeBlockCount[FirstCount][SecondCount] = {};
 
-	for (u32 f = 0; f < FirstCount; f++) {
-		const u64 fBit = allocator->first & ((u64)1 << f);
+	for (U32 f = 0; f < FirstCount; f++) {
+		const U64 fBit = allocator->first & ((U64)1 << f);
 		CheckTrue(
 			( fBit &&  allocator->second[f]) ||
 			(!fBit && !allocator->second[f])
 		);
-		for (u32 s = 0; s < SecondCount; s++) {
-			const u64 sBit = allocator->second[f] & ((u64)1 << s);
+		for (U32 s = 0; s < SecondCount; s++) {
+			const U64 sBit = allocator->second[f] & ((U64)1 << s);
 			CheckTrue(
 				( sBit && allocator->blocks[f][s] != &allocator->nullBlock) ||
 				(!sBit && allocator->blocks[f][s] == &allocator->nullBlock)
@@ -489,9 +489,9 @@ void CheckAllocator(AllocatorObj* allocator, Span<ExpectedBlock> expectedBlocks)
 	const ExpectedBlock* expectedBlocksEnd = expectedBlocks.End();
 
 	Block* prev     = 0;
-	bool   prevFree = false;
+	Bool   prevFree = false;
 	Block* block    = (Block*)allocator->begin;
-	u32    blockNum = 0;
+	U32    blockNum = 0;
 	while (block->Size() > 0) {
 		CheckTrue(expectedBlock < expectedBlocksEnd);
 		CheckEq(prev, block->prev);
@@ -518,10 +518,10 @@ void CheckAllocator(AllocatorObj* allocator, Span<ExpectedBlock> expectedBlocks)
 	CheckEq(prev, block->prev);
 	CheckEq(prevFree, block->IsPrevFree());
 	CheckTrue(!block->IsFree());
-	CheckEq(allocator->endCommit, (u8*)block + 16);
+	CheckEq(allocator->endCommit, (U8*)block + 16);
 
-	for (u32 f = 0; f < FirstCount; f++) {
-		for (u32 s = 0; s < SecondCount; s++) {
+	for (U32 f = 0; f < FirstCount; f++) {
+		for (U32 s = 0; s < SecondCount; s++) {
 			CheckTrue(!freeBlockCount[f][s]);
 		}
 	}
@@ -535,7 +535,7 @@ static TempAllocatorObj tempAllocatorObj;
 Allocator*     permAllocator = &permAllocatorObj;
 TempAllocator* tempAllocator = &tempAllocatorObj;
 
-void Init(u64 permCommitSize, u64 permReserveSize, u64 tempReserveSize)
+void Init(U64 permCommitSize, U64 permReserveSize, U64 tempReserveSize)
 {
 	permAllocatorObj.Init(permCommitSize, permReserveSize);
 	tempAllocatorObj.Init(tempReserveSize);
@@ -563,42 +563,42 @@ UnitTest("Mem") {
 		#define CheckCalcIndex(size, first, second) \
 		{ \
 			const Index i = CalcIndex(size); \
-			CheckEq(i.f, (u64)first); \
-			CheckEq(i.s, (u64)second); \
+			CheckEq(i.f, (U64)first); \
+			CheckEq(i.s, (U64)second); \
 		}
 
-		u64 size = 0;
-		u64 inc = 8;
-		for (u32 s = 0; s < SecondCount; s++) {
+		U64 size = 0;
+		U64 inc = 8;
+		for (U32 s = 0; s < SecondCount; s++) {
 			CheckCalcIndex(size, 0, s);
 			size += inc;
 		}
-		for (u32 f = 1; f < FirstCount; f++) {
-			for (u32 s = 0; s < SecondCount; s++) {
+		for (U32 f = 1; f < FirstCount; f++) {
+			for (U32 s = 0; s < SecondCount; s++) {
 				CheckCalcIndex(size, f, s);
 				size += inc;
 			}
 			inc <<= 1;
 		}
-		CheckCalcIndex((u64)0x10000000000, 33, 0);
+		CheckCalcIndex((U64)0x10000000000, 33, 0);
 	}
 
 	SubTest("Alloc/Extend/Free") {
-		constexpr u64 commitSize  =       64 * 1024;
-		constexpr u64 reserveSize = 64 * 1024 * 1024;
+		constexpr U64 commitSize  =       64 * 1024;
+		constexpr U64 reserveSize = 64 * 1024 * 1024;
 		Defer { Sys::VirtualFree(allocator.begin); };
 		allocator.Init(commitSize, reserveSize);
-		u64 base = commitSize - 24;
-		const bool f = true;	// free
-		const bool u = false;	// used
+		U64 base = commitSize - 24;
+		const Bool f = true;	// free
+		const Bool u = false;	// used
 		Span<ExpectedBlock> expectedBlocks = {
 			{ base, f },
 		};
 		CheckAllocator(&allocator, expectedBlocks);
 
 		void* p[256] = {};
-		u32 pn = 0;
-		u64 used = 0;
+		U32 pn = 0;
+		U64 used = 0;
 
 		#define PAlloc(size) p[pn++] = allocator.Alloc(size); used += size + 8
 		PAlloc( 960); PAlloc(24);
@@ -639,7 +639,7 @@ UnitTest("Mem") {
 		CheckAllocator(&allocator, expectedBlocks);
 
 		// free without merge
-		for (u32 i = 0; i <= 30; i += 2) { allocator.Free(p[i]); }
+		for (U32 i = 0; i <= 30; i += 2) { allocator.Free(p[i]); }
 		expectedBlocks = {
 			{   960, f }, { 24, u }, //  0,  1, 2.28
 			{   968, f }, { 24, u }, //  2,  3, 2.28

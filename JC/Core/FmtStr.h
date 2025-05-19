@@ -12,7 +12,7 @@ inline void BadFmtStr_CloseBraceNotEscaped() {}
 inline void BadFmtStr_TooManyArgs() {}
 
 consteval const char* CheckFmtSpec(const char* i) {
-	for (bool flagsDone = false; !flagsDone; ) {
+	for (Bool flagsDone = false; !flagsDone; ) {
 		switch (*i) {
 			case '}': i++; return i;
 			case '<': i++; break;
@@ -48,7 +48,7 @@ consteval const char* CheckFmtSpec(const char* i) {
 
 consteval void CheckFmtStr(const char* fmt, size_t argsLen) {
 	const char* i = fmt;
-	u32 nextArg = 0;
+	U32 nextArg = 0;
 
 	for (;;) {
 		if (!*i) {

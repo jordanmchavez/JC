@@ -17,97 +17,97 @@ namespace JC::Entity {
 // 1 gb = 2k
 // 16gb = 32k
 
-static constexpr u32 MaxComponents       = 1024;
-static constexpr u32 MaxTypesShift       = 10;
-static constexpr u32 MaxTypes            = 1 << MaxTypesShift;
-static constexpr u32 MaxTypeColumns      = 64;
-static constexpr u32 MaxQueries          = 1024;
-static constexpr u64 EntitiesReserveSize = 1024 * 1024 * 1024;
-static constexpr u64 TypeDataReserveSize = 1024 * 1024 * 1024;
-static constexpr u32 TypeInitialCap      = 16;
+static constexpr U32 MaxComponents       = 1024;
+static constexpr U32 MaxTypesShift       = 10;
+static constexpr U32 MaxTypes            = 1 << MaxTypesShift;
+static constexpr U32 MaxTypeColumns      = 64;
+static constexpr U32 MaxQueries          = 1024;
+static constexpr U64 EntitiesReserveSize = 1024 * 1024 * 1024;
+static constexpr U64 TypeDataReserveSize = 1024 * 1024 * 1024;
+static constexpr U32 TypeInitialCap      = 16;
 
-using EntityId    = u64;
-using ComponentId = u32;
-using QueryId     = u32;
-using TypeId      = u32;
-using ColumnId    = u32;
+using EntityId    = U64;
+using ComponentId = U32;
+using QueryId     = U32;
+using TypeId      = U32;
+using ColumnId    = U32;
 
 struct ComponentMask {
-	u64 bits[MaxComponents / 64];
+	U64 bits[MaxComponents / 64];
 };
 
 struct TypeMask {
-	u64 bits[MaxTypes / 64];
+	U64 bits[MaxTypes / 64];
 };
 
 struct ComponentObj {
 	Str name;
-	u32 size;
+	U32 size;
 };
 
 struct Column {
 	ComponentId componentId;
-	u32         offset;
-	u32         size;
+	U32         offset;
+	U32         size;
 };
 
 struct Type {
 	ComponentMask componentMask;
-	u32           rowSize;
+	U32           rowSize;
 	Column        columns[MaxTypeColumns];	// TODO: we could very easily make this dynamic to remove the limit
-	u32           columnsLen;
-	u8*           data;
-	u32           len;
-	u32           cap;
+	U32           columnsLen;
+	U8*           data;
+	U32           len;
+	U32           cap;
 	Str           name;
 };
 
 struct EntityObj {
 	union {
-		u32 typeId;
-		u32 nextFreeIdx;
+		U32 typeId;
+		U32 nextFreeIdx;
 	};
-	u32 gen;
-	u32 row;
+	U32 gen;
+	U32 row;
 };
 
 struct QueryObj {
 	Component     components[MaxQueryComponents];
-	u32           componentsLen;
+	U32           componentsLen;
 	ComponentMask componentMask;
 	TypeMask      typeMask;
 };
 
 struct Iter {
 	Component    components[MaxQueryComponents];
-	u32          componentsLen;
+	U32          componentsLen;
 	TypeMask     typeMask;
-	u64*         bits;
-	u64*         bitsEnd;
+	U64*         bits;
+	U64*         bitsEnd;
 	RowSet       rowSet;
 };
 
 static Mem::Allocator*              allocator;
 static Mem::TempAllocator*          tempAllocator;
 static Array<EntityObj>             entityObjs;
-static u32                          freeEntityObjIdx;
+static U32                          freeEntityObjIdx;
 static ComponentObj                 componentObjs[MaxComponents];
-static u32                          componentObjsLen;
+static U32                          componentObjsLen;
 static Type                         types[MaxTypes];
-static u32                          typesLen;
-static Map<u32, ColumnId>           typeIdComponentIdToColumnId;	// key = typeId | (componentId << TypeIdShift)
+static U32                          typesLen;
+static Map<U32, ColumnId>           typeIdComponentIdToColumnId;	// key = typeId | (componentId << TypeIdShift)
 static Map<PreHash, TypeId>         componentMaskHashToTypeId;
 static QueryObj                     queryObjs[MaxQueries];
-static u32                          queryObjsLen;
+static U32                          queryObjsLen;
 static Map<PreHash, QueryId>        componentMaskHashToQueryId;
 
 //--------------------------------------------------------------------------------------------------
 
-static bool Contains(const ComponentMask* m1, const ComponentMask* m2) {
-	const u32 bitsLen = (componentObjsLen + 63) >> 6;
-	for (u32 i = 0; i < bitsLen; i++) {
-		const u64 b1 = m1->bits[i];
-		const u64 b2 = m2->bits[i];
+static Bool Contains(const ComponentMask* m1, const ComponentMask* m2) {
+	const U32 bitsLen = (componentObjsLen + 63) >> 6;
+	for (U32 i = 0; i < bitsLen; i++) {
+		const U64 b1 = m1->bits[i];
+		const U64 b2 = m2->bits[i];
 		if ((b1 | b2) != b1) {
 			return false;
 		}
@@ -125,15 +125,15 @@ static TypeId CreateType(const ComponentMask* mask) {
 	type->componentMask = *mask;
 	type->rowSize       = sizeof(EntityId);
 
-	const u32 maxIdx = (componentObjsLen + 63) >> 6;
+	const U32 maxIdx = (componentObjsLen + 63) >> 6;
 	Array<char> name(tempAllocator);
-	for (u32 i = 0; i < maxIdx; i++) {
-		u64 bits = mask->bits[i];
+	for (U32 i = 0; i < maxIdx; i++) {
+		U64 bits = mask->bits[i];
 		while (bits) {
-			const u32 bit = Bit::Bsf64(bits);
-			bits &= ~((u64)1 << bit);
+			const U32 bit = Bit::Bsf64(bits);
+			bits &= ~((U64)1 << bit);
 
-			u32 componentId = (i * 64) + bit;
+			U32 componentId = (i * 64) + bit;
 			typeIdComponentIdToColumnId.Put(
 				typeId | (componentId << MaxTypesShift),
 				type->columnsLen
@@ -152,7 +152,7 @@ static TypeId CreateType(const ComponentMask* mask) {
 		}
 	}
 	if (name.len > 0) { name.len--; } else { Fmt::Printf(&name, "<empty>"); }
-	type->data = (u8*)allocator->Alloc(TypeInitialCap * type->rowSize);
+	type->data = (U8*)allocator->Alloc(TypeInitialCap * type->rowSize);
 	type->len  = 0;
 	type->cap  = TypeInitialCap;
 	type->name = Copy(allocator, Str(name.data, name.len));
@@ -160,9 +160,9 @@ static TypeId CreateType(const ComponentMask* mask) {
 	const PreHash maskHash = Hash(mask, sizeof(*mask));
 	componentMaskHashToTypeId.Put(maskHash, typeId);
 
-	for (u32 i = 0; i < queryObjsLen; i++) {
+	for (U32 i = 0; i < queryObjsLen; i++) {
 		if (Contains(mask, &queryObjs[i].componentMask)) {
-			queryObjs[i].typeMask.bits[typeId / 64] |= (u64)1 << (typeId & 63);
+			queryObjs[i].typeMask.bits[typeId / 64] |= (U64)1 << (typeId & 63);
 		}
 	}
 
@@ -194,23 +194,23 @@ void Init(Mem::Allocator* allocatorIn, Mem::TempAllocator* tempAllocatorIn) {
 
 static ComponentMask BuildComponentMask(Span<Component> components) {
 	ComponentMask mask = {};
-	for (u64 i = 0; i < components.len; i++) {
+	for (U64 i = 0; i < components.len; i++) {
 		const ComponentId componentId = components[i].id;
-		mask.bits[componentId / 64] |= (u64)1 << (componentId & 63);
+		mask.bits[componentId / 64] |= (U64)1 << (componentId & 63);
 	}
 	return mask;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static Span<u32> AddRows(Type* type, u32 n) {
-	const u32 oldLen = type->len;
-	const u32 newLen = type->len + n;
+static Span<U32> AddRows(Type* type, U32 n) {
+	const U32 oldLen = type->len;
+	const U32 newLen = type->len + n;
 	if (newLen > type->cap) {
-		const u32 newCap = Max(newLen, type->cap * 2);
-		u8* newData = (u8*)allocator->Alloc(newCap * type->rowSize);
+		const U32 newCap = Max(newLen, type->cap * 2);
+		U8* newData = (U8*)allocator->Alloc(newCap * type->rowSize);
 		// Don't need to move the entities row
-		for (u32 i = 0; i < type->columnsLen; i++) {
+		for (U32 i = 0; i < type->columnsLen; i++) {
 			const Column* const col = &type->columns[i];
 			memmove(
 				newData    + (type->cap * col->offset),
@@ -224,10 +224,10 @@ static Span<u32> AddRows(Type* type, u32 n) {
 	}
 	type->len = newLen;
 
-	Array<u32> rows(tempAllocator);
+	Array<U32> rows(tempAllocator);
 	rows.Resize(n);
-	u32 row = oldLen;
-	for (u32 i = 0; i < n; i++) {
+	U32 row = oldLen;
+	for (U32 i = 0; i < n; i++) {
 		rows[i] = row++;
 	}
 
@@ -236,11 +236,11 @@ static Span<u32> AddRows(Type* type, u32 n) {
 
 //--------------------------------------------------------------------------------------------------
 
-static void RemoveRow(Type* type, u32 row) {
-	const u32 lastRow = type->len - 1;
+static void RemoveRow(Type* type, U32 row) {
+	const U32 lastRow = type->len - 1;
 
 	((Entity*)type->data)[row] = ((Entity*)type->data)[lastRow];
-	for (u32 c = 0; c < type->columnsLen; c++) {
+	for (U32 c = 0; c < type->columnsLen; c++) {
 		Column* col = &type->columns[c];
 		memcpy(
 			type->data + (col->offset * type->cap) + (row     * col->size),
@@ -253,10 +253,10 @@ static void RemoveRow(Type* type, u32 row) {
 
 //--------------------------------------------------------------------------------------------------
 
-static void CopyRow(Type* srcType, u32 srcRow, Type* dstType, u32 dstRow) {
+static void CopyRow(Type* srcType, U32 srcRow, Type* dstType, U32 dstRow) {
 	((Entity*)dstType->data)[dstRow] = ((Entity*)srcType->data)[srcRow];
-	u32 srcColIdx = 0;
-	u32 dstColIdx = 0;
+	U32 srcColIdx = 0;
+	U32 dstColIdx = 0;
 	while (srcColIdx < srcType->columnsLen && dstColIdx < dstType->columnsLen) {
 		const Column* const srcCol = &srcType->columns[srcColIdx];
 		const Column* const dstCol = &dstType->columns[dstColIdx];
@@ -278,24 +278,24 @@ static void CopyRow(Type* srcType, u32 srcRow, Type* dstType, u32 dstRow) {
 
 //--------------------------------------------------------------------------------------------------
 
-Span<Entity> CreateEntities(u32 n, Span<Component> components) {
+Span<Entity> CreateEntities(U32 n, Span<Component> components) {
 	const ComponentMask mask = BuildComponentMask(components);
 	const PreHash maskHash = Hash(&mask, sizeof(mask));
 	const TypeId* const typeIdPtr = componentMaskHashToTypeId.FindOrNull(maskHash);
 	TypeId typeId = typeIdPtr ? *typeIdPtr : CreateType(&mask);
 	Type* const type = &types[typeId];
-	Span<u32> rows = AddRows(type, n);
+	Span<U32> rows = AddRows(type, n);
 
 	Array<Entity> result(tempAllocator);
 	result.Resize(n);
-	u32 i = 0;
+	U32 i = 0;
 	for (; i < n && freeEntityObjIdx; i++) {
 		EntityObj* entityObj = &entityObjs[freeEntityObjIdx];
 		freeEntityObjIdx = entityObjs[freeEntityObjIdx].nextFreeIdx;
 		entityObj->typeId = typeId;
 		entityObj->gen++;
 		entityObj->row = rows[i];
-		const u64 entityId = (u64)(entityObj - entityObjs.data) | ((u64)entityObj->gen << 32);;
+		const U64 entityId = (U64)(entityObj - entityObjs.data) | ((U64)entityObj->gen << 32);;
 		((Entity*)type->data)[rows[i]].id = entityId;
 		result[i].id = entityId;
 	}
@@ -303,7 +303,7 @@ Span<Entity> CreateEntities(u32 n, Span<Component> components) {
 		entityObj->typeId = typeId;
 		entityObj->gen++;
 		entityObj->row = rows[i];
-		const u64 entityId = (u64)(entityObj - entityObjs.data) | ((u64)entityObj->gen << 32);;
+		const U64 entityId = (U64)(entityObj - entityObjs.data) | ((U64)entityObj->gen << 32);;
 		((Entity*)type->data)[rows[i]].id = entityId;
 		result[i].id = entityId;
 	}
@@ -314,9 +314,9 @@ Span<Entity> CreateEntities(u32 n, Span<Component> components) {
 //--------------------------------------------------------------------------------------------------
 
 void DestroyEntities(Span<Entity> entities) {
-	for (u32 i = 0; i < entities.len; i++) {
-		const u32 idx = (u32)(entities[i].id & 0xffffffff);
-		const u32 gen = (u32)(entities[i].id >> 32);
+	for (U32 i = 0; i < entities.len; i++) {
+		const U32 idx = (U32)(entities[i].id & 0xffffffff);
+		const U32 gen = (U32)(entities[i].id >> 32);
 		Assert(idx < entityObjs.len);
 		EntityObj* const entityObj = &entityObjs[idx];
 		Assert(entityObj->gen == gen);
@@ -330,9 +330,9 @@ void DestroyEntities(Span<Entity> entities) {
 
 //--------------------------------------------------------------------------------------------------
 
-Component CreateComponent(Str name, u32 size) {
+Component CreateComponent(Str name, U32 size) {
 	Assert(componentObjsLen < MaxComponents);
-	size = (u32)Bit::AlignUp(size, 8);
+	size = (U32)Bit::AlignUp(size, 8);
 	componentObjs[componentObjsLen++] = {
 		.name = Copy(allocator, name),
 		.size = size,
@@ -343,8 +343,8 @@ Component CreateComponent(Str name, u32 size) {
 //--------------------------------------------------------------------------------------------------
 
 static EntityObj* GetEntityObj(Entity entity) {
-	const u32 idx = (u32)(entity.id & 0xffffffff);
-	const u32 gen = (u32)(entity.id >> 32);
+	const U32 idx = (U32)(entity.id & 0xffffffff);
+	const U32 gen = (U32)(entity.id >> 32);
 	Assert(idx < entityObjs.len);
 	EntityObj* const entityObj = &entityObjs[idx];
 	Assert(gen == entityObj->gen);
@@ -358,16 +358,16 @@ void AddComponents(Entity entity, Span<Component> components) {
 	Type* const oldType = &types[entityObj->typeId];
 
 	ComponentMask newMask = oldType->componentMask;
-	for (u64 i = 0; i < components.len; i++) {
-		newMask.bits[components[i].id / 64] |= (u64)1 << (components[i].id & 63);
+	for (U64 i = 0; i < components.len; i++) {
+		newMask.bits[components[i].id / 64] |= (U64)1 << (components[i].id & 63);
 	}
 	const TypeId* const newTypeIdPtr = componentMaskHashToTypeId.FindOrNull(Hash(&newMask, sizeof(newMask)));
 	const TypeId newTypeId = newTypeIdPtr ? *newTypeIdPtr : CreateType(&newMask);
 	Type* const newType = &types[newTypeId];
 
 	if (oldType != newType) {
-		const u32 oldRow = entityObj->row;
-		const u32 newRow = AddRows(newType, 1)[0];
+		const U32 oldRow = entityObj->row;
+		const U32 newRow = AddRows(newType, 1)[0];
 		CopyRow(oldType, oldRow, newType, newRow);
 		RemoveRow(oldType, oldRow);
 		entityObj->typeId = newTypeId;
@@ -382,16 +382,16 @@ void RemoveComponents(Entity entity, Span<Component> components) {
 	Type* const oldType = &types[entityObj->typeId];
 
 	ComponentMask newMask = oldType->componentMask;
-	for (u64 i = 0; i < components.len; i++) {
-		newMask.bits[components[i].id / 64] &= ~((u64)1 << (components[i].id & 63));
+	for (U64 i = 0; i < components.len; i++) {
+		newMask.bits[components[i].id / 64] &= ~((U64)1 << (components[i].id & 63));
 	}
 	const TypeId* const newTypeIdPtr = componentMaskHashToTypeId.FindOrNull(Hash(&newMask, sizeof(newMask)));
 	const TypeId newTypeId = newTypeIdPtr ? *newTypeIdPtr : CreateType(&newMask);
 	Type* const newType = &types[newTypeId];
 
 	if (oldType != newType) {
-		const u32 oldRow = entityObj->row;
-		const u32 newRow = AddRows(newType, 1)[0];
+		const U32 oldRow = entityObj->row;
+		const U32 newRow = AddRows(newType, 1)[0];
 		CopyRow(oldType, oldRow, newType, newRow);
 		RemoveRow(oldType, oldRow);
 		entityObj->typeId = newTypeId;
@@ -406,8 +406,8 @@ Span<void*> GetComponentData(Entity entity, Span<Component> components) {
 	Type* const type = &types[entityObj->typeId];
 
 	void** data = tempAllocator->AllocT<void*>(components.len);
-	for (u64 i = 0; i < components.len; i++) {
-		const u32 key = entityObj->typeId | (components[i].id << MaxTypesShift);
+	for (U64 i = 0; i < components.len; i++) {
+		const U32 key = entityObj->typeId | (components[i].id << MaxTypesShift);
 		const Column column = type->columns[*typeIdComponentIdToColumnId.FindChecked(key)];
 		data[i] = type->data + (type->cap * column.offset) + (entityObj->row * column.size);
 	}
@@ -434,10 +434,10 @@ Query CreateQuery(Span<Component> components) {
 
 	queryObj->componentMask = mask;
 	memcpy(queryObj->components, components.data, components.len * sizeof(components[0]));
-	queryObj->componentsLen = (u32)components.len;
-	for (u32 i = 0; i < typesLen; i++) {
+	queryObj->componentsLen = (U32)components.len;
+	for (U32 i = 0; i < typesLen; i++) {
 		if (Contains(&types[i].componentMask, &mask)) {
-			queryObj->typeMask.bits[i / 64] |= (u64)1 << (i & 63);
+			queryObj->typeMask.bits[i / 64] |= (U64)1 << (i & 63);
 		}
 	}
 
@@ -466,15 +466,15 @@ Iter* RunQuery(Query query) {
 RowSet* Next(Iter* iter) {
 	for (; iter->bits < iter->bitsEnd; iter->bits++) {
 		while (*iter->bits) {
-			const u32 bit = Bit::Bsf64(*iter->bits);
-			*iter->bits &= ~((u64)1 << bit);
+			const U32 bit = Bit::Bsf64(*iter->bits);
+			*iter->bits &= ~((U64)1 << bit);
 
-			const TypeId typeId = ((u32)(iter->bits - iter->typeMask.bits) * 64) + bit;
+			const TypeId typeId = ((U32)(iter->bits - iter->typeMask.bits) * 64) + bit;
 			Type* const type = &types[typeId];
 			if (type->len == 0) { continue; }
 
 			iter->rowSet.entities = (Entity*)type->data;
-			for (u32 i = 0; i < iter->componentsLen; i++) {
+			for (U32 i = 0; i < iter->componentsLen; i++) {
 				ColumnId colId = *typeIdComponentIdToColumnId.FindChecked(typeId | (iter->components[i].id << MaxTypesShift));
 				iter->rowSet.componentData[i] = type->data + (type->cap * type->columns[colId].offset);
 			}
@@ -490,10 +490,10 @@ RowSet* Next(Iter* iter) {
 //--------------------------------------------------------------------------------------------------
 
 UnitTest("Entity") {
-	struct A { char b; u8 data[  48]; char e; };
-	struct B { char b; u8 data[  91]; char e; };
+	struct A { char b; U8 data[  48]; char e; };
+	struct B { char b; U8 data[  91]; char e; };
 	struct C { char b;                char e; };
-	struct D { char b; u8 data[5000]; char e; };
+	struct D { char b; U8 data[5000]; char e; };
 
 	Init(testAllocator, testAllocator);
 

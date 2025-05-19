@@ -24,7 +24,7 @@ template <class... A> struct [[nodiscard]] Err_Vk : JC::Err {
 	Err_Vk(VkResult vkResult, Str fn, A... args, SrcLoc sl = SrcLoc::Here()) {
 		NamedArg namedArgs[1 + sizeof...(A) / 2];	// includes "fn"
 		BuildNamedArgs(namedArgs, "fn", fn, args...);
-		Init("Vk", (i64)vkResult, Span<const NamedArg>(namedArgs, 1 + sizeof...(A) / 2), sl);
+		Init("Vk", (I64)vkResult, Span<const NamedArg>(namedArgs, 1 + sizeof...(A) / 2), sl);
 	}
 };
 template <typename... A> Err_Vk(Str, VkResult, A...) -> Err_Vk<A...>;
@@ -50,10 +50,10 @@ Str QueueFlagsStr(Mem::Allocator* allocator, VkQueueFlags f);
 Str PresentModeStr(VkPresentModeKHR m);
 Str ResultStr(VkResult r);
 Str PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
-Str VersionStr(Mem::Allocator* allocator, u32 v);
-Str SizeStr(Mem::Allocator* allocator, u64 size);
-u32 FormatSize(VkFormat vkFormat);
-bool IsDepthFormat(VkFormat vkFormat);
+Str VersionStr(Mem::Allocator* allocator, U32 v);
+Str SizeStr(Mem::Allocator* allocator, U64 size);
+U32 FormatSize(VkFormat vkFormat);
+Bool IsDepthFormat(VkFormat vkFormat);
 
 //--------------------------------------------------------------------------------------------------
 

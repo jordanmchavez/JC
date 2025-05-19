@@ -7,7 +7,7 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 struct [[nodiscard]] Err {
-	static constexpr u32 MaxArgs = 32;
+	static constexpr U32 MaxArgs = 32;
 
 	struct Data {
 		Data*    prev               = {};
@@ -15,7 +15,7 @@ struct [[nodiscard]] Err {
 		Str      ns                 = {};
 		Str      code               = {};
 		NamedArg namedArgs[MaxArgs] = {};
-		u32      namedArgsLen       = 0;
+		U32      namedArgsLen       = 0;
 	};
 
 	Data* data = 0;
@@ -31,7 +31,7 @@ struct [[nodiscard]] Err {
 	}
 
 	void Init(Str ns, Str code, Span<const NamedArg> namedArgs, SrcLoc sl);
-	void Init(Str ns, u64 code, Span<const NamedArg> namedArgs, SrcLoc sl);
+	void Init(Str ns, U64 code, Span<const NamedArg> namedArgs, SrcLoc sl);
 
 	Err Push(Err err);
 

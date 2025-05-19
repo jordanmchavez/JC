@@ -9,27 +9,27 @@ namespace JC::UnitTest {
 
 //--------------------------------------------------------------------------------------------------
 
-bool Run(Mem::TempAllocator* tempAllocator, Log::Logger* logger);
+Bool Run(Mem::TempAllocator* tempAllocator, Log::Logger* logger);
 
-bool CheckFailImpl(SrcLoc sl);
-bool CheckExprFail(SrcLoc sl, Str expr);
-bool CheckRelFail(SrcLoc sl, Str expr, Arg x, Arg y);
-bool CheckSpanEqFail_Len(SrcLoc sl, Str expr, u64 xLen, u64 yLen);
-bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, u64 i, Arg x, Arg y);
+Bool CheckFailImpl(SrcLoc sl);
+Bool CheckExprFail(SrcLoc sl, Str expr);
+Bool CheckRelFail(SrcLoc sl, Str expr, Arg x, Arg y);
+Bool CheckSpanEqFail_Len(SrcLoc sl, Str expr, U64 xLen, U64 yLen);
+Bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, U64 i, Arg x, Arg y);
 
-template <class X, class Y> bool CheckEq(SrcLoc sl, Str expr, X x, Y y) {
+template <class X, class Y> Bool CheckEq(SrcLoc sl, Str expr, X x, Y y) {
 	return (x == y) || CheckRelFail(sl, expr, MakeArg(x), MakeArg(y));
 }
 
-template <class X, class Y> bool CheckNeq(SrcLoc sl, Str expr, X x, Y y) {
+template <class X, class Y> Bool CheckNeq(SrcLoc sl, Str expr, X x, Y y) {
 	return (x != y) || CheckRelFail(sl, expr, MakeArg(x), MakeArg(y));
 }
 
-template <class X, class Y> bool CheckSpanEq(SrcLoc sl, Str expr, Span<X> x, Span<Y> y) {
+template <class X, class Y> Bool CheckSpanEq(SrcLoc sl, Str expr, Span<X> x, Span<Y> y) {
 	if (x.len != y.len) {
 		return CheckSpanEqFail_Len(sl, expr, x.len, y.len);
 	}
-	for (u64 i = 0; i < x.len; i++) {
+	for (U64 i = 0; i < x.len; i++) {
 		if (x[i] != y[i]) {
 			return CheckSpanEqFail_Elem(sl, expr, i, MakeArg(x[i]), MakeArg(y[i]));
 		}
@@ -49,7 +49,7 @@ struct Subtest {
 		SrcLoc sl   = {};
 	};
 	Sig  sig       = {};
-	bool shouldRun = false;
+	Bool shouldRun = false;
 
 	Subtest(Str name, SrcLoc sl);
 	~Subtest();

@@ -6,11 +6,15 @@ namespace JC::Sprite {
 
 //--------------------------------------------------------------------------------------------------
 
-struct Sprite { u64 handle = 0; };
+struct Sprite { U64 handle = 0; };
 
-Res<>  Load(Str imagePath, Str atlasPath);
+struct DrawSprite {
+	Sprite sprite;
+};
+
+Res<>  LoadAtlas(Str imagePath, Str atlasPath);
 Sprite Get(Str name);
-Res<>  Draw(Span<Sprite> sprites);
+Res<>  Draw(Span<DrawSprite> sprites);
 
 //--------------------------------------------------------------------------------------------------
 

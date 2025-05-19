@@ -8,19 +8,19 @@ namespace JC::Time {
 
 void Init();
 
-u64  Now();
+U64  Now();
 
-double Days (u64 ticks);
-double Hours(u64 ticks);
-double Mins (u64 ticks);
-double Secs (u64 ticks);
-double Mils (u64 ticks);
+double Days (U64 ticks);
+double Hours(U64 ticks);
+double Mins (U64 ticks);
+double Secs (U64 ticks);
+double Mils (U64 ticks);
 
-u64 FromDays (double days);
-u64 FromHours(double hours);
-u64 FromMins (double mins);
-u64 FromSecs (double secs);
-u64 FromMils (double mils);
+U64 FromDays (double days);
+U64 FromHours(double hours);
+U64 FromMins (double mins);
+U64 FromSecs (double secs);
+U64 FromMils (double mils);
 
 //--------------------------------------------------------------------------------------------------
 

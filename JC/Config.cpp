@@ -9,13 +9,13 @@ namespace JC::Config {
 
 struct ValStr {
 	const char* str;
-	u64         len;
+	U64         len;
 };
 
 struct Val {
 	union {
-		u64    u;
-		f64    f;
+		U64    u;
+		F64    f;
 		ValStr s;
 	};
 };
@@ -30,19 +30,19 @@ void Init(Mem::Allocator* allocator) {
 
 //--------------------------------------------------------------------------------------------------
 
-u32 GetU32(Str name, u32 def) {
+U32 GetU32(Str name, U32 def) {
 	name; return def;
 }
 
-u64 GetU64(Str name, u64 def) {
+U64 GetU64(Str name, U64 def) {
 	name; return def;
 }
 
-f32 GetF32(Str name, f32 def) {
+F32 GetF32(Str name, F32 def) {
 	name; return def;
 }
 
-f64 GetF64(Str name, f64 def) {
+F64 GetF64(Str name, F64 def) {
 	name; return def;
 }
 

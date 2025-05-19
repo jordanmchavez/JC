@@ -52,76 +52,76 @@ namespace JC {
 #endif
 
 
-static void Rapid_Mum(u64* A, u64* B){
+static void Rapid_Mum(U64* A, U64* B){
 	#if defined(__SIZEOF_INT128__)
 		__uint128_t r = *a;
 		r *= *b; 
-		*A ^= (u64)r;
-		*B ^= (u64)(r >> 64);
+		*A ^= (U64)r;
+		*B ^= (U64)(r >> 64);
 	#elif defined(_MSC_VER) && (defined(_WIN64) || defined(_M_HYBRID_CHPE_ARM64))
 		#if defined(_M_X64)
-			u64  a,  b;
+			U64  a,  b;
 			a = _umul128(*A, *B, &b);
 			*A ^= a;
 			*B ^= b;
 		#else
-			u64 a, b;
+			U64 a, b;
 			b = __umulh(*A, *B);
 			a = *A * *B;
 			*A ^= a;
 			*B ^= b;
 		#endif
 	#else
-		u64 ha = *A >> 32;
-		u64 hb = *B >> 32;
-		u64 la = (u32)*A;
-		u64 lb = (u32)*B
-		u64 rh = ha * hb;
-		u64 rm0 = ha * lb;
-		u64 rm1 = hb * la;
-		u64 rl = la * lb;
-		u64 t = rl + (rm0 << 32);
-		u64 c = t < rl;
-		u64 lo = t + (rm1 << 32);
+		U64 ha = *A >> 32;
+		U64 hb = *B >> 32;
+		U64 la = (U32)*A;
+		U64 lb = (U32)*B
+		U64 rh = ha * hb;
+		U64 rm0 = ha * lb;
+		U64 rm1 = hb * la;
+		U64 rl = la * lb;
+		U64 t = rl + (rm0 << 32);
+		U64 c = t < rl;
+		U64 lo = t + (rm1 << 32);
 		c += lo < t;
-		u64 hi = rh + (rm0 >> 32) + (rm1 > >32) + c;
+		U64 hi = rh + (rm0 >> 32) + (rm1 > >32) + c;
 		*A ^= lo;
 		*B ^= hi;
 	#endif
 }
 
-static u64 Rapid_Mix(u64 a, u64 b) {
+static U64 Rapid_Mix(U64 a, U64 b) {
 	Rapid_Mum(&a, &b);
 	return a ^ b;
 }
 
-static u64 Rapid_Read64(const u8* p) {
-	u64 v;
+static U64 Rapid_Read64(const U8* p) {
+	U64 v;
 	memcpy(&v, p, 8);
 	return v;
 }
 
-static u64 Rapid_Read32(const u8* p) {
-	u32 v;
+static U64 Rapid_Read32(const U8* p) {
+	U32 v;
 	memcpy(&v, p, 4);
 	return v;
 }
 
-static u64 Rapid_ReadSmall(const u8* p, u64 k) {
-	return (((u64)p[0]) << 56) | (((u64)p[k >> 1]) << 32) | p[k - 1];
+static U64 Rapid_ReadSmall(const U8* p, U64 k) {
+	return (((U64)p[0]) << 56) | (((U64)p[k >> 1]) << 32) | p[k - 1];
 }
 
-static constexpr u64 Rapid_Secret[3] = { 0x2d358dccaa6c78a5ull, 0x8bb84b93962eacc9ull, 0x4b33a62ed433d4a3ull };
+static constexpr U64 Rapid_Secret[3] = { 0x2d358dccaa6c78a5ull, 0x8bb84b93962eacc9ull, 0x4b33a62ed433d4a3ull };
 
-u64 HashCombine(u64 seed, const void* data, u64 len) {
-	const u8* p = (const u8*)data;
+U64 HashCombine(U64 seed, const void* data, U64 len) {
+	const U8* p = (const U8*)data;
 	seed ^= Rapid_Mix(seed ^ Rapid_Secret[0], Rapid_Secret[1]) ^ len;
-	u64 a, b;
+	U64 a, b;
 	if (Rapid_Likely(len <= 16)) {
 		if (Rapid_Likely(len >= 4)) {
-			const u8* plast = p + len - 4;
+			const U8* plast = p + len - 4;
 			a = (Rapid_Read32(p) << 32) | Rapid_Read32(plast);
-			const u64 delta = ((len & 24) >> (len >> 3));
+			const U64 delta = ((len & 24) >> (len >> 3));
 			b = ((Rapid_Read32(p + delta) << 32) | Rapid_Read32(plast - delta));
 		} else if (Rapid_Likely(len > 0)) {
 			a = Rapid_ReadSmall(p, len);
@@ -131,10 +131,10 @@ u64 HashCombine(u64 seed, const void* data, u64 len) {
 			b = 0;
 		}
 	} else {
-		u64 i = len; 
+		U64 i = len; 
 		if (Rapid_Unlikely(i > 48)) {
-			u64 see1 = seed;
-			u64 see2 = seed;
+			U64 see1 = seed;
+			U64 see2 = seed;
 			while (Rapid_Likely(i >= 96)) {
 				seed = Rapid_Mix(Rapid_Read64(p     ) ^ Rapid_Secret[0], Rapid_Read64(p +  8) ^ seed);
 				see1 = Rapid_Mix(Rapid_Read64(p + 16) ^ Rapid_Secret[1], Rapid_Read64(p + 24) ^ see1);

@@ -14,17 +14,17 @@ namespace JC::Bit {
 
 //--------------------------------------------------------------------------------------------------
 
-u32 Bsr64(u64 u) {
+U32 Bsr64(U64 u) {
 	#if defined Compiler_Msvc
-		u32 idx;
+		U32 idx;
 		_BitScanReverse64((unsigned long*)&idx, u);
 		return idx;
 	#endif	// Compiler_
 }
 
-u32 Bsf64(u64 u) {
+U32 Bsf64(U64 u) {
 	#if defined Compiler_Msvc
-		u32 idx;
+		U32 idx;
 		_BitScanForward64((unsigned long*)&idx, u);
 		return idx;
 	#endif	// Compiler_Msvc_
@@ -32,9 +32,9 @@ u32 Bsf64(u64 u) {
 
 //--------------------------------------------------------------------------------------------------
 
-u32 PopCount64(u64 u) {
+U32 PopCount64(U64 u) {
 	#if defined Compiler_Msvc
-		return (u32)__popcnt64(u);
+		return (U32)__popcnt64(u);
 	#endif	// Compiler_
 }
 
@@ -55,8 +55,8 @@ UnitTest("Bit") {
 
 	CheckEq(PopCount64(0), 0u);
 	CheckEq(PopCount64(1), 1u);
-	CheckEq(PopCount64((u64)0b10101010), 4u);
-	CheckEq(PopCount64((u64)0xffffffffffffffff), 64u);
+	CheckEq(PopCount64((U64)0b10101010), 4u);
+	CheckEq(PopCount64((U64)0xffffffffffffffff), 64u);
 
 	CheckEq(AlignUp(0, 0), 0);
 	CheckEq(AlignUp(0, 8), 0);
@@ -68,8 +68,8 @@ UnitTest("Bit") {
 	CheckEq(AlignPow2(0), 0);
 	CheckEq(AlignPow2(1), 1);
 	CheckEq(AlignPow2(2), 2);
-	for (u64 i = 2; i < 64; i++) {
-		const u64 pow2 = (u64)1 << i;
+	for (U64 i = 2; i < 64; i++) {
+		const U64 pow2 = (U64)1 << i;
 		CheckEq(AlignPow2(pow2 - 1), pow2);
 		CheckEq(AlignPow2(pow2    ), pow2);
 		CheckEq(AlignPow2(pow2 + 1), pow2 << 1);

@@ -6,25 +6,25 @@ namespace JC::Entity {
 
 //--------------------------------------------------------------------------------------------------
 
-constexpr u32 MaxQueryComponents = 32;
+constexpr U32 MaxQueryComponents = 32;
 
-struct Entity    { u64 id; };
-struct Component { u32 id; };
-struct Query     { u32 id; };
+struct Entity    { U64 id; };
+struct Component { U32 id; };
+struct Query     { U32 id; };
 
 struct Iter;
 
 struct RowSet {
 	Entity* entities;
 	void*   componentData[MaxQueryComponents];
-	u32     len;
+	U32     len;
 };
 
 void         Init(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator);
 
-Component    CreateComponent(Str name, u32 size);
+Component    CreateComponent(Str name, U32 size);
 
-Span<Entity> CreateEntities(u32 n, Span<Component> components);
+Span<Entity> CreateEntities(U32 n, Span<Component> components);
 void         DestroyEntities(Span<Entity> entitys);
 
 void         AddComponents(Entity entity, Span<Component> components);

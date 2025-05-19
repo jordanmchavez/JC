@@ -8,9 +8,9 @@ namespace JC {
 
 struct SrcLoc {
 	const char* file = {};
-	u32         line = 0;
+	U32         line = 0;
 
-	static consteval SrcLoc Here(const char* file = BuiltinFile, u32 line = BuiltinLine) {
+	static consteval SrcLoc Here(const char* file = BuiltinFile, U32 line = BuiltinLine) {
 		return SrcLoc { .file = file, .line = line };
 	}
 };

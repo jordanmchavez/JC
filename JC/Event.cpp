@@ -7,11 +7,11 @@ namespace JC::Event {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr u32 MaxEvents = 64 * 1024;
+static constexpr U32 MaxEvents = 64 * 1024;
 
 static Log::Logger* logger;
 static Event        events[MaxEvents];
-static u32          eventsLen;
+static U32          eventsLen;
 
 //--------------------------------------------------------------------------------------------------
 

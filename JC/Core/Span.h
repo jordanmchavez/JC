@@ -21,17 +21,17 @@ namespace std {
 
 template <class T> struct Span {
 	T*  data = 0;
-	u64 len  = 0;
+	U64 len  = 0;
 
 	constexpr Span() = default;
-	constexpr Span(T* d, u64 l) { data = d; len = l; }
+	constexpr Span(T* d, U64 l) { data = d; len = l; }
 	constexpr Span(std::initializer_list<T> il) { data = const_cast<T*>(il.begin()); len = il.size(); }
 	constexpr Span(const Span&) = default;
 
 	constexpr Span& operator=(const Span&) = default;
 	
-	constexpr       T& operator[](u64 i)       { return data[i]; }
-	constexpr const T& operator[](u64 i) const { return data[i]; }
+	constexpr       T& operator[](U64 i)       { return data[i]; }
+	constexpr const T& operator[](U64 i) const { return data[i]; }
 
 	constexpr       T* Begin()       { return data; }
 	constexpr const T* Begin() const { return data; }

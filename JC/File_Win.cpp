@@ -11,12 +11,12 @@ Res<File> Open(Str path) {
 	if (!IsValidHandle(h)) {
 		return Err_WinLast("CreateFileW", "path", path);
 	}
-	return File { .handle = (u64)h };
+	return File { .handle = (U64)h };
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Res<u64> Len(File file) {
+Res<U64> Len(File file) {
 	LARGE_INTEGER fileSize;
 	if (GetFileSizeEx((HANDLE)file.handle, &fileSize) == 0) {
 		return Err_WinLast("GetFileSizeEx");
@@ -26,13 +26,13 @@ Res<u64> Len(File file) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Read(File file, void* out, u64 outLen) {
-	u64 offset = 0;
+Res<> Read(File file, void* out, U64 outLen) {
+	U64 offset = 0;
 	while (offset < outLen) {
-		const u64 rem = outLen - offset;
-		const u32 bytesToRead = rem > U32Max ? U32Max : (u32)rem;
+		const U64 rem = outLen - offset;
+		const U32 bytesToRead = rem > U32Max ? U32Max : (U32)rem;
 		DWORD bytesRead = 0;
-		if (ReadFile((HANDLE)file.handle, (u8*)out + offset, bytesToRead, &bytesRead, 0) == FALSE) {
+		if (ReadFile((HANDLE)file.handle, (U8*)out + offset, bytesToRead, &bytesRead, 0) == FALSE) {
 			return Err_WinLast("ReadFile");
 		}
 		offset += bytesRead;
@@ -42,24 +42,24 @@ Res<> Read(File file, void* out, u64 outLen) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Span<u8>> ReadAll(Mem::Allocator* allocator, Str path) {
+Res<Span<U8>> ReadAll(Mem::Allocator* allocator, Str path) {
 	File file;
 	if (Res<> r = Open(path).To(file); !r) {
 		return r.err;
 	}
 	Defer { Close(file); };
 
-	u64 len = 0;
+	U64 len = 0;
 	if (Res<> r = Len(file).To(len); !r) {
 		return r.err;
 	}
 
-	u8* buf = (u8*)allocator->Alloc(len);
+	U8* buf = (U8*)allocator->Alloc(len);
 	if (Res<> r = Read(file, buf, len); !r) {
 		return r.err;
 	}
 
-	return Span<u8>(buf, len);
+	return Span<U8>(buf, len);
 }
 
 //--------------------------------------------------------------------------------------------------

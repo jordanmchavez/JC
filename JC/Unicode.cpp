@@ -10,8 +10,8 @@ namespace JC::Unicode {
 WStrZ Utf8ToWtf16z(Mem::Allocator* allocator, Str s) {
 	Array<wchar_t> out(allocator);
 
-	const u8* p = (const u8*)s.data;
-	const u8* end = p + s.len;
+	const U8* p = (const U8*)s.data;
+	const U8* end = p + s.len;
 	while (p < end) {
 		// U+ 0000 - U+ 007f | 0xxxyyyy                            | 0x00 - 0x7f
 		// U+ 0080 - U+ 07ff | 110xxxyy 10yyzzzz                   | 0xc2 - 0xdf
@@ -28,21 +28,21 @@ WStrZ Utf8ToWtf16z(Mem::Allocator* allocator, Str s) {
 		// 0x80 - 0xbf
 		// 0xf8 - 0xff
 
-		u32 cp = (u32)L'?';
-		const u32 c1 = (u32)*p++;
+		U32 cp = (U32)L'?';
+		const U32 c1 = (U32)*p++;
 		if (c1 <= 0x7f) {
-			cp = (u32)c1;
+			cp = (U32)c1;
 
 		} else if (c1 >= 0xc2 && c1 <= 0xdf) {
 			if (p > end) { out.Add(L'?'); break; }
-			const u32 c2 = (u32)*p++;
+			const U32 c2 = (U32)*p++;
 			if (c2 < 0x80 || c2 > 0xbf) { out.Add(L'?'); continue; }
 			cp = ((c1 & 0x1f) << 6) + (c2 & 0x3f);
 
 		} else if (c1 <= 0xef) {
 			if (p + 1 > end) { out.Add(L'?'); break; }
-			const u32 c2 = (u32)*p++;
-			const u32 c3 = (u32)*p++;
+			const U32 c2 = (U32)*p++;
+			const U32 c3 = (U32)*p++;
 			if (c1 == 0xe0) {
 				if (c2 < 0xa0 || c2 > 0xbf) { out.Add(L'?'); continue; }
 			} else {
@@ -56,9 +56,9 @@ WStrZ Utf8ToWtf16z(Mem::Allocator* allocator, Str s) {
 				out.Add(L'?');
 				break;
 			}
-			const u32 c2 = (u32)*p++;
-			const u32 c3 = (u32)*p++;
-			const u32 c4 = (u32)*p++;
+			const U32 c2 = (U32)*p++;
+			const U32 c3 = (U32)*p++;
+			const U32 c4 = (U32)*p++;
 			if (c1 == 0xf0) {
 				if (c2 < 0x90 || c2 > 0xbf) { out.Add(L'?'); continue; }
 			} else if (c1 >= 0xf1 && c1 <= 0xf3) {
@@ -165,8 +165,8 @@ Str Wtf16zToUtf8(Mem::Allocator* allocator, WStrZ s) {
 	const wchar_t* end = s.data + s.len;
 	const wchar_t* p = s.data;
 	while (p < end) {
-		u32 cp;
-		const u32 c = (u32)*p++;
+		U32 cp;
+		const U32 c = (U32)*p++;
 		if (c <= 0xd7ff || c >= 0xe000) {
 			cp = c;
 		} else if (c <= 0xdbff && p < end && *p >= 0xdc00 && *p <= 0xdfff) {

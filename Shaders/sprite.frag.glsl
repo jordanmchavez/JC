@@ -46,5 +46,6 @@ void main() {
 	float r = min(1.0f, lightAccum.r);
 	float g = min(1.0f, lightAccum.g);
 	float b = min(1.0f, lightAccum.b);
-	rgbaOut = vec4(r, g, b, 1.0) * texColor;
+	//rgbaOut = vec4(r, g, b, 1.0) * texColor;
+	rgbaOut = texColor;
 }

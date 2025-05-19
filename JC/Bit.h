@@ -6,15 +6,15 @@ namespace JC::Bit {
 
 //--------------------------------------------------------------------------------------------------
 
-u32 Bsr64(u64 u);
-u32 Bsf64(u64 u);
+U32 Bsr64(U64 u);
+U32 Bsf64(U64 u);
 
-u32 PopCount64(u64 u);
+U32 PopCount64(U64 u);
 
-constexpr u64   AlignUp   (u64   u, u64 align) { return (u + (align - 1)) & ~(align - 1); }
-constexpr void* AlignPtrUp(void* p, u64 align) { return (void*)AlignUp((u64)p, align); }
+constexpr U64   AlignUp   (U64   u, U64 align) { return (u + (align - 1)) & ~(align - 1); }
+constexpr void* AlignPtrUp(void* p, U64 align) { return (void*)AlignUp((U64)p, align); }
 
-constexpr u64 AlignPow2(u64 u) {
+constexpr U64 AlignPow2(U64 u) {
 	if (!(u & (u - 1))) {
 		return u;
 	}
@@ -27,7 +27,7 @@ constexpr u64 AlignPow2(u64 u) {
 	return u + 1;
 }
 
-constexpr bool IsPow2(u64 u) { return (u & (u - 1)) == 0; }
+constexpr Bool IsPow2(U64 u) { return (u & (u - 1)) == 0; }
 
 //--------------------------------------------------------------------------------------------------
 

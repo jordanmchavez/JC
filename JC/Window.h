@@ -9,12 +9,12 @@ namespace JC::Window {
 //--------------------------------------------------------------------------------------------------
 
 struct Display {
-	i32 x        = 0;
-	i32 y        = 0;
-	u32 width    = 0;
-	u32 height   = 0;
-	u32 dpi      = 0;
-	f32 dpiScale = 0.0f;
+	I32 x        = 0;
+	I32 y        = 0;
+	U32 width    = 0;
+	U32 height   = 0;
+	U32 dpi      = 0;
+	F32 dpiScale = 0.0f;
 };
 
 enum struct Style {
@@ -31,15 +31,15 @@ enum CursorMode {
 };
 
 struct State {
-	i32        x          = 0;
-	i32        y          = 0;
-	u32        width      = 0;
-	u32        height     = 0;
+	I32        x          = 0;
+	I32        y          = 0;
+	U32        width      = 0;
+	U32        height     = 0;
 	Rect       rect       = {};
 	Style      style      = {};
 	CursorMode cursorMode = {};
-	bool       minimized  = false;
-	bool       focused    = false;
+	Bool       minimized  = false;
+	Bool       focused    = false;
 };
 
 struct InitDesc {
@@ -47,9 +47,9 @@ struct InitDesc {
 	Log::Logger*        logger        = 0;
 	Str                 title         = {};
 	Style               style         = {};
-	u32                 width         = 0;
-	u32                 height        = 0;
-	u32                 displayIdx    = 0;
+	U32                 width         = 0;
+	U32                 height        = 0;
+	U32                 displayIdx    = 0;
 };
 
 struct PlatformDesc {
@@ -70,7 +70,7 @@ void          SetRect(Rect rect);
 void          SetStyle(Style style);
 void          SetCursorMode(CursorMode cursorMode);
 PlatformDesc  GetPlatformDesc();
-bool          IsExitRequested();
+Bool          IsExitRequested();
 
 /*	get rect
 	set rect

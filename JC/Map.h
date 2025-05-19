@@ -6,12 +6,12 @@ namespace JC {
 
 //-------------------------------------------------------------------------------------------------
 
-constexpr u64 AlignPow2(u64 u);
+constexpr U64 AlignPow2(U64 u);
 
 template <class K, class V> struct Map {
 	struct Bucket {
-		u32 df  = 0;	// top 3 bytes are distance, bottom byte is fingerprint
-		u64 idx = 0;
+		U32 df  = 0;	// top 3 bytes are distance, bottom byte is fingerprint
+		U64 idx = 0;
 	};
 
 	struct Elem {
@@ -22,11 +22,11 @@ template <class K, class V> struct Map {
 	Mem::Allocator* allocator       = 0;
 	Bucket          initBuckets[16] = {};
 	Bucket*         buckets         = initBuckets;
-	u64             bucketsCap      = 16;
+	U64             bucketsCap      = 16;
 	Elem*           elems           = 0;
-	u64             elemsLen        = 0;
-	u64             elemsCap        = 0;
-	u64             mask            = 16 - 1;
+	U64             elemsLen        = 0;
+	U64             elemsCap        = 0;
+	U64             mask            = 16 - 1;
 
 	Map() = default;
 
@@ -39,9 +39,9 @@ template <class K, class V> struct Map {
 	}
 
 	V* FindOrNull(K k) const {
-		u64 h = Hash(k);
-		u32 df = 0x100 | (h & 0xff);
-		u64 i = h & mask;
+		U64 h = Hash(k);
+		U32 df = 0x100 | (h & 0xff);
+		U64 i = h & mask;
 		Bucket* bucket = &buckets[i];
 		if (df == bucket->df && elems[bucket->idx].key == k) {
 			return &elems[bucket->idx].val;
@@ -78,9 +78,9 @@ template <class K, class V> struct Map {
 	}
 
 	V* Put(K k, V v, SrcLoc sl = SrcLoc::Here()) {
-		u64 h = Hash(k);
-		u32 df = 0x100 | (h & 0xff);
-		u64 i = h & mask;
+		U64 h = Hash(k);
+		U32 df = 0x100 | (h & 0xff);
+		U64 i = h & mask;
 		while (true) {
 			Bucket* bucket = &buckets[i];
 			if (df == bucket->df) {
@@ -90,20 +90,20 @@ template <class K, class V> struct Map {
 				}
 			} else if (df > bucket->df) {
 				if (elemsLen >= elemsCap) {
-					u64 newCap = Max(16ull, elemsCap * 2u);
+					U64 newCap = Max(16ull, elemsCap * 2u);
 					elems = allocator->ReallocT(elems, elemsCap, newCap, sl);
 					elemsCap = newCap;
 				}
 				elems[elemsLen++] = Elem { .key = k, .val = v };
 				if (elemsLen > (7 * (bucketsCap >> 3))) {	// max load factor = 7/8 = 87.5%
-					u64 newBucketsCap = bucketsCap << 1;
+					U64 newBucketsCap = bucketsCap << 1;
 					allocator->Free(buckets, bucketsCap);
 					buckets = allocator->AllocT<Bucket>(newBucketsCap);
 					memset(buckets, 0, newBucketsCap * sizeof(Bucket));
 					bucketsCap = newBucketsCap;
 					mask = newBucketsCap - 1;
 
-					for (u64 j = 0; j < elemsLen; ++j) {
+					for (U64 j = 0; j < elemsLen; ++j) {
 						h = Hash(elems[j].key);
 						df = 0x100 | (h & 0xff);
 						i = h & mask;
@@ -141,9 +141,9 @@ template <class K, class V> struct Map {
 	}
 
 	void Remove(K k) {
-		u64 h = Hash(k);
-		u32 df = 0x100 | (h & 0xff);
-		u64 i = h & mask;
+		U64 h = Hash(k);
+		U32 df = 0x100 | (h & 0xff);
+		U64 i = h & mask;
 		while (df < buckets[i].df) {
 			df += 0x100;
 			i = (i + 1 == bucketsCap) ? 0 : i + 1;
@@ -156,8 +156,8 @@ template <class K, class V> struct Map {
 			return;
 		}
 
-		u64 ei = buckets[i].idx;
-		u64 next = (i + 1 == bucketsCap) ? 0 : i + 1;
+		U64 ei = buckets[i].idx;
+		U64 next = (i + 1 == bucketsCap) ? 0 : i + 1;
 		while (buckets[next].df >= 0x200) {
 			buckets[i].df = buckets[next].df - 0x100;
 			buckets[i].idx = buckets[next].idx;

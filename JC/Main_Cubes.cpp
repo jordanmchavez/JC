@@ -35,18 +35,18 @@ struct Vertex {
 
 struct Mesh {
 	Render::Buffer vertexBuffer     = {};
-	u64            vertexBufferAddr = 0;
-	u32            vertexCount      = 0;
+	U64            vertexBufferAddr = 0;
+	U32            vertexCount      = 0;
 	Render::Buffer indexBuffer      = {};
-	u32            indexCount       = 0;
+	U32            indexCount       = 0;
 };
 
 struct PushConstants {
 	Mat4 model               = {};
-	u64  vertexBufferAddr    = 0;
-	u64  sceneBufferAddr     = 0;
+	U64  vertexBufferAddr    = 0;
+	U64  sceneBufferAddr     = 0;
 	Vec4 color               = {};
-	u32  imageIdx            = 0;
+	U32  imageIdx            = 0;
 };
 
 struct Scene {
@@ -65,7 +65,7 @@ struct Entity {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Render::Image> CreateDepthImage(u32 width, u32 height) {
+Res<Render::Image> CreateDepthImage(U32 width, U32 height) {
 	Render::Image image = {};
 	if (Res<> r = Render::CreateImage(
 		width,
@@ -106,7 +106,7 @@ Res<Mesh> CreateMesh() {
 		return r;
 	}
 	Render::Buffer indexBuffer = {};
-	if (Res<> r = Render::CreateBuffer(36 * sizeof(u32), Render::BufferUsage::Index).To(indexBuffer); !r) {
+	if (Res<> r = Render::CreateBuffer(36 * sizeof(U32), Render::BufferUsage::Index).To(indexBuffer); !r) {
 		Render::DestroyBuffer(vertexBuffer);
 		return r;
 	}
@@ -150,7 +150,7 @@ Res<Mesh> CreateMesh() {
 	Render::CmdEndBufferUpdate(vertexBuffer);
 
 
-	u32* const indices = (u32*)Render::CmdBeginBufferUpdate(indexBuffer);
+	U32* const indices = (U32*)Render::CmdBeginBufferUpdate(indexBuffer);
 	// +Z
 	indices[ 0] =  0;
 	indices[ 1] =  1;
@@ -306,28 +306,28 @@ Res<Render::Shader> LoadShader(Arena* arena, s8 path) {
 //--------------------------------------------------------------------------------------------------
 
 struct CubeApp : App {
-	static constexpr u32 MaxEntities = 10000;
+	static constexpr U32 MaxEntities = 10000;
 
 	Arena*           temp            = 0;
 	Arena*           perm            = 0;
 	Log*             log             = 0;
-	u32              windowWidth     = 0;
-	u32              windowHeight    = 0;
+	U32              windowWidth     = 0;
+	U32              windowHeight    = 0;
 	Render::Image    depthImage      = {};
 	Mesh             mesh            = {};
 	Render::Image    image           = {};
-	u32              imageIdx        = 0;
+	U32              imageIdx        = 0;
 	Render::Shader   vertexShader    = {};
 	Render::Shader   fragmentShader  = {};
 	Render::Pipeline pipeline        = {};
 	Render::Buffer   sceneBuffer     = {};
-	u64              sceneBufferAddr = 0;
+	U64              sceneBufferAddr = 0;
 	Entity*          entities        = 0;
 	Vec3             camPos          = { .x = 0.0f, .y = 0.0f, .z = -20.0f };
 	Vec3             camX            = {};
 	Vec3             camY            = {};
 	Vec3             camZ            = {};
-	bool             recreateDepth   = false;
+	Bool             recreateDepth   = false;
 
 	Res<> Init(Arena* tempIn, Arena* permIn, Log* logIn, const Window::State* windowState) override {
 		temp = tempIn;
@@ -369,7 +369,7 @@ struct CubeApp : App {
 		};
 
 		entities = perm->AllocT<Entity>(MaxEntities);
-		for (u32 i = 0; i < MaxEntities; i++) {
+		for (U32 i = 0; i < MaxEntities; i++) {
 			entities[i].mesh       = mesh;
 			entities[i].pos        = RandomVec3(100.0f);
 			entities[i].axis       = RandomNormal();
@@ -522,7 +522,7 @@ struct CubeApp : App {
 
 		Render::CmdBindIndexBuffer(mesh.indexBuffer);
 
-		for (u64 i = 0; i < MaxEntities; i++) {
+		for (U64 i = 0; i < MaxEntities; i++) {
 			PushConstants pushConstants = {
 				.model               = Mat4::Mul(Mat4::RotateX(entities[i].angle), Mat4::Mul(Mat4::RotateY(entities[i].angle), Mat4::Translate(entities[i].pos))),
 				.vertexBufferAddr    = mesh.vertexBufferAddr,
