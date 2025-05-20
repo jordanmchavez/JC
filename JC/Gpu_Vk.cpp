@@ -1,7 +1,7 @@
 #pragma once
 
-#include "JC/Render.h"
-#include "JC/Render_Vk.h"
+#include "JC/Gpu.h"
+#include "JC/Gpu_Vk.h"
 
 #include "JC/Array.h"
 #include "JC/Bit.h"
@@ -15,18 +15,16 @@
 
 #include "spirv-reflect/spirv_reflect.h"
 
-#define Render_Debug
-
-namespace JC::Render {
+namespace JC::Gpu {
 
 //--------------------------------------------------------------------------------------------------
 
-DefErr(Render, Version);
-DefErr(Render, NoLayer);
-DefErr(Render, NoDevice);
-DefErr(Render, NoMem);
-DefErr(Render, ShaderTooManyPushConstantBlocks);
-DefErr(Render, SpvReflect);
+DefErr(Gpu, Version);
+DefErr(Gpu, NoLayer);
+DefErr(Gpu, NoDevice);
+DefErr(Gpu, NoMem);
+DefErr(Gpu, ShaderTooManyPushConstantBlocks);
+DefErr(Gpu, SpvReflect);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -277,13 +275,11 @@ static Res<> InitInstance() {
 		);
 	}
 
-	constexpr const char* RequiredLayers[] = {
-		#if defined Render_Debug
-			"VK_LAYER_KHRONOS_validation",
-
-		#endif	// Render_Debug
-	};
-	for (U32 i = 0; i < LenOf(RequiredLayers); i++) {
+	Array<const char*> RequiredLayers(tempAllocator);
+	if (Config::GetBool("Gpu::UseVkValidationLayer", true)) {
+		RequiredLayers.Add("VK_LAYER_KHRONOS_validation");
+	}
+	for (U32 i = 0; i < RequiredLayers.len; i++) {
 		Bool found = false;
 		for (U64 j = 0; j < layers.len; j++) {
 			if (!strcmp(RequiredLayers[i], layers[j].layerName)) {
@@ -343,8 +339,8 @@ static Res<> InitInstance() {
 		.pNext                   = 0,
 		.flags                   = 0,
 		.pApplicationInfo        = &vkApplicationInfo,
-		.enabledLayerCount       = LenOf(RequiredLayers),
-		.ppEnabledLayerNames     = RequiredLayers,
+		.enabledLayerCount       = RequiredLayers.len,
+		.ppEnabledLayerNames     = RequiredLayers.data,
 		.enabledExtensionCount   = LenOf(RequiredInstExts),
 		.ppEnabledExtensionNames = RequiredInstExts,
 	};
@@ -1076,16 +1072,16 @@ Res<> Init(const InitDesc* initDesc) {
 	vkFrameCommandBuffers.Init(allocator);         vkFrameCommandBuffers.Resize(MaxFrames);
 
 	LoadRootFns();
-	if (Res<> r = InitInstance();                                   !r) { return r; }
-	if (Res<> r = InitSurface(initDesc->windowPlatformDesc);        !r) { return r; }
-	if (Res<> r = InitDevice();                                     !r) { return r; }
-	if (Res<> r = InitSwapchain(initDesc->width, initDesc->height); !r) { return r; }
-	if (Res<> r = InitFrameSyncObjects();                           !r) { return r; }
-	if (Res<> r = InitCommandBuffers();                             !r) { return r; }
-	if (Res<> r = InitBindlessDescriptors();                        !r) { return r; }
-	if (Res<> r = InitBindlessSamplers();                           !r) { return r; }
-	if (Res<> r = InitStaging();                                    !r) { return r; }
-	if (Res<> r = BeginCmds();                                      !r) { return r; }
+	if (Res<> r = InitInstance();                                               !r) { return r; }
+	if (Res<> r = InitSurface(initDesc->windowPlatformDesc);                    !r) { return r; }
+	if (Res<> r = InitDevice();                                                 !r) { return r; }
+	if (Res<> r = InitSwapchain(initDesc->windowWidth, initDesc->windowHeight); !r) { return r; }
+	if (Res<> r = InitFrameSyncObjects();                                       !r) { return r; }
+	if (Res<> r = InitCommandBuffers();                                         !r) { return r; }
+	if (Res<> r = InitBindlessDescriptors();                                    !r) { return r; }
+	if (Res<> r = InitBindlessSamplers();                                       !r) { return r; }
+	if (Res<> r = InitStaging();                                                !r) { return r; }
+	if (Res<> r = BeginCmds();                                                  !r) { return r; }
 
 	return Ok();
 }
@@ -2047,4 +2043,4 @@ U32 GetFrameIdx() { return frameIdx; }
 
 //----------------------------------------------------------------------------------------------
 
-}	// namespace JC::Render
+}	// namespace JC::Gpu

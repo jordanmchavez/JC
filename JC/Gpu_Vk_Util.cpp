@@ -1,12 +1,12 @@
 #pragma once
 
-#include "JC/Render.h"
-#include "JC/Render_Vk.h"
+#include "JC/Gpu.h"
+#include "JC/Gpu_Vk.h"
 
 #include "JC/Array.h"
 #include "JC/Fmt.h"
 
-namespace JC::Render {
+namespace JC::Gpu {
 
 static void Add(Array<char>* a, Str s) { a->Add(s.data, s.len); }
 
@@ -770,4 +770,4 @@ VkFormat ImageFormatToVkFormat(ImageFormat imageFormat) {
 
 //-------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Render
+}	// namespace JC::Gpu

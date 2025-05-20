@@ -3,6 +3,7 @@
 #include "JC/Config.h"
 #include "JC/Event.h"
 #include "JC/Fmt.h"
+#include "JC/Gpu.h"
 #include "JC/Log.h"
 #include "JC/Render.h"
 #include "JC/Sys.h"
@@ -86,7 +87,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	Window::InitDesc windowInitDesc = {
 		.tempAllocator = tempAllocator,
 		.logger        = logger,
-		.title         = Config::GetStr("App.WindowTitlye", "test window"),
+		.title         = Config::GetStr("App.WindowTitle", "Untitled"),
 		.style         = windowStyle,
 		.width         = windowStyle == Window::Style::Fullscreen ? 0 : Config::GetU32("App.WindowWidth",  1600),
 		.height        = windowStyle == Window::Style::Fullscreen ? 0 : Config::GetU32("App.WindowHeight", 1200),
@@ -100,17 +101,26 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	Window::State windowState = Window::GetState();
 
 	const Window::PlatformDesc windowPlatformDesc = Window::GetPlatformDesc();
-	Render::InitDesc renderInitDesc = {
+	const Gpu::InitDesc gpuInitDesc = {
 		.allocator          = permAllocator,
 		.tempAllocator      = tempAllocator,
 		.logger             = logger,
-		.width              = windowState.width,
-		.height             = windowState.height,
+		.windowWidth        = windowState.width,
+		.windowHeight       = windowState.height,
 		.windowPlatformDesc = &windowPlatformDesc,
 	};
-	if (Res<> r = Render::Init(&renderInitDesc); !r) {
+	if (Res<> r = Gpu::Init(&gpuInitDesc); !r) {
 		return r;
 	}
+
+	const Render::InitDesc renderInitDesc = {
+		.allocator     = permAllocator,
+		.tempAllocator = tempAllocator,
+		.logger        = logger,
+		.windowWidth   = windowState.width,
+		.windowHeight  = windowState.height,
+	};
+	if (Res<> r = Render::Init(&renderInitDesc); !r) { return r; }
 
 	if (Res<> r = app->Init(permAllocator, tempAllocator, logger, &windowState); !r) {
 		return r;
@@ -167,18 +177,18 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		}
 
 		if (prevWindowState.width != windowState.width || prevWindowState.height != windowState.height) {
-			if (Res<> r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
+			if (Res<> r = Render::WindowResized(windowState.width, windowState.height); !r) {
 				return r;
 			}
 			Logf("Window size changed: {}x{} -> {}x{}", prevWindowState.width, prevWindowState.height, windowState.width, windowState.height);
 		}
 
-		Render::SwapchainStatus swapchainStatus = {};
-		if (Res<> r = Render::BeginFrame().To(swapchainStatus); !r) {
+		Gpu::SwapchainStatus swapchainStatus = {};
+		if (Res<> r = Gpu::BeginFrame().To(swapchainStatus); !r) {
 			return r;
 		}
-		if (swapchainStatus == Render::SwapchainStatus::NeedsRecreate) {
-			if (Res<> r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
+		if (swapchainStatus == Gpu::SwapchainStatus::NeedsRecreate) {
+			if (Res<> r = Gpu::RecreateSwapchain(windowState.width, windowState.height); !r) {
 				return r;
 			}
 			Logf("Recreated swapchain after BeginFrame() with w={}, h={}", windowState.width, windowState.height);
@@ -187,11 +197,11 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 
 		if (Res<> r = app->Draw(); !r) { return r; }
 		
-		if (Res<> r = Render::EndFrame().To(swapchainStatus); !r) {
+		if (Res<> r = Gpu::EndFrame().To(swapchainStatus); !r) {
 			return r;
 		}
-		if (swapchainStatus == Render::SwapchainStatus::NeedsRecreate) {
-			if (Res<> r = Render::RecreateSwapchain(windowState.width, windowState.height); !r) {
+		if (swapchainStatus == Gpu::SwapchainStatus::NeedsRecreate) {
+			if (Res<> r = Gpu::RecreateSwapchain(windowState.width, windowState.height); !r) {
 				return r;
 			}
 			Logf("Recreated swapchain after EndFrame() with w={}, h={}", windowState.width, windowState.height);
@@ -204,13 +214,13 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 
 //--------------------------------------------------------------------------------------------------
 
-namespace Render { void EndCommands(); }	// TODO: this sucks, fix
+namespace Gpu { void EndCommands(); }	// TODO: this sucks, fix
 
 void Shutdown(App* app) {
-	Render::EndCommands();
-	Render::WaitIdle();
+	Gpu::EndCommands();
+	Gpu::WaitIdle();
 	app->Shutdown();
-	Render::Shutdown();
+	Gpu::Shutdown();
 	Window::Shutdown();
 }
 

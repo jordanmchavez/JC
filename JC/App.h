@@ -2,11 +2,12 @@
 
 #include "JC/Core.h"
 
-namespace JC {
 
-namespace Log { struct Logger; } 
-namespace Event { struct Event; }
-namespace Window { struct State; }
+namespace JC::Log { struct Logger; } 
+namespace JC::Event { struct Event; }
+namespace JC::Window { struct State; }
+
+namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 

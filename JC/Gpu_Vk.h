@@ -16,7 +16,7 @@
 	#include "vulkan/vulkan_win32.h"
 #endif	// Platform_
 
-namespace JC::Render {
+namespace JC::Gpu {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -308,4 +308,4 @@ extern PFN_vkQueuePresentKHR vkQueuePresentKHR;
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Render
+}	// namespace JC::Gpu

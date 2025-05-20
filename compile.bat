@@ -1,3 +1,3 @@
 cls
-glslangvalidator -V Shaders\sprite.vert.glsl -S vert -o Shaders\sprite.vert.spv
-glslangvalidator -V Shaders\sprite.frag.glsl -S frag -o Shaders\sprite.frag.spv
+glslangvalidator -V Shaders\SpriteVert.glsl -S vert -o Shaders\SpriteVert.spv
+glslangvalidator -V Shaders\SpriteFrag.glsl -S frag -o Shaders\SpriteFrag.spv

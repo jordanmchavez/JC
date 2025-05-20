@@ -25,4 +25,29 @@ Mat4 OrthoCamera::GetProjView() {
 
 //--------------------------------------------------------------------------------------------------
 
+void PerspectiveCamera::Forward(F32 delta) { pos = Math::AddScaled(pos, z, delta); }
+void PerspectiveCamera::Left   (F32 delta) { pos = Math::AddScaled(pos, x, delta); }
+void PerspectiveCamera::Up     (F32 delta) { pos = Math::AddScaled(pos, y, delta); }
+
+void PerspectiveCamera::Yaw(F32 delta) {
+	yaw += delta;
+	z = Math::Mul(Math::RotationYMat3(yaw), Vec3 { 0.0f, 0.0f, -1.0f });
+	x = Math::Cross(Vec3 { 0.0f, 1.0f, 0.0f }, z);
+}
+
+void PerspectiveCamera::Pitch(F32 delta) {
+	pitch += delta;
+	z = Math::Mul(Math::AxisAngleMat3(x, pitch), z);
+	y = Math::Cross(z, x);
+}
+
+Mat4 PerspectiveCamera::GetProjView() {
+	return Math::Mul(
+		Math::Look(pos, x, y, z),
+		Math::Perspective(Math::DegToRad(fov), aspect, 0.01f, 100000000.0f)
+	);
+}
+
+//--------------------------------------------------------------------------------------------------
+
 }	// namespace JC

@@ -23,10 +23,11 @@ Mat2 IdentityMat2();
 Mat3 IdentityMat3();
 Mat4 IdentityMat4();
 Mat4 Look(Vec3 pos, Vec3 x, Vec3 y, Vec3 z);
-Vec3 Mul(Mat3 m, Vec3 v);
-Vec4 Mul(Mat4 m, Vec4 v);
+Vec3 Mul(Vec3 v, F32 s);
 Mat2 Mul(Mat2 a, Mat2 b);
+Vec3 Mul(Mat3 m, Vec3 v);
 Mat3 Mul(Mat3 a, Mat3 b);
+Vec4 Mul(Mat4 m, Vec4 v);
 Mat4 Mul(Mat4 a, Mat4 b);
 Vec3 Normalize(Vec3 v);
 Mat4 Ortho(float l, float r, float b, float t, float n, float f);
@@ -37,9 +38,8 @@ Mat3 RotationZMat3(F32 a);
 Mat4 RotationXMat4(F32 a);
 Mat4 RotationYMat4(F32 a);
 Mat4 RotationZMat4(F32 a);
-Vec3 Scale(Vec3 v, F32 s);
 Vec3 Sub(Vec3 u, Vec3 v);
-Mat4 Translate(Vec3 v);
+Mat4 TranslationMat4(Vec3 v);
 
 //--------------------------------------------------------------------------------------------------
 

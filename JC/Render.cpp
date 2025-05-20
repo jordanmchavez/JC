@@ -1,48 +1,101 @@
-#include "JC/Sprite.h"
-
-#include "JC/Array.h"
-#include "JC/File.h"
-#include "JC/Hash.h"
-#include "JC/Json.h"
-#include "JC/Map.h"
-#include "JC/Math.h"
 #include "JC/Render.h"
-#include "3rd/stb/stb_image.h"
 
-namespace JC::Sprite {
+#include "JC/Camera.h"
+#include "JC/Gpu.h"
+#include "JC/Logger.h"
 
-//--------------------------------------------------------------------------------------------------
-
-DefErr(Sprite, LoadImage);
-DefErr(Sprite, ImageFmt);
-DefErr(Sprite, AtlasFmt);
-DefErr(Sprite, AlreadyExists);
+namespace JC::Render {
 
 //--------------------------------------------------------------------------------------------------
 
-struct AtlasEntry {
-	U32  imageIdx = 0;
-	Str  name     = {};
-	Vec2 uv1      = {};
-	Vec2 uv2      = {};
+struct SpriteDrawCmd {
+	Vec3 xyz        = {};
+	U32  textureIdx = 0;
+	Vec2 uv1        = {};
+	Vec2 uv2        = {};
 };
 
-static Mem::Allocator*      allocator;
-static Array<Render::Image> atlasImages;
-static Array<AtlasEntry>    atlasEntries;
-static Map<Str, U32>        atlasEntryMap;
+struct Scene {
+	Mat4  projView                = {};
+	U64   spriteDrawCmdBufferAddr = 0;
+};
+
+struct PushConstants {
+	U64  sceneBufferAddr = 0;
+};
 
 //--------------------------------------------------------------------------------------------------
 
-void Init(Mem::Allocator* allocatorIn) {
-	allocator = allocatorIn;
-	atlasImages.Init(allocatorIn);
-	atlasEntries.Init(allocatorIn);
-	atlasEntryMap.Init(allocatorIn);
+static Mem::Allocator*     allocator                                = 0;
+static Mem::TempAllocator* tempAllocator                            = 0;
+static Log::Logger*        logger                                   = 0;
+static Gpu::Image          depthImage                               = {};
+static Gpu::Buffer         sceneBuffers[Gpu::MaxFrames]             = {};
+static U64                 sceneBufferAddrs[Gpu::MaxFrames]         = {};
+static Gpu::Buffer         spriteDrawCmdBuffers[Gpu::MaxFrames]     = {};
+static U64                 spriteDrawCmdBufferAddrs[Gpu::MaxFrames] = {};
+static Gpu::Shader         vertexShader                             = {};
+static Gpu::Shader         fragmentShader                           = {};
+static Gpu::Pipeline       pipeline                                 = {};
+static OrthoCamera         camera                                   = {};
+
+//--------------------------------------------------------------------------------------------------
+
+void Init() {
 }
 
 //--------------------------------------------------------------------------------------------------
 
+void Shutdown() {
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<> WindowResized(U32 windowWidth, U32 windowHeight) {
+	if (Res<> r = Gpu::RecreateSwapchain(windowWidth, windowHeight); !r) {
+		return r;
+	}
+	Gpu::WaitIdle();
+	Gpu::DestroyImage(depthImage);
+	if (Res<> r = Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::DepthAttachment).To(depthImage); !r) { return r; }
+	camera.Set(45.0f, (F32)windowWidth / (F32)windowHeight, camera.pos.z);
+}
+
+Res<> BeginFrame() {
+		Gpu::SwapchainStatus swapchainStatus = {};
+		if (Res<> r = Gpu::BeginFrame().To(swapchainStatus); !r) {
+			return r;
+		}
+		if (swapchainStatus == Gpu::SwapchainStatus::NeedsRecreate) {
+			if (Res<> r = Gpu::RecreateSwapchain(windowState.width, windowState.height); !r) {
+				return r;
+			}
+			Logf("Recreated swapchain after BeginFrame() with w={}, h={}", windowState.width, windowState.height);
+			continue;
+		}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<> LoadSpriteAtlas(Str imgPath, Str atlasPath) {
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Sprite GetSprite(Str name) {
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void Draw(Span<Sprite> Sprites) {
+}
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Render
+
+
+/*
 Res<Render::Image> LoadImage(Str path) {
 	Span<U8> data;
 	if (Res<> r = File::ReadAll(Mem::tempAllocator, path).To(data); !r) { return r.err; }
@@ -144,19 +197,4 @@ Res<> LoadAtlas(Str imagePath, Str atlasPath) {
 }
 
 //--------------------------------------------------------------------------------------------------
-
-Sprite Get(Str name) {
-	name;
-	return Sprite();
-}
-
-//--------------------------------------------------------------------------------------------------
-
-Res<> Draw(Span<Sprite> sprites) {
-	sprites;
-	return Ok();
-}
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC::Sprite
+*/

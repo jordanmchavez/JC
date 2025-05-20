@@ -1,4 +1,4 @@
-#include "JC/Render_Vk.h"
+#include "JC/Gpu_Vk.h"
 
 #if defined Platform_Windows
 	typedef __int64 (__stdcall *FARPROC)();
@@ -10,7 +10,7 @@
 	static void* vulkanDll = nullptr;
 #endif	// Platform_
 
-namespace JC::Render {
+namespace JC::Gpu {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -536,4 +536,4 @@ PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR vkGetPhysicalDeviceWin32Prese
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Render
+}	// namespace JC::Gpu

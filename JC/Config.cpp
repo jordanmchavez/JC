@@ -50,6 +50,10 @@ Str GetStr(Str name, Str def) {
 	name; return def;
 }
 
+Bool GetBool(Str name, Bool def) {
+	name; return def;
+}
+
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC::Config
