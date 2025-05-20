@@ -241,3 +241,4 @@ if performance is a concern and you have profiling data to back it up then you n
 replace staging buffer with host/device visible memory if it exists
 array tests, especially around zero-ing memory
 map zero memory and tests
+use REBAR for sprite xfer if available

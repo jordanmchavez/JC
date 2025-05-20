@@ -1,7 +1,9 @@
 #include "JC/Core.h"	// not Core/Err.h to preserve core inclusion order
 
 #include "JC/Array.h"
+#include "JC/Config.h"
 #include "JC/Fmt.h"
+#include "JC/Sys.h"
 
 namespace JC {
 
@@ -60,7 +62,7 @@ Str Err::GetStr() {
 	a.Add('\n');
 	for (Data* d = data; d; d = d->prev) {
 		Fmt::Printf(&a, "{}-{}:\n", d->ns, d->code);
-		for (U32 i = 0; i < d->namedArgsLen; d++) {
+		for (U32 i = 0; i < d->namedArgsLen; i++) {
 			Fmt::Printf(&a, "  {}={}\n", d->namedArgs[i].name, d->namedArgs[i].arg);
 		}
 	}

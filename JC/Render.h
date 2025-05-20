@@ -6,6 +6,12 @@ namespace JC::Log { struct Logger; }
 
 namespace JC::Render {
 
+//--------------------------------------------------------------------------------------------------
+
+DefErr(Render, SkipFrame);
+
+//--------------------------------------------------------------------------------------------------
+
 struct InitDesc {
 	Mem::Allocator*     allocator     = 0;
 	Mem::TempAllocator* tempAllocator = 0;
@@ -16,18 +22,26 @@ struct InitDesc {
 
 struct Sprite { U64 handle = 0; };
 
-Res<>  Init(const InitDesc* initDesc);
-void   Shutdown();
-Res<>  LoadSpriteAtlas(Str imgPath, Str atlasPath);
-Res<>  BeginFrame();
-void   EndFrame();
-Sprite GetSprite(Str name);
-void   DrawSprites(Span<Sprite> Sprites);
+struct DrawSprite {
+	Sprite sprite;
+	Vec3   xyz;
+};
 
-Res<> WindowResized(U32 windowWidth, U32 windowHeight) {
-	if (Res<> r = Gpu::RecreateSwapchain(windowState.width, windowState.height); !r) {
-		return r;
-	}
-}
+//--------------------------------------------------------------------------------------------------
+
+Res<>       Init(const InitDesc* initDesc);
+void        Shutdown();
+Res<>       WindowResized(U32 windowWidth, U32 windowHeight);
+
+Res<>       LoadSpriteAtlas(Str imagePath, Str atlasPath);
+Res<Sprite> GetSprite(Str name);
+
+void        SetProjView(const Mat4* projView);
+
+Res<>       BeginFrame();
+Res<>       EndFrame();
+void        DrawSprites(Span<DrawSprite> drawSprites);
+
+//--------------------------------------------------------------------------------------------------
 
 }	// namespace JC::Render

@@ -33,6 +33,7 @@ template <class T> struct [[nodiscard]] Res {
 	constexpr operator Bool() const { return hasVal; }
 	constexpr Res<> To(T& out) { if (hasVal) { out = val; return Res<>{}; } return Res<>(err); }
 	constexpr T Or(T def) { return hasVal ? val : def; }
+	template <class T> constexpr bool Is() { return !hasVal && err.Is<T>(); }
 };
 
 constexpr Res<> Ok() { return Res<>(); }

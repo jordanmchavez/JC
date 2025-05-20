@@ -1,0 +1,6 @@
+[
+	{ x:   0, y:   0, w: 8, h: 8, name: "Ship1" },
+	{ x:   8, y:   0, w: 8, h: 8, name: "Ship2" },
+	{ x:  16, y:   0, w: 8, h: 8, name: "Ship3" },
+	{ x:  24, y:   0, w: 8, h: 8, name: "Ship4" },
+]

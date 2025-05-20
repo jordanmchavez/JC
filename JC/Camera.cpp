@@ -6,8 +6,7 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-void OrthoCamera::Set(F32 fov, F32 aspect, F32 z) {
-	pos.z      = z;
+void OrthoCamera::SetFovHeight(F32 fov, F32 aspect, F32 z) {
 	halfWidth  = z * tanf(fov / 2.0f);
 	halfHeight = halfWidth / aspect;
 }

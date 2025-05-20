@@ -436,8 +436,6 @@ static Res<Elem> ParseObj(ParseCtx* ctx) {
 
 	Assert(ctx->iter < ctx->end && *ctx->iter == '}');
 	ctx->iter++;
-	if (Res<> r = SkipWhitespace(ctx); !r) { return r.err; }
-	if (ctx->iter < ctx->end && *ctx->iter == ',') { ctx->iter++; }
 	return AddObj(ctx->doc, keys, vals);
 }
 
@@ -493,16 +491,57 @@ Res<Doc*> Parse(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, St
 //--------------------------------------------------------------------------------------------------
 
 UnitTest("Json") {
-	{
-		Doc* doc = 0;
+	Doc* doc = 0;
+	SubTest("simple") {
 		CheckTrue(Parse(testAllocator, testAllocator, "123").To(doc));
-		Elem root = GetRoot(doc);
-		CheckEq(GetI64(doc, root), 123);
-		Free(doc);
+		CheckEq(GetI64(doc, GetRoot(doc)), 123);
 	}
 
-	{
-		Doc* doc = 0;
+	SubTest("No Trailing Commas Object") {
+		const Str json = "{a:1,b:2}";
+		CheckTrue(Parse(testAllocator, testAllocator, json).To(doc));
+		Obj obj = GetObj(doc, GetRoot(doc));
+		CheckEq(obj.keys.len, 2);
+		CheckEq(obj.vals.len, 2);
+		CheckEq(GetStr(doc, obj.keys[0]), "a");
+		CheckEq(GetU64(doc, obj.vals[0]), 1);
+		CheckEq(GetStr(doc, obj.keys[1]), "b");
+		CheckEq(GetU64(doc, obj.vals[1]), 2);
+	}
+
+	SubTest("Trailing Commas Object") {
+		const Str json = "{a:1,b:2,}";
+		CheckTrue(Parse(testAllocator, testAllocator, json).To(doc));
+		Obj obj = GetObj(doc, GetRoot(doc));
+		CheckEq(obj.keys.len, 2);
+		CheckEq(obj.vals.len, 2);
+		CheckEq(GetStr(doc, obj.keys[0]), "a");
+		CheckEq(GetU64(doc, obj.vals[0]), 1);
+		CheckEq(GetStr(doc, obj.keys[1]), "b");
+		CheckEq(GetU64(doc, obj.vals[1]), 2);
+	}
+
+	SubTest("No Trailing Commas Array") {
+		const Str json = "[1,2,3]";
+		CheckTrue(Parse(testAllocator, testAllocator, json).To(doc));
+		Span<Elem> arr = GetArr(doc, GetRoot(doc));
+		CheckEq(arr.len, 3);
+		CheckEq(GetU64(doc, arr[0]), 1);
+		CheckEq(GetU64(doc, arr[1]), 2);
+		CheckEq(GetU64(doc, arr[2]), 3);
+	}
+
+	SubTest("Trailing Commas Array") {
+		const Str json = "[1, 2, 3,]";
+		CheckTrue(Parse(testAllocator, testAllocator, json).To(doc));
+		Span<Elem> arr = GetArr(doc, GetRoot(doc));
+		CheckEq(arr.len, 3);
+		CheckEq(GetU64(doc, arr[0]), 1);
+		CheckEq(GetU64(doc, arr[1]), 2);
+		CheckEq(GetU64(doc, arr[2]), 3);
+	}
+
+	SubTest("Big Complex Object") {
 		const Str json = "{"
 			"foo: \"hello\","
 			"\"foo bar\": 1.25,"
@@ -512,12 +551,11 @@ UnitTest("Json") {
 				"{"
 					"\"another\": \"key\","
 					"\"day\": 1,"
-				"},"
-			"],"
-		"},";
+				"}"
+			"]"
+		"}";
 		CheckTrue(Parse(testAllocator, testAllocator, json).To(doc));
-		Elem root = GetRoot(doc);
-		Obj obj = GetObj(doc, root);
+		Obj obj = GetObj(doc, GetRoot(doc));
 		CheckEq(obj.keys.len, 3);
 		CheckEq(obj.vals.len, 3);
 		CheckEq(GetStr(doc, obj.keys[0]), "foo");
@@ -536,9 +574,9 @@ UnitTest("Json") {
 		CheckEq(GetStr(doc, subObj.vals[0]), "key");
 		CheckEq(GetStr(doc, subObj.keys[1]), "day");
 		CheckEq(GetU64(doc, subObj.vals[1]), 1);
-
-		Free(doc);
 	}
+
+	Free(doc);
 
 	// TODO: more detailed tests, especially error conditions
 }

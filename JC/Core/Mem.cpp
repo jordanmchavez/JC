@@ -196,15 +196,15 @@ struct AllocatorObj : Allocator {
 
 	//----------------------------------------------------------------------------------------------
 
-	Bool Extend(void* ptr, U64 ptrSize) {
-		ptrSize = Max(Bit::AlignUp(ptrSize, Align), BlockSizeMin);
-		Assert(ptrSize <= BlockSizeMax);
+	Bool Extend(void* ptr, U64 newSize) {
+		newSize = Max(Bit::AlignUp(newSize, Align), BlockSizeMin);
+		Assert(newSize <= BlockSizeMax);
 
 		Block* const block = (Block*)((U8*)ptr - 16);
 		Assert(!block->IsFree());
 
 		const U64 blockSize = block->Size();
-		if (ptrSize <= blockSize) {
+		if (blockSize >= newSize) {
 			return true;
 		}
 
@@ -215,16 +215,16 @@ struct AllocatorObj : Allocator {
 
 		const U64 nextSize = next->Size();
 		const U64 combinedSize = blockSize + nextSize + 8;
-		if (combinedSize < ptrSize) {
+		if (combinedSize < newSize) {
 			return false;
 		}
 		RemoveFreeBlock(next, CalcIndex(nextSize));
 
-		if (combinedSize - ptrSize >= sizeof(Block)) {
-			block->size = ptrSize;
+		if (combinedSize - newSize >= sizeof(Block)) {
+			block->size = newSize;
 			Block* const rem = block->Next();
 			rem->prev = block;
-			rem->size = (combinedSize - ptrSize - 8) | FreeBit;
+			rem->size = (combinedSize - newSize - 8) | FreeBit;
 			next = rem->Next();
 			next->prev = rem;
 			next->size |= PrevFreeBit;
@@ -279,7 +279,10 @@ struct AllocatorObj : Allocator {
 		} else if (size) {
 			// TODO: is this even worth it? Our uses of Extend() are overwhelmingly to double our size,
 			// so isn't it simpler to just always alloc-new/memcpy/free?
-			if (!Extend(ptr, ptrSize)) {
+
+			bool extendSucceeded = true;
+			if (!Extend(ptr, size)) {
+				extendSucceeded = false;
 				void* const oldPtr = ptr;
 				ptr = Alloc(size);
 				if (!(flags & Mem::AllocFlag_NoInit)) {

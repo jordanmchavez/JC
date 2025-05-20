@@ -185,7 +185,6 @@
     <ClCompile Include="JC\Gpu_Vk_Mem.cpp" />
     <ClCompile Include="JC\Gpu_Vk_Util.cpp" />
     <ClCompile Include="JC\Gpu_Vk_Win.cpp" />
-    <ClCompile Include="JC\Sprite.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
     <ClCompile Include="JC\Time_Win.cpp" />
     <ClCompile Include="JC\Unicode.cpp" />

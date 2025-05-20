@@ -183,29 +183,20 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 			Logf("Window size changed: {}x{} -> {}x{}", prevWindowState.width, prevWindowState.height, windowState.width, windowState.height);
 		}
 
-		Gpu::SwapchainStatus swapchainStatus = {};
-		if (Res<> r = Gpu::BeginFrame().To(swapchainStatus); !r) {
-			return r;
-		}
-		if (swapchainStatus == Gpu::SwapchainStatus::NeedsRecreate) {
-			if (Res<> r = Gpu::RecreateSwapchain(windowState.width, windowState.height); !r) {
-				return r;
+		if (Res<> r = Render::BeginFrame(); !r) {
+			if (r.err == Render::EC_SkipFrame) {
+				continue;
 			}
-			Logf("Recreated swapchain after BeginFrame() with w={}, h={}", windowState.width, windowState.height);
-			continue;
+			return r;
 		}
 
 		if (Res<> r = app->Draw(); !r) { return r; }
 		
-		if (Res<> r = Gpu::EndFrame().To(swapchainStatus); !r) {
-			return r;
-		}
-		if (swapchainStatus == Gpu::SwapchainStatus::NeedsRecreate) {
-			if (Res<> r = Gpu::RecreateSwapchain(windowState.width, windowState.height); !r) {
-				return r;
+		if (Res<> r = Render::EndFrame(); !r) {
+			if (r.err == Render::EC_SkipFrame) {
+				continue;
 			}
-			Logf("Recreated swapchain after EndFrame() with w={}, h={}", windowState.width, windowState.height);
-			continue;
+			return r;
 		}
 	}
 
@@ -220,6 +211,7 @@ void Shutdown(App* app) {
 	Gpu::EndCommands();
 	Gpu::WaitIdle();
 	app->Shutdown();
+	Render::Shutdown();
 	Gpu::Shutdown();
 	Window::Shutdown();
 }

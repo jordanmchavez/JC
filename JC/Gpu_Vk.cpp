@@ -116,7 +116,7 @@ static constexpr U32 MaxBindlessSampledImages  = 64 * 1024;
 static constexpr U32 MaxBindlessSamplers       = 8;
 static constexpr U32 MaxBindlessDescriptorSets = 32;
 static constexpr F32 MaxAnisotropy             = 8.0f;
-static constexpr U64 StagingBufferFrameSize    = 32 * 1024 * 1024;
+static constexpr U64 StagingBufferFrameSize    = 128 * 1024 * 1024;	// TODO: adaptive
 static constexpr U64 StagingBufferSize         = StagingBufferFrameSize * MaxFrames;
 
 struct QueueFamily {
@@ -240,7 +240,7 @@ static VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT 
 				}
 			#endif	// DebugBreakOnErr
 		} else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-			//log->Error("{}", data->pMessage);
+			//Errorf("{}", data->pMessage);
 		} else {
 			Logf("{}", data->pMessage);
 		}
@@ -339,7 +339,7 @@ static Res<> InitInstance() {
 		.pNext                   = 0,
 		.flags                   = 0,
 		.pApplicationInfo        = &vkApplicationInfo,
-		.enabledLayerCount       = RequiredLayers.len,
+		.enabledLayerCount       = (U32)RequiredLayers.len,
 		.ppEnabledLayerNames     = RequiredLayers.data,
 		.enabledExtensionCount   = LenOf(RequiredInstExts),
 		.ppEnabledExtensionNames = RequiredInstExts,
@@ -1320,6 +1320,7 @@ void DestroyImage(Image image) {
 		DestroyVk(imageObj->vkImageView, vkDestroyImageView);
 		FreeMem(imageObj->mem);
 		DestroyVk(imageObj->vkImage, vkDestroyImage);
+		imageObjs.Free(image);
 	}
 }
 

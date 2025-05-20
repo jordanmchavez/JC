@@ -2,7 +2,6 @@
 
 #include "JC/Core.h"
 
-
 namespace JC::Log { struct Logger; }
 namespace JC::Window { struct PlatformDesc; }
 

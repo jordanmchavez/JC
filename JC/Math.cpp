@@ -27,8 +27,8 @@ Vec3 AddScaled(Vec3 a, Vec3 b, F32 s) {
 Mat3 AxisAngleMat3(Vec3 v, F32 a) {
 	Vec3 n = Normalize(v);
 	F32 c = cosf(a);
-	Vec3 vc = Scale(n, 1.0f - c);
-	Vec3 vs = Scale(n, sinf(a));
+	Vec3 vc = Mul(n, 1.0f - c);
+	Vec3 vs = Mul(n, sinf(a));
 
 	return {
 		vc.x * n.x + c,    vc.y * n.x - vs.z, vc.z * n.x + vs.x,
@@ -40,8 +40,8 @@ Mat3 AxisAngleMat3(Vec3 v, F32 a) {
 Mat4 AxisAngleMat4(Vec3 b, F32 a) {
 	Vec3 n = Normalize(b);
 	F32 c = cosf(a);
-	Vec3 vc = Scale(n, 1.0f - c);
-	Vec3 vs = Scale(n, sinf(a));
+	Vec3 vc = Mul(n, 1.0f - c);
+	Vec3 vs = Mul(n, sinf(a));
 
 	return Mat4 {
 		vc.x * n.x + c,    vc.x * n.y + vs.z,  vc.x * n.z - vs.y, 0.0f,
@@ -124,6 +124,15 @@ Mat4 LookAt(Vec3 eye, Vec3 at, Vec3 up) {
 */
 
 //--------------------------------------------------------------------------------------------------
+
+Vec3 Mul(Vec3 b, F32 s) {
+	return {
+		.x = b.x * s,
+		.y = b.y * s,
+		.z = b.z * s,
+	};
+}
+
 
 Vec3 Mul(Mat3 a, Vec3 b) {
 	return Vec3 {
@@ -228,7 +237,7 @@ Mat4 Perspective(F32 fovy, F32 aspect, F32 zn, F32 zf) {
 
 //--------------------------------------------------------------------------------------------------
 
-Mat3 RotateXMat3(F32 a) {
+Mat3 RotationXMat3(F32 a) {
 	const F32 s = sinf(a);
 	const F32 c = cosf(a);
 	return Mat3 {
@@ -238,7 +247,7 @@ Mat3 RotateXMat3(F32 a) {
 	};
 }
 
-Mat3 RotateYMat3(F32 a) {
+Mat3 RotationYMat3(F32 a) {
 	const F32 s = sinf(a);
 	const F32 c = cosf(a);
 	return Mat3 {
@@ -248,7 +257,7 @@ Mat3 RotateYMat3(F32 a) {
 	};
 }
 
-Mat3 RotateZMat3(F32 a) {
+Mat3 RotationZMat3(F32 a) {
 	const F32 s = sinf(a);
 	const F32 c = cosf(a);
 	return Mat3 {
@@ -258,7 +267,7 @@ Mat3 RotateZMat3(F32 a) {
 	};
 }
 
-Mat4 RotateXMat4(F32 a) {
+Mat4 RotationXMat4(F32 a) {
 	const F32 s = sinf(a);
 	const F32 c = cosf(a);
 	return Mat4 {
@@ -269,7 +278,7 @@ Mat4 RotateXMat4(F32 a) {
 	};
 }
 
-Mat4 RotateYMat4(F32 a) {
+Mat4 RotationYMat4(F32 a) {
 	const F32 s = sinf(a);
 	const F32 c = cosf(a);
 	return Mat4 {
@@ -280,7 +289,7 @@ Mat4 RotateYMat4(F32 a) {
 	};
 }
 
-Mat4 RotateZMat4(F32 a) {
+Mat4 RotationZMat4(F32 a) {
 	const F32 s = sinf(a);
 	const F32 c = cosf(a);
 	return Mat4 {
@@ -291,16 +300,6 @@ Mat4 RotateZMat4(F32 a) {
 	};
 }
 
-
-//--------------------------------------------------------------------------------------------------
-
-Vec3 Scale(Vec3 b, F32 s) {
-	return {
-		.x = b.x * s,
-		.y = b.y * s,
-		.z = b.z * s,
-	};
-}
 
 //--------------------------------------------------------------------------------------------------
 

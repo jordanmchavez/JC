@@ -5,11 +5,12 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 struct OrthoCamera {
-	Vec3 pos        = {};
+	Vec2 pos        = {};
 	F32  halfWidth  = 0.0f;
 	F32  halfHeight = 0.0f;
 
-	void Set(F32 fov, F32 aspect, F32 z);
+	void SetFovHeight(F32 fov, F32 aspect, F32 z);
+	void SetBounds(float l, float r, float b, float t);
 	Mat4 GetProjView();
 };
 

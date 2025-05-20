@@ -6,6 +6,11 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
+struct ErrCode {
+	Str ns;
+	Str code;
+};
+
 struct [[nodiscard]] Err {
 	static constexpr U32 MaxArgs = 32;
 
@@ -38,17 +43,22 @@ struct [[nodiscard]] Err {
 	Str GetStr();
 };
 
+constexpr bool operator==(ErrCode ec, Err err) { return err.data && ec.ns == err.data->ns && ec.code == err.data->code; }
+constexpr bool operator==(Err err, ErrCode ec) { return err.data && ec.ns == err.data->ns && ec.code == err.data->code; }
+
 static_assert(sizeof(Err) == 8);
 
-#define DefErr(Ns, Code) \
-	template <class... A> struct Err_##Code : JC::Err { \
-		Err_##Code(A... args, SrcLoc sl = SrcLoc::Here()) { \
+#define DefErr(InNs, InCode) \
+	constexpr ErrCode EC_##InCode = { .ns = #InNs, .code = #InCode }; \
+	template <class... A> struct Err_##InCode : JC::Err { \
+		static inline U8 Sig = 0; \
+		Err_##InCode(A... args, SrcLoc sl = SrcLoc::Here()) { \
 			NamedArg namedArgs[1 + (sizeof...(A) / 2)]; \
 			BuildNamedArgs(namedArgs, args...); \
-			Init(#Ns, #Code, Span<const NamedArg>(namedArgs, sizeof...(A) / 2), sl); \
+			Init(#InNs, #InCode, Span<const NamedArg>(namedArgs, sizeof...(A) / 2), sl); \
 		} \
 	}; \
-	template <class...A> Err_##Code(A...) -> Err_##Code<A...>
+	template <class...A> Err_##InCode(A...) -> Err_##InCode<A...>
 
 //--------------------------------------------------------------------------------------------------
 
