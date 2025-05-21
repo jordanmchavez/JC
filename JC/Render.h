@@ -22,11 +22,6 @@ struct InitDesc {
 
 struct Sprite { U64 handle = 0; };
 
-struct DrawSprite {
-	Sprite sprite;
-	Vec3   xyz;
-};
-
 //--------------------------------------------------------------------------------------------------
 
 Res<>       Init(const InitDesc* initDesc);
@@ -35,12 +30,14 @@ Res<>       WindowResized(U32 windowWidth, U32 windowHeight);
 
 Res<>       LoadSpriteAtlas(Str imagePath, Str atlasPath);
 Res<Sprite> GetSprite(Str name);
+Vec2        GetSpriteSize(Sprite sprite);
 
 void        SetProjView(const Mat4* projView);
 
 Res<>       BeginFrame();
 Res<>       EndFrame();
-void        DrawSprites(Span<DrawSprite> drawSprites);
+void        DrawSprite(Sprite sprite, Vec2 pos);
+void        DrawSprite(Sprite sprite, Vec2 pos, F32 scale, F32 rotation, Vec4 color);
 
 //--------------------------------------------------------------------------------------------------
 

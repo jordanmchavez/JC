@@ -1,6 +1,11 @@
 [
 	{ x:   0, y:   0, w: 8, h: 8, name: "Ship1" },
-	{ x:   8, y:   0, w: 8, h: 8, name: "Ship2" },
-	{ x:  16, y:   0, w: 8, h: 8, name: "Ship3" },
-	{ x:  24, y:   0, w: 8, h: 8, name: "Ship4" },
+	{ x:   8, y:   0, w: 8, h: 8, name: "Ship1Right" },
+	{ x:  16, y:   0, w: 8, h: 8, name: "Ship1Left" },
+	{ x:  24, y:   0, w: 1, h: 1, name: "Bullet" },
+	{ x:  32, y:   0, w: 3, h: 3, name: "Engine1" },
+	{ x:  40, y:   0, w: 3, h: 3, name: "Engine2" },
+	{ x:  48, y:   0, w: 3, h: 3, name: "Engine3" },
+	{ x:  56, y:   0, w: 3, h: 3, name: "Engine4" },
+	{ x:  64, y:   0, w: 5, h: 5, name: "Particle1" },
 ]

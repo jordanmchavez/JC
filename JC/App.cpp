@@ -83,6 +83,10 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 
 	Event::Init(logger);
 
+	if (Res<> r = app->PreInit(permAllocator, tempAllocator, logger); !r) {
+		return r.err.Push(Err_Init());
+	}
+
 	const Window::Style windowStyle = (Window::Style)Config::GetU32("App.WindowStyle", (U32)Window::Style::BorderedResizable);
 	Window::InitDesc windowInitDesc = {
 		.tempAllocator = tempAllocator,
@@ -122,7 +126,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	};
 	if (Res<> r = Render::Init(&renderInitDesc); !r) { return r; }
 
-	if (Res<> r = app->Init(permAllocator, tempAllocator, logger, &windowState); !r) {
+	if (Res<> r = app->Init(&windowState); !r) {
 		return r;
 	}
 

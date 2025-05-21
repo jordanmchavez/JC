@@ -91,7 +91,7 @@ template <class T> struct Array {
 		len += n;
 	}
 
-	void Insert(U32 i, T val, SrcLoc sl = SrcLoc::Here()) {
+	void Insert(U64 i, T val, SrcLoc sl = SrcLoc::Here()) {
 		if (len + 1 > cap) {
 			Grow(len + 1, sl);
 		}
@@ -108,15 +108,10 @@ template <class T> struct Array {
 		--len -= n;
 	}
 
-	Bool RemoveUnordered(T val) {
-		for (U64 i = 0; i < len; i++) {
-			if (data[i] == val) {
-				len--;
-				data[i] = data[len];
-				return true;
-			}
-		}
-		return false;
+	void RemoveUnordered(U64 i) {
+		Assert(i < len);
+		len--;
+		data[i] = data[len];
 	}
 
 	T* Extend(U64 n, SrcLoc sl = SrcLoc::Here()) {

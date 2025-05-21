@@ -12,7 +12,8 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 struct App {
-	virtual Res<> Init(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, Log::Logger* logger, const Window::State* windowState) = 0;
+	virtual Res<> PreInit(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, Log::Logger* logger) = 0;
+	virtual Res<> Init(const Window::State* windowState) = 0;
 	virtual void  Shutdown() = 0;
 	virtual Res<> Events(Span<Event::Event> events) = 0;
 	virtual Res<> Update(double secs) = 0;

@@ -1,12 +1,16 @@
-#extension GL_EXT_buffer_reference : require
-#extension GL_EXT_scalar_block_layout: require
+#extension GL_EXT_buffer_reference     : require
+#extension GL_EXT_scalar_block_layout  : require
 #extension GL_EXT_nonuniform_qualifier : enable
 
 struct SpriteDrawCmd {
-	vec3 xyz;
-	uint textureIdx;
-	vec2 uv1;
-	vec2 uv2;
+	vec2  pos;
+	vec2  uv1;
+	vec2  uv2;
+	vec2  size;
+	vec4  color;
+	float rotation;
+	uint  textureIdx;
+	uint  pad[2];
 };
 
 layout (buffer_reference, scalar) readonly buffer SpriteDrawCmdBuffer {

@@ -7,6 +7,7 @@
 #include "JC/Json.h"
 #include "JC/Log.h"
 #include "JC/Map.h"
+#include "JC/Math.h"
 
 #include "3rd/stb/stb_image.h"
 
@@ -23,10 +24,14 @@ DefErr(Render, SpriteNotFound);
 //--------------------------------------------------------------------------------------------------
 
 struct SpriteDrawCmd {
-	Vec3 xyz        = {};
-	U32  textureIdx = 0;
+	Vec2 pos        = {};
 	Vec2 uv1        = {};
 	Vec2 uv2        = {};
+	Vec2 size       = {};
+	Vec4 color      = {};
+	F32  rotation   = 0;
+	U32  textureIdx = 0;
+	U32  pad[2]     = {};
 };
 
 struct Scene {
@@ -42,6 +47,7 @@ struct SpriteObj {
 	U32  imageIdx;
 	Vec2 uv1;
 	Vec2 uv2;
+	Vec2 size;
 	Str  name;
 };
 
@@ -90,6 +96,7 @@ Res<> Init(const InitDesc* initDesc) {
 
 	spriteImages.Init(allocator);
 	spriteObjs.Init(allocator);
+	spriteObjs.Add(SpriteObj{});	// reserve 0 for invalid
 	spriteObjsByName.Init(allocator);
 
 	if (Res<> r = Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::DepthAttachment).To(depthImage); !r) { return r; }
@@ -229,8 +236,8 @@ Res<> LoadSpriteAtlas(Str imagePath, Str atlasPath) {
 		const F32 imageHeight = (F32)Gpu::GetImageHeight(image);
 		const F32 x = (F32)ix / imageWidth;
 		const F32 y = (F32)iy / imageHeight;
-		const F32 w = (F32)iw / imageWidth;
-		const F32 h = (F32)ih / imageHeight;
+		const F32 w = (F32)iw;
+		const F32 h = (F32)ih;
 
 		if (spriteObjsByName.FindOrNull(name)) {
 			return Err_DuplicateSpriteName("path", atlasPath, "name", name);
@@ -239,7 +246,8 @@ Res<> LoadSpriteAtlas(Str imagePath, Str atlasPath) {
 		SpriteObj* const spriteObj = spriteObjs.Add(SpriteObj {
 			.imageIdx = imageIdx,
 			.uv1      = { x, y },
-			.uv2      = { x + w, y + h },
+			.uv2      = { x + (w / imageWidth), y + (h / imageHeight) },
+			.size     = { w, h },
 			.name     = Copy(allocator, name),
 		});
 		spriteObjsByName.Put(spriteObj->name, (U32)(spriteObj - spriteObjs.data));
@@ -256,6 +264,13 @@ Res<Sprite> GetSprite(Str name) {
 		return Err_SpriteNotFound();
 	}
 	return Sprite { .handle = (U64)(*idx) };
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Vec2 GetSpriteSize(Sprite sprite) {
+	Assert(sprite.handle < spriteObjs.len);
+	return spriteObjs[sprite.handle].size;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -295,7 +310,7 @@ Res<> BeginFrame() {
 Res<> EndFrame() {
 	const Gpu::StagingMem sceneBufferStagingMem = Gpu::AllocStagingMem(sizeof(Scene));
 	Scene* const scene = (Scene*)sceneBufferStagingMem.ptr;
-	scene->projView  = projView;
+	scene->projView                = projView;
 	scene->spriteDrawCmdBufferAddr = spriteDrawCmdBufferAddrs[frameIdx],
 	Gpu::BufferBarrier(sceneBuffers[frameIdx], Gpu::Stage::VertexShaderRead, Gpu::Stage::TransferDst);
 	Gpu::UpdateBuffer(sceneBuffers[frameIdx], 0, sceneBufferStagingMem);
@@ -336,21 +351,40 @@ Res<> EndFrame() {
 
 //--------------------------------------------------------------------------------------------------
 
-void DrawSprites(Span<DrawSprite> drawSprites) {
+void DrawSprite(Sprite sprite, Vec2 pos) {
 	// TODO: dynamically resize the buffer
-	Assert(spriteDrawCmdCount + drawSprites.len <= MaxSprites);
+	Assert(spriteDrawCmdCount <= MaxSprites);
 
 	SpriteDrawCmd* ptr = ((SpriteDrawCmd*)spriteDrawCmdStagingMem.ptr) + spriteDrawCmdCount;
-	spriteDrawCmdCount += (U32)drawSprites.len;
-	for (U64 i = 0; i < drawSprites.len; i++) {
-		SpriteObj* const spriteObj = &spriteObjs[drawSprites[i].sprite.handle];
-		*ptr++ = {
-			.xyz        = drawSprites[i].xyz,
-			.textureIdx = spriteObj->imageIdx,
-			.uv1        = spriteObj->uv1,
-			.uv2        = spriteObj->uv2,
-		};
-	}
+	SpriteObj* const spriteObj = &spriteObjs[sprite.handle];
+	*ptr = {
+		.pos        = pos,
+		.uv1        = spriteObj->uv1,
+		.uv2        = spriteObj->uv2,
+		.size       = spriteObj->size,
+		.color      = Vec4(1.0f, 1.0f, 1.0f, 1.0f),
+		.rotation   = 0.0f,
+		.textureIdx = spriteObj->imageIdx,
+	};
+	spriteDrawCmdCount++;
+}
+
+void DrawSprite(Sprite sprite, Vec2 pos, F32 scale, F32 rotation, Vec4 color) {
+	// TODO: dynamically resize the buffer
+	Assert(spriteDrawCmdCount <= MaxSprites);
+
+	SpriteDrawCmd* ptr = ((SpriteDrawCmd*)spriteDrawCmdStagingMem.ptr) + spriteDrawCmdCount;
+	SpriteObj* const spriteObj = &spriteObjs[sprite.handle];
+	*ptr = {
+		.pos        = pos,
+		.uv1        = spriteObj->uv1,
+		.uv2        = spriteObj->uv2,
+		.size       = Math::Mul(spriteObj->size, scale),
+		.color      = color,
+		.rotation   = rotation,
+		.textureIdx = spriteObj->imageIdx,
+	};
+	spriteDrawCmdCount++;
 }
 
 //--------------------------------------------------------------------------------------------------

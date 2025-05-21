@@ -29,7 +29,7 @@ U64 NextU64() {
 	return Next(state);
 }
 
-float NextF32() {
+F32 NextF32() {
 	return (F32)((Next(state) >> 11) * 0x1.0p-53);
 }
 

@@ -302,16 +302,15 @@ static Res<> InitInstance() {
 		Logf("  {}: specVersion={}", instExts[i].extensionName, VersionStr(tempAllocator, instExts[i].specVersion));
 	}
 
-	constexpr const char* RequiredInstExts[] = {
-		"VK_KHR_surface",
-		#if defined Platform_Windows
-			"VK_KHR_win32_surface",
-		#endif	//	Platform_
-		#if defined Render_Debug
-			"VK_EXT_debug_utils"
-		#endif	// Render_Debug
-	};
-	for (U32 i = 0; i < LenOf(RequiredInstExts); i++) {
+	Array<const char*> RequiredInstExts(tempAllocator);
+	RequiredInstExts.Add("VK_KHR_surface");
+	#if defined Platform_Windows
+		RequiredInstExts.Add("VK_KHR_win32_surface");
+	#endif	//	Platform_
+	if (Config::GetBool("Gpu::Debug", true)) {
+		RequiredInstExts.Add("VK_EXT_debug_utils");
+	}
+	for (U32 i = 0; i < RequiredInstExts.len; i++) {
 		Bool found = false;
 		for (U64 j = 0; j < instExts.len; j++) {
 			if (!strcmp(RequiredInstExts[i], instExts[j].extensionName)) {
@@ -341,11 +340,14 @@ static Res<> InitInstance() {
 		.pApplicationInfo        = &vkApplicationInfo,
 		.enabledLayerCount       = (U32)RequiredLayers.len,
 		.ppEnabledLayerNames     = RequiredLayers.data,
-		.enabledExtensionCount   = LenOf(RequiredInstExts),
-		.ppEnabledExtensionNames = RequiredInstExts,
+		.enabledExtensionCount   = (U32)RequiredInstExts.len,
+		.ppEnabledExtensionNames = RequiredInstExts.data,
 	};
-	#if defined Render_Debug
-		const VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo = {
+	
+
+	VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
+	if (Config::GetBool("Gpu::Debug", true)) {
+		debugCreateInfo = {
 			.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
 			.pNext           = vkInstanceCreateInfo.pNext,
 			.flags           = 0,
@@ -374,14 +376,14 @@ static Res<> InitInstance() {
 
 		};
 		vkInstanceCreateInfo.pNext = &vkLayerSettingsCreateInfoEXT;
-	#endif	// Render_Debug
+	}
 
 	CheckVk(vkCreateInstance(&vkInstanceCreateInfo, vkAllocationCallbacks, &vkInstance));
 	LoadInstanceFns(vkInstance);
 
-	#if defined Render_Debug
+	if (Config::GetBool("Gpu::Debug", true)) {
 		CheckVk(vkCreateDebugUtilsMessengerEXT(vkInstance, &debugCreateInfo, vkAllocationCallbacks, &vkDebugUtilsMessenger));
-	#endif	// Render_Debug
+	}
 
 	return Ok();
 }
@@ -1577,8 +1579,8 @@ Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> col
 		.sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
 		.pNext                 = 0,
 		.flags                 = 0,
-		.depthTestEnable       = VK_TRUE,
-		.depthWriteEnable      = VK_TRUE,
+		.depthTestEnable       = VK_FALSE,
+		.depthWriteEnable      = VK_FALSE,
 		.depthCompareOp        = VK_COMPARE_OP_LESS,
 		.depthBoundsTestEnable = VK_FALSE,
 		.stencilTestEnable     = VK_FALSE,
@@ -1587,25 +1589,38 @@ Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> col
 		.minDepthBounds        = 0.0f,
 		.maxDepthBounds        = 1.0f,
 	};
-	constexpr VkPipelineColorBlendAttachmentState vkPipelineColorBlendAttachmentState = {
-		.blendEnable         = VK_FALSE,
-		.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO,
-		.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
-		.colorBlendOp        = VK_BLEND_OP_ADD,
-		.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-		.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-		.alphaBlendOp        = VK_BLEND_OP_ADD,
-		.colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-	};
+	/*
+void PipelineBuilder::enable_blending_additive()
+{
+    _colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    _colorBlendAttachment.blendEnable = VK_TRUE;
+    _colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    _colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    _colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+    _colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    _colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    _colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+}
 
+void PipelineBuilder::enable_blending_alphablend()
+{
+    _colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    _colorBlendAttachment.blendEnable = VK_TRUE;
+    _colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    _colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    _colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+    _colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    _colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    _colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+}	*/
 	VkPipelineColorBlendAttachmentState* const vkPipelineColorBlendAttachmentStates = tempAllocator->AllocT<VkPipelineColorBlendAttachmentState>(colorAttachmentFormats.len);
 	for (U64 i = 0; i < colorAttachmentFormats.len; i++) {
 		vkPipelineColorBlendAttachmentStates[i] = {
-			.blendEnable         = VK_FALSE,
+			.blendEnable         = VK_TRUE,
 			.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
 			.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
 			.colorBlendOp        = VK_BLEND_OP_ADD,
-			.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+			.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
 			.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
 			.alphaBlendOp        = VK_BLEND_OP_ADD,
 			.colorWriteMask      = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
