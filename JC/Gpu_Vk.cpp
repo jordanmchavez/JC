@@ -1008,29 +1008,6 @@ static Res<BufferObj> CreateBufferInternal(
 
 //----------------------------------------------------------------------------------------------
 
-static Res<> InitStaging() {
-	if (Res<> r = CreateBufferInternal(
-		StagingBufferSize,
-		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		0
-	).To(stagingBufferObj); !r) {
-		return r;
-	}
-
-	U8* ptr = 0;
-	CheckVk(vkMapMemory(vkDevice, stagingBufferObj.mem.vkDeviceMemory, 0, StagingBufferSize, 0, (void**)&ptr));
-	for (U32 i = 0; i < MaxFrames; i++) {
-		stagingArenas[i].begin = ptr + (i * StagingBufferFrameSize);
-		stagingArenas[i].used  = stagingArenas[i].begin;
-		stagingArenas[i].end   = stagingArenas[i].begin + StagingBufferFrameSize;
-	}
-
-	return Ok();
-};
-
-//----------------------------------------------------------------------------------------------
-
 static Res<> BeginCmds() {
 	CheckVk(vkWaitForFences(vkDevice, 1, &vkFrameFences[frameIdx], VK_TRUE, U64Max));
 	CheckVk(vkResetFences(vkDevice, 1, &vkFrameFences[frameIdx]));
@@ -1072,7 +1049,6 @@ Res<> Init(const InitDesc* initDesc) {
 	if (Res<> r = InitCommandBuffers();                                         !r) { return r; }
 	if (Res<> r = InitBindlessDescriptors();                                    !r) { return r; }
 	if (Res<> r = InitBindlessSamplers();                                       !r) { return r; }
-	if (Res<> r = InitStaging();                                                !r) { return r; }
 	if (Res<> r = BeginCmds();                                                  !r) { return r; }
 
 	return Ok();
@@ -1087,11 +1063,6 @@ void EndCommands() {
 }
 
 void Shutdown() {
-	DestroyVk(stagingBufferObj.vkBuffer, vkDestroyBuffer);
-	FreeMem(stagingBufferObj.mem);
-	for (U64 i = 0; i < vkBindlessSamplersLen; i++) {
-		DestroyVk(vkBindlessSamplers[i], vkDestroySampler);
-	}
 	vkBindlessSamplersLen = 0;
 	DestroyVk(vkBindlessDescriptorSetLayout, vkDestroyDescriptorSetLayout);
 	DestroyVk(vkDescriptorPool, vkDestroyDescriptorPool);
@@ -1215,6 +1186,15 @@ void DestroyBuffer(Buffer buffer) {
 
 U64 GetBufferAddr(Buffer buffer) {
 	return bufferObjs.Get(buffer)->addr;
+}
+
+//----------------------------------------------------------------------------------------------
+
+Res<void*> MapBuffer(Buffer buffer, U64 offset, U64 size) {
+    BufferObj* const bufferObj = bufferObjs.Get(buffer);
+	U8* ptr = 0;
+	CheckVk(vkMapMemory(vkDevice, bufferObj->mem.vkDeviceMemory, offset, size, 0, (void**)&ptr));
+    return ptr;
 }
 
 //----------------------------------------------------------------------------------------------
@@ -1679,35 +1659,22 @@ void DestroyPipeline(Pipeline pipeline) {
 
 //-------------------------------------------------------------------------------------------------
 
-StagingMem AllocStagingMem(U64 size) {
-	Assert(stagingArenas[frameIdx].used + size <= stagingArenas[frameIdx].end);	// TODO: auto-resize
-	void* const ptr = stagingArenas[frameIdx].used;
-	stagingArenas[frameIdx].used += size;
-	return StagingMem {
-		.ptr  = ptr,
-		.size = size,
-	};
-};
-
-//-------------------------------------------------------------------------------------------------
-
-void UpdateBuffer(Buffer buffer, U64 offset, StagingMem stagingMem) {
-	Assert(stagingMem.ptr >= stagingArenas[frameIdx].begin);
-	Assert(stagingMem.ptr <= stagingArenas[frameIdx].end);
-	BufferObj* const bufferObj = bufferObjs.Get(buffer);
+void CopyBuffer(Buffer srcBuffer, U64 srcOffset, Buffer dstBuffer, U64 dstOffset, U64 size) {
+	BufferObj* const srcBufferObj = bufferObjs.Get(srcBuffer);
+	BufferObj* const dstBufferObj = bufferObjs.Get(dstBuffer);
 	const VkBufferCopy2 vkBufferCopy2 = {
 		.sType     = VK_STRUCTURE_TYPE_BUFFER_COPY_2,
 		.pNext     = 0,
-		.srcOffset = (VkDeviceSize)((U8*)stagingMem.ptr - stagingArenas[0].begin),
-		.dstOffset = bufferObj->mem.offset + offset,
-		.size      = stagingMem.size,
+		.srcOffset = srcOffset,
+		.dstOffset = dstOffset,
+		.size      = size,
 	};
-	Assert(vkBufferCopy2.dstOffset + vkBufferCopy2.size <= bufferObj->size);
+	Assert(vkBufferCopy2.dstOffset + vkBufferCopy2.size <= dstBufferObj->size);
 	const VkCopyBufferInfo2 vkCopyBufferInfo2 = {
 		.sType       = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
 		.pNext       = 0,
-		.srcBuffer   = stagingBufferObj.vkBuffer,
-		.dstBuffer   = bufferObj->vkBuffer,
+		.srcBuffer   = srcBufferObj->vkBuffer,
+		.dstBuffer   = dstBufferObj->vkBuffer,
 		.regionCount = 1,
 		.pRegions    = &vkBufferCopy2,
 	};
@@ -1716,14 +1683,13 @@ void UpdateBuffer(Buffer buffer, U64 offset, StagingMem stagingMem) {
 
 //-------------------------------------------------------------------------------------------------
 
-void UpdateImage(Image image, StagingMem stagingMem) {
-	Assert(stagingMem.ptr >= stagingArenas[frameIdx].begin);
-	Assert(stagingMem.ptr <= stagingArenas[frameIdx].end);
+void CopyBufferToImage(Buffer buffer, U64 bufferOffset, Image image) {
+	BufferObj* const bufferObj = bufferObjs.Get(buffer);
 	ImageObj* const imageObj = imageObjs.Get(image);
 	const VkBufferImageCopy2 vkBufferImageCopy2 = {
 		.sType             = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2,
 		.pNext             = 0,
-		.bufferOffset      = (VkDeviceSize)((U8*)stagingMem.ptr - stagingArenas[0].begin),
+		.bufferOffset      = bufferOffset,
 		.bufferRowLength   = 0,
 		.bufferImageHeight = 0,
 		.imageSubresource  = MakeVkImageSubresourceLayers(IsDepthFormat(imageObj->vkFormat) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT),
@@ -1733,7 +1699,7 @@ void UpdateImage(Image image, StagingMem stagingMem) {
 	const VkCopyBufferToImageInfo2 vkCopyBufferToImageInfo2 = {
 		.sType          = VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2,
 		.pNext          = 0,
-		.srcBuffer      = stagingBufferObj.vkBuffer,
+		.srcBuffer      = bufferObj->vkBuffer,
 		.dstImage       = imageObj->vkImage,
 		.dstImageLayout = imageObj->vkImageLayout,
 		.regionCount    = 1,
@@ -1907,7 +1873,6 @@ Res<> EndFrame() {
 
 	frameIdx = (frameIdx + 1) % MaxFrames;
 	frame++;
-	stagingArenas[frameIdx].used = stagingArenas[frameIdx].begin;
 
 	if (Res<> r = BeginCmds(); !r) {
 		return r.err;

@@ -94,7 +94,8 @@ Image         GetSwapchainImage();
 Res<Buffer>   CreateBuffer(U64 size, BufferUsage usage);
 void          DestroyBuffer(Buffer buffer);
 U64           GetBufferAddr(Buffer buffer);
-void          UpdateBuffer(Buffer buffer, U64 offset, StagingMem stagingMem);
+Res<void*>    MapBuffer(Buffer buffer, U64 offset, U64 size);
+void          CopyBuffer(Buffer srcBuffer, U64 srcOffset, Buffer dstBuffer, U64 dstOffset, U64 size);
 void          BufferBarrier(Buffer buffer, Stage src, Stage dst);
 
 Res<Image>    CreateImage(U32 width, U32 height, ImageFormat format, ImageUsage usage);
@@ -103,7 +104,7 @@ U32           GetImageWidth(Image image);	// TODO; -> IVec2 or IExtent or someth
 U32           GetImageHeight(Image image);
 ImageFormat   GetImageFormat(Image image);
 U32           BindImage(Image image);
-void          UpdateImage(Image image, StagingMem stagingMem);
+void          CopyBufferToImage(Buffer buffer, U64 bufferOffset, Image image);
 void          ImageBarrier(Image image, Stage src, Stage dst);
 
 Res<Shader>   CreateShader	(const void* data, U64 len);
