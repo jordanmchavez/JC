@@ -43,6 +43,7 @@ enum struct BufferUsage {
 	Undefined = 0,
 	Storage,
 	Index,
+	Staging,
 };
 
 enum struct ImageUsage {

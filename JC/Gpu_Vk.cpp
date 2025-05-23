@@ -116,8 +116,6 @@ static constexpr U32 MaxBindlessSampledImages  = 64 * 1024;
 static constexpr U32 MaxBindlessSamplers       = 8;
 static constexpr U32 MaxBindlessDescriptorSets = 32;
 static constexpr F32 MaxAnisotropy             = 8.0f;
-static constexpr U64 StagingBufferFrameSize    = 128 * 1024 * 1024;	// TODO: adaptive
-static constexpr U64 StagingBufferSize         = StagingBufferFrameSize * MaxFrames;
 
 struct QueueFamily {
 	VkQueueFamilyProperties vkQueueFamilyProperties = {};
@@ -188,12 +186,6 @@ struct PipelineObj {
 	VkPushConstantRange   vkPushConstantRange   = {};
 };
 
-struct StagingArena {
-	U8* begin = 0;
-	U8* used  = 0;
-	U8* end   = 0;
-};
-
 static JC::Mem::Allocator*                allocator;
 static JC::Mem::TempAllocator*            tempAllocator;
 static Log::Logger*                       logger;
@@ -223,8 +215,6 @@ static VkDescriptorSetLayout              vkBindlessDescriptorSetLayout;
 static VkDescriptorSet                    vkBindlessDescriptorSet;
 static VkSampler                          vkBindlessSamplers[MaxBindlessSamplers];
 static U32                                vkBindlessSamplersLen;
-static BufferObj                          stagingBufferObj;
-static StagingArena                       stagingArenas[MaxFrames];
 static U32                                frameIdx;
 
 //-------------------------------------------------------------------------------------------------
@@ -1183,6 +1173,12 @@ Res<Buffer> CreateBuffer(U64 size, BufferUsage usage) {
 			vkBufferUsageFlags    = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 			vkMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			vkMemoryAllocateFlags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+			break;
+
+		case BufferUsage::Staging:
+			vkBufferUsageFlags    = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+			vkMemoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+			vkMemoryAllocateFlags = 0;
 			break;
 
 		default: Panic("Unhandled BufferUsage", "usage", usage);

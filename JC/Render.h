@@ -8,9 +8,6 @@ namespace JC::Render {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr U32 MaxSprites    = 1024 * 1024;
-static constexpr U32 MaxUiElements = 64 * 1024;
-
 struct InitDesc {
 	Mem::Allocator*     allocator     = 0;
 	Mem::TempAllocator* tempAllocator = 0;
