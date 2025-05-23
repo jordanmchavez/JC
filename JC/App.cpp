@@ -8,6 +8,7 @@
 #include "JC/Render.h"
 #include "JC/Sys.h"
 #include "JC/Time.h"
+#include "JC/Ui.h"
 #include "JC/UnitTest.h"
 #include "JC/Window.h"
 
@@ -171,6 +172,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		}
 
 		Span<Event::Event> events = Event::Get();
+		if (Res<> r = Ui::Events(events); !r) { return r; }
 		if (Res<> r = app->Events(events); !r) { return r; }
 		Event::Clear();
 
@@ -187,20 +189,31 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 			Logf("Window size changed: {}x{} -> {}x{}", prevWindowState.width, prevWindowState.height, windowState.width, windowState.height);
 		}
 
-		if (Res<> r = Render::BeginFrame(); !r) {
-			if (r.err == Render::EC_SkipFrame) {
-				continue;
+		bool skipFrame = false;
+		if (Res<> r = Gpu::BeginFrame(); !r) {
+			if (r.err == Gpu::EC_RecreateSwapchain) {
+				if (r = Gpu::RecreateSwapchain(windowState.width, windowState.height); !r) {
+					return r;
+				}
+				Logf("Recreated swapchain after BeginFrame() with w={}, h={}", windowState.width, windowState.height);
+				skipFrame = true;
+			} else {
+				return r;
 			}
-			return r;
 		}
+		if (skipFrame) { continue; }
 
 		if (Res<> r = app->Draw(); !r) { return r; }
 		
-		if (Res<> r = Render::EndFrame(); !r) {
-			if (r.err == Render::EC_SkipFrame) {
-				continue;
+		if (Res<> r = Gpu::EndFrame(); !r) {
+			if (r.err == Gpu::EC_RecreateSwapchain) {
+				if (r = Gpu::RecreateSwapchain(windowState.width, windowState.height); !r) {
+					return r;
+				}
+				Logf("Recreated swapchain after BeginFrame() with w={}, h={}", windowState.width, windowState.height);
+			} else {
+				return r;
 			}
-			return r;
 		}
 	}
 

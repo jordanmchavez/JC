@@ -13,6 +13,13 @@ Vec2 Add(Vec2 a, Vec2 b) {
 	};
 }
 
+Vec2 Add(Vec2 u, F32 f) {
+	return {
+		.x = u.x + f,
+		.y = u.y + f,
+	};
+}
+
 Vec3 Add(Vec3 a, Vec3 b) {
 	return {
 		.x = a.x + b.x,

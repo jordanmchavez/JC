@@ -1589,30 +1589,6 @@ Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> col
 		.minDepthBounds        = 0.0f,
 		.maxDepthBounds        = 1.0f,
 	};
-	/*
-void PipelineBuilder::enable_blending_additive()
-{
-    _colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    _colorBlendAttachment.blendEnable = VK_TRUE;
-    _colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-    _colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-    _colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-    _colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    _colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    _colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-}
-
-void PipelineBuilder::enable_blending_alphablend()
-{
-    _colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    _colorBlendAttachment.blendEnable = VK_TRUE;
-    _colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-    _colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    _colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-    _colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    _colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    _colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-}	*/
 	VkPipelineColorBlendAttachmentState* const vkPipelineColorBlendAttachmentStates = tempAllocator->AllocT<VkPipelineColorBlendAttachmentState>(colorAttachmentFormats.len);
 	for (U64 i = 0; i < colorAttachmentFormats.len; i++) {
 		vkPipelineColorBlendAttachmentStates[i] = {
@@ -1708,7 +1684,7 @@ void DestroyPipeline(Pipeline pipeline) {
 //-------------------------------------------------------------------------------------------------
 
 StagingMem AllocStagingMem(U64 size) {
-	Assert(stagingArenas[frameIdx].used + size <= stagingArenas[frameIdx].end);
+	Assert(stagingArenas[frameIdx].used + size <= stagingArenas[frameIdx].end);	// TODO: auto-resize
 	void* const ptr = stagingArenas[frameIdx].used;
 	stagingArenas[frameIdx].used += size;
 	return StagingMem {
@@ -1862,22 +1838,22 @@ void DebugBarrier() {
 
 //-------------------------------------------------------------------------------------------------
 
-Res<SwapchainStatus> BeginFrame() {
+Res<> BeginFrame() {
 	if (VkResult r = vkAcquireNextImageKHR(vkDevice, vkSwapchain, U64Max, vkFrameAcquireImageSemaphores[frameIdx], 0, &swapchainImageIdx); r != VK_SUCCESS) {
 		if (r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_OUT_OF_DATE_KHR) {
-			return SwapchainStatus::NeedsRecreate;
+			return Err_RecreateSwapchain();
 		} else {
 			return Err_Vk(r, "vkAcquireNextImageKHR");
 		}
 	}
 
-	return SwapchainStatus::Ok;
+	return Ok();
 };
 
 //----------------------------------------------------------------------------------------------
 
 U64 frame = 0;
-Res<SwapchainStatus> EndFrame() {
+Res<> EndFrame() {
 	CheckVk(vkEndCommandBuffer(vkFrameCommandBuffers[frameIdx]));
 
 	const VkSemaphoreSubmitInfo vkWaitSemaphoreSubmitInfo = {
@@ -1927,7 +1903,7 @@ Res<SwapchainStatus> EndFrame() {
 	};
 	if (VkResult r = vkQueuePresentKHR(vkQueue, &vkPresentInfoKHR); r != VK_SUCCESS) {
 		if (r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_OUT_OF_DATE_KHR) {
-			return SwapchainStatus::NeedsRecreate;
+			return Err_RecreateSwapchain();
 		} else {
 			return Err_Vk(r, "vkAcquireNextImageKHR");
 		}
@@ -1941,7 +1917,7 @@ Res<SwapchainStatus> EndFrame() {
 		return r.err;
 	}
 
-	return SwapchainStatus::Ok;
+	return Ok();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1958,7 +1934,7 @@ void BeginPass(const Pass* pass) {
 			.resolveMode        = VK_RESOLVE_MODE_NONE,
 			.resolveImageView   = VK_NULL_HANDLE,
 			.resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-			.loadOp             = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.loadOp             = pass->clear ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD,
 			.storeOp            = VK_ATTACHMENT_STORE_OP_STORE,
 			.clearValue         = { .color = { .float32 = { 0.0f, 0.0f, 0.0f, 1.0f } } },
 		};

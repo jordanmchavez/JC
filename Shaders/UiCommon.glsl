@@ -4,12 +4,11 @@
 
 struct DrawCmd {
 	vec2  pos;
-	vec2  uv1;
-	vec2  uv2;
 	vec2  size;
-	vec4  color;
-	float rotation;
-	uint  textureIdx;
+	vec4  fillColor;
+	vec4  borderColor;
+	float border;
+	float cornerRadius;
 	uint  pad[2];
 };
 

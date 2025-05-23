@@ -55,7 +55,7 @@
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS;IMGUI_IMPL_VULKAN_NO_PROTOTYPES</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -78,7 +78,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS;IMGUI_IMPL_VULKAN_NO_PROTOTYPES</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <TreatWarningAsError>false</TreatWarningAsError>
@@ -112,6 +112,7 @@
     <ClInclude Include="3rd\vk_video\vulkan_video_codec_h265std_decode.h" />
     <ClInclude Include="3rd\vk_video\vulkan_video_codec_h265std_encode.h" />
     <ClInclude Include="3rd\vulkan\vk_platform.h" />
+    <ClInclude Include="3rd\vulkan\vulkan.h" />
     <ClInclude Include="3rd\vulkan\vulkan_core.h" />
     <ClInclude Include="3rd\vulkan\vulkan_win32.h" />
     <ClInclude Include="JC\App.h" />
@@ -150,6 +151,7 @@
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Sys_Win.h" />
     <ClInclude Include="JC\Time.h" />
+    <ClInclude Include="JC\Ui.h" />
     <ClInclude Include="JC\Unicode.h" />
     <ClInclude Include="JC\UnitTest.h" />
     <ClInclude Include="JC\Window.h" />
@@ -158,7 +160,7 @@
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
-    <ClCompile Include="JC\Game.h" />
+    <ClCompile Include="JC\Game_Shmup.h" />
     <ClCompile Include="JC\App.cpp" />
     <ClCompile Include="JC\Array.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
@@ -172,7 +174,7 @@
     <ClCompile Include="JC\Event.cpp" />
     <ClCompile Include="JC\File_Win.cpp" />
     <ClCompile Include="JC\Fmt.cpp" />
-    <ClCompile Include="JC\Game.cpp" />
+    <ClCompile Include="JC\Game_Shmup.cpp" />
     <ClCompile Include="JC\HandleArray.cpp" />
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Json.cpp" />
@@ -191,6 +193,7 @@
     <ClCompile Include="JC\UnitTest.cpp" />
     <ClCompile Include="JC\Window_Win.cpp" />
     <ClCompile Include="JC\Render.cpp" />
+    <ClCompile Include="JC\Ui.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Notes\Game Design.md" />
@@ -202,6 +205,9 @@
     <None Include="Shaders\SpriteCommon.glsl" />
     <None Include="Shaders\SpriteFrag.glsl" />
     <None Include="Shaders\SpriteVert.glsl" />
+    <None Include="Shaders\UiCommon.glsl" />
+    <None Include="Shaders\UiFrag.glsl" />
+    <None Include="Shaders\UiVert.glsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

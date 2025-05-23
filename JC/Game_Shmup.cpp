@@ -2,6 +2,7 @@
 #include "JC/Array.h"
 #include "JC/Event.h"
 #include "JC/Fmt.h"
+#include "JC/Gpu.h"
 #include "JC/Log.h"
 #include "JC/Math.h"
 #include "JC/Random.h"
@@ -84,7 +85,7 @@ struct ParticleEmitter {
 
 
 struct Game : App {
-	static constexpr F32 ScaleFactor = 8.0f;
+	static constexpr F32 SpriteScale = 8.0f;
 	static constexpr F32 ShipFireCooldown = 0.2f;
 	static constexpr U32 EngineSpriteCount = 4;
 	static constexpr F32 EngineSpriteCooldown = 0.1f;
@@ -317,10 +318,10 @@ struct Game : App {
 			UpdateParticleEmitter(fsecs, &particleEmitters[i]);
 		}
 
-		const F32 boundL = -windowWidth  / ScaleFactor;
-		const F32 boundR =  windowWidth  / ScaleFactor;
-		const F32 boundB = -windowHeight / ScaleFactor;
-		const F32 boundT =  windowHeight / ScaleFactor;
+		const F32 boundL = -windowWidth  / SpriteScale;
+		const F32 boundR =  windowWidth  / SpriteScale;
+		const F32 boundB = -windowHeight / SpriteScale;
+		const F32 boundT =  windowHeight / SpriteScale;
 
 		ship.pos.x = Clamp(ship.pos.x, boundL + ship.size.x / 2.0f, boundR - ship.size.x / 2.0f);
 		ship.pos.y = Clamp(ship.pos.y, boundB + ship.size.x / 2.0f, boundT - ship.size.x / 2.0f);
@@ -380,16 +381,19 @@ struct Game : App {
 
 	//---------------------------------------------------------------------------------------------
 
+	U32 frameIdx;
+	Gpu::Image swapchainImage;
+
 	Res<> Draw() override {
-		Mat4 projView = Math::Ortho(
-			-windowWidth  / ScaleFactor / 2.0f,
-			 windowWidth  / ScaleFactor / 2.0f,
-			-windowHeight / ScaleFactor / 2.0f,
-			 windowHeight / ScaleFactor / 2.0f,
-			-100.0f,
-			100.0f
-		);
-		Render::SetProjView(&projView);
+		frameIdx = Gpu::GetFrameIdx();
+
+		swapchainImage = Gpu::GetSwapchainImage();
+		Gpu::ImageBarrier(swapchainImage, Gpu::Stage::PresentOld, Gpu::Stage::ColorAttachment);
+
+		Render::BeginFrame();
+
+		Render::SetSpriteScale(SpriteScale);
+		Render::SetUiScale(1.0f);
 
 		Render::DrawSprite(*ship.sprite, ship.pos);
 		//Render::DrawSprite(ship.engineSprites[ship.engineSpriteIdx], Vec2 { ship.pos.x, ship.pos.y - ((ship.size.y + ship.engineSizes[ship.engineSpriteIdx].y) / 2.0f) });
@@ -401,6 +405,26 @@ struct Game : App {
 		for (U64 i = 0; i < particleTypes.len; i++) {
 			DrawParticleType(&particleTypes[i]);
 		}
+
+		//projView = Math::Ortho(
+		//	-windowWidth  / 2.0f,
+		//	 windowWidth  / 2.0f,
+		//	-windowHeight / 2.0f,
+		//	 windowHeight / 2.0f,
+		//	-100.0f,
+		//	100.0f
+		//);
+		//Render::SetProjView(&projView);
+
+		Vec4 fillColor    = { 0.0f, 25.0f / 255.0f, 35.0f / 255.0f, 1.0f };
+		Vec4 borderColor  = { 0.0f, 47.0f / 255.0f, 63.0f / 255.0f, 1.0f };
+		F32  border       = 0.5f;
+		F32  cornerRadius = 6.0f;
+		Render::DrawRect({0.0f, 0.0f}, {200.0f, 80.0f}, fillColor, borderColor, border, cornerRadius);
+
+		Render::EndFrame();
+
+		Gpu::ImageBarrier(swapchainImage, Gpu::Stage::ColorAttachment, Gpu::Stage::Present);
 
 		return Ok();
 	}

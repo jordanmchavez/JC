@@ -9,12 +9,9 @@ namespace JC::Gpu {
 
 //--------------------------------------------------------------------------------------------------
 
-constexpr U32 MaxFrames = 3;
+DefErr(Gpu, RecreateSwapchain);
 
-enum struct SwapchainStatus {
-	Ok,
-	NeedsRecreate,
-};
+constexpr U32 MaxFrames = 3;
 
 struct InitDesc {
 	Mem::Allocator*             allocator          = 0;
@@ -75,6 +72,7 @@ struct Pass {
 	Image       depthAttachment  = {};
 	Viewport    viewport         = {};
 	Rect        scissor          = {};
+	bool        clear            = false;
 };
 
 struct StagingMem {
@@ -82,48 +80,48 @@ struct StagingMem {
 	U64   size;
 };
 
-Res<>                Init(const InitDesc* initDesc);
-void                 Shutdown();
-void                 WaitIdle();
-void                 DebugBarrier();
+Res<>         Init(const InitDesc* initDesc);
+void          Shutdown();
+void          WaitIdle();
+void          DebugBarrier();
 
-StagingMem           AllocStagingMem(U64 size);
+StagingMem    AllocStagingMem(U64 size);
 
-Res<>                RecreateSwapchain(U32 width, U32 height);
-Image                GetSwapchainImage();
+Res<>         RecreateSwapchain(U32 width, U32 height);
+Image         GetSwapchainImage();
 
-Res<Buffer>          CreateBuffer(U64 size, BufferUsage usage);
-void                 DestroyBuffer(Buffer buffer);
-U64                  GetBufferAddr(Buffer buffer);
-void                 UpdateBuffer(Buffer buffer, U64 offset, StagingMem stagingMem);
-void                 BufferBarrier(Buffer buffer, Stage src, Stage dst);
+Res<Buffer>   CreateBuffer(U64 size, BufferUsage usage);
+void          DestroyBuffer(Buffer buffer);
+U64           GetBufferAddr(Buffer buffer);
+void          UpdateBuffer(Buffer buffer, U64 offset, StagingMem stagingMem);
+void          BufferBarrier(Buffer buffer, Stage src, Stage dst);
 
-Res<Image>           CreateImage(U32 width, U32 height, ImageFormat format, ImageUsage usage);
-void                 DestroyImage(Image image);
-U32                  GetImageWidth(Image image);	// TODO; -> IVec2 or IExtent or something
-U32                  GetImageHeight(Image image);
-ImageFormat          GetImageFormat(Image image);
-U32                  BindImage(Image image);
-void                 UpdateImage(Image image, StagingMem stagingMem);
-void                 ImageBarrier(Image image, Stage src, Stage dst);
+Res<Image>    CreateImage(U32 width, U32 height, ImageFormat format, ImageUsage usage);
+void          DestroyImage(Image image);
+U32           GetImageWidth(Image image);	// TODO; -> IVec2 or IExtent or something
+U32           GetImageHeight(Image image);
+ImageFormat   GetImageFormat(Image image);
+U32           BindImage(Image image);
+void          UpdateImage(Image image, StagingMem stagingMem);
+void          ImageBarrier(Image image, Stage src, Stage dst);
 
-Res<Shader>          CreateShader	(const void* data, U64 len);
-void                 DestroyShader(Shader shader);
+Res<Shader>   CreateShader	(const void* data, U64 len);
+void          DestroyShader(Shader shader);
 
-Res<Pipeline>        CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> colorAttachmentFormats, ImageFormat depthAttachmentFormat);
-void                 DestroyPipeline(Pipeline pipeline);
+Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> colorAttachmentFormats, ImageFormat depthAttachmentFormat);
+void          DestroyPipeline(Pipeline pipeline);
 
-Res<SwapchainStatus> BeginFrame();
-Res<SwapchainStatus> EndFrame();
+Res<>         BeginFrame();
+Res<>         EndFrame();
 
-void                 BeginPass(const Pass* pass);
-void                 EndPass();
+void          BeginPass(const Pass* pass);
+void          EndPass();
 
-void                 BindIndexBuffer(Buffer buffer);
-void                 PushConstants(Pipeline pipeline, const void* data, U32 len);
-void                 Draw(U32 vertexCount, U32 instanceCount);
-void                 DrawIndexed(U32 indexCount);
-U32                  GetFrameIdx();
+void          BindIndexBuffer(Buffer buffer);
+void          PushConstants(Pipeline pipeline, const void* data, U32 len);
+void          Draw(U32 vertexCount, U32 instanceCount);
+void          DrawIndexed(U32 indexCount);
+U32           GetFrameIdx();
 
 //--------------------------------------------------------------------------------------------------
 

@@ -14,6 +14,7 @@ constexpr F32 DegToRad(F32 deg) {
 //--------------------------------------------------------------------------------------------------
 
 Vec2 Add(Vec2 u, Vec2 v);
+Vec2 Add(Vec2 u, F32 f);
 Vec3 Add(Vec3 u, Vec3 v);
 Vec2 AddScaled(Vec2 u, Vec2 v, F32 s);
 Vec3 AddScaled(Vec3 u, Vec3 v, F32 s);

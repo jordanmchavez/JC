@@ -8,9 +8,8 @@ namespace JC::Render {
 
 //--------------------------------------------------------------------------------------------------
 
-DefErr(Render, SkipFrame);
-
-//--------------------------------------------------------------------------------------------------
+static constexpr U32 MaxSprites    = 1024 * 1024;
+static constexpr U32 MaxUiElements = 64 * 1024;
 
 struct InitDesc {
 	Mem::Allocator*     allocator     = 0;
@@ -22,8 +21,6 @@ struct InitDesc {
 
 struct Sprite { U64 handle = 0; };
 
-//--------------------------------------------------------------------------------------------------
-
 Res<>       Init(const InitDesc* initDesc);
 void        Shutdown();
 Res<>       WindowResized(U32 windowWidth, U32 windowHeight);
@@ -31,13 +28,15 @@ Res<>       WindowResized(U32 windowWidth, U32 windowHeight);
 Res<>       LoadSpriteAtlas(Str imagePath, Str atlasPath);
 Res<Sprite> GetSprite(Str name);
 Vec2        GetSpriteSize(Sprite sprite);
+void        SetSpriteScale(F32 scale);
+void        SetUiScale(F32 scale);
 
-void        SetProjView(const Mat4* projView);
+void        BeginFrame();
+void        EndFrame();
 
-Res<>       BeginFrame();
-Res<>       EndFrame();
 void        DrawSprite(Sprite sprite, Vec2 pos);
 void        DrawSprite(Sprite sprite, Vec2 pos, F32 scale, F32 rotation, Vec4 color);
+void        DrawRect(Vec2 pos, Vec2 size, Vec4 fillColor, Vec4 borderColor, F32 border, F32 cornerRadius);
 
 //--------------------------------------------------------------------------------------------------
 
