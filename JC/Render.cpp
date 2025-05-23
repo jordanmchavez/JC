@@ -75,11 +75,12 @@ static Gpu::Shader         vertexShader;
 static Gpu::Shader         fragmentShader;
 static Gpu::Buffer         sceneBuffers[Gpu::MaxFrames];
 static U64                 sceneBufferAddrs[Gpu::MaxFrames];
+static Gpu::Pipeline       pipeline;
 static Gpu::Buffer         drawCmdBuffers[Gpu::MaxFrames];
 static U64                 drawCmdBufferAddrs[Gpu::MaxFrames];
-static U32                 drawCmdBufferCap;
+static U32                 drawCmdBufferSize;
 static Gpu::StagingMem     drawCmdStagingMem;
-static U32                 drawCmdLen;
+static U32                 drawCmdCount;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -90,10 +91,6 @@ static Res<Gpu::Shader> LoadShader(Str path) {
 }
 
 //--------------------------------------------------------------------------------------------------
-
-static DrawCmd* AllocDrawCmds(U32 n) {
-	if (drawCmdLen + n > drawCmd
-}
 
 Res<> Init(const InitDesc* initDesc) {
 	allocator     = initDesc->allocator;
@@ -111,27 +108,11 @@ Res<> Init(const InitDesc* initDesc) {
 
 	if (Res<> r = LoadShader("Shaders/Vert.spv").To(vertexShader); !r) { return r; }
 	if (Res<> r = LoadShader("Shaders/Frag.spv").To(fragmentShader); !r) { return r; }
+	if (Res<> r = Gpu::CreateGraphicsPipeline({ vertexShader, fragmentShader }, { Gpu::GetImageFormat(Gpu::GetSwapchainImage()) }, Gpu::ImageFormat::D32_Float).To(spritePipeline); !r) { return r; }
 	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
 		if (Res<> r = Gpu::CreateBuffer(sizeof(Scene), Gpu::BufferUsage::Storage).To(sceneBuffers[i]); !r) { return r; }
 		sceneBufferAddrs[i] = Gpu::GetBufferAddr(sceneBuffers[i]);
 	}
-	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		if (Res<> r = Gpu::CreateBuffer(MaxSprites * sizeof(SpriteDrawCmd), Gpu::BufferUsage::Storage).To(spriteDrawCmdBuffers[i]); !r) { return r; }
-		spriteDrawCmdBufferAddrs[i] = Gpu::GetBufferAddr(spriteDrawCmdBuffers[i]);
-	}
-	if (Res<> r = Gpu::CreateGraphicsPipeline({ spriteVertexShader, spriteFragmentShader }, { Gpu::GetImageFormat(Gpu::GetSwapchainImage()) }, Gpu::ImageFormat::D32_Float).To(spritePipeline); !r) { return r; }
-
-	if (Res<> r = LoadShader("Shaders/UiVert.spv").To(uiVertexShader); !r) { return r; }
-	if (Res<> r = LoadShader("Shaders/UiFrag.spv").To(uiFragmentShader); !r) { return r; }
-	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		if (Res<> r = Gpu::CreateBuffer(sizeof(Scene), Gpu::BufferUsage::Storage).To(uiSceneBuffers[i]); !r) { return r; }
-		uiSceneBufferAddrs[i] = Gpu::GetBufferAddr(uiSceneBuffers[i]);
-	}
-	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		if (Res<> r = Gpu::CreateBuffer(MaxUiElements * sizeof(UiDrawCmd), Gpu::BufferUsage::Storage).To(uiDrawCmdBuffers[i]); !r) { return r; }
-		uiDrawCmdBufferAddrs[i] = Gpu::GetBufferAddr(uiDrawCmdBuffers[i]);
-	}
-	if (Res<> r = Gpu::CreateGraphicsPipeline({ uiVertexShader, uiFragmentShader }, { Gpu::GetImageFormat(Gpu::GetSwapchainImage()) }, Gpu::ImageFormat::D32_Float).To(uiPipeline); !r) { return r; }
 
 	return Ok();
 }
@@ -142,27 +123,15 @@ void Shutdown() {
 	for (U64 i = 0; i < spriteImages.len; i++) {
 		Gpu::DestroyImage(spriteImages[i]);
 	}
-
 	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		Gpu::DestroyBuffer(spriteDrawCmdBuffers[i]);
+		Gpu::DestroyBuffer(drawCmdBuffers[i]);
 	}
 	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		Gpu::DestroyBuffer(spriteSceneBuffers[i]);
+		Gpu::DestroyBuffer(sceneBuffers[i]);
 	}
-	DestroyPipeline(spritePipeline);
-	DestroyShader(spriteVertexShader);
-	DestroyShader(spriteFragmentShader);
-
-	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		Gpu::DestroyBuffer(uiDrawCmdBuffers[i]);
-	}
-	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		Gpu::DestroyBuffer(uiSceneBuffers[i]);
-	}
-	DestroyPipeline(uiPipeline);
-	DestroyShader(uiVertexShader);
-	DestroyShader(uiFragmentShader);
-
+	Gpu::DestroyPipeline(pipeline);
+	Gpu::DestroyShader(vertexShader);
+	Gpu::DestroyShader(fragmentShader);
 	Gpu::DestroyImage(depthImage);
 }
 
@@ -187,6 +156,13 @@ Res<> WindowResized(U32 inWindowWidth, U32 inWindowHeight) {
 
 //--------------------------------------------------------------------------------------------------
 
+static void AllocStagingMem() {
+	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
+		if (Res<> r = Gpu::CreateBuffer(MaxSprites * sizeof(SpriteDrawCmd), Gpu::BufferUsage::Storage).To(drawCmdBuffers[i]); !r) { return r; }
+		drawCmdBufferAddrs[i] = Gpu::GetBufferAddr(drawCmdBuffers[i]);
+	}
+
+}
 static Res<Gpu::Image> LoadImage(Str path) {
 	Span<U8> data;
 	if (Res<> r = File::ReadAll(Mem::tempAllocator, path).To(data); !r) { return r.err; }
@@ -222,7 +198,7 @@ static Res<Gpu::Image> LoadImage(Str path) {
 			}
 		}
 	}
-	Gpu::UpdateImage(image, stagingMem);
+	Gpu::CopyBufferToImage(stagingBuffer, 0, image);
 	Gpu::ImageBarrier(image, Gpu::Stage::TransferDst, Gpu::Stage::FragmentShaderSample);
 
 	return image;
@@ -310,11 +286,7 @@ void SetUiScale(F32 uiScaleIn) { uiScale = uiScaleIn; }
 //--------------------------------------------------------------------------------------------------
 
 void BeginFrame() {
-	spriteDrawCmdStagingMem = Gpu::AllocStagingMem(MaxSprites * sizeof(SpriteDrawCmd));
-	spriteDrawCmdCount = 0;
-
-	uiDrawCmdStagingMem = Gpu::AllocStagingMem(MaxUiElements * sizeof(UiDrawCmd));
-	uiDrawCmdCount = 0;
+	drawCmdCount = 0;
 }
 
 //--------------------------------------------------------------------------------------------------
