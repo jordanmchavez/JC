@@ -392,9 +392,6 @@ struct Game : App {
 
 		Render::BeginFrame();
 
-		Render::SetSpriteScale(SpriteScale);
-		Render::SetUiScale(1.0f);
-
 		Render::DrawSprite(*ship.sprite, ship.pos);
 		//Render::DrawSprite(ship.engineSprites[ship.engineSpriteIdx], Vec2 { ship.pos.x, ship.pos.y - ((ship.size.y + ship.engineSizes[ship.engineSpriteIdx].y) / 2.0f) });
 

@@ -5,11 +5,14 @@
 struct DrawCmd {
 	vec2  pos;
 	vec2  size;
-	vec4  fillColor;
+	vec2  uv1;
+	vec2  uv2;
+	vec4  color;
 	vec4  borderColor;
 	float border;
 	float cornerRadius;
-	uint  pad[2];
+	float rotation;
+	uint  textureIdx;
 };
 
 layout (buffer_reference, scalar) readonly buffer DrawCmdBuffer {

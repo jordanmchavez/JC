@@ -25,15 +25,13 @@ Res<>       WindowResized(U32 windowWidth, U32 windowHeight);
 Res<>       LoadSpriteAtlas(Str imagePath, Str atlasPath);
 Res<Sprite> GetSprite(Str name);
 Vec2        GetSpriteSize(Sprite sprite);
-void        SetSpriteScale(F32 scale);
-void        SetUiScale(F32 scale);
 
 void        BeginFrame();
 void        EndFrame();
 
 void        DrawSprite(Sprite sprite, Vec2 pos);
 void        DrawSprite(Sprite sprite, Vec2 pos, F32 scale, F32 rotation, Vec4 color);
-void        DrawRect(Vec2 pos, Vec2 size, Vec4 fillColor, Vec4 borderColor, F32 border, F32 cornerRadius);
+void        DrawRect(Vec2 pos, Vec2 size, Vec4 color, Vec4 borderColor, F32 border, F32 cornerRadius);
 
 //--------------------------------------------------------------------------------------------------
 

@@ -37,7 +37,7 @@ struct Scene {
 };
 
 struct PushConstants {
-	U64  sceneBufferAddr = 0;
+	U64  sceneBufferAddr;
 };
 
 struct DrawCmd {
@@ -48,39 +48,75 @@ struct DrawCmd {
 	Vec4 color;
 	Vec4 borderColor;
 	F32  border;
-	F32  borderRadius;
+	F32  cornerRadius;
+	F32  rotation;
 	U32  textureIdx;
-	U32  pad;
 };
 
 //--------------------------------------------------------------------------------------------------
 
+static constexpr U32 MaxDrawCmds = 1 * 1024 * 1024;
+
+struct DBuffer {
+	U32         size;
+	Gpu::Buffer buffers[Gpu::MaxFrames];
+	U64         bufferAddrs[Gpu::MaxFrames];
+	Gpu::Buffer stagingBuffers[Gpu::MaxFrames];
+	void*       stagingPtrs[Gpu::MaxFrames];
+};
 
 static Mem::Allocator*     allocator;
 static Mem::TempAllocator* tempAllocator;
 static Log::Logger*        logger;
 static U32                 windowWidth;
 static U32                 windowHeight;
-static Gpu::Image          depthImage;
-static F32                 spriteScale;
-static F32                 uiScale;
 static U32                 frameIdx;
-
-static Gpu::Pipeline       spritePipeline;
+static Gpu::Image          depthImage;
+static Gpu::Shader         vertexShader;
+static Gpu::Shader         fragmentShader;
+static Gpu::Pipeline       pipeline;
+static DBuffer             sceneBuffer;
+static DBuffer             drawCmdBuffer;
+static U64                 drawCmdCount;
 static Array<Gpu::Image>   spriteImages;
 static Array<SpriteObj>    spriteObjs;
 static Map<Str, U32>       spriteObjsByName;
 
-static Gpu::Shader         vertexShader;
-static Gpu::Shader         fragmentShader;
-static Gpu::Buffer         sceneBuffers[Gpu::MaxFrames];
-static U64                 sceneBufferAddrs[Gpu::MaxFrames];
-static Gpu::Pipeline       pipeline;
-static Gpu::Buffer         drawCmdBuffers[Gpu::MaxFrames];
-static U64                 drawCmdBufferAddrs[Gpu::MaxFrames];
-static U32                 drawCmdBufferSize;
-static Gpu::StagingMem     drawCmdStagingMem;
-static U32                 drawCmdCount;
+//--------------------------------------------------------------------------------------------------
+
+void DestroyDBuffer(DBuffer dbuffer) {
+	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
+		Gpu::DestroyBuffer(dbuffer.buffers[i]);
+		Gpu::DestroyBuffer(dbuffer.stagingBuffers[i]);
+	}
+};
+
+static Res<DBuffer> CreateDBuffer(U32 size) {
+	DBuffer dbuffer;
+	dbuffer.size = size;
+	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
+		if (Res<> r = Gpu::CreateBuffer(size, Gpu::BufferUsage::Storage).To(dbuffer.buffers[i]); !r) {
+			DestroyDBuffer(dbuffer);
+			return r.err;
+		}
+		dbuffer.bufferAddrs[i] = Gpu::GetBufferAddr(dbuffer.buffers[i]);
+		if (Res<> r = Gpu::CreateBuffer(size, Gpu::BufferUsage::Staging).To(dbuffer.stagingBuffers[i]); !r) {
+			DestroyDBuffer(dbuffer);
+			return r.err;
+		}
+		if (Res<> r = Gpu::MapBuffer(dbuffer.stagingBuffers[i], 0, size).To(dbuffer.stagingPtrs[i]); !r) {
+			DestroyDBuffer(dbuffer);
+			return r.err;
+		}
+	}
+	return dbuffer;
+}
+
+static void FillDBuffer(DBuffer* dbuffer, U32 size) {
+	Gpu::BufferBarrier(dbuffer->buffers[frameIdx], Gpu::Stage::VertexShaderRead, Gpu::Stage::TransferDst);
+	Gpu::CopyBuffer(dbuffer->stagingBuffers[frameIdx], 0, dbuffer->buffers[frameIdx], 0, (U64)size);
+	Gpu::BufferBarrier(dbuffer->buffers[frameIdx], Gpu::Stage::TransferDst, Gpu::Stage::VertexShaderRead);
+}
 
 //--------------------------------------------------------------------------------------------------
 
@@ -108,11 +144,9 @@ Res<> Init(const InitDesc* initDesc) {
 
 	if (Res<> r = LoadShader("Shaders/Vert.spv").To(vertexShader); !r) { return r; }
 	if (Res<> r = LoadShader("Shaders/Frag.spv").To(fragmentShader); !r) { return r; }
-	if (Res<> r = Gpu::CreateGraphicsPipeline({ vertexShader, fragmentShader }, { Gpu::GetImageFormat(Gpu::GetSwapchainImage()) }, Gpu::ImageFormat::D32_Float).To(spritePipeline); !r) { return r; }
-	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		if (Res<> r = Gpu::CreateBuffer(sizeof(Scene), Gpu::BufferUsage::Storage).To(sceneBuffers[i]); !r) { return r; }
-		sceneBufferAddrs[i] = Gpu::GetBufferAddr(sceneBuffers[i]);
-	}
+	if (Res<> r = Gpu::CreateGraphicsPipeline({ vertexShader, fragmentShader }, { Gpu::GetImageFormat(Gpu::GetSwapchainImage()) }, Gpu::ImageFormat::D32_Float).To(pipeline); !r) { return r; }
+	if (Res<> r = CreateDBuffer(sizeof(Scene)).To(sceneBuffer); !r) { return r; }
+	if (Res<> r = CreateDBuffer(MaxDrawCmds * sizeof(DrawCmd)).To(drawCmdBuffer); !r) { return r; }
 
 	return Ok();
 }
@@ -123,12 +157,8 @@ void Shutdown() {
 	for (U64 i = 0; i < spriteImages.len; i++) {
 		Gpu::DestroyImage(spriteImages[i]);
 	}
-	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		Gpu::DestroyBuffer(drawCmdBuffers[i]);
-	}
-	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		Gpu::DestroyBuffer(sceneBuffers[i]);
-	}
+	DestroyDBuffer(sceneBuffer);
+	DestroyDBuffer(drawCmdBuffer);
 	Gpu::DestroyPipeline(pipeline);
 	Gpu::DestroyShader(vertexShader);
 	Gpu::DestroyShader(fragmentShader);
@@ -156,13 +186,6 @@ Res<> WindowResized(U32 inWindowWidth, U32 inWindowHeight) {
 
 //--------------------------------------------------------------------------------------------------
 
-static void AllocStagingMem() {
-	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		if (Res<> r = Gpu::CreateBuffer(MaxSprites * sizeof(SpriteDrawCmd), Gpu::BufferUsage::Storage).To(drawCmdBuffers[i]); !r) { return r; }
-		drawCmdBufferAddrs[i] = Gpu::GetBufferAddr(drawCmdBuffers[i]);
-	}
-
-}
 static Res<Gpu::Image> LoadImage(Str path) {
 	Span<U8> data;
 	if (Res<> r = File::ReadAll(Mem::tempAllocator, path).To(data); !r) { return r.err; }
@@ -179,16 +202,22 @@ static Res<Gpu::Image> LoadImage(Str path) {
 	}
 	Defer { stbi_image_free(imageData); };
 
-	Gpu::Image image;
-	if (Res<> r = Gpu::CreateImage(width, height, Gpu::ImageFormat::R8G8B8A8_UNorm, Gpu::ImageUsage::Sampled).To(image); !r) { return r.err; }
+	Gpu::Buffer stagingBuffer;
+	if (Res<> r = Gpu::CreateBuffer(width * height * 4, Gpu::BufferUsage::Staging).To(stagingBuffer); !r) {
+		return r.err;
+	}
+	Defer { Gpu::DestroyBuffer(stagingBuffer); };
 
-	Gpu::ImageBarrier(image, Gpu::Stage::None, Gpu::Stage::TransferDst);
-	const Gpu::StagingMem stagingMem = Gpu::AllocStagingMem(width * height * 4);
+	void* stagingPtr;
+	if (Res<> r = Gpu::MapBuffer(stagingBuffer, 0, 0).To(stagingPtr); !r) {
+		return r.err;
+	}
+
 	if (channels == 4) {
-		memcpy(stagingMem.ptr, imageData, width * height * channels);
+		memcpy(stagingPtr, imageData, width * height * channels);
 	} else {
 		U8* in = imageData;
-		U8* out = (U8*)stagingMem.ptr;
+		U8* out = (U8*)stagingPtr;
 		for (int y = 0; y < height; y++) {
 			for (int x = 0; x < width; x++) {
 				*out++ = *in++;
@@ -198,6 +227,13 @@ static Res<Gpu::Image> LoadImage(Str path) {
 			}
 		}
 	}
+
+	Gpu::Image image;
+	if (Res<> r = Gpu::CreateImage(width, height, Gpu::ImageFormat::R8G8B8A8_UNorm, Gpu::ImageUsage::Sampled).To(image); !r) {
+		return r.err;
+	}
+
+	Gpu::ImageBarrier(image, Gpu::Stage::None, Gpu::Stage::TransferDst);
 	Gpu::CopyBufferToImage(stagingBuffer, 0, image);
 	Gpu::ImageBarrier(image, Gpu::Stage::TransferDst, Gpu::Stage::FragmentShaderSample);
 
@@ -280,13 +316,10 @@ Vec2 GetSpriteSize(Sprite sprite) {
 
 //--------------------------------------------------------------------------------------------------
 
-void SetSpriteScale(F32 spriteScaleIn) { spriteScale = spriteScaleIn; }
-void SetUiScale(F32 uiScaleIn) { uiScale = uiScaleIn; }
-
-//--------------------------------------------------------------------------------------------------
-
 void BeginFrame() {
-	drawCmdCount = 0;
+	frameIdx = Gpu::GetFrameIdx();
+
+	drawCmdStagingPtrsCur[frameIdx] = drawCmdStagingPtrs[frameIdx];
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -296,132 +329,141 @@ void EndFrame() {
 
 	const F32 fw = (F32)windowWidth;
 	const F32 fh = (F32)windowHeight;
-
-	const Mat4 spriteProjView = Math::Ortho(
-		-fw / spriteScale / 2.0f,
-		 fw / spriteScale / 2.0f,
-		-fh / spriteScale / 2.0f,
-		 fh / spriteScale / 2.0f,
+	sceneStagingBufferPtrs[frameIdx]->projView = Math::Ortho(
+		-fw / 2.0f,
+		 fw / 2.0f,
+		-fh / 2.0f,
+		 fh / 2.0f,
 		-100.0f,
 		 100.0f
 	);
+	sceneStagingBufferPtrs[frameIdx]->drawCmdBufferAddr = drawCmdBufferAddrs[frameIdx];
+	Gpu::BufferBarrier(sceneBuffers[frameIdx], Gpu::Stage::VertexShaderRead, Gpu::Stage::TransferDst);
+	Gpu::CopyBuffer(sceneStagingBuffers[frameIdx], 0, sceneBuffers[frameIdx], 0, sizeof(Scene));
+	Gpu::BufferBarrier(sceneBuffers[frameIdx], Gpu::Stage::TransferDst, Gpu::Stage::VertexShaderRead);
 
-	const Gpu::StagingMem spriteSceneBufferStagingMem = Gpu::AllocStagingMem(sizeof(Scene));
-	Scene* const spriteScene = (Scene*)spriteSceneBufferStagingMem.ptr;
-	spriteScene->projView          = spriteProjView;
-	spriteScene->drawCmdBufferAddr = spriteDrawCmdBufferAddrs[frameIdx],
-	Gpu::BufferBarrier(spriteSceneBuffers[frameIdx], Gpu::Stage::VertexShaderRead, Gpu::Stage::TransferDst);
-	Gpu::UpdateBuffer(spriteSceneBuffers[frameIdx], 0, spriteSceneBufferStagingMem);
-	Gpu::BufferBarrier(spriteSceneBuffers[frameIdx], Gpu::Stage::TransferDst, Gpu::Stage::VertexShaderRead);
+	Gpu::BufferBarrier(drawCmdBuffers[frameIdx], Gpu::Stage::VertexShaderRead, Gpu::Stage::TransferDst);
+	Gpu::CopyBuffer(drawCmdStagingBuffers[frameIdx], 0, drawCmdBuffers[frameIdx], 0, drawCmdCounts[frameIdx] * sizeof(DrawCmd));
+	Gpu::BufferBarrier(drawCmdBuffers[frameIdx], Gpu::Stage::TransferDst, Gpu::Stage::VertexShaderRead);
 
-	Gpu::BufferBarrier(spriteDrawCmdBuffers[frameIdx], Gpu::Stage::VertexShaderRead, Gpu::Stage::TransferDst);
-	Gpu::UpdateBuffer(spriteDrawCmdBuffers[frameIdx], 0, spriteDrawCmdStagingMem);
-	Gpu::BufferBarrier(spriteDrawCmdBuffers[frameIdx], Gpu::Stage::TransferDst, Gpu::Stage::VertexShaderRead);
-
-	const Gpu::Pass spritePass = {
-		.pipeline         = spritePipeline,
+	const Gpu::Pass pass = {
+		.pipeline         = pipeline,
 		.colorAttachments = { swapchainImage },
 		.depthAttachment  = depthImage,
 		.viewport         = { .x = 0.0f, .y = 0.0f, .w = (F32)windowWidth, .h = (F32)windowHeight },
 		.scissor          = { .x = 0,    .y = 0,    .w = windowWidth,      .h = windowHeight },
 		.clear            = true,
 	};
-	Gpu::BeginPass(&spritePass);
-	PushConstants spritePushConstants = { .sceneBufferAddr = spriteSceneBufferAddrs[frameIdx] };
-	Gpu::PushConstants(spritePipeline, &spritePushConstants, sizeof(spritePushConstants));
-	Gpu::Draw(6, spriteDrawCmdCount);
+	Gpu::BeginPass(&pass);
+	PushConstants pushConstants = { .sceneBufferAddr = sceneBufferAddrs[frameIdx] };
+	Gpu::PushConstants(pipeline, &pushConstants, sizeof(pushConstants));
+	Gpu::Draw(6, drawCmdCounts[frameIdx]);
 	Gpu::EndPass();
+}
 
-	const Mat4 uiProjView = Math::Ortho(
-		-fw / uiScale / 2.0f,
-		 fw / uiScale / 2.0f,
-		-fh / uiScale / 2.0f,
-		 fh / uiScale / 2.0f,
-		-100.0f,
-		 100.0f
-	);
+//--------------------------------------------------------------------------------------------------
 
-	const Gpu::StagingMem uiSceneBufferStagingMem = Gpu::AllocStagingMem(sizeof(Scene));
-	Scene* const uiScene = (Scene*)uiSceneBufferStagingMem.ptr;
-	uiScene->projView          = uiProjView;
-	uiScene->drawCmdBufferAddr = uiDrawCmdBufferAddrs[frameIdx],
-	Gpu::BufferBarrier(uiSceneBuffers[frameIdx], Gpu::Stage::VertexShaderRead, Gpu::Stage::TransferDst);
-	Gpu::UpdateBuffer(uiSceneBuffers[frameIdx], 0, uiSceneBufferStagingMem);
-	Gpu::BufferBarrier(uiSceneBuffers[frameIdx], Gpu::Stage::TransferDst, Gpu::Stage::VertexShaderRead);
+static void AllocStagingMem() {
+	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
+	}
 
-	Gpu::BufferBarrier(uiDrawCmdBuffers[frameIdx], Gpu::Stage::VertexShaderRead, Gpu::Stage::TransferDst);
-	Gpu::UpdateBuffer(uiDrawCmdBuffers[frameIdx], 0, uiDrawCmdStagingMem);
-	Gpu::BufferBarrier(uiDrawCmdBuffers[frameIdx], Gpu::Stage::TransferDst, Gpu::Stage::VertexShaderRead);
+}
 
-	const Gpu::Pass uiPass = {
-		.pipeline         = uiPipeline,
-		.colorAttachments = { swapchainImage },
-		.depthAttachment  = depthImage,
-		.viewport         = { .x = 0.0f, .y = 0.0f, .w = (F32)windowWidth, .h = (F32)windowHeight },
-		.scissor          = { .x = 0,    .y = 0,    .w = windowWidth,      .h = windowHeight },
-		.clear            = false,
-	};
-	Gpu::BeginPass(&uiPass);
-	PushConstants uiPushConstants = { .sceneBufferAddr = uiSceneBufferAddrs[frameIdx] };
-	Gpu::PushConstants(uiPipeline, &uiPushConstants, sizeof(uiPushConstants));
-	Gpu::Draw(6, uiDrawCmdCount);
-	Gpu::EndPass();
+static DrawCmd* AllocDrawCmds(U32 n) {
+	const U32 sizeNeeded = (drawCmdCounts[frameIdx] + n) * sizeof(DrawCmd);
+	if (sizeNeeded > drawCmdStagingBufferSizes[frameIdx]) {
+		U32 newSize = drawCmdStagingBufferSizes[frameIdx] * 2;
+		while (newSize < sizeNeeded && newSize < DrawCmdStagingBufferMaxSize) {
+			newSize *= 2;
+		}
+
+		Gpu::Buffer newBuffer;
+		if (Res<> r = Gpu::CreateBuffer(newSize, Gpu::BufferUsage::Storage).To(newBuffer); !r) {
+			return r.err;
+		}
+
+		Gpu::Buffer newStagingBuffer;
+		if (Res<> r = Gpu::CreateBuffer(newSize, Gpu::BufferUsage::Staging).To(newStagingBuffer); !r) {
+			Gpu::DestroyBuffer(newBuffer);
+			return r.err;
+		}
+
+		const U64 newBufferAddr = Gpu::GetBufferAddr(newBuffer);
+
+		void* newStagingBufferPtr;
+		if (Res<> r = Gpu::MapBuffer(newStagingBuffer, 0, newSize).To(newStagingBufferPtr); !r) {
+			Gpu::DestroyBuffer(newBuffer);
+			Gpu::DestroyBuffer(newStagingBuffer);
+			return r.err;
+		}
+		memcpy(newStagingBufferPtr, drawCmdStagingBufferPtrs[frameIdx], drawCmdCounts[frameIdx] * sizeof(DrawCmd));
+
+		Gpu::DestroyBuffer(drawCmdBuffers[frameIdx]);
+		Gpu::DestroyBuffer(drawCmdStagingBuffers[frameIdx]);
+
+		drawCmdBuffers[frameIdx]            = newBuffer;
+		drawCmdBufferAddrs[frameIdx]        = newBufferAddr;
+		drawCmdStagingBuffers[frameIdx]     = newStagingBuffer;
+		drawCmdStagingBufferPtrs[frameIdx]  = newStagingBufferPtr;
+		drawCmdStagingBufferSizes[frameIdx] = newSize;
+	}
+
+	DrawCmd* const drawCmds = ((DrawCmd*)drawCmdStagingBufferPtrs) + drawCmdCounts[frameIdx];
+	drawCmdCounts[frameIdx] += n;
+
+	return drawCmds;
 }
 
 //--------------------------------------------------------------------------------------------------
 
 void DrawSprite(Sprite sprite, Vec2 pos) {
-	// TODO: dynamically resize the buffer
-	Assert(spriteDrawCmdCount <= MaxSprites);
-
-	SpriteDrawCmd* ptr = ((SpriteDrawCmd*)spriteDrawCmdStagingMem.ptr) + spriteDrawCmdCount;
 	SpriteObj* const spriteObj = &spriteObjs[sprite.handle];
-	*ptr = {
-		.pos        = pos,
-		.uv1        = spriteObj->uv1,
-		.uv2        = spriteObj->uv2,
-		.size       = spriteObj->size,
-		.color      = Vec4(1.0f, 1.0f, 1.0f, 1.0f),
-		.rotation   = 0.0f,
-		.textureIdx = spriteObj->imageIdx,
+	DrawCmd* drawCmd;
+	if (Res<> r = AllocDrawCmds(1) =  {
+		.pos          = pos,
+		.size         = spriteObj->size,
+		.uv1          = spriteObj->uv1,
+		.uv2          = spriteObj->uv2,
+		.color        = Vec4(1.0f, 1.0f, 1.0f, 1.0f),
+		.borderColor  = Vec4(1.0f, 1.0f, 1.0f, 1.0f),
+		.border       = 0.0f,
+		.cornerRadius = 0.0f,
+		.rotation     = 0.0f,
+		.textureIdx   = spriteObj->imageIdx,
 	};
-	spriteDrawCmdCount++;
 }
 
 void DrawSprite(Sprite sprite, Vec2 pos, F32 scale, F32 rotation, Vec4 color) {
-	// TODO: dynamically resize the buffer
-	Assert(spriteDrawCmdCount <= MaxSprites);
-
-	SpriteDrawCmd* ptr = ((SpriteDrawCmd*)spriteDrawCmdStagingMem.ptr) + spriteDrawCmdCount;
 	SpriteObj* const spriteObj = &spriteObjs[sprite.handle];
-	*ptr = {
-		.pos        = pos,
-		.uv1        = spriteObj->uv1,
-		.uv2        = spriteObj->uv2,
-		.size       = Math::Mul(spriteObj->size, scale),
-		.color      = color,
-		.rotation   = rotation,
-		.textureIdx = spriteObj->imageIdx,
+	*AllocDrawCmds(1) =  {
+		.pos          = pos,
+		.size         = spriteObj->size,
+		.uv1          = spriteObj->uv1,
+		.uv2          = spriteObj->uv2,
+		.color        = Vec4(1.0f, 1.0f, 1.0f, 1.0f),
+		.borderColor  = Vec4(1.0f, 1.0f, 1.0f, 1.0f),
+		.border       = 0.0f,
+		.cornerRadius = 0.0f,
+		.rotation     = rotation,
+		.textureIdx   = spriteObj->imageIdx,
 	};
-	spriteDrawCmdCount++;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void DrawRect(Vec2 pos, Vec2 size, Vec4 fillColor, Vec4 borderColor, F32 border, F32 cornerRadius) {
-	// TODO: dynamically resize the buffer
-	Assert(uiDrawCmdCount <= MaxSprites);
-
-	UiDrawCmd* ptr = ((UiDrawCmd*)uiDrawCmdStagingMem.ptr) + uiDrawCmdCount;
-	*ptr = {
+void DrawRect(Vec2 pos, Vec2 size, Vec4 color, Vec4 borderColor, F32 border, F32 cornerRadius) {
+	*AllocDrawCmds(1) =  {
 		.pos          = pos,
 		.size         = size,
-		.fillColor    = fillColor,
+		.uv1          = Vec2(),
+		.uv2          = Vec2(),
+		.color        = color,
 		.borderColor  = borderColor,
 		.border       = border,
-		.cornerRadius = cornerRadius,
+		.cornerRadius = 0.0f,
+		.rotation     = 0.0f,
+		.textureIdx   = 0,
 	};
-	uiDrawCmdCount++;
 }
 
 //--------------------------------------------------------------------------------------------------

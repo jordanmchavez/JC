@@ -202,12 +202,9 @@
     <None Include="Shaders\sprite.common.glsl" />
     <None Include="Shaders\sprite.frag.glsl" />
     <None Include="Shaders\sprite.vert.glsl" />
-    <None Include="Shaders\SpriteCommon.glsl" />
-    <None Include="Shaders\SpriteFrag.glsl" />
-    <None Include="Shaders\SpriteVert.glsl" />
-    <None Include="Shaders\UiCommon.glsl" />
-    <None Include="Shaders\UiFrag.glsl" />
-    <None Include="Shaders\UiVert.glsl" />
+    <None Include="Shaders\Common.glsl" />
+    <None Include="Shaders\Frag.glsl" />
+    <None Include="Shaders\Vert.glsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

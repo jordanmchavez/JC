@@ -953,61 +953,6 @@ static void FreeMem(Mem mem) {
 
 //-------------------------------------------------------------------------------------------------
 
-static Res<BufferObj> CreateBufferInternal(
-	U64                   size,
-	VkBufferUsageFlags    vkBufferUsageFlags,
-	VkMemoryPropertyFlags vkMemoryPropertyFlags,
-	VkMemoryAllocateFlags vkMemoryAllocateFlags
-) {
-	const VkBufferCreateInfo vkBufferCreateInfo = {
-		.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		.pNext                 = 0,
-		.flags                 = 0,
-		.size                  = size,
-		.usage                 = vkBufferUsageFlags,
-		.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-		.queueFamilyIndexCount = 1,
-		.pQueueFamilyIndices   = &physicalDevice->queueFamily,
-	};
-	VkBuffer vkBuffer = VK_NULL_HANDLE;
-	CheckVk(vkCreateBuffer(vkDevice, &vkBufferCreateInfo, vkAllocationCallbacks, &vkBuffer));
-
-	VkMemoryRequirements vkMemoryRequirements = {};
-	vkGetBufferMemoryRequirements(vkDevice, vkBuffer, &vkMemoryRequirements);
-
-	Mem mem = {};
-	if (Res<> r = AllocateMem(vkMemoryRequirements, vkMemoryPropertyFlags, vkMemoryAllocateFlags).To(mem); !r) {
-		vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
-		return r.err;
-	}
-
-	if (const VkResult r = vkBindBufferMemory(vkDevice, vkBuffer, mem.vkDeviceMemory, 0); r != VK_SUCCESS) {
-		vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
-		FreeMem(mem);
-		return Err_Vk(r, "vkBindBufferMemory");
-	}
-
-	U64 addr = 0;
-	if (vkBufferUsageFlags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
-		const VkBufferDeviceAddressInfo vkBufferDeviceAddressInfo = {
-			.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-			.pNext = 0,
-			.buffer = vkBuffer,
-		};
-		addr = vkGetBufferDeviceAddress(vkDevice, &vkBufferDeviceAddressInfo);
-	}
-
-	return BufferObj {
-		.vkBuffer           = vkBuffer,
-		.mem                = mem,
-		.size               = size,
-		.vkBufferUsageFlags = vkBufferUsageFlags,
-		.addr               = addr,
-	};
-}
-
-//----------------------------------------------------------------------------------------------
-
 static Res<> BeginCmds() {
 	CheckVk(vkWaitForFences(vkDevice, 1, &vkFrameFences[frameIdx], VK_TRUE, U64Max));
 	CheckVk(vkResetFences(vkDevice, 1, &vkFrameFences[frameIdx]));
@@ -1155,17 +1100,52 @@ Res<Buffer> CreateBuffer(U64 size, BufferUsage usage) {
 		default: Panic("Unhandled BufferUsage", "usage", usage);
 	};
 
-	const Buffer buffer = bufferObjs.Alloc();
-	BufferObj* const bufferObj = bufferObjs.Get(buffer);
-	if (Res<> r = CreateBufferInternal(
-		size,
-		vkBufferUsageFlags,
-		vkMemoryPropertyFlags,
-		vkMemoryAllocateFlags
-	).To(*bufferObj); !r) {
-		bufferObjs.Free(buffer);
+	const VkBufferCreateInfo vkBufferCreateInfo = {
+		.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.pNext                 = 0,
+		.flags                 = 0,
+		.size                  = size,
+		.usage                 = vkBufferUsageFlags,
+		.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
+		.queueFamilyIndexCount = 1,
+		.pQueueFamilyIndices   = &physicalDevice->queueFamily,
+	};
+	VkBuffer vkBuffer = VK_NULL_HANDLE;
+	CheckVk(vkCreateBuffer(vkDevice, &vkBufferCreateInfo, vkAllocationCallbacks, &vkBuffer));
+
+	VkMemoryRequirements vkMemoryRequirements = {};
+	vkGetBufferMemoryRequirements(vkDevice, vkBuffer, &vkMemoryRequirements);
+
+	Mem mem = {};
+	if (Res<> r = AllocateMem(vkMemoryRequirements, vkMemoryPropertyFlags, vkMemoryAllocateFlags).To(mem); !r) {
+		vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
 		return r.err;
 	}
+
+	if (const VkResult r = vkBindBufferMemory(vkDevice, vkBuffer, mem.vkDeviceMemory, 0); r != VK_SUCCESS) {
+		vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
+		FreeMem(mem);
+		return Err_Vk(r, "vkBindBufferMemory");
+	}
+
+	U64 addr = 0;
+	if (vkBufferUsageFlags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+		const VkBufferDeviceAddressInfo vkBufferDeviceAddressInfo = {
+			.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+			.pNext = 0,
+			.buffer = vkBuffer,
+		};
+		addr = vkGetBufferDeviceAddress(vkDevice, &vkBufferDeviceAddressInfo);
+	}
+
+	const Buffer buffer = bufferObjs.Alloc();
+	*bufferObjs.Get(buffer) = {
+		.vkBuffer           = vkBuffer,
+		.mem                = mem,
+		.size               = size,
+		.vkBufferUsageFlags = vkBufferUsageFlags,
+		.addr               = addr,
+	};
 
 	return buffer;
 }

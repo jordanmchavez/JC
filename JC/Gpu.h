@@ -76,17 +76,10 @@ struct Pass {
 	bool        clear            = false;
 };
 
-struct StagingMem {
-	void* ptr;
-	U64   size;
-};
-
 Res<>         Init(const InitDesc* initDesc);
 void          Shutdown();
 void          WaitIdle();
 void          DebugBarrier();
-
-StagingMem    AllocStagingMem(U64 size);
 
 Res<>         RecreateSwapchain(U32 width, U32 height);
 Image         GetSwapchainImage();
