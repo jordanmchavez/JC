@@ -85,8 +85,7 @@ struct ParticleEmitter {
 };
 
 struct Game : App {
-	static constexpr F32 VirtualScreenWidth  = 800.0f;
-	static constexpr F32 VirtualScreenHeight = 900.0f;
+	static constexpr Vec2 PlayAreaVirtualSize = { 800.0f, 900.0f };
 	static constexpr F32 SpriteScale = 8.0f;
 	static constexpr F32 ShipFireCooldown = 0.2f;
 
@@ -209,7 +208,7 @@ struct Game : App {
 		if (Res<> r = Render::GetSprite("Bullet").To(bulletSprite); !r) { return r; }
 
 		ship.size = Render::GetSpriteSize(ship.spriteNotMoving);
-		ship.speed = { 80.0f, 80.0f };
+		ship.speed = { 300.0f, 300.0f };
 		ship.sprite = &ship.spriteNotMoving;
 		
 		bulletSize = Render::GetSpriteSize(bulletSprite);
@@ -311,16 +310,16 @@ struct Game : App {
 			UpdateParticleEmitter(fsecs, &particleEmitters[i]);
 		}
 
-		ship.pos.x = Clamp(ship.pos.x, 0.0f, VirtualScreenWidth);
-		ship.pos.y = Clamp(ship.pos.y, 0.0f, VirtualScreenHeight);
+		ship.pos.x = Clamp(ship.pos.x, 0.0f, PlayAreaVirtualSize.x);
+		ship.pos.y = Clamp(ship.pos.y, 0.0f, PlayAreaVirtualSize.y);
 
 		for (U64 i = 0; i < bullets.len; ) {
 			Bullet* b = &bullets[i];
 			if (
 				b->pos.x < 0.0f ||
-				b->pos.x > VirtualScreenWidth ||
+				b->pos.x > PlayAreaVirtualSize.x ||
 				b->pos.y < 0.0f ||
-				b->pos.y > VirtualScreenHeight
+				b->pos.y > PlayAreaVirtualSize.y
 			) {
 				bullets.RemoveUnordered(i);
 				continue;
@@ -334,8 +333,8 @@ struct Game : App {
 		}
 
 		Vec2 dPos;
-		if (keyDown[(U32)Event::Key::W]) { dPos.y += fsecs * ship.speed.y; }
-		if (keyDown[(U32)Event::Key::S]) { dPos.y -= fsecs * ship.speed.y; }
+		if (keyDown[(U32)Event::Key::W]) { dPos.y -= fsecs * ship.speed.y; }
+		if (keyDown[(U32)Event::Key::S]) { dPos.y += fsecs * ship.speed.y; }
 		if (keyDown[(U32)Event::Key::A]) { dPos.x -= fsecs * ship.speed.x; }
 		if (keyDown[(U32)Event::Key::D]) { dPos.x += fsecs * ship.speed.x; }
 		ship.pos= Math::Add(ship.pos, dPos);
@@ -374,12 +373,17 @@ struct Game : App {
 
 		Render::BeginFrame();
 
-		const Vec2 origin = { 00.0f, 0.0f };
+		const Vec2 origin = { 100.0f, 50.0f };
 		Vec2 pos = origin;
 
-		Render::DrawRect(origin, { VirtualScreenWidth, VirtualScreenHeight }, { 0.1f, 0.2f, 0.05f, 1.0f }, Vec4(), 0.0f, 0.0f);
+		const Vec2 PlayAreaSize = { windowWidth / 2.0f, windowHeight - 100.0f };
+		Render::DrawRect(origin, PlayAreaSize, { 0.1f, 0.2f, 0.05f, 1.0f }, Vec4(), 0.0f, 0.0f);
 
-		Render::DrawSprite(*ship.sprite, Math::Add(origin, ship.pos), SpriteScale, 0.0f, Vec4(1.0f, 1.0f, 1.0f, 1.0f));
+		Vec2 finalPos = {
+			(ship.pos.x * PlayAreaSize.x / PlayAreaVirtualSize.x) + origin.x,
+			(ship.pos.y * PlayAreaSize.y / PlayAreaVirtualSize.y) + origin.y,
+		};
+		Render::DrawSprite(*ship.sprite, finalPos, SpriteScale, 0.0f, Vec4(1.0f, 1.0f, 1.0f, 1.0f));
 
 		for (U64 i = 0; i < bullets.len; i++) {
 			Render::DrawSprite(bulletSprite, bullets[i].pos);
