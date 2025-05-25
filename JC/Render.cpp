@@ -317,18 +317,12 @@ void BeginFrame() {
 void EndFrame() {
 	const Gpu::Image swapchainImage = Gpu::GetSwapchainImage();
 
-	const F32 fw = (F32)windowWidth;
-	const F32 fh = (F32)windowHeight;
-
 	StagingMem sceneStagingMem = AllocStagingMem(sizeof(Scene));
 	Scene* scene = (Scene*)sceneStagingMem.ptr;
 	scene->projView = Math::Ortho(
-		-fw / 2.0f,
-		 fw / 2.0f,
-		-fh / 2.0f,
-		 fh / 2.0f,
-		-100.0f,
-		 100.0f
+		0.0f, (F32)windowWidth,
+		(F32)windowHeight, 0.0f,
+		-100.0f, 100.0f
 	);
 	scene->drawCmdBufferAddr = drawCmdBufferAddrs[frameIdx];
 	Gpu::BufferBarrier(sceneBuffers[frameIdx], Gpu::Stage::VertexShaderRead, Gpu::Stage::TransferDst);
@@ -340,7 +334,7 @@ void EndFrame() {
 	Gpu::BufferBarrier(drawCmdBuffers[frameIdx], Gpu::Stage::TransferDst, Gpu::Stage::VertexShaderRead);
 
 	const Gpu::Pass pass = {
-			.pipeline         = pipeline,
+		.pipeline         = pipeline,
 		.colorAttachments = { swapchainImage },
 		.depthAttachment  = depthImage,
 		.viewport         = { .x = 0.0f, .y = 0.0f, .w = (F32)windowWidth, .h = (F32)windowHeight },

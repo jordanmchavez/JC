@@ -14,35 +14,25 @@ layout (location = 5) flat out float borderOut;
 layout (location = 6) flat out float cornerRadiusOut;
 layout (location = 7) flat out uint  textureIdxOut;
 
-vec2 posOffsets[6] = vec2[6](
-	vec2(-0.5f,  0.5f),
-	vec2( 0.5f,  0.5f),
-	vec2( 0.5f, -0.5f),
-	vec2( 0.5f, -0.5f),
-	vec2(-0.5f, -0.5f),
-	vec2(-0.5f,  0.5f)
-);
-
-vec2 uvOffsets[6] = vec2[6](
+vec2 offsets[6] = vec2[6](
 	vec2(0.0f, 0.0f),
-	vec2(1.0f, 0.0f),
-	vec2(1.0f, 1.0f),
-	vec2(1.0f, 1.0f),
 	vec2(0.0f, 1.0f),
+	vec2(1.0f, 1.0f),
+	vec2(1.0f, 1.0f),
+	vec2(1.0f, 0.0f),
 	vec2(0.0f, 0.0f)
 );
 
 void main() {
 	DrawCmd drawCmd = pushConstants.sceneBuffer.drawCmdBuffer.drawCmds[gl_InstanceIndex];
 	uint idx = gl_VertexIndex % 6;
-	vec2 offset = posOffsets[idx];
+	vec2 offset = offsets[idx];
 	vec2 worldPos = drawCmd.pos + (offset * drawCmd.size);
 	gl_Position = pushConstants.sceneBuffer.projView * vec4(worldPos, 0.0f, 1.0f);
-	
-	vec2 uvOffset = uvOffsets[idx];
+
 	uvOut = vec2(
-		drawCmd.uv1.x * (1.0f - uvOffset.x) + (drawCmd.uv2.x * uvOffset.x),
-		drawCmd.uv1.y * (1.0f - uvOffset.y) + (drawCmd.uv2.y * uvOffset.y)
+		drawCmd.uv1.x * (1.0f - offset.x) + (drawCmd.uv2.x * offset.x),
+		drawCmd.uv1.y * (1.0f - offset.y) + (drawCmd.uv2.y * offset.y)
 	);
 	sdfPosOut       = offset * drawCmd.size;
 	halfRectOut     = drawCmd.size / 2.0f;

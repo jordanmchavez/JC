@@ -2,7 +2,6 @@
 
 #include "JC/Core.h"
 
-
 namespace JC::Log { struct Logger; } 
 namespace JC::Event { struct Event; }
 namespace JC::Window { struct State; }
@@ -12,6 +11,12 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 struct App {
+	static constexpr Str Cfg_Title        = "App.Title";
+	static constexpr Str Cfg_WindowStyle  = "App.WindowStyle";
+	static constexpr Str Cfg_WindowWidth  = "App.WindowWidth";
+	static constexpr Str Cfg_WindowHeight = "App.WindowHeight";
+	static constexpr Str Cfg_DisplayIdx   = "App.DisplayIdx";
+	
 	virtual Res<> PreInit(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, Log::Logger* logger) = 0;
 	virtual Res<> Init(const Window::State* windowState) = 0;
 	virtual void  Shutdown() = 0;

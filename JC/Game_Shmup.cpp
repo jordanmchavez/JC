@@ -1,5 +1,6 @@
 #include "JC/App.h"
 #include "JC/Array.h"
+#include "JC/Config.h"
 #include "JC/Event.h"
 #include "JC/Fmt.h"
 #include "JC/Gpu.h"
@@ -83,13 +84,11 @@ struct ParticleEmitter {
 	F32                         emitAccum;
 };
 
-
 struct Game : App {
+	static constexpr F32 VirtualScreenWidth  = 800.0f;
+	static constexpr F32 VirtualScreenHeight = 900.0f;
 	static constexpr F32 SpriteScale = 8.0f;
 	static constexpr F32 ShipFireCooldown = 0.2f;
-	static constexpr U32 EngineSpriteCount = 4;
-	static constexpr F32 EngineSpriteCooldown = 0.1f;
-
 
 	struct Ship {
 		Vec2            pos                              = {};
@@ -100,10 +99,6 @@ struct Game : App {
 		Render::Sprite  spriteMovingLeft                 = {};
 		Render::Sprite  spriteMovingRight                = {};
 		Render::Sprite* sprite                           = 0;
-		Render::Sprite  engineSprites[EngineSpriteCount] = {};
-		Vec2            engineSizes[EngineSpriteCount]   = {};
-		U32             engineSpriteIdx      = 0;
-		F32             engineSpriteCooldown = 0.0f;
 	};
 
 	struct Bullet {
@@ -196,6 +191,10 @@ struct Game : App {
 		allocator     = allocatorIn;
 		tempAllocator = tempAllocatorIn;
 		logger        = loggerIn;
+		Config::SetStr(App::Cfg_Title,        "Shmup");
+		Config::SetU32(App::Cfg_WindowStyle,  (U32)Window::Style::BorderedResizable);
+		Config::SetU32(App::Cfg_WindowWidth,  1920);
+		Config::SetU32(App::Cfg_WindowHeight, 1080);
 		return Ok();
 	}
 
@@ -207,18 +206,12 @@ struct Game : App {
 		if (Res<> r = Render::GetSprite("Ship1").To(ship.spriteNotMoving);   !r) { return r; }
 		if (Res<> r = Render::GetSprite("Ship1Left").To(ship.spriteMovingLeft);  !r) { return r; }
 		if (Res<> r = Render::GetSprite("Ship1Right").To(ship.spriteMovingRight); !r) { return r; }
-		for (U32 i = 0; i < EngineSpriteCount; i++) {
-			if (Res<> r = Render::GetSprite(Fmt::Printf(tempAllocator, "Engine{}", i + 1)).To(ship.engineSprites[i]); !r) { return r; }
-			ship.engineSizes[i] = Render::GetSpriteSize(ship.engineSprites[i]);
-		}
 		if (Res<> r = Render::GetSprite("Bullet").To(bulletSprite); !r) { return r; }
 
 		ship.size = Render::GetSpriteSize(ship.spriteNotMoving);
 		ship.speed = { 80.0f, 80.0f };
 		ship.sprite = &ship.spriteNotMoving;
 		
-		ship.engineSpriteIdx = 0;
-
 		bulletSize = Render::GetSpriteSize(bulletSprite);
 
 		bullets.Init(allocator);
@@ -318,27 +311,16 @@ struct Game : App {
 			UpdateParticleEmitter(fsecs, &particleEmitters[i]);
 		}
 
-		const F32 boundL = -windowWidth  / SpriteScale;
-		const F32 boundR =  windowWidth  / SpriteScale;
-		const F32 boundB = -windowHeight / SpriteScale;
-		const F32 boundT =  windowHeight / SpriteScale;
-
-		ship.pos.x = Clamp(ship.pos.x, boundL + ship.size.x / 2.0f, boundR - ship.size.x / 2.0f);
-		ship.pos.y = Clamp(ship.pos.y, boundB + ship.size.x / 2.0f, boundT - ship.size.x / 2.0f);
-
-		ship.engineSpriteCooldown -= fsecs;
-		if (ship.engineSpriteCooldown < 0.0f) {
-			ship.engineSpriteCooldown = EngineSpriteCooldown;
-			ship.engineSpriteIdx = (ship.engineSpriteIdx + 1) % LenOf(ship.engineSprites);
-		}
+		ship.pos.x = Clamp(ship.pos.x, 0.0f, VirtualScreenWidth);
+		ship.pos.y = Clamp(ship.pos.y, 0.0f, VirtualScreenHeight);
 
 		for (U64 i = 0; i < bullets.len; ) {
 			Bullet* b = &bullets[i];
 			if (
-				b->pos.x  < boundL + bulletSize.x / 2.0f ||
-				b->pos.x >= boundR - bulletSize.x / 2.0f ||
-				b->pos.y  < boundB + bulletSize.y / 2.0f ||
-				b->pos.y >= boundT - bulletSize.y / 2.0f
+				b->pos.x < 0.0f ||
+				b->pos.x > VirtualScreenWidth ||
+				b->pos.y < 0.0f ||
+				b->pos.y > VirtualScreenHeight
 			) {
 				bullets.RemoveUnordered(i);
 				continue;
@@ -392,21 +374,20 @@ struct Game : App {
 
 		Render::BeginFrame();
 
-		Render::DrawSprite(*ship.sprite, ship.pos, SpriteScale, 0.0f, Vec4(1.0f, 1.0f, 1.0f, 1.0f));
+		const Vec2 origin = { 00.0f, 0.0f };
+		Vec2 pos = origin;
 
-		//for (U64 i = 0; i < bullets.len; i++) {
-		//	Render::DrawSprite(bulletSprite, bullets[i].pos);
-		//}
+		Render::DrawRect(origin, { VirtualScreenWidth, VirtualScreenHeight }, { 0.1f, 0.2f, 0.05f, 1.0f }, Vec4(), 0.0f, 0.0f);
+
+		Render::DrawSprite(*ship.sprite, Math::Add(origin, ship.pos), SpriteScale, 0.0f, Vec4(1.0f, 1.0f, 1.0f, 1.0f));
+
+		for (U64 i = 0; i < bullets.len; i++) {
+			Render::DrawSprite(bulletSprite, bullets[i].pos);
+		}
 
 		for (U64 i = 0; i < particleTypes.len; i++) {
 			DrawParticleType(&particleTypes[i]);
 		}
-
-		Vec4 fillColor    = { 0.0f, 25.0f / 255.0f, 35.0f / 255.0f, 1.0f };
-		Vec4 borderColor  = { 0.0f, 47.0f / 255.0f, 63.0f / 255.0f, 1.0f };
-		F32  border       = 0.5f;
-		F32  cornerRadius = 6.0f;
-		Render::DrawRect({0.0f, 0.0f}, {200.0f, 80.0f}, fillColor, borderColor, border, cornerRadius);
 
 		Render::EndFrame();
 

@@ -88,15 +88,15 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		return r.err.Push(Err_Init());
 	}
 
-	const Window::Style windowStyle = (Window::Style)Config::GetU32("App.WindowStyle", (U32)Window::Style::BorderedResizable);
+	const Window::Style windowStyle = (Window::Style)Config::GetU32(App::Cfg_WindowStyle, (U32)Window::Style::BorderedResizable);
 	Window::InitDesc windowInitDesc = {
 		.tempAllocator = tempAllocator,
 		.logger        = logger,
-		.title         = Config::GetStr("App.WindowTitle", "Untitled"),
+		.title         = Config::GetStr(App::Cfg_Title, "Untitled"),
 		.style         = windowStyle,
-		.width         = windowStyle == Window::Style::Fullscreen ? 0 : Config::GetU32("App.WindowWidth",  1600),
-		.height        = windowStyle == Window::Style::Fullscreen ? 0 : Config::GetU32("App.WindowHeight", 1200),
-		.displayIdx    = Config::GetU32("App.DisplayIdx", 0),
+		.width         = windowStyle == Window::Style::Fullscreen ? 0 : Config::GetU32(App::Cfg_WindowWidth,  1600),
+		.height        = windowStyle == Window::Style::Fullscreen ? 0 : Config::GetU32(App::Cfg_WindowHeight, 1200),
+		.displayIdx    = Config::GetU32(App::Cfg_DisplayIdx, 0),
 	};
 	if (Res<> r = Window::Init(&windowInitDesc); !r) {
 		return r.err.Push(Err_Init());
