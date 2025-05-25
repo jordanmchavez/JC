@@ -1,8 +1,9 @@
 #include "JC/Render.h"
 
 #include "JC/Array.h"
-#include "JC/Gpu.h"
+#include "JC/Bit.h"
 #include "JC/File.h"
+#include "JC/Gpu.h"
 #include "JC/Hash.h"
 #include "JC/Json.h"
 #include "JC/Log.h"
@@ -53,70 +54,40 @@ struct DrawCmd {
 	U32  textureIdx;
 };
 
+struct StagingMem {
+	void* ptr;
+	U32   offset;
+	U32   size;
+};
+
 //--------------------------------------------------------------------------------------------------
 
 static constexpr U32 MaxDrawCmds = 1 * 1024 * 1024;
-
-struct DBuffer {
-	U32         size;
-	Gpu::Buffer buffers[Gpu::MaxFrames];
-	U64         bufferAddrs[Gpu::MaxFrames];
-	Gpu::Buffer stagingBuffers[Gpu::MaxFrames];
-	void*       stagingPtrs[Gpu::MaxFrames];
-};
+static constexpr U32 StagingBufferSize = 128 * 1024 * 1024;
 
 static Mem::Allocator*     allocator;
 static Mem::TempAllocator* tempAllocator;
 static Log::Logger*        logger;
 static U32                 windowWidth;
 static U32                 windowHeight;
+static U64                 frame;
 static U32                 frameIdx;
 static Gpu::Image          depthImage;
 static Gpu::Shader         vertexShader;
 static Gpu::Shader         fragmentShader;
 static Gpu::Pipeline       pipeline;
-static DBuffer             sceneBuffer;
-static DBuffer             drawCmdBuffer;
-static U64                 drawCmdCount;
+static Gpu::Buffer         stagingBuffers[Gpu::MaxFrames];
+static void*               stagingBufferPtrs[Gpu::MaxFrames];
+static U32                 stagingBufferUsed[Gpu::MaxFrames];
+static Gpu::Buffer         sceneBuffers[Gpu::MaxFrames];
+static U64                 sceneBufferAddrs[Gpu::MaxFrames];
+static Gpu::Buffer         drawCmdBuffers[Gpu::MaxFrames];
+static U64                 drawCmdBufferAddrs[Gpu::MaxFrames];
+static StagingMem          drawCmdStagingMem;
+static U32                 drawCmdCount;
 static Array<Gpu::Image>   spriteImages;
 static Array<SpriteObj>    spriteObjs;
 static Map<Str, U32>       spriteObjsByName;
-
-//--------------------------------------------------------------------------------------------------
-
-void DestroyDBuffer(DBuffer dbuffer) {
-	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		Gpu::DestroyBuffer(dbuffer.buffers[i]);
-		Gpu::DestroyBuffer(dbuffer.stagingBuffers[i]);
-	}
-};
-
-static Res<DBuffer> CreateDBuffer(U32 size) {
-	DBuffer dbuffer;
-	dbuffer.size = size;
-	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		if (Res<> r = Gpu::CreateBuffer(size, Gpu::BufferUsage::Storage).To(dbuffer.buffers[i]); !r) {
-			DestroyDBuffer(dbuffer);
-			return r.err;
-		}
-		dbuffer.bufferAddrs[i] = Gpu::GetBufferAddr(dbuffer.buffers[i]);
-		if (Res<> r = Gpu::CreateBuffer(size, Gpu::BufferUsage::Staging).To(dbuffer.stagingBuffers[i]); !r) {
-			DestroyDBuffer(dbuffer);
-			return r.err;
-		}
-		if (Res<> r = Gpu::MapBuffer(dbuffer.stagingBuffers[i], 0, size).To(dbuffer.stagingPtrs[i]); !r) {
-			DestroyDBuffer(dbuffer);
-			return r.err;
-		}
-	}
-	return dbuffer;
-}
-
-static void FillDBuffer(DBuffer* dbuffer, U32 size) {
-	Gpu::BufferBarrier(dbuffer->buffers[frameIdx], Gpu::Stage::VertexShaderRead, Gpu::Stage::TransferDst);
-	Gpu::CopyBuffer(dbuffer->stagingBuffers[frameIdx], 0, dbuffer->buffers[frameIdx], 0, (U64)size);
-	Gpu::BufferBarrier(dbuffer->buffers[frameIdx], Gpu::Stage::TransferDst, Gpu::Stage::VertexShaderRead);
-}
 
 //--------------------------------------------------------------------------------------------------
 
@@ -134,19 +105,29 @@ Res<> Init(const InitDesc* initDesc) {
 	logger        = initDesc->logger;
 	windowWidth   = initDesc->windowWidth;
 	windowHeight  = initDesc->windowHeight;
+	frameIdx      = 0;
+
+	if (Res<> r = Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::DepthAttachment).To(depthImage); !r) { return r; }
+	if (Res<> r = LoadShader("Shaders/Vert.spv").To(vertexShader); !r) { return r; }
+	if (Res<> r = LoadShader("Shaders/Frag.spv").To(fragmentShader); !r) { return r; }
+	if (Res<> r = Gpu::CreateGraphicsPipeline({ vertexShader, fragmentShader }, { Gpu::GetImageFormat(Gpu::GetSwapchainImage()) }, Gpu::ImageFormat::D32_Float).To(pipeline); !r) { return r; }
+
+	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
+		if (Res<> r = Gpu::CreateBuffer(StagingBufferSize, Gpu::BufferUsage::Staging).To(stagingBuffers[i]); !r) { return r.err; }
+		if (Res<> r = Gpu::MapBuffer(stagingBuffers[i], 0, 0).To(stagingBufferPtrs[i]); !r) { return r.err; }
+
+		if (Res<> r = Gpu::CreateBuffer(sizeof(Scene), Gpu::BufferUsage::Storage).To(sceneBuffers[i]); !r) { return r.err; }
+		sceneBufferAddrs[i] = Gpu::GetBufferAddr(sceneBuffers[i]);
+
+		if (Res<> r = Gpu::CreateBuffer(MaxDrawCmds * sizeof(DrawCmd), Gpu::BufferUsage::Storage).To(drawCmdBuffers[i]); !r) { return r.err; }
+		drawCmdBufferAddrs[i] = Gpu::GetBufferAddr(drawCmdBuffers[i]);
+
+	}
 
 	spriteImages.Init(allocator);
 	spriteObjs.Init(allocator);
 	spriteObjs.Add(SpriteObj{});	// reserve 0 for invalid
 	spriteObjsByName.Init(allocator);
-
-	if (Res<> r = Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::DepthAttachment).To(depthImage); !r) { return r; }
-
-	if (Res<> r = LoadShader("Shaders/Vert.spv").To(vertexShader); !r) { return r; }
-	if (Res<> r = LoadShader("Shaders/Frag.spv").To(fragmentShader); !r) { return r; }
-	if (Res<> r = Gpu::CreateGraphicsPipeline({ vertexShader, fragmentShader }, { Gpu::GetImageFormat(Gpu::GetSwapchainImage()) }, Gpu::ImageFormat::D32_Float).To(pipeline); !r) { return r; }
-	if (Res<> r = CreateDBuffer(sizeof(Scene)).To(sceneBuffer); !r) { return r; }
-	if (Res<> r = CreateDBuffer(MaxDrawCmds * sizeof(DrawCmd)).To(drawCmdBuffer); !r) { return r; }
 
 	return Ok();
 }
@@ -157,8 +138,11 @@ void Shutdown() {
 	for (U64 i = 0; i < spriteImages.len; i++) {
 		Gpu::DestroyImage(spriteImages[i]);
 	}
-	DestroyDBuffer(sceneBuffer);
-	DestroyDBuffer(drawCmdBuffer);
+	for (U64 i = 0; i < Gpu::MaxFrames; i++) {
+		Gpu::DestroyBuffer(stagingBuffers[i]);
+		Gpu::DestroyBuffer(sceneBuffers[i]);
+		Gpu::DestroyBuffer(drawCmdBuffers[i]);
+	}
 	Gpu::DestroyPipeline(pipeline);
 	Gpu::DestroyShader(vertexShader);
 	Gpu::DestroyShader(fragmentShader);
@@ -186,6 +170,20 @@ Res<> WindowResized(U32 inWindowWidth, U32 inWindowHeight) {
 
 //--------------------------------------------------------------------------------------------------
 
+static StagingMem AllocStagingMem(U32 size) {
+	stagingBufferUsed[frameIdx] = (U32)Bit::AlignUp(stagingBufferUsed[frameIdx], 8);
+	const U32 offset = stagingBufferUsed[frameIdx];
+	stagingBufferUsed[frameIdx] += size;
+	Assert(stagingBufferUsed[frameIdx] < StagingBufferSize);
+	return StagingMem {
+		.ptr    = ((U8*)stagingBufferPtrs[frameIdx]) + offset,
+		.offset = offset,
+		.size   = size,
+	};
+}
+
+//--------------------------------------------------------------------------------------------------
+
 static Res<Gpu::Image> LoadImage(Str path) {
 	Span<U8> data;
 	if (Res<> r = File::ReadAll(Mem::tempAllocator, path).To(data); !r) { return r.err; }
@@ -200,24 +198,14 @@ static Res<Gpu::Image> LoadImage(Str path) {
 	if (channels != 3 && channels != 4) {
 		return Err_ImageFmt("path", path, "channels", channels);
 	}
-	Defer { stbi_image_free(imageData); };
 
-	Gpu::Buffer stagingBuffer;
-	if (Res<> r = Gpu::CreateBuffer(width * height * 4, Gpu::BufferUsage::Staging).To(stagingBuffer); !r) {
-		return r.err;
-	}
-	Defer { Gpu::DestroyBuffer(stagingBuffer); };
-
-	void* stagingPtr;
-	if (Res<> r = Gpu::MapBuffer(stagingBuffer, 0, 0).To(stagingPtr); !r) {
-		return r.err;
-	}
+	const StagingMem stagingMem = AllocStagingMem(width * height * 4);
 
 	if (channels == 4) {
-		memcpy(stagingPtr, imageData, width * height * channels);
+		memcpy(stagingMem.ptr, imageData, width * height * channels);
 	} else {
 		U8* in = imageData;
-		U8* out = (U8*)stagingPtr;
+		U8* out = (U8*)stagingMem.ptr;
 		for (int y = 0; y < height; y++) {
 			for (int x = 0; x < width; x++) {
 				*out++ = *in++;
@@ -227,6 +215,7 @@ static Res<Gpu::Image> LoadImage(Str path) {
 			}
 		}
 	}
+	stbi_image_free(imageData);
 
 	Gpu::Image image;
 	if (Res<> r = Gpu::CreateImage(width, height, Gpu::ImageFormat::R8G8B8A8_UNorm, Gpu::ImageUsage::Sampled).To(image); !r) {
@@ -234,7 +223,7 @@ static Res<Gpu::Image> LoadImage(Str path) {
 	}
 
 	Gpu::ImageBarrier(image, Gpu::Stage::None, Gpu::Stage::TransferDst);
-	Gpu::CopyBufferToImage(stagingBuffer, 0, image);
+	Gpu::CopyBufferToImage(stagingBuffers[frameIdx], stagingMem.offset, image);
 	Gpu::ImageBarrier(image, Gpu::Stage::TransferDst, Gpu::Stage::FragmentShaderSample);
 
 	return image;
@@ -317,9 +306,10 @@ Vec2 GetSpriteSize(Sprite sprite) {
 //--------------------------------------------------------------------------------------------------
 
 void BeginFrame() {
+	frame++;
 	frameIdx = Gpu::GetFrameIdx();
-
-	drawCmdStagingPtrsCur[frameIdx] = drawCmdStagingPtrs[frameIdx];
+	drawCmdStagingMem = AllocStagingMem(MaxDrawCmds * sizeof(DrawCmd));
+	drawCmdCount = 0;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -329,7 +319,10 @@ void EndFrame() {
 
 	const F32 fw = (F32)windowWidth;
 	const F32 fh = (F32)windowHeight;
-	sceneStagingBufferPtrs[frameIdx]->projView = Math::Ortho(
+
+	StagingMem sceneStagingMem = AllocStagingMem(sizeof(Scene));
+	Scene* scene = (Scene*)sceneStagingMem.ptr;
+	scene->projView = Math::Ortho(
 		-fw / 2.0f,
 		 fw / 2.0f,
 		-fh / 2.0f,
@@ -337,17 +330,17 @@ void EndFrame() {
 		-100.0f,
 		 100.0f
 	);
-	sceneStagingBufferPtrs[frameIdx]->drawCmdBufferAddr = drawCmdBufferAddrs[frameIdx];
+	scene->drawCmdBufferAddr = drawCmdBufferAddrs[frameIdx];
 	Gpu::BufferBarrier(sceneBuffers[frameIdx], Gpu::Stage::VertexShaderRead, Gpu::Stage::TransferDst);
-	Gpu::CopyBuffer(sceneStagingBuffers[frameIdx], 0, sceneBuffers[frameIdx], 0, sizeof(Scene));
+	Gpu::CopyBuffer(stagingBuffers[frameIdx], sceneStagingMem.offset, sceneBuffers[frameIdx], 0, sceneStagingMem.size);
 	Gpu::BufferBarrier(sceneBuffers[frameIdx], Gpu::Stage::TransferDst, Gpu::Stage::VertexShaderRead);
 
 	Gpu::BufferBarrier(drawCmdBuffers[frameIdx], Gpu::Stage::VertexShaderRead, Gpu::Stage::TransferDst);
-	Gpu::CopyBuffer(drawCmdStagingBuffers[frameIdx], 0, drawCmdBuffers[frameIdx], 0, drawCmdCounts[frameIdx] * sizeof(DrawCmd));
+	Gpu::CopyBuffer(stagingBuffers[frameIdx], drawCmdStagingMem.offset, drawCmdBuffers[frameIdx], 0, drawCmdCount * sizeof(DrawCmd));
 	Gpu::BufferBarrier(drawCmdBuffers[frameIdx], Gpu::Stage::TransferDst, Gpu::Stage::VertexShaderRead);
 
 	const Gpu::Pass pass = {
-		.pipeline         = pipeline,
+			.pipeline         = pipeline,
 		.colorAttachments = { swapchainImage },
 		.depthAttachment  = depthImage,
 		.viewport         = { .x = 0.0f, .y = 0.0f, .w = (F32)windowWidth, .h = (F32)windowHeight },
@@ -357,69 +350,24 @@ void EndFrame() {
 	Gpu::BeginPass(&pass);
 	PushConstants pushConstants = { .sceneBufferAddr = sceneBufferAddrs[frameIdx] };
 	Gpu::PushConstants(pipeline, &pushConstants, sizeof(pushConstants));
-	Gpu::Draw(6, drawCmdCounts[frameIdx]);
+	Gpu::Draw(6, (U32)drawCmdCount);
 	Gpu::EndPass();
+
+	stagingBufferUsed[frameIdx] = 0;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static void AllocStagingMem() {
-	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-	}
-
-}
-
-static DrawCmd* AllocDrawCmds(U32 n) {
-	const U32 sizeNeeded = (drawCmdCounts[frameIdx] + n) * sizeof(DrawCmd);
-	if (sizeNeeded > drawCmdStagingBufferSizes[frameIdx]) {
-		U32 newSize = drawCmdStagingBufferSizes[frameIdx] * 2;
-		while (newSize < sizeNeeded && newSize < DrawCmdStagingBufferMaxSize) {
-			newSize *= 2;
-		}
-
-		Gpu::Buffer newBuffer;
-		if (Res<> r = Gpu::CreateBuffer(newSize, Gpu::BufferUsage::Storage).To(newBuffer); !r) {
-			return r.err;
-		}
-
-		Gpu::Buffer newStagingBuffer;
-		if (Res<> r = Gpu::CreateBuffer(newSize, Gpu::BufferUsage::Staging).To(newStagingBuffer); !r) {
-			Gpu::DestroyBuffer(newBuffer);
-			return r.err;
-		}
-
-		const U64 newBufferAddr = Gpu::GetBufferAddr(newBuffer);
-
-		void* newStagingBufferPtr;
-		if (Res<> r = Gpu::MapBuffer(newStagingBuffer, 0, newSize).To(newStagingBufferPtr); !r) {
-			Gpu::DestroyBuffer(newBuffer);
-			Gpu::DestroyBuffer(newStagingBuffer);
-			return r.err;
-		}
-		memcpy(newStagingBufferPtr, drawCmdStagingBufferPtrs[frameIdx], drawCmdCounts[frameIdx] * sizeof(DrawCmd));
-
-		Gpu::DestroyBuffer(drawCmdBuffers[frameIdx]);
-		Gpu::DestroyBuffer(drawCmdStagingBuffers[frameIdx]);
-
-		drawCmdBuffers[frameIdx]            = newBuffer;
-		drawCmdBufferAddrs[frameIdx]        = newBufferAddr;
-		drawCmdStagingBuffers[frameIdx]     = newStagingBuffer;
-		drawCmdStagingBufferPtrs[frameIdx]  = newStagingBufferPtr;
-		drawCmdStagingBufferSizes[frameIdx] = newSize;
-	}
-
-	DrawCmd* const drawCmds = ((DrawCmd*)drawCmdStagingBufferPtrs) + drawCmdCounts[frameIdx];
-	drawCmdCounts[frameIdx] += n;
-
+DrawCmd* AllocDrawCmds(U32 n) {
+	Assert(drawCmdCount + n < MaxDrawCmds);
+	DrawCmd* drawCmds = (DrawCmd*)(((U8*)drawCmdStagingMem.ptr) + (drawCmdCount * sizeof(DrawCmd)));
+	drawCmdCount += n;
 	return drawCmds;
 }
 
-//--------------------------------------------------------------------------------------------------
-
 void DrawSprite(Sprite sprite, Vec2 pos) {
 	SpriteObj* const spriteObj = &spriteObjs[sprite.handle];
-	DrawCmd* drawCmd;
-	if (Res<> r = AllocDrawCmds(1) =  {
+	*AllocDrawCmds(1) =  {
 		.pos          = pos,
 		.size         = spriteObj->size,
 		.uv1          = spriteObj->uv1,
@@ -433,14 +381,14 @@ void DrawSprite(Sprite sprite, Vec2 pos) {
 	};
 }
 
-void DrawSprite(Sprite sprite, Vec2 pos, F32 scale, F32 rotation, Vec4 color) {
+void DrawSprite(Sprite sprite, Vec2 pos, F32 size, F32 rotation, Vec4 color) {
 	SpriteObj* const spriteObj = &spriteObjs[sprite.handle];
 	*AllocDrawCmds(1) =  {
 		.pos          = pos,
-		.size         = spriteObj->size,
+		.size         = Math::Mul(spriteObj->size, size),
 		.uv1          = spriteObj->uv1,
 		.uv2          = spriteObj->uv2,
-		.color        = Vec4(1.0f, 1.0f, 1.0f, 1.0f),
+		.color        = color,
 		.borderColor  = Vec4(1.0f, 1.0f, 1.0f, 1.0f),
 		.border       = 0.0f,
 		.cornerRadius = 0.0f,
@@ -448,8 +396,6 @@ void DrawSprite(Sprite sprite, Vec2 pos, F32 scale, F32 rotation, Vec4 color) {
 		.textureIdx   = spriteObj->imageIdx,
 	};
 }
-
-//--------------------------------------------------------------------------------------------------
 
 void DrawRect(Vec2 pos, Vec2 size, Vec4 color, Vec4 borderColor, F32 border, F32 cornerRadius) {
 	*AllocDrawCmds(1) =  {
@@ -460,7 +406,7 @@ void DrawRect(Vec2 pos, Vec2 size, Vec4 color, Vec4 borderColor, F32 border, F32
 		.color        = color,
 		.borderColor  = borderColor,
 		.border       = border,
-		.cornerRadius = 0.0f,
+		.cornerRadius = cornerRadius,
 		.rotation     = 0.0f,
 		.textureIdx   = 0,
 	};

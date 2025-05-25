@@ -188,7 +188,7 @@ struct Game : App {
 	void DrawParticleType(const ParticleType* type) {
 		for (U64 i = 0; i < type->particles.len; i++) {
 			const Particle* const p = &type->particles[i];
-			Render::DrawSprite(type->sprite, p->pos, p->size, p->rotation, p->color);
+			Render::DrawSprite(type->sprite, p->pos, p->size * SpriteScale, p->rotation, p->color);
 		}
 	}
 
@@ -392,8 +392,7 @@ struct Game : App {
 
 		Render::BeginFrame();
 
-		Render::DrawSprite(*ship.sprite, ship.pos);
-		//Render::DrawSprite(ship.engineSprites[ship.engineSpriteIdx], Vec2 { ship.pos.x, ship.pos.y - ((ship.size.y + ship.engineSizes[ship.engineSpriteIdx].y) / 2.0f) });
+		Render::DrawSprite(*ship.sprite, ship.pos, SpriteScale, 0.0f, Vec4(1.0f, 1.0f, 1.0f, 1.0f));
 
 		//for (U64 i = 0; i < bullets.len; i++) {
 		//	Render::DrawSprite(bulletSprite, bullets[i].pos);
@@ -402,16 +401,6 @@ struct Game : App {
 		for (U64 i = 0; i < particleTypes.len; i++) {
 			DrawParticleType(&particleTypes[i]);
 		}
-
-		//projView = Math::Ortho(
-		//	-windowWidth  / 2.0f,
-		//	 windowWidth  / 2.0f,
-		//	-windowHeight / 2.0f,
-		//	 windowHeight / 2.0f,
-		//	-100.0f,
-		//	100.0f
-		//);
-		//Render::SetProjView(&projView);
 
 		Vec4 fillColor    = { 0.0f, 25.0f / 255.0f, 35.0f / 255.0f, 1.0f };
 		Vec4 borderColor  = { 0.0f, 47.0f / 255.0f, 63.0f / 255.0f, 1.0f };

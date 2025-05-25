@@ -156,10 +156,6 @@ struct BufferObj {
 	U64                addr               = 0;
 };
 
-struct SamplerObj {
-	VkSampler vkSampler = VK_NULL_HANDLE;
-};
-
 struct ImageObj {
 	VkImage       vkImage       = VK_NULL_HANDLE;
 	VkImageView   vkImageView   = VK_NULL_HANDLE;
@@ -213,6 +209,7 @@ static Array<VkCommandBuffer>             vkFrameCommandBuffers;
 static VkDescriptorPool                   vkDescriptorPool;
 static VkDescriptorSetLayout              vkBindlessDescriptorSetLayout;
 static VkDescriptorSet                    vkBindlessDescriptorSet;
+static U32                                bindlessDescriptorIdx;
 static VkSampler                          vkBindlessSamplers[MaxBindlessSamplers];
 static U32                                vkBindlessSamplersLen;
 static U32                                frameIdx;
@@ -837,6 +834,8 @@ static Res<> InitBindlessDescriptors() {
 	};
 	CheckVk(vkAllocateDescriptorSets(vkDevice, &vkDescriptorSetAllocateInfo, &vkBindlessDescriptorSet));
 
+	bindlessDescriptorIdx = 1;	// reserve index 0 for invalid
+
 	return Ok();
 }
 
@@ -1008,6 +1007,12 @@ void EndCommands() {
 }
 
 void Shutdown() {
+	for (U64 i = 0; i < vkBindlessSamplersLen; i++) {
+		if (vkBindlessSamplers[i] != VK_NULL_HANDLE) {
+			vkDestroySampler(vkDevice, vkBindlessSamplers[i], vkAllocationCallbacks);
+		}
+		vkBindlessSamplers[i] = VK_NULL_HANDLE;
+	}
 	vkBindlessSamplersLen = 0;
 	DestroyVk(vkBindlessDescriptorSetLayout, vkDestroyDescriptorSetLayout);
 	DestroyVk(vkDescriptorPool, vkDestroyDescriptorPool);
@@ -1173,6 +1178,7 @@ U64 GetBufferAddr(Buffer buffer) {
 Res<void*> MapBuffer(Buffer buffer, U64 offset, U64 size) {
     BufferObj* const bufferObj = bufferObjs.Get(buffer);
 	U8* ptr = 0;
+	if (size == 0) { size = bufferObj->size; }
 	CheckVk(vkMapMemory(vkDevice, bufferObj->mem.vkDeviceMemory, offset, size, 0, (void**)&ptr));
     return ptr;
 }
@@ -1288,10 +1294,7 @@ U32 GetImageWidth (Image image) { return imageObjs.Get(image)->width;  }
 U32 GetImageHeight(Image image) { return imageObjs.Get(image)->height; }
 ImageFormat GetImageFormat(Image image) { return VkFormatToImageFormat(imageObjs.Get(image)->vkFormat); }
 
-
 //-------------------------------------------------------------------------------------------------
-
-static U32 bindlessDescriptorIdx;	// TODO: move to top
 
 U32 BindImage(Image image) {
 	const ImageObj* const imageObj = imageObjs.Get(image);

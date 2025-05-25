@@ -53,7 +53,7 @@ Res<> Events(Span<Event::Event> events) {
 }
 
 //--------------------------------------------------------------------------------------------------
-
+/*
 static U16 AllocBox() {
 	if (freeBoxIdx) {
 		U16 i = freeBoxIdx;
@@ -73,10 +73,10 @@ static void FreeBox(U16 i) {
 //--------------------------------------------------------------------------------------------------
 
 void MakeBox(SizeType sizeTypeX, SizeType sizeTypeY, Vec2 size, F32 parentPct, Vec4 color) {
-	U16 i = AllocBox();
-	Box* box = &boxes[i];
+	//U16 i = AllocBox();
+	//Box* box = &boxes[i];
 }
-
+*/
 //--------------------------------------------------------------------------------------------------
 
 void Draw() {
