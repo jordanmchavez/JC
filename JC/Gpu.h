@@ -11,6 +11,13 @@ namespace JC::Gpu {
 
 DefErr(Gpu, RecreateSwapchain);
 
+//--------------------------------------------------------------------------------------------------
+
+constexpr Str Cfg_EnableVkValidation = "Gpu::EnableVkValidation";
+constexpr Str Cfg_EnableDebug        = "Gpu::EnableDebug";
+
+//--------------------------------------------------------------------------------------------------
+
 constexpr U32 MaxFrames = 3;
 
 struct InitDesc {

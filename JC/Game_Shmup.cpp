@@ -348,7 +348,7 @@ struct Game : App {
 				
 				bullets.Add(Bullet {
 					.pos   = { ship.pos.x, ship.pos.y + ((ship.size.y + bulletSize.y) / 2.0f) },
-					.speed = { 0.0f, 120.0f },
+					.speed = { 0.0f, -120.0f },
 				});
 				ship.fireCooldown = ShipFireCooldown;
 			}

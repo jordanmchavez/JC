@@ -117,69 +117,68 @@ static constexpr U32 MaxBindlessSamplers       = 8;
 static constexpr U32 MaxBindlessDescriptorSets = 32;
 static constexpr F32 MaxAnisotropy             = 8.0f;
 
-struct QueueFamily {
-	VkQueueFamilyProperties vkQueueFamilyProperties = {};
-	Bool                    supportsPresent         = false;
+struct PhysicalDevice {
+	VkPhysicalDevice                 vkPhysicalDevice;
+	VkPhysicalDeviceProperties2      vkPhysicalDeviceProperties2;
+	VkPhysicalDeviceFeatures         vkPhysicalDeviceFeatures;
+	VkPhysicalDeviceVulkan12Features vkPhysicalDeviceVulkan12Features;
+	VkPhysicalDeviceVulkan13Features vkPhysicalDeviceVulkan13Features;
+	VkPhysicalDeviceMemoryProperties vkPhysicalDeviceMemoryProperties;
+	Array<VkExtensionProperties>     vkExtensionProperties;
+	Array<VkSurfaceFormatKHR>        vkSurfaceFormats;
+	VkFormat                         vkSwapchainFormat;
+	VkColorSpaceKHR                  vkSwapchainColorSpace;
+	Array<VkPresentModeKHR>          vkPresentModes;
+	Array<QueueFamily>               queueFamilies;
+	U32                              queueFamily;
 };
 
-struct PhysicalDevice {
-	VkPhysicalDevice                 vkPhysicalDevice                 = VK_NULL_HANDLE;
-	VkPhysicalDeviceProperties       vkPhysicalDeviceProperties       = {};
-	VkPhysicalDeviceFeatures         vkPhysicalDeviceFeatures         = {};
-	VkPhysicalDeviceVulkan12Features vkPhysicalDeviceVulkan12Features = {};
-	VkPhysicalDeviceVulkan13Features vkPhysicalDeviceVulkan13Features = {};
-	VkPhysicalDeviceMemoryProperties vkPhysicalDeviceMemoryProperties = {};
-	Array<VkExtensionProperties>     vkExtensionProperties            = {};
-	Array<VkSurfaceFormatKHR>        vkSurfaceFormats                 = {};
-	VkFormat                         vkSwapchainFormat                = VK_FORMAT_UNDEFINED;
-	VkColorSpaceKHR                  vkSwapchainColorSpace            = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-	Array<VkPresentModeKHR>          vkPresentModes                   = {};
-	Array<QueueFamily>               queueFamilies                    = {};
-	U32                              queueFamily                      = VK_QUEUE_FAMILY_IGNORED;
-	U32                              score                            = 0;
+struct QueueFamily {
+	VkQueueFamilyProperties vkQueueFamilyProperties;
+	Bool                    supportsPresent;
 };
 
 struct Mem {
-	VkDeviceMemory        vkDeviceMemory        = VK_NULL_HANDLE;
-	U64                   offset                = 0;
-	U64                   size                  = 0;
-	U32                   type                  = 0;
-	VkMemoryPropertyFlags vkMemoryPropertyFlags = 0;
-	VkMemoryAllocateFlags vkMemoryAllocateFlags = 0;
+	VkDeviceMemory        vkDeviceMemory;
+	U64                   offset;
+	U64                   size;
+	U32                   type;
+	VkMemoryPropertyFlags vkMemoryPropertyFlags;
+	VkMemoryAllocateFlags vkMemoryAllocateFlags;
 };
 
 struct BufferObj {
-	VkBuffer           vkBuffer           = VK_NULL_HANDLE;
-	Mem                mem                = {};
-	U64                size               = 0;
-	VkBufferUsageFlags vkBufferUsageFlags = 0;
-	U64                addr               = 0;
+	VkBuffer           vkBuffer;
+	Mem                mem;
+	U64                size;
+	VkBufferUsageFlags vkBufferUsageFlags;
+	U64                addr;
 };
 
 struct ImageObj {
-	VkImage       vkImage       = VK_NULL_HANDLE;
-	VkImageView   vkImageView   = VK_NULL_HANDLE;
-	Mem           mem           = {};
-	U32           width         = 0;
-	U32           height        = 0;
-	ImageUsage    usage         = ImageUsage::Undefined;
-	VkFormat      vkFormat      = VK_FORMAT_UNDEFINED;
-	VkImageLayout vkImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	Sampler       sampler       = {};
+	VkImage       vkImage;
+	VkImageView   vkImageView;
+	Mem           mem;
+	U32           width;
+	U32           height;
+	ImageUsage    usage;
+	VkFormat      vkFormat;
+	VkImageLayout vkImageLayout;
+	Sampler       sampler;
 };
 
 struct ShaderObj {
-	VkShaderModule        vkShaderModule      = VK_NULL_HANDLE;
-	VkShaderStageFlagBits vkShaderStage       = {};
-	U32                   pushConstantsOffset = 0;
-	U32                   pushConstantsSize   = 0;
+	VkShaderModule        vkShaderModule;
+	VkShaderStageFlagBits vkShaderStage;
+	U32                   pushConstantsOffset;
+	U32                   pushConstantsSize;
 };
 
 struct PipelineObj {
-	VkPipeline            vkPipeline            = VK_NULL_HANDLE;
-	VkPipelineLayout      vkPipelineLayout      = VK_NULL_HANDLE;
-	VkPipelineBindPoint   vkPipelineBindPoint   = {};
-	VkPushConstantRange   vkPushConstantRange   = {};
+	VkPipeline            vkPipeline;
+	VkPipelineLayout      vkPipelineLayout;
+	VkPipelineBindPoint   vkPipelineBindPoint;
+	VkPushConstantRange   vkPushConstantRange;
 };
 
 static JC::Mem::Allocator*                allocator;
@@ -195,7 +194,6 @@ static VkInstance                         vkInstance;
 static VkDebugUtilsMessengerEXT           vkDebugUtilsMessenger;
 static VkSurfaceKHR                       vkSurface;
 static Array<PhysicalDevice>              physicalDevices;
-static PhysicalDevice*                    physicalDevice;
 static VkDevice                           vkDevice;
 static VkQueue                            vkQueue;
 static VkSwapchainKHR                     vkSwapchain;
@@ -236,402 +234,6 @@ static VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT 
 	return VK_FALSE;
 }
 	
-//-------------------------------------------------------------------------------------------------
-
-static Res<> InitInstance() {
-	InitMutex(&mutex);
-
-	U32 instanceVersion = 0;
-	CheckVk(vkEnumerateInstanceVersion(&instanceVersion));
-	if (instanceVersion < VK_API_VERSION_1_3) {
-		return Err_Version("ver", instanceVersion);
-	}
-
-	U32 n = 0;
-	Array<VkLayerProperties> layers(tempAllocator);
-	CheckVk(vkEnumerateInstanceLayerProperties(&n, 0));
-	CheckVk(vkEnumerateInstanceLayerProperties(&n, layers.Resize(n)));
-	Logf("{} layers:", layers.len);
-	for (U64 i = 0; i < layers.len; i++) {
-		Logf(
-			"  {}: implementationVersion={}, specVersion={}, description={}",
-			layers[i].layerName,
-			VersionStr(tempAllocator, layers[i].implementationVersion),
-			VersionStr(tempAllocator, layers[i].specVersion),
-			layers[i].description
-		);
-	}
-
-	Array<const char*> RequiredLayers(tempAllocator);
-	if (Config::GetBool("Gpu::UseVkValidationLayer", true)) {
-		RequiredLayers.Add("VK_LAYER_KHRONOS_validation");
-	}
-	for (U32 i = 0; i < RequiredLayers.len; i++) {
-		Bool found = false;
-		for (U64 j = 0; j < layers.len; j++) {
-			if (!strcmp(RequiredLayers[i], layers[j].layerName)) {
-				Logf("Found required layer '{}'", RequiredLayers[i]);
-				found = true;
-				break;
-			}
-		}
-		if (!found) {
-			return Err_NoLayer("name", RequiredLayers[i]);
-		}
-	}
-	
-	Array<VkExtensionProperties> instExts(tempAllocator);
-	CheckVk(vkEnumerateInstanceExtensionProperties(0, &n, 0));
-	CheckVk(vkEnumerateInstanceExtensionProperties(0, &n, instExts.Resize(n)));
-
-	Logf("{} instance extensions:", instExts.len);
-	for (U64 i = 0; i < instExts.len; i++) {
-		Logf("  {}: specVersion={}", instExts[i].extensionName, VersionStr(tempAllocator, instExts[i].specVersion));
-	}
-
-	Array<const char*> RequiredInstExts(tempAllocator);
-	RequiredInstExts.Add("VK_KHR_surface");
-	#if defined Platform_Windows
-		RequiredInstExts.Add("VK_KHR_win32_surface");
-	#endif	//	Platform_
-	if (Config::GetBool("Gpu::Debug", true)) {
-		RequiredInstExts.Add("VK_EXT_debug_utils");
-	}
-	for (U32 i = 0; i < RequiredInstExts.len; i++) {
-		Bool found = false;
-		for (U64 j = 0; j < instExts.len; j++) {
-			if (!strcmp(RequiredInstExts[i], instExts[j].extensionName)) {
-				Logf("Found required instance extension '{}'", RequiredInstExts[i]);
-				found = true;
-				break;
-			}
-		}
-		if (!found) {
-			return Err_NoLayer("name", RequiredInstExts[i]);
-		}
-	}
-		
-	const VkApplicationInfo vkApplicationInfo = {
-		.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-		.pNext              = 0,
-		.pApplicationName   = "JC",
-		.applicationVersion = 1,
-		.pEngineName        = "JC",
-		.engineVersion      = 1,
-		.apiVersion         = VK_API_VERSION_1_3,
-	};
-	VkInstanceCreateInfo vkInstanceCreateInfo = {
-		.sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-		.pNext                   = 0,
-		.flags                   = 0,
-		.pApplicationInfo        = &vkApplicationInfo,
-		.enabledLayerCount       = (U32)RequiredLayers.len,
-		.ppEnabledLayerNames     = RequiredLayers.data,
-		.enabledExtensionCount   = (U32)RequiredInstExts.len,
-		.ppEnabledExtensionNames = RequiredInstExts.data,
-	};
-	
-
-	VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
-	if (Config::GetBool("Gpu::Debug", true)) {
-		debugCreateInfo = {
-			.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-			.pNext           = vkInstanceCreateInfo.pNext,
-			.flags           = 0,
-			.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-			.messageType     = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT,
-			.pfnUserCallback = DebugCallback,
-			.pUserData       = 0,
-		};
-		vkInstanceCreateInfo.pNext = &debugCreateInfo;
-
-		const VkBool32 vkTrue = VK_TRUE;
-		const VkLayerSettingEXT vkLayerSettingEXTs[] = {
-			{ "VK_LAYER_KHRONOS_validation", "validate_core",                  VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &vkTrue },
-			{ "VK_LAYER_KHRONOS_validation", "validate_sync",                  VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &vkTrue },
-			{ "VK_LAYER_KHRONOS_validation", "check_object_in_use",            VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &vkTrue },
-			{ "VK_LAYER_KHRONOS_validation", "check_shaders",                  VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &vkTrue },
-			{ "VK_LAYER_KHRONOS_validation", "validate_gpu_based",             VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &vkTrue },
-			{ "VK_LAYER_KHRONOS_validation", "validate_best_practices",        VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &vkTrue },
-			{ "VK_LAYER_KHRONOS_validation", "validate_best_practices_nvidia", VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1, &vkTrue },
-		};
-		const VkLayerSettingsCreateInfoEXT vkLayerSettingsCreateInfoEXT = {
-			.sType        = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
-			.pNext        = vkInstanceCreateInfo.pNext,
-			.settingCount = LenOf(vkLayerSettingEXTs),
-			.pSettings    = vkLayerSettingEXTs,
-
-		};
-		vkInstanceCreateInfo.pNext = &vkLayerSettingsCreateInfoEXT;
-	}
-
-	CheckVk(vkCreateInstance(&vkInstanceCreateInfo, vkAllocationCallbacks, &vkInstance));
-	LoadInstanceFns(vkInstance);
-
-	if (Config::GetBool("Gpu::Debug", true)) {
-		CheckVk(vkCreateDebugUtilsMessengerEXT(vkInstance, &debugCreateInfo, vkAllocationCallbacks, &vkDebugUtilsMessenger));
-	}
-
-	return Ok();
-}
-
-//-------------------------------------------------------------------------------------------------
-
-static Res<> InitSurface(const Window::PlatformDesc* windowPlatformDesc) {
-	#if defined Platform_Windows
-		VkWin32SurfaceCreateInfoKHR win32SurfaceCreateInfo = {
-			.sType     = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-			.pNext     = 0,
-			.flags     = 0,
-			.hinstance = (HINSTANCE)windowPlatformDesc->hinstance,
-			.hwnd      = (HWND)windowPlatformDesc->hwnd,
-		};
-		CheckVk(vkCreateWin32SurfaceKHR(vkInstance, &win32SurfaceCreateInfo, vkAllocationCallbacks, &vkSurface));
-	#endif	// Platform_
-
-	return Ok();
-}
-
-//-------------------------------------------------------------------------------------------------
-
-static Res<> InitDevice() {
-	constexpr const char* RequiredDeviceExts[] = {
-		"VK_KHR_swapchain",
-	};
-
-	U32 n = 0;
-	Array<VkPhysicalDevice> vkPhysicalDevices(tempAllocator);
-	CheckVk(vkEnumeratePhysicalDevices(vkInstance, &n, nullptr));
-	CheckVk(vkEnumeratePhysicalDevices(vkInstance, &n, vkPhysicalDevices.Resize(n)));
-
-	physicalDevices.Resize(vkPhysicalDevices.len);
-	Logf("{} physical devices:", physicalDevices.len);
-	U32 bestScore = 0;
-	for (U64 i = 0; i < physicalDevices.len; i++) {
-		PhysicalDevice* const pd = &physicalDevices[i];
-
-		pd->vkPhysicalDevice = vkPhysicalDevices[i];
-		pd->score = 0;
-
-		vkGetPhysicalDeviceProperties(pd->vkPhysicalDevice, &pd->vkPhysicalDeviceProperties);
-		Logf(
-			"{}: apiVersion={}, driverVersion={}, vendorID={}, deviceId={}, deviceType={}",
-			pd->vkPhysicalDeviceProperties.deviceName,
-			VersionStr(tempAllocator, pd->vkPhysicalDeviceProperties.apiVersion),
-			VersionStr(tempAllocator, pd->vkPhysicalDeviceProperties.driverVersion),
-			pd->vkPhysicalDeviceProperties.vendorID,
-			pd->vkPhysicalDeviceProperties.deviceID,
-			PhysicalDeviceTypeStr(pd->vkPhysicalDeviceProperties.deviceType)
-		);
-		switch (pd->vkPhysicalDeviceProperties.deviceType) {
-			case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:   pd->score += 1000; break;
-			case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: pd->score +=  100; break;
-			case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:    pd->score +=   10; break;
-			case VK_PHYSICAL_DEVICE_TYPE_CPU:            pd->score +=    1; break;
-			case VK_PHYSICAL_DEVICE_TYPE_OTHER:          pd->score +=    1; break;
-		};
-		if (pd->vkPhysicalDeviceProperties.apiVersion < VK_API_VERSION_1_3) {
-			Logf("  Rejecting device: need Vulkan 1.3: apiVersion={}", VersionStr(tempAllocator, pd->vkPhysicalDeviceProperties.apiVersion));
-			pd->score = 0;
-		}
-
-		VkPhysicalDeviceFeatures2 vkPhysicalDeviceFeatures2 = {};
-		vkPhysicalDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-		vkPhysicalDeviceFeatures2.pNext = &pd->vkPhysicalDeviceVulkan12Features;
-		pd->vkPhysicalDeviceVulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-		pd->vkPhysicalDeviceVulkan12Features.pNext = &pd->vkPhysicalDeviceVulkan13Features;
-		pd->vkPhysicalDeviceVulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-		pd->vkPhysicalDeviceVulkan13Features.pNext = 0;
-		vkGetPhysicalDeviceFeatures2(pd->vkPhysicalDevice, &vkPhysicalDeviceFeatures2);
-		pd->vkPhysicalDeviceFeatures = vkPhysicalDeviceFeatures2.features;
-		if (!pd->vkPhysicalDeviceVulkan12Features.bufferDeviceAddress) {
-			Logf("  Rejecting device: doesn't support bufferDeviceAddress");
-			pd->score = 0;
-		}
-		if (!pd->vkPhysicalDeviceVulkan12Features.descriptorIndexing) {
-			Logf("  Rejecting device: doesn't support descriptorIndexing");
-			pd->score = 0;
-		}
-		if (!pd->vkPhysicalDeviceVulkan13Features.dynamicRendering) {
-			Logf("  Rejecting device: doesn't support dynamicRendering");
-			pd->score = 0;
-		}
-		if (!pd->vkPhysicalDeviceVulkan13Features.synchronization2) {
-			Logf("  Rejecting device: doesn't support synchronization2");
-			pd->score = 0;
-		}
-
-		vkGetPhysicalDeviceMemoryProperties(pd->vkPhysicalDevice, &pd->vkPhysicalDeviceMemoryProperties);
-		Logf("  {} memory types:", pd->vkPhysicalDeviceMemoryProperties.memoryTypeCount);
-		for (U64 j = 0; j < pd->vkPhysicalDeviceMemoryProperties.memoryTypeCount; j++) {
-			const VkMemoryType mt = pd->vkPhysicalDeviceMemoryProperties.memoryTypes[j];
-			Logf("    [{}] heapIndex={}, flags={}", j, mt.heapIndex, MemoryPropertyFlagsStr(tempAllocator, mt.propertyFlags));
-		}
-		Logf("  {} memory heaps:", pd->vkPhysicalDeviceMemoryProperties.memoryHeapCount);
-		for (U64 j = 0; j < pd->vkPhysicalDeviceMemoryProperties.memoryHeapCount; j++) {
-			const VkMemoryHeap mh = pd->vkPhysicalDeviceMemoryProperties.memoryHeaps[j];
-			Logf("    [{}] size={}, flags={}", j, SizeStr(tempAllocator, mh.size), MemoryHeapFlagsStr(tempAllocator, mh.flags));
-		}
-
-		Array<VkQueueFamilyProperties> vkQueueFamilyProperties(tempAllocator);
-		vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, &n, nullptr);
-		vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, &n, vkQueueFamilyProperties.Resize(n));
-
-		pd->vkExtensionProperties.Init(allocator);
-		CheckVk(vkEnumerateDeviceExtensionProperties(pd->vkPhysicalDevice, 0, &n, 0));
-		CheckVk(vkEnumerateDeviceExtensionProperties(pd->vkPhysicalDevice, 0, &n, pd->vkExtensionProperties.Resize(n)));
-
-		Array<char> extensionsStr(tempAllocator);
-		for (U64 j = 0; j < pd->vkExtensionProperties.len; j++) {
-			Fmt::Printf(&extensionsStr, "{}(specVersion={}), ", pd->vkExtensionProperties[j].extensionName, VersionStr(tempAllocator, pd->vkExtensionProperties[j].specVersion));
-		}
-		if (extensionsStr.len >= 2) {
-			extensionsStr.len -= 2;
-		}
-		Logf("  {} device extensions: {}",  pd->vkExtensionProperties.len, Str(extensionsStr.data, extensionsStr.len));
-		for (U64 j = 0; j < LenOf(RequiredDeviceExts); j++) {
-			Bool found = false;
-			for (U64 k = 0; k < pd->vkExtensionProperties.len; k++) {
-				if (!strcmp(RequiredDeviceExts[j], pd->vkExtensionProperties[k].extensionName)) {
-					found = true;
-					break;
-				}
-			}
-			if (!found) {
-				Logf("Rejecting device: doesn't support extension '{}'", RequiredDeviceExts[j]);
-				pd->score = 0;
-			}
-		}
-
-		pd->vkSurfaceFormats.Init(allocator);
-		CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(pd->vkPhysicalDevice, vkSurface, &n, 0));
-		CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(pd->vkPhysicalDevice, vkSurface, &n, pd->vkSurfaceFormats.Resize(n)));
-		for (U64 j = 0; j < pd->vkSurfaceFormats.len; j++) {
-			if (
-				(
-					pd->vkSurfaceFormats[j].format == VK_FORMAT_B8G8R8A8_UNORM ||
-					pd->vkSurfaceFormats[j].format == VK_FORMAT_R8G8B8A8_UNORM ||
-					pd->vkSurfaceFormats[j].format == VK_FORMAT_B8G8R8_UNORM ||
-					pd->vkSurfaceFormats[j].format == VK_FORMAT_R8G8B8_UNORM
-				) &&
-				pd->vkSurfaceFormats[j].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
-			) {
-				pd->vkSwapchainFormat     = pd->vkSurfaceFormats[j].format;
-				pd->vkSwapchainColorSpace = pd->vkSurfaceFormats[j].colorSpace;
-				goto FoundSurfaceFormat;
-			}
-		}
-		FoundSurfaceFormat:
-		Logf("  {} surface formats:", pd->vkSurfaceFormats.len);
-		for (U64 j = 0; j < pd->vkSurfaceFormats.len; j++) {
-			Logf("    {}, {}", FormatStr(pd->vkSurfaceFormats[j].format), ColorSpaceStr(pd->vkSurfaceFormats[j].colorSpace));
-		}
-		Logf("  Selected surface format: {}/{}", FormatStr(pd->vkSwapchainFormat), ColorSpaceStr(pd->vkSwapchainColorSpace));
-
-		pd->vkPresentModes.Init(allocator);
-		CheckVk(vkGetPhysicalDeviceSurfacePresentModesKHR(pd->vkPhysicalDevice, vkSurface, &n, 0));
-		CheckVk(vkGetPhysicalDeviceSurfacePresentModesKHR(pd->vkPhysicalDevice, vkSurface, &n, pd->vkPresentModes.Resize(n)));
-		Logf("  {} present modes:", pd->vkPresentModes.len);
-		for (U64 j = 0; j < pd->vkPresentModes.len; j++) {
-			Logf("    {}", PresentModeStr(pd->vkPresentModes[j]));
-		}
-
-		pd->queueFamilies.Init(allocator);
-		pd->queueFamilies.Resize(vkQueueFamilyProperties.len);
-		Logf("  {} queue families:", pd->queueFamilies.len);
-		for (U64 j = 0; j < pd->queueFamilies.len; j++) {
-			const VkQueueFamilyProperties* props = &pd->queueFamilies[j].vkQueueFamilyProperties;
-			VkBool32 supportsPresent = VK_FALSE;
-			CheckVk(vkGetPhysicalDeviceSurfaceSupportKHR(pd->vkPhysicalDevice, (U32)j, vkSurface, &supportsPresent));
-			pd->queueFamilies[j].vkQueueFamilyProperties = vkQueueFamilyProperties[j];
-			pd->queueFamilies[j].supportsPresent         = (supportsPresent == VK_TRUE);
-			Logf("    [{}] count={}, flags={}, supportsPresent={}", j, props->queueCount, QueueFlagsStr(tempAllocator, props->queueFlags), pd->queueFamilies[j].supportsPresent);
-			const VkQueueFlags flags = pd->queueFamilies[j].vkQueueFamilyProperties.queueFlags;
-			if (pd->queueFamily == VK_QUEUE_FAMILY_IGNORED && (flags & VK_QUEUE_GRAPHICS_BIT) && pd->queueFamilies[j].supportsPresent) {
-				pd->queueFamily = (U32)j;
-			}
-		}
-
-		if (pd->vkSwapchainFormat == VK_FORMAT_UNDEFINED) {
-			Logf("  Rejecting device: no suitable swapchain format");
-			pd->score = 0;
-		}
-		if (pd->vkPresentModes.len == 0) {
-			Logf("  Rejecting device: no present modes");
-			pd->score = 0;
-		}
-		if (pd->queueFamily == VK_QUEUE_FAMILY_IGNORED) {
-			Logf("  Rejecting device: no graphics queue supporting present");
-			pd->score = 0;
-		}
-
-		Logf("  score: {}", pd->score);
-		if (pd->score > bestScore) {
-			physicalDevice = pd;
-			bestScore = pd->score;
-		}
-	}
-
-	if (bestScore == 0) {
-		return Err_NoDevice();
-	}
-	Logf("Selected physical device '{}' with score={}", physicalDevice->vkPhysicalDeviceProperties.deviceName, physicalDevice->score);
-
-	F32 queuePriority = 1.0f;
-	const VkDeviceQueueCreateInfo vkDeviceQueueCreateInfo = {
-		.sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-		.pNext            = 0,
-		.flags            = 0,
-		.queueFamilyIndex = physicalDevice->queueFamily,
-		.queueCount       = 1,
-		.pQueuePriorities = &queuePriority,
-	};
-
-	VkPhysicalDeviceFeatures2 vkPhysicalDeviceFeatures2 = {};
-	VkPhysicalDeviceVulkan12Features vkPhysicalDeviceVulkan12Features = {};
-	VkPhysicalDeviceVulkan13Features vkPhysicalDeviceVulkan13Features = {};
-
-	vkPhysicalDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-	vkPhysicalDeviceFeatures2.pNext = &vkPhysicalDeviceVulkan12Features;
-	vkPhysicalDeviceFeatures2.features.shaderClipDistance = VK_TRUE;
-	vkPhysicalDeviceFeatures2.features.samplerAnisotropy = VK_TRUE;
-	
-	vkPhysicalDeviceVulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-	vkPhysicalDeviceVulkan12Features.pNext = &vkPhysicalDeviceVulkan13Features;
-	vkPhysicalDeviceVulkan12Features.bufferDeviceAddress = VK_TRUE;
-	vkPhysicalDeviceVulkan12Features.descriptorIndexing = VK_TRUE;
-	vkPhysicalDeviceVulkan12Features.descriptorBindingPartiallyBound = VK_TRUE;
-	vkPhysicalDeviceVulkan12Features.runtimeDescriptorArray = VK_TRUE;
-	vkPhysicalDeviceVulkan12Features.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
-
-	vkPhysicalDeviceVulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-	vkPhysicalDeviceVulkan13Features.pNext = 0;
-	vkPhysicalDeviceVulkan13Features.dynamicRendering = VK_TRUE;
-	vkPhysicalDeviceVulkan13Features.synchronization2 = VK_TRUE;
-
-	// TODO: possibly create more queues? one per type?
-	const VkDeviceCreateInfo vkDeviceCreateInfo = {
-		.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-		.pNext                   = &vkPhysicalDeviceFeatures2,
-		.flags                   = 0,
-		.queueCreateInfoCount    = 1,
-		.pQueueCreateInfos       = &vkDeviceQueueCreateInfo,
-		.enabledLayerCount       = 0,
-		.ppEnabledLayerNames     = 0,
-		.enabledExtensionCount   = LenOf(RequiredDeviceExts),
-		.ppEnabledExtensionNames = RequiredDeviceExts,
-		.pEnabledFeatures        = 0,
-	};
-
-	CheckVk(vkCreateDevice(physicalDevice->vkPhysicalDevice, &vkDeviceCreateInfo, vkAllocationCallbacks, &vkDevice));
-		
-	LoadDeviceFns(vkDevice);
-
-	vkGetDeviceQueue(vkDevice, physicalDevice->queueFamily, 0, &vkQueue);
-
-	return Ok();
-}
-
 //-------------------------------------------------------------------------------------------------
 
 static Res<> InitSwapchain(U32 width, U32 height) {
@@ -952,6 +554,7 @@ static void FreeMem(Mem mem) {
 
 //-------------------------------------------------------------------------------------------------
 
+
 static Res<> BeginCmds() {
 	CheckVk(vkWaitForFences(vkDevice, 1, &vkFrameFences[frameIdx], VK_TRUE, U64Max));
 	CheckVk(vkResetFences(vkDevice, 1, &vkFrameFences[frameIdx]));
@@ -967,6 +570,29 @@ static Res<> BeginCmds() {
 }
 
 //-------------------------------------------------------------------------------------------------
+void Foo(Span<void*>) {}
+void Bar() {
+	auto p = &(VkApplicationInfo){VK_STRUCTURE_TYPE_APPLICATION_INFO};
+	Foo({
+		&(VkApplicationInfo){VK_STRUCTURE_TYPE_APPLICATION_INFO}
+
+	});
+}
+
+struct Instance {
+	VkInstance                   vkInstance;
+	Array<VkLayerProperties>     vkLayerProperties;
+	Array<VkExtensionProperties> vkExtensionProperties;
+};
+
+Res<Instance> CreateInstance(
+	Span<const char*> requiredLayers,
+	Span<const char*> requiredExtensions,
+) {
+	Instance instance;
+
+
+}
 
 Res<> Init(const InitDesc* initDesc) {
 	allocator     = initDesc->allocator;
@@ -985,9 +611,520 @@ Res<> Init(const InitDesc* initDesc) {
 	vkFrameCommandBuffers.Init(allocator);         vkFrameCommandBuffers.Resize(MaxFrames);
 
 	LoadRootFns();
-	if (Res<> r = InitInstance();                                               !r) { return r; }
-	if (Res<> r = InitSurface(initDesc->windowPlatformDesc);                    !r) { return r; }
-	if (Res<> r = InitDevice();                                                 !r) { return r; }
+
+	InitMutex(&mutex);
+
+	U32 instanceVersion = 0;
+	CheckVk(vkEnumerateInstanceVersion(&instanceVersion));
+	if (instanceVersion < VK_API_VERSION_1_3) {
+		return Err_Version("version", instanceVersion);
+	}
+
+	U32 n = 0;
+	Array<VkLayerProperties> layers(tempAllocator);
+	CheckVk(vkEnumerateInstanceLayerProperties(&n, 0));
+	CheckVk(vkEnumerateInstanceLayerProperties(&n, layers.Resize(n)));
+	Logf("{} layers:", layers.len);
+	for (U64 i = 0; i < layers.len; i++) {
+		Logf(
+			"  {}: implementationVersion={}, specVersion={}, description={}",
+			layers[i].layerName,
+			VersionStr(tempAllocator, layers[i].implementationVersion),
+			VersionStr(tempAllocator, layers[i].specVersion),
+			layers[i].description
+		);
+	}
+
+	Array<const char*> RequiredLayers(tempAllocator);
+	if (Config::GetBool(Gpu::Cfg_EnableVkValidation, true)) {
+		RequiredLayers.Add("VK_LAYER_KHRONOS_validation");
+	}
+	for (U32 i = 0; i < RequiredLayers.len; i++) {
+		Bool found = false;
+		for (U64 j = 0; j < layers.len; j++) {
+			if (!strcmp(RequiredLayers[i], layers[j].layerName)) {
+				Logf("Found required layer '{}'", RequiredLayers[i]);
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			return Err_NoLayer("name", RequiredLayers[i]);
+		}
+	}
+	
+	Array<VkExtensionProperties> instExts(tempAllocator);
+	CheckVk(vkEnumerateInstanceExtensionProperties(0, &n, 0));
+	CheckVk(vkEnumerateInstanceExtensionProperties(0, &n, instExts.Resize(n)));
+
+	Logf("{} instance extensions:", instExts.len);
+	for (U64 i = 0; i < instExts.len; i++) {
+		Logf("  {}: specVersion={}", instExts[i].extensionName, VersionStr(tempAllocator, instExts[i].specVersion));
+	}
+
+	Array<const char*> RequiredInstExts(tempAllocator);
+	RequiredInstExts.Add("VK_KHR_surface");
+	#if defined Platform_Windows
+		RequiredInstExts.Add("VK_KHR_win32_surface");
+	#endif	//	Platform_
+	if (Config::GetBool(Gpu::Cfg_EnableDebug, true)) {
+		RequiredInstExts.Add("VK_EXT_debug_utils");
+	}
+	for (U32 i = 0; i < RequiredInstExts.len; i++) {
+		Bool found = false;
+		for (U64 j = 0; j < instExts.len; j++) {
+			if (!strcmp(RequiredInstExts[i], instExts[j].extensionName)) {
+				Logf("Found required instance extension '{}'", RequiredInstExts[i]);
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			return Err_NoLayer("name", RequiredInstExts[i]);
+		}
+	}
+		
+	const VkApplicationInfo vkApplicationInfo = {
+		.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+		.pNext              = 0,
+		.pApplicationName   = "JC",
+		.applicationVersion = 1,
+		.pEngineName        = "JC",
+		.engineVersion      = 1,
+		.apiVersion         = VK_API_VERSION_1_3,
+	};
+	VkInstanceCreateInfo vkInstanceCreateInfo = {
+		.sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+		.pNext                   = 0,
+		.flags                   = 0,
+		.pApplicationInfo        = &vkApplicationInfo,
+		.enabledLayerCount       = (U32)RequiredLayers.len,
+		.ppEnabledLayerNames     = RequiredLayers.data,
+		.enabledExtensionCount   = (U32)RequiredInstExts.len,
+		.ppEnabledExtensionNames = RequiredInstExts.data,
+	};
+	
+
+	VkDebugUtilsMessengerCreateInfoEXT vkDebugUtilsMessengerCreateInfo;
+	if (Config::GetBool(Gpu::Cfg_EnableDebug, true)) {
+		vkDebugUtilsMessengerCreateInfo = {
+			.sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+			.pNext           = vkInstanceCreateInfo.pNext,
+			.flags           = 0,
+			.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+			.messageType     = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT,
+			.pfnUserCallback = DebugCallback,
+			.pUserData       = 0,
+		};
+		vkInstanceCreateInfo.pNext = &vkDebugUtilsMessengerCreateInfo;
+
+		const VkBool32 vkTrue = VK_TRUE;
+		constexpr const char* validationDebugActions[] = { "VK_DBG_LAYER_ACTION_LOG_MSG" };  // "VK_DBG_LAYER_ACTION_DEBUG_OUTPUT", "VK_DBG_LAYER_ACTION_BREAK"
+		constexpr const char* validationReportFlags[]  = { "error" };
+		const VkLayerSettingEXT vkLayerSettings[] = {
+
+			{ "VK_LAYER_KHRONOS_validation", "debug_action",                   VK_LAYER_SETTING_TYPE_STRING_EXT, LenOf(validationDebugActions), validationDebugActions},
+			{ "VK_LAYER_KHRONOS_validation", "check_command_buffer",           VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1,                             &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "check_image_layout",             VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1,                             &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "check_object_in_use",            VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1,                             &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "check_query",                    VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1,                             &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "check_shaders",                  VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1,                             &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "check_shaders_caching",          VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1,                             &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "fine_grained_locking",           VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1,                             &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "object_lifetime",                VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1,                             &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "report_flags",                   VK_LAYER_SETTING_TYPE_STRING_EXT, LenOf(validationReportFlags),  validationReportFlags },
+			{ "VK_LAYER_KHRONOS_validation", "stateless_param",                VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1,                             &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "unique_handles",                 VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1,                             &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "validate_best_practices",        VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1,                             &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "validate_best_practices_nvidia", VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1,                             &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "validate_core",                  VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1,                             &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "validate_gpu_based",             VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1,                             &vkTrue },
+			{ "VK_LAYER_KHRONOS_validation", "validate_sync",                  VK_LAYER_SETTING_TYPE_BOOL32_EXT, 1,                             &vkTrue },
+		};
+		const VkLayerSettingsCreateInfoEXT vkLayerSettingsCreateInfo = {
+			.sType        = VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT,
+			.pNext        = vkInstanceCreateInfo.pNext,
+			.settingCount = LenOf(vkLayerSettings),
+			.pSettings    = vkLayerSettings,
+
+		};
+		vkInstanceCreateInfo.pNext = &vkLayerSettingsCreateInfo;
+	}
+
+	CheckVk(vkCreateInstance(&vkInstanceCreateInfo, vkAllocationCallbacks, &vkInstance));
+	LoadInstanceFns(vkInstance);
+
+	if (Config::GetBool(Gpu::Cfg_EnableDebug, true)) {
+		CheckVk(vkCreateDebugUtilsMessengerEXT(vkInstance, &vkDebugUtilsMessengerCreateInfo, vkAllocationCallbacks, &vkDebugUtilsMessenger));
+	}
+
+	#if defined Platform_Windows
+		VkWin32SurfaceCreateInfoKHR win32SurfaceCreateInfo = {
+			.sType     = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+			.pNext     = 0,
+			.flags     = 0,
+			.hinstance = (HINSTANCE)initDesc->windowPlatformDesc->hinstance,
+			.hwnd      = (HWND)initDesc->windowPlatformDesc->hwnd,
+		};
+		CheckVk(vkCreateWin32SurfaceKHR(vkInstance, &win32SurfaceCreateInfo, vkAllocationCallbacks, &vkSurface));
+	#endif	// Platform_
+
+	constexpr const char* RequiredDeviceExts[] = {
+		"VK_KHR_swapchain",
+	};
+
+	U32 n = 0;
+	Array<VkPhysicalDevice> vkPhysicalDevices(tempAllocator);
+	CheckVk(vkEnumeratePhysicalDevices(vkInstance, &n, nullptr));
+	CheckVk(vkEnumeratePhysicalDevices(vkInstance, &n, vkPhysicalDevices.Resize(n)));
+
+	// TODO: support cvar for selecting explicit device
+
+	Logf("{} physical devices:", vkPhysicalDevices.len);
+	physicalDevices.Resize(vkPhysicalDevices.len);
+
+	U32 bestScore = 0;
+	for (U64 i = 0; i < physicalDevices.len; i++) {
+		PhysicalDevice* pd = &physicalDevices[i];
+		vkGetPhysicalDeviceProperties2(vkPhysicalDevices[i], &pd->vkPhysicalDeviceProperties2);
+		Logf(
+			"{}: apiVersion={}, driverVersion={}, vendorID={}, deviceId={}, deviceType={}",
+			pd->vkPhysicalDeviceProperties2.properties.deviceName,
+			VersionStr(tempAllocator, pd->vkPhysicalDeviceProperties2.properties.apiVersion),
+			VersionStr(tempAllocator, pd->vkPhysicalDeviceProperties2.properties.driverVersion),
+			pd->vkPhysicalDeviceProperties2.properties.vendorID,
+			pd->vkPhysicalDeviceProperties2.properties.deviceID,
+			PhysicalDeviceTypeStr(pd->vkPhysicalDeviceProperties2.properties.deviceType)
+		);
+
+		VkPhysicalDeviceFeatures2 vkPhysicalDeviceFeatures2 = {};
+		vkPhysicalDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+		vkPhysicalDeviceFeatures2.pNext = &pd->vkPhysicalDeviceVulkan12Features;
+		pd->vkPhysicalDeviceVulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+		pd->vkPhysicalDeviceVulkan12Features.pNext = &pd->vkPhysicalDeviceVulkan13Features;
+		pd->vkPhysicalDeviceVulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+		pd->vkPhysicalDeviceVulkan13Features.pNext = 0;
+		vkGetPhysicalDeviceFeatures2(pd->vkPhysicalDevice, &vkPhysicalDeviceFeatures2);
+		pd->vkPhysicalDeviceFeatures = vkPhysicalDeviceFeatures2.features;
+
+		vkGetPhysicalDeviceMemoryProperties(pd->vkPhysicalDevice, &pd->vkPhysicalDeviceMemoryProperties);
+		Logf("  {} memory types:", pd->vkPhysicalDeviceMemoryProperties.memoryTypeCount);
+		for (U64 j = 0; j < pd->vkPhysicalDeviceMemoryProperties.memoryTypeCount; j++) {
+			const VkMemoryType mt = pd->vkPhysicalDeviceMemoryProperties.memoryTypes[j];
+			Logf("    [{}] heapIndex={}, flags={}", j, mt.heapIndex, MemoryPropertyFlagsStr(tempAllocator, mt.propertyFlags));
+		}
+		Logf("  {} memory heaps:", pd->vkPhysicalDeviceMemoryProperties.memoryHeapCount);
+		for (U64 j = 0; j < pd->vkPhysicalDeviceMemoryProperties.memoryHeapCount; j++) {
+			const VkMemoryHeap mh = pd->vkPhysicalDeviceMemoryProperties.memoryHeaps[j];
+			Logf("    [{}] size={}, flags={}", j, SizeStr(tempAllocator, mh.size), MemoryHeapFlagsStr(tempAllocator, mh.flags));
+		}
+
+		Array<VkQueueFamilyProperties> vkQueueFamilyProperties(tempAllocator);
+		vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, &n, nullptr);
+		vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, &n, vkQueueFamilyProperties.Resize(n));
+
+		pd->vkExtensionProperties.Init(allocator);
+		CheckVk(vkEnumerateDeviceExtensionProperties(pd->vkPhysicalDevice, 0, &n, 0));
+		CheckVk(vkEnumerateDeviceExtensionProperties(pd->vkPhysicalDevice, 0, &n, pd->vkExtensionProperties.Resize(n)));
+
+		Array<char> extensionsStr(tempAllocator);
+		for (U64 j = 0; j < pd->vkExtensionProperties.len; j++) {
+			Fmt::Printf(&extensionsStr, "{}(specVersion={}), ", pd->vkExtensionProperties[j].extensionName, VersionStr(tempAllocator, pd->vkExtensionProperties[j].specVersion));
+		}
+		if (extensionsStr.len >= 2) {
+			extensionsStr.len -= 2;
+		}
+		Logf("  {} device extensions: {}",  pd->vkExtensionProperties.len, Str(extensionsStr.data, extensionsStr.len));
+
+		pd->vkSurfaceFormats.Init(allocator);
+		CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(pd->vkPhysicalDevice, vkSurface, &n, 0));
+		CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(pd->vkPhysicalDevice, vkSurface, &n, pd->vkSurfaceFormats.Resize(n)));
+		for (U64 j = 0; j < pd->vkSurfaceFormats.len; j++) {
+			if (
+				(
+					pd->vkSurfaceFormats[j].format == VK_FORMAT_B8G8R8A8_UNORM ||
+					pd->vkSurfaceFormats[j].format == VK_FORMAT_R8G8B8A8_UNORM ||
+					pd->vkSurfaceFormats[j].format == VK_FORMAT_B8G8R8_UNORM ||
+					pd->vkSurfaceFormats[j].format == VK_FORMAT_R8G8B8_UNORM
+				) &&
+				pd->vkSurfaceFormats[j].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+			) {
+				pd->vkSwapchainFormat     = pd->vkSurfaceFormats[j].format;
+				pd->vkSwapchainColorSpace = pd->vkSurfaceFormats[j].colorSpace;
+				goto FoundSurfaceFormat;
+			}
+		}
+		FoundSurfaceFormat:
+		Logf("  {} surface formats:", pd->vkSurfaceFormats.len);
+		for (U64 j = 0; j < pd->vkSurfaceFormats.len; j++) {
+			Logf("    {}, {}", FormatStr(pd->vkSurfaceFormats[j].format), ColorSpaceStr(pd->vkSurfaceFormats[j].colorSpace));
+		}
+		Logf("  Selected surface format: {}/{}", FormatStr(pd->vkSwapchainFormat), ColorSpaceStr(pd->vkSwapchainColorSpace));
+
+		pd->vkPresentModes.Init(allocator);
+		CheckVk(vkGetPhysicalDeviceSurfacePresentModesKHR(pd->vkPhysicalDevice, vkSurface, &n, 0));
+		CheckVk(vkGetPhysicalDeviceSurfacePresentModesKHR(pd->vkPhysicalDevice, vkSurface, &n, pd->vkPresentModes.Resize(n)));
+		Logf("  {} present modes:", pd->vkPresentModes.len);
+		for (U64 j = 0; j < pd->vkPresentModes.len; j++) {
+			Logf("    {}", PresentModeStr(pd->vkPresentModes[j]));
+		}
+
+		pd->queueFamilies.Init(allocator);
+		pd->queueFamilies.Resize(vkQueueFamilyProperties.len);
+		Logf("  {} queue families:", pd->queueFamilies.len);
+		for (U64 j = 0; j < pd->queueFamilies.len; j++) {
+			const VkQueueFamilyProperties* props = &pd->queueFamilies[j].vkQueueFamilyProperties;
+			VkBool32 supportsPresent = VK_FALSE;
+			CheckVk(vkGetPhysicalDeviceSurfaceSupportKHR(pd->vkPhysicalDevice, (U32)j, vkSurface, &supportsPresent));
+			pd->queueFamilies[j].vkQueueFamilyProperties = vkQueueFamilyProperties[j];
+			pd->queueFamilies[j].supportsPresent         = (supportsPresent == VK_TRUE);
+			Logf("    [{}] count={}, flags={}, supportsPresent={}", j, props->queueCount, QueueFlagsStr(tempAllocator, props->queueFlags), pd->queueFamilies[j].supportsPresent);
+			const VkQueueFlags flags = pd->queueFamilies[j].vkQueueFamilyProperties.queueFlags;
+			if (pd->queueFamily == VK_QUEUE_FAMILY_IGNORED && (flags & VK_QUEUE_GRAPHICS_BIT) && pd->queueFamilies[j].supportsPresent) {
+				pd->queueFamily = (U32)j;
+			}
+		}
+
+		if (pd->vkSwapchainFormat == VK_FORMAT_UNDEFINED) {
+			Logf("  Rejecting device: no suitable swapchain format");
+			pd->score = 0;
+		}
+		if (pd->vkPresentModes.len == 0) {
+			Logf("  Rejecting device: no present modes");
+			pd->score = 0;
+		}
+		if (pd->queueFamily == VK_QUEUE_FAMILY_IGNORED) {
+			Logf("  Rejecting device: no graphics queue supporting present");
+			pd->score = 0;
+		}
+
+		Logf("  score: {}", pd->score);
+		if (pd->score > bestScore) {
+			physicalDevice = pd;
+			bestScore = pd->score;
+		}
+	}
+
+	U32 bestScore = 0;
+	for (U64 i = 0; i < physicalDevices.len; i++) {
+		PhysicalDevice* pd = &physicalDevices[i];
+		vkGetPhysicalDeviceProperties2(vkPhysicalDevices[i], &pd->vkPhysicalDeviceProperties2);
+		Logf(
+			"{}: apiVersion={}, driverVersion={}, vendorID={}, deviceId={}, deviceType={}",
+			pd->vkPhysicalDeviceProperties2.properties.deviceName,
+			VersionStr(tempAllocator, pd->vkPhysicalDeviceProperties2.properties.apiVersion),
+			VersionStr(tempAllocator, pd->vkPhysicalDeviceProperties2.properties.driverVersion),
+			pd->vkPhysicalDeviceProperties2.properties.vendorID,
+			pd->vkPhysicalDeviceProperties2.properties.deviceID,
+			PhysicalDeviceTypeStr(pd->vkPhysicalDeviceProperties2.properties.deviceType)
+		);
+		switch (pd->vkPhysicalDeviceProperties2.properties.deviceType) {
+			case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:   pd->score += 1000; break;
+			case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: pd->score +=  100; break;
+			case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:    pd->score +=   10; break;
+			case VK_PHYSICAL_DEVICE_TYPE_CPU:            pd->score +=    1; break;
+			case VK_PHYSICAL_DEVICE_TYPE_OTHER:          pd->score +=    1; break;
+		};
+		if (pd->vkPhysicalDeviceProperties2.properties.apiVersion < VK_API_VERSION_1_3) {
+			Logf("  Rejecting device: need Vulkan 1.3: apiVersion={}", VersionStr(tempAllocator, pd->vkPhysicalDeviceProperties2.properties.apiVersion));
+			pd->score = 0;
+		}
+
+		VkPhysicalDeviceFeatures2 vkPhysicalDeviceFeatures2 = {};
+		vkPhysicalDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+		vkPhysicalDeviceFeatures2.pNext = &pd->vkPhysicalDeviceVulkan12Features;
+		pd->vkPhysicalDeviceVulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+		pd->vkPhysicalDeviceVulkan12Features.pNext = &pd->vkPhysicalDeviceVulkan13Features;
+		pd->vkPhysicalDeviceVulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+		pd->vkPhysicalDeviceVulkan13Features.pNext = 0;
+		vkGetPhysicalDeviceFeatures2(pd->vkPhysicalDevice, &vkPhysicalDeviceFeatures2);
+		pd->vkPhysicalDeviceFeatures = vkPhysicalDeviceFeatures2.features;
+		if (!pd->vkPhysicalDeviceVulkan12Features.bufferDeviceAddress) {
+			Logf("  Rejecting device: doesn't support bufferDeviceAddress");
+			pd->score = 0;
+		}
+		if (!pd->vkPhysicalDeviceVulkan12Features.descriptorIndexing) {
+			Logf("  Rejecting device: doesn't support descriptorIndexing");
+			pd->score = 0;
+		}
+		if (!pd->vkPhysicalDeviceVulkan13Features.dynamicRendering) {
+			Logf("  Rejecting device: doesn't support dynamicRendering");
+			pd->score = 0;
+		}
+		if (!pd->vkPhysicalDeviceVulkan13Features.synchronization2) {
+			Logf("  Rejecting device: doesn't support synchronization2");
+			pd->score = 0;
+		}
+
+		vkGetPhysicalDeviceMemoryProperties(pd->vkPhysicalDevice, &pd->vkPhysicalDeviceMemoryProperties);
+		Logf("  {} memory types:", pd->vkPhysicalDeviceMemoryProperties.memoryTypeCount);
+		for (U64 j = 0; j < pd->vkPhysicalDeviceMemoryProperties.memoryTypeCount; j++) {
+			const VkMemoryType mt = pd->vkPhysicalDeviceMemoryProperties.memoryTypes[j];
+			Logf("    [{}] heapIndex={}, flags={}", j, mt.heapIndex, MemoryPropertyFlagsStr(tempAllocator, mt.propertyFlags));
+		}
+		Logf("  {} memory heaps:", pd->vkPhysicalDeviceMemoryProperties.memoryHeapCount);
+		for (U64 j = 0; j < pd->vkPhysicalDeviceMemoryProperties.memoryHeapCount; j++) {
+			const VkMemoryHeap mh = pd->vkPhysicalDeviceMemoryProperties.memoryHeaps[j];
+			Logf("    [{}] size={}, flags={}", j, SizeStr(tempAllocator, mh.size), MemoryHeapFlagsStr(tempAllocator, mh.flags));
+		}
+
+		Array<VkQueueFamilyProperties> vkQueueFamilyProperties(tempAllocator);
+		vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, &n, nullptr);
+		vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, &n, vkQueueFamilyProperties.Resize(n));
+
+		pd->vkExtensionProperties.Init(allocator);
+		CheckVk(vkEnumerateDeviceExtensionProperties(pd->vkPhysicalDevice, 0, &n, 0));
+		CheckVk(vkEnumerateDeviceExtensionProperties(pd->vkPhysicalDevice, 0, &n, pd->vkExtensionProperties.Resize(n)));
+
+		Array<char> extensionsStr(tempAllocator);
+		for (U64 j = 0; j < pd->vkExtensionProperties.len; j++) {
+			Fmt::Printf(&extensionsStr, "{}(specVersion={}), ", pd->vkExtensionProperties[j].extensionName, VersionStr(tempAllocator, pd->vkExtensionProperties[j].specVersion));
+		}
+		if (extensionsStr.len >= 2) {
+			extensionsStr.len -= 2;
+		}
+		Logf("  {} device extensions: {}",  pd->vkExtensionProperties.len, Str(extensionsStr.data, extensionsStr.len));
+		for (U64 j = 0; j < LenOf(RequiredDeviceExts); j++) {
+			Bool found = false;
+			for (U64 k = 0; k < pd->vkExtensionProperties.len; k++) {
+				if (!strcmp(RequiredDeviceExts[j], pd->vkExtensionProperties[k].extensionName)) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				Logf("Rejecting device: doesn't support extension '{}'", RequiredDeviceExts[j]);
+				pd->score = 0;
+			}
+		}
+
+		pd->vkSurfaceFormats.Init(allocator);
+		CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(pd->vkPhysicalDevice, vkSurface, &n, 0));
+		CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(pd->vkPhysicalDevice, vkSurface, &n, pd->vkSurfaceFormats.Resize(n)));
+		for (U64 j = 0; j < pd->vkSurfaceFormats.len; j++) {
+			if (
+				(
+					pd->vkSurfaceFormats[j].format == VK_FORMAT_B8G8R8A8_UNORM ||
+					pd->vkSurfaceFormats[j].format == VK_FORMAT_R8G8B8A8_UNORM ||
+					pd->vkSurfaceFormats[j].format == VK_FORMAT_B8G8R8_UNORM ||
+					pd->vkSurfaceFormats[j].format == VK_FORMAT_R8G8B8_UNORM
+				) &&
+				pd->vkSurfaceFormats[j].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+			) {
+				pd->vkSwapchainFormat     = pd->vkSurfaceFormats[j].format;
+				pd->vkSwapchainColorSpace = pd->vkSurfaceFormats[j].colorSpace;
+				goto FoundSurfaceFormat;
+			}
+		}
+		FoundSurfaceFormat:
+		Logf("  {} surface formats:", pd->vkSurfaceFormats.len);
+		for (U64 j = 0; j < pd->vkSurfaceFormats.len; j++) {
+			Logf("    {}, {}", FormatStr(pd->vkSurfaceFormats[j].format), ColorSpaceStr(pd->vkSurfaceFormats[j].colorSpace));
+		}
+		Logf("  Selected surface format: {}/{}", FormatStr(pd->vkSwapchainFormat), ColorSpaceStr(pd->vkSwapchainColorSpace));
+
+		pd->vkPresentModes.Init(allocator);
+		CheckVk(vkGetPhysicalDeviceSurfacePresentModesKHR(pd->vkPhysicalDevice, vkSurface, &n, 0));
+		CheckVk(vkGetPhysicalDeviceSurfacePresentModesKHR(pd->vkPhysicalDevice, vkSurface, &n, pd->vkPresentModes.Resize(n)));
+		Logf("  {} present modes:", pd->vkPresentModes.len);
+		for (U64 j = 0; j < pd->vkPresentModes.len; j++) {
+			Logf("    {}", PresentModeStr(pd->vkPresentModes[j]));
+		}
+
+		pd->queueFamilies.Init(allocator);
+		pd->queueFamilies.Resize(vkQueueFamilyProperties.len);
+		Logf("  {} queue families:", pd->queueFamilies.len);
+		for (U64 j = 0; j < pd->queueFamilies.len; j++) {
+			const VkQueueFamilyProperties* props = &pd->queueFamilies[j].vkQueueFamilyProperties;
+			VkBool32 supportsPresent = VK_FALSE;
+			CheckVk(vkGetPhysicalDeviceSurfaceSupportKHR(pd->vkPhysicalDevice, (U32)j, vkSurface, &supportsPresent));
+			pd->queueFamilies[j].vkQueueFamilyProperties = vkQueueFamilyProperties[j];
+			pd->queueFamilies[j].supportsPresent         = (supportsPresent == VK_TRUE);
+			Logf("    [{}] count={}, flags={}, supportsPresent={}", j, props->queueCount, QueueFlagsStr(tempAllocator, props->queueFlags), pd->queueFamilies[j].supportsPresent);
+			const VkQueueFlags flags = pd->queueFamilies[j].vkQueueFamilyProperties.queueFlags;
+			if (pd->queueFamily == VK_QUEUE_FAMILY_IGNORED && (flags & VK_QUEUE_GRAPHICS_BIT) && pd->queueFamilies[j].supportsPresent) {
+				pd->queueFamily = (U32)j;
+			}
+		}
+
+		if (pd->vkSwapchainFormat == VK_FORMAT_UNDEFINED) {
+			Logf("  Rejecting device: no suitable swapchain format");
+			pd->score = 0;
+		}
+		if (pd->vkPresentModes.len == 0) {
+			Logf("  Rejecting device: no present modes");
+			pd->score = 0;
+		}
+		if (pd->queueFamily == VK_QUEUE_FAMILY_IGNORED) {
+			Logf("  Rejecting device: no graphics queue supporting present");
+			pd->score = 0;
+		}
+
+		Logf("  score: {}", pd->score);
+		if (pd->score > bestScore) {
+			physicalDevice = pd;
+			bestScore = pd->score;
+		}
+	}
+
+	if (bestScore == 0) {
+		return Err_NoDevice();
+	}
+	Logf("Selected physical device '{}' with score={}", physicalDevice->vkPhysicalDeviceProperties.deviceName, physicalDevice->score);
+
+	F32 queuePriority = 1.0f;
+	const VkDeviceQueueCreateInfo vkDeviceQueueCreateInfo = {
+		.sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+		.pNext            = 0,
+		.flags            = 0,
+		.queueFamilyIndex = physicalDevice->queueFamily,
+		.queueCount       = 1,
+		.pQueuePriorities = &queuePriority,
+	};
+
+	VkPhysicalDeviceFeatures2 vkPhysicalDeviceFeatures2 = {};
+	VkPhysicalDeviceVulkan12Features vkPhysicalDeviceVulkan12Features = {};
+	VkPhysicalDeviceVulkan13Features vkPhysicalDeviceVulkan13Features = {};
+
+	vkPhysicalDeviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+	vkPhysicalDeviceFeatures2.pNext = &vkPhysicalDeviceVulkan12Features;
+	vkPhysicalDeviceFeatures2.features.shaderClipDistance = VK_TRUE;
+	vkPhysicalDeviceFeatures2.features.samplerAnisotropy = VK_TRUE;
+	
+	vkPhysicalDeviceVulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+	vkPhysicalDeviceVulkan12Features.pNext = &vkPhysicalDeviceVulkan13Features;
+	vkPhysicalDeviceVulkan12Features.bufferDeviceAddress = VK_TRUE;
+	vkPhysicalDeviceVulkan12Features.descriptorIndexing = VK_TRUE;
+	vkPhysicalDeviceVulkan12Features.descriptorBindingPartiallyBound = VK_TRUE;
+	vkPhysicalDeviceVulkan12Features.runtimeDescriptorArray = VK_TRUE;
+	vkPhysicalDeviceVulkan12Features.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+
+	vkPhysicalDeviceVulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+	vkPhysicalDeviceVulkan13Features.pNext = 0;
+	vkPhysicalDeviceVulkan13Features.dynamicRendering = VK_TRUE;
+	vkPhysicalDeviceVulkan13Features.synchronization2 = VK_TRUE;
+
+	TODO: add 1.4 features;
+	// TODO: possibly create more queues? one per type?
+	const VkDeviceCreateInfo vkDeviceCreateInfo = {
+		.sType                   = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+		.pNext                   = &vkPhysicalDeviceFeatures2,
+		.flags                   = 0,
+		.queueCreateInfoCount    = 1,
+		.pQueueCreateInfos       = &vkDeviceQueueCreateInfo,
+		.enabledLayerCount       = 0,
+		.ppEnabledLayerNames     = 0,
+		.enabledExtensionCount   = LenOf(RequiredDeviceExts),
+		.ppEnabledExtensionNames = RequiredDeviceExts,
+		.pEnabledFeatures        = 0,
+	};
+
+	CheckVk(vkCreateDevice(physicalDevice->vkPhysicalDevice, &vkDeviceCreateInfo, vkAllocationCallbacks, &vkDevice));
+		
+	LoadDeviceFns(vkDevice);
+
+	vkGetDeviceQueue(vkDevice, physicalDevice->queueFamily, 0, &vkQueue);
+
 	if (Res<> r = InitSwapchain(initDesc->windowWidth, initDesc->windowHeight); !r) { return r; }
 	if (Res<> r = InitFrameSyncObjects();                                       !r) { return r; }
 	if (Res<> r = InitCommandBuffers();                                         !r) { return r; }
@@ -1797,7 +1934,7 @@ Res<> BeginFrame() {
 
 //----------------------------------------------------------------------------------------------
 
-U64 frame = 0;
+U64 frame = 0;	// TODO: move to top
 Res<> EndFrame() {
 	CheckVk(vkEndCommandBuffer(vkFrameCommandBuffers[frameIdx]));
 

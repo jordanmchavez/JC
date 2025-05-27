@@ -111,6 +111,7 @@
     <ClInclude Include="3rd\vk_video\vulkan_video_codec_h265std.h" />
     <ClInclude Include="3rd\vk_video\vulkan_video_codec_h265std_decode.h" />
     <ClInclude Include="3rd\vk_video\vulkan_video_codec_h265std_encode.h" />
+    <ClInclude Include="3rd\vma\vk_mem_alloc.h" />
     <ClInclude Include="3rd\vulkan\vk_platform.h" />
     <ClInclude Include="3rd\vulkan\vulkan.h" />
     <ClInclude Include="3rd\vulkan\vulkan_core.h" />
@@ -161,6 +162,7 @@
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
+    <ClCompile Include="3rd\vma\vk_mem_alloc.cpp" />
     <ClCompile Include="JC\Game_Shmup.h" />
     <ClCompile Include="JC\App.cpp" />
     <ClCompile Include="JC\Array.cpp" />
@@ -176,6 +178,7 @@
     <ClCompile Include="JC\File_Win.cpp" />
     <ClCompile Include="JC\Fmt.cpp" />
     <ClCompile Include="JC\Game_Shmup.cpp" />
+    <ClCompile Include="JC\Gpu_Minimal.cpp" />
     <ClCompile Include="JC\HandleArray.cpp" />
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Json.cpp" />
