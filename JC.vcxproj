@@ -178,7 +178,6 @@
     <ClCompile Include="JC\File_Win.cpp" />
     <ClCompile Include="JC\Fmt.cpp" />
     <ClCompile Include="JC\Game_Shmup.cpp" />
-    <ClCompile Include="JC\Gpu_Minimal.cpp" />
     <ClCompile Include="JC\HandleArray.cpp" />
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Json.cpp" />

@@ -222,10 +222,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 
 //--------------------------------------------------------------------------------------------------
 
-namespace Gpu { void EndCommands(); }	// TODO: this sucks, fix
-
 void Shutdown(App* app) {
-	Gpu::EndCommands();
 	Gpu::WaitIdle();
 	app->Shutdown();
 	Render::Shutdown();

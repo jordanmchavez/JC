@@ -18,8 +18,6 @@ constexpr Str Cfg_EnableDebug        = "Gpu::EnableDebug";
 
 //--------------------------------------------------------------------------------------------------
 
-constexpr U32 MaxFrames = 3;
-
 struct InitDesc {
 	Mem::Allocator*             allocator          = 0;
 	Mem::TempAllocator*         tempAllocator      = 0;
@@ -35,29 +33,17 @@ struct Image    { U64 handle = 0; };
 struct Shader   { U64 handle = 0; };
 struct Pipeline { U64 handle = 0; };
 
-enum struct Stage {
-	None,
-	TransferSrc,
-	TransferDst,
-	VertexShaderRead,
-	FragmentShaderSample,
-	ColorAttachment,
-	PresentOld,
-	Present,
-};
+namespace BufferUsageFlags {
+	constexpr U32 Storage = 1 << 0;
+	constexpr U32 Index   = 1 << 1;
+	constexpr U32 Static  = 1 << 2;
+	constexpr U32 Dynamic = 1 << 4;
+}
 
-enum struct BufferUsage {
-	Undefined = 0,
-	Storage,
-	Index,
-	Staging,
-};
-
-enum struct ImageUsage {
-	Undefined = 0,
-	Sampled,
-	ColorAttachment,
-	DepthAttachment,
+namespace ImageUsageFlags {
+	constexpr U32 Sampled         = 1 << 0;
+	constexpr U32 ColorAttachment = 1 << 1;
+	constexpr U32 DepthAttachment = 1 << 2;
 };
 
 enum struct ImageFormat {
@@ -68,19 +54,19 @@ enum struct ImageFormat {
 };
 
 struct Viewport {
-	F32 x = 0.0f;
-	F32 y = 0.0f;
-	F32 w = 0.0f;
-	F32 h = 0.0f;
+	F32 x;
+	F32 y;
+	F32 w;
+	F32 h;
 };
 
 struct Pass {
-	Pipeline    pipeline         = {};
-	Span<Image> colorAttachments = {};
-	Image       depthAttachment  = {};
-	Viewport    viewport         = {};
-	Rect        scissor          = {};
-	bool        clear            = false;
+	Pipeline    pipeline;
+	Span<Image> colorAttachments;
+	Image       depthAttachment;
+	Viewport    viewport;
+	Rect        scissor;
+	bool        clear;
 };
 
 Res<>         Init(const InitDesc* initDesc);
@@ -91,23 +77,20 @@ void          DebugBarrier();
 Res<>         RecreateSwapchain(U32 width, U32 height);
 Image         GetSwapchainImage();
 
-Res<Buffer>   CreateBuffer(U64 size, BufferUsage usage);
+Res<Buffer>   CreateBuffer(U64 size, U32 usageFlags);
 void          DestroyBuffer(Buffer buffer);
 U64           GetBufferAddr(Buffer buffer);
-Res<void*>    MapBuffer(Buffer buffer, U64 offset, U64 size);
-void          CopyBuffer(Buffer srcBuffer, U64 srcOffset, Buffer dstBuffer, U64 dstOffset, U64 size);
-void          BufferBarrier(Buffer buffer, Stage src, Stage dst);
+void          WriteBuffer(Buffer buffer, U64 offset, const void* data, U64 size);
 
-Res<Image>    CreateImage(U32 width, U32 height, ImageFormat format, ImageUsage usage);
+Res<Image>    CreateImage(U32 width, U32 height, ImageFormat format, U32 usageFlags);
 void          DestroyImage(Image image);
 U32           GetImageWidth(Image image);	// TODO; -> IVec2 or IExtent or something
 U32           GetImageHeight(Image image);
 ImageFormat   GetImageFormat(Image image);
 U32           BindImage(Image image);
-void          CopyBufferToImage(Buffer buffer, U64 bufferOffset, Image image);
-void          ImageBarrier(Image image, Stage src, Stage dst);
+void          WriteImage(Image image, const void* data);
 
-Res<Shader>   CreateShader	(const void* data, U64 len);
+Res<Shader>   CreateShader(const void* data, U64 len);
 void          DestroyShader(Shader shader);
 
 Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> colorAttachmentFormats, ImageFormat depthAttachmentFormat);
@@ -123,8 +106,43 @@ void          BindIndexBuffer(Buffer buffer);
 void          PushConstants(Pipeline pipeline, const void* data, U32 len);
 void          Draw(U32 vertexCount, U32 instanceCount);
 void          DrawIndexed(U32 indexCount);
-U32           GetFrameIdx();
 
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC::Gpu
+
+/*
+what is the interface for tings we're actually doing?
+
+sprite
+ui
+particle system
+maybe meshes?
+
+immutable data: texture, mesh VB
+uploaded once then never touched
+never need to barrier it
+staging buffer can come and go
+
+point 1: do we need to expose the per-frame data?
+we do for dynamic stuff
+
+
+gpu should handle dynamic buffers as a primitive:
+create dynamic buffer
+no frame stuff
+no staging stuff
+no barriers
+
+static vs dynamic
+index
+storage
+static
+dynamic
+stage usage: vertex, fragment, compute
+
+raw interface
+
+draw texture
+
+*/

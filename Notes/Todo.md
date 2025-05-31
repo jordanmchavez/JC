@@ -242,3 +242,4 @@ replace staging buffer with host/device visible memory if it exists
 array tests, especially around zero-ing memory
 map zero memory and tests
 use REBAR for sprite xfer if available
+VK_EXT_host_image_copy
