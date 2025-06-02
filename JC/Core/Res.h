@@ -38,6 +38,11 @@ template <class T> struct [[nodiscard]] Res {
 
 constexpr Res<> Ok() { return Res<>(); }
 
+#define CheckRes(Code) \
+	if (Res<> r = Code; !r) { \
+		return r.err.Push(Err("", "", SrcLoc::Here())); \
+	}
+
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC

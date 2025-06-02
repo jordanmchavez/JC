@@ -5,6 +5,7 @@
 namespace JC::Log { struct Logger; } 
 namespace JC::Event { struct Event; }
 namespace JC::Window { struct State; }
+namespace JC::Gpu { struct Cmd; struct Image; }
 
 namespace JC {
 
@@ -22,7 +23,7 @@ struct App {
 	virtual void  Shutdown() = 0;
 	virtual Res<> Events(Span<Event::Event> events) = 0;
 	virtual Res<> Update(double secs) = 0;
-	virtual Res<> Draw() = 0;
+	virtual Res<> Draw(Gpu::Cmd cmd, Gpu::Image swapchainImage) = 0;
 
 	void Exit();
 /*
@@ -55,6 +56,8 @@ love.wheelmoved	Callback function triggered when the mouse wheel is moved.	Added
 };
 
 void RunApp(App* app, int argc, const char** argv);
+
+extern App* g_app;
 
 //--------------------------------------------------------------------------------------------------
 

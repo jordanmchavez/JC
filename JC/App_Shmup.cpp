@@ -365,11 +365,11 @@ struct Game : App {
 	U32 frameIdx;
 	Gpu::Image swapchainImage;
 
-	Res<> Draw() override {
+	Res<> Draw(Gpu::Cmd cmd) override {
 		frameIdx = Gpu::GetFrameIdx();
 
 		swapchainImage = Gpu::GetSwapchainImage();
-		Gpu::ImageBarrier(swapchainImage, Gpu::Stage::PresentOld, Gpu::Stage::ColorAttachment);
+		Gpu::CmdImageBarrier(cmd, swapchainImage, Gpu::Stage::PresentOld, Gpu::Stage::ColorAttachment);
 
 		Render::BeginFrame();
 

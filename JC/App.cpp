@@ -5,7 +5,6 @@
 #include "JC/Fmt.h"
 #include "JC/Gpu.h"
 #include "JC/Log.h"
-#include "JC/Render.h"
 #include "JC/Sys.h"
 #include "JC/Time.h"
 #include "JC/Ui.h"
@@ -118,15 +117,6 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		return r;
 	}
 
-	const Render::InitDesc renderInitDesc = {
-		.allocator     = permAllocator,
-		.tempAllocator = tempAllocator,
-		.logger        = logger,
-		.windowWidth   = windowState.width,
-		.windowHeight  = windowState.height,
-	};
-	if (Res<> r = Render::Init(&renderInitDesc); !r) { return r; }
-
 	if (Res<> r = app->Init(&windowState); !r) {
 		return r;
 	}
@@ -183,14 +173,15 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		}
 
 		if (prevWindowState.width != windowState.width || prevWindowState.height != windowState.height) {
-			if (Res<> r = Render::WindowResized(windowState.width, windowState.height); !r) {
+			if (Res<> r = Gpu::RecreateSwapchain(windowState.width, windowState.height); !r) {
 				return r;
 			}
 			Logf("Window size changed: {}x{} -> {}x{}", prevWindowState.width, prevWindowState.height, windowState.width, windowState.height);
 		}
 
 		bool skipFrame = false;
-		if (Res<> r = Gpu::BeginFrame(); !r) {
+		Gpu::Frame frame;
+		if (Res<> r = Gpu::BeginFrame().To(frame); !r) {
 			if (r.err == Gpu::EC_RecreateSwapchain) {
 				if (r = Gpu::RecreateSwapchain(windowState.width, windowState.height); !r) {
 					return r;
@@ -203,7 +194,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		}
 		if (skipFrame) { continue; }
 
-		if (Res<> r = app->Draw(); !r) { return r; }
+		if (Res<> r = app->Draw(frame.cmd, frame.swapchainImage); !r) { return r; }
 		
 		if (Res<> r = Gpu::EndFrame(); !r) {
 			if (r.err == Gpu::EC_RecreateSwapchain) {
@@ -225,7 +216,6 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 void Shutdown(App* app) {
 	Gpu::WaitIdle();
 	app->Shutdown();
-	Render::Shutdown();
 	Gpu::Shutdown();
 	Window::Shutdown();
 }

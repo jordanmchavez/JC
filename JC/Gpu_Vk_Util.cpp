@@ -8,7 +8,191 @@
 
 namespace JC::Gpu {
 
+//--------------------------------------------------------------------------------------------------
+
+extern VkDevice               vkDevice;
+extern VkAllocationCallbacks* vkAllocationCallbacks;
+
 static void Add(Array<char>* a, Str s) { a->Add(s.data, s.len); }
+
+//--------------------------------------------------------------------------------------------------
+
+StageFlags GetStageFlags(Stage stage) {
+	switch (stage) {
+		case Stage::ColorAttachmentOutput:
+			return {
+				.vkPipelineStageFlagBits2 = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+				.vkAccessFlagBits2        = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+				.vkImageLayout            = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			};
+		case Stage::PresentSrc:
+			return {
+				.vkPipelineStageFlagBits2 = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+				.vkAccessFlagBits2        = VK_ACCESS_2_NONE,
+				.vkImageLayout            = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+			};
+		default: Panic("Unhandled Stage", "stage", stage);
+	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+VkImageSubresourceRange MakeVkSubresourceRange(VkImageAspectFlags vkImageAspectFlags) {
+	return VkImageSubresourceRange {
+		.aspectMask      = vkImageAspectFlags,
+		.baseMipLevel    = 0,
+		.levelCount      = 1,
+		.baseArrayLayer  = 0,
+		.layerCount      = 1,
+	};
+}
+
+VkImageSubresourceLayers MakeVkImageSubresourceLayers(VkImageAspectFlags vkImageAspectFlags) {
+	return VkImageSubresourceLayers {
+		.aspectMask      = vkImageAspectFlags,
+		.mipLevel        = 0,
+		.baseArrayLayer  = 0,
+		.layerCount      = 1,
+	};
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<VkSemaphore> CreateSemaphore() {
+	VkSemaphoreCreateInfo vkSemaphoreCreateInfo = {
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		.pNext = 0,
+		.flags = 0,
+	};
+	VkSemaphore vkSemaphore;
+	CheckVk(vkCreateSemaphore(vkDevice, &vkSemaphoreCreateInfo, vkAllocationCallbacks, &vkSemaphore));
+	return vkSemaphore;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<VkSemaphore> CreateTimelineSemaphore(U64 initialValue) {
+	VkSemaphoreTypeCreateInfo vkSemaphoreTypeCreateInfo = {
+		.sType         = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
+		.pNext         = 0,
+		.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
+		.initialValue  = initialValue,
+	};
+	VkSemaphoreCreateInfo vkSemaphoreCreateInfo = {
+		.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		.pNext = &vkSemaphoreTypeCreateInfo,
+		.flags = 0,
+	};
+	VkSemaphore vkSemaphore;
+	CheckVk(vkCreateSemaphore(vkDevice, &vkSemaphoreCreateInfo, vkAllocationCallbacks, &vkSemaphore));
+	return vkSemaphore;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<> WaitTimelineSemaphore(VkSemaphore vkTimelineSemaphore, U64 waitVal) {
+	VkSemaphoreWaitInfo vkSemaphoreWaitInfo = {
+		.sType          = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+		.pNext          = 0,
+		.flags          = 0,
+		.semaphoreCount = 1,
+		.pSemaphores    = &vkTimelineSemaphore,
+		.pValues        = &waitVal,
+
+	};
+	CheckVk(vkWaitSemaphores(vkDevice, &vkSemaphoreWaitInfo, U64Max));
+	return Ok();
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<VkCommandPool> CreateCommandPool(U32 queueFamily, VkCommandPoolCreateFlags flags) {
+	VkCommandPoolCreateInfo vkCommandPoolCreateInfo = {
+		.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+		.pNext            = 0,
+		.flags            = flags,
+		.queueFamilyIndex = queueFamily,
+	};
+	VkCommandPool vkCommandPool;
+	CheckVk(vkCreateCommandPool(vkDevice, &vkCommandPoolCreateInfo, vkAllocationCallbacks, &vkCommandPool));
+	return vkCommandPool;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<> AllocCommandBuffers(VkCommandPool vkCommandPool, U32 n, VkCommandBuffer* vkOutCommandBuffers) {
+	VkCommandBufferAllocateInfo vkCommandBufferAllocateInfo = {
+		.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.pNext              = 0,
+		.commandPool        = vkCommandPool,
+		.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = n,
+	};
+	CheckVk(vkAllocateCommandBuffers(vkDevice, &vkCommandBufferAllocateInfo, vkOutCommandBuffers));
+	return Ok();
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<> BeginCommandBuffer(VkCommandBuffer vkCommandBuffer, VkCommandBufferUsageFlags vkCommandBufferUsageFlags) {
+	const VkCommandBufferBeginInfo vkCommandBufferBeginInfo = {
+		.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.pNext            = 0,
+		.flags            = vkCommandBufferUsageFlags,
+		.pInheritanceInfo = 0,
+	};
+	CheckVk(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
+	return Ok();
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<> SubmitQueue(Mem::TempAllocator* tempAllocator, VkQueue vkQueue, Span<VkCommandBuffer> vkCommandBuffers, Span<SemaphoreSubmit> waits, Span<SemaphoreSubmit> signals) {
+	VkSemaphoreSubmitInfo* const vkWaitSemaphoreSubmitInfos = tempAllocator->AllocT<VkSemaphoreSubmitInfo>(waits.len);
+	for (U64 i = 0; i < waits.len; i++) {
+		vkWaitSemaphoreSubmitInfos[i] = {
+			.sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+			.pNext       = 0,
+			.semaphore   = waits[i].vkSemaphore,
+			.value       = waits[i].val,
+			.stageMask   = waits[i].vkPipelineStageFlags2,
+			.deviceIndex = 0,
+		};
+	}
+	VkCommandBufferSubmitInfo* const vkCommandBufferSubmitInfos = tempAllocator->AllocT<VkCommandBufferSubmitInfo>(vkCommandBuffers.len);
+	for (U64 i = 0; i < vkCommandBuffers.len; i++) {
+		vkCommandBufferSubmitInfos[i] = {
+			.sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+			.pNext         = 0,
+			.commandBuffer = vkCommandBuffers[i],
+			.deviceMask    = 0,
+		};
+	}
+	VkSemaphoreSubmitInfo* const vkSignalSemaphoreSubmitInfos = tempAllocator->AllocT<VkSemaphoreSubmitInfo>(signals.len);
+	for (U64 i = 0; i < signals.len; i++) {
+		vkSignalSemaphoreSubmitInfos[i] = {
+			.sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+			.pNext       = 0,
+			.semaphore   = signals[i].vkSemaphore,
+			.value       = signals[i].val,
+			.stageMask   = signals[i].vkPipelineStageFlags2,
+			.deviceIndex = 0,
+		};
+	}
+	const VkSubmitInfo2 vkSubmitInfo2 = {
+		.sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+		.pNext                    = 0,
+		.flags                    = 0,
+		.waitSemaphoreInfoCount   = (U32)waits.len,
+		.pWaitSemaphoreInfos      = vkWaitSemaphoreSubmitInfos,
+		.commandBufferInfoCount   = (U32)vkCommandBuffers.len,
+		.pCommandBufferInfos      = vkCommandBufferSubmitInfos,
+		.signalSemaphoreInfoCount = (U32)signals.len,
+		.pSignalSemaphoreInfos    = vkSignalSemaphoreSubmitInfos,
+	};
+	CheckVk(vkQueueSubmit2(vkQueue, 1, &vkSubmitInfo2, 0));
+	return Ok();
+}
 
 //--------------------------------------------------------------------------------------------------
 

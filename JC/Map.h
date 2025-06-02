@@ -30,7 +30,7 @@ template <class K, class V> struct Map {
 
 	Map() = default;
 
-	Map(Mem::Allocator* allocatorIn) {
+	explicit Map(Mem::Allocator* allocatorIn) {
 		allocator = allocatorIn;
 	}
 

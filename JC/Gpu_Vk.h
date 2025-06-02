@@ -1,6 +1,7 @@
 #pragma once
 
 #include "JC/Core.h"
+#include "JC/Gpu.h"
 
 #define VK_NO_PROTOTYPES
 #include "vulkan/vulkan_core.h"
@@ -37,23 +38,51 @@ template <typename... A> Err_Vk(Str, VkResult, A...) -> Err_Vk<A...>;
 
 //--------------------------------------------------------------------------------------------------
 
-void  LoadRootFns();
-void  LoadInstanceFns(VkInstance vkInstance);
-void  LoadDeviceFns(VkDevice vkDevice);
-void  FreeFns();
+struct StageFlags {
+	VkPipelineStageFlagBits2 vkPipelineStageFlagBits2;
+	VkAccessFlagBits2        vkAccessFlagBits2; 
+	VkImageLayout            vkImageLayout; 
+};
 
-Str ColorSpaceStr(VkColorSpaceKHR c);
-Str FormatStr(VkFormat f);
-Str MemoryHeapFlagsStr(Mem::Allocator* allocator, VkMemoryHeapFlags f);
-Str MemoryPropertyFlagsStr(Mem::Allocator* allocator, VkMemoryPropertyFlags f);
-Str QueueFlagsStr(Mem::Allocator* allocator, VkQueueFlags f);
-Str PresentModeStr(VkPresentModeKHR m);
-Str ResultStr(VkResult r);
-Str PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
-Str VersionStr(Mem::Allocator* allocator, U32 v);
-Str SizeStr(Mem::Allocator* allocator, U64 size);
-U32 FormatSize(VkFormat vkFormat);
-Bool IsDepthFormat(VkFormat vkFormat);
+struct SemaphoreSubmit {
+	VkSemaphore           vkSemaphore;
+	VkPipelineStageFlags2 vkPipelineStageFlags2;
+	U64                   val;
+};
+
+//--------------------------------------------------------------------------------------------------
+
+void                     LoadRootFns();
+void                     LoadInstanceFns(VkInstance vkInstance);
+void                     LoadDeviceFns(VkDevice vkDevice);
+void                     FreeFns();
+StageFlags               GetStageFlags(Stage stage);
+VkImageSubresourceRange  MakeVkSubresourceRange(VkImageAspectFlags vkImageAspectFlags);
+VkImageSubresourceLayers MakeVkImageSubresourceLayers(VkImageAspectFlags vkImageAspectFlags);
+ImageFormat              VkFormatToImageFormat(VkFormat vkFormat);
+VkFormat                 ImageFormatToVkFormat(ImageFormat imageFormat);
+Res<VkSemaphore>         CreateSemaphore();
+Res<VkSemaphore>         CreateTimelineSemaphore(U64 initialValue);
+Res<VkCommandPool>       CreateCommandPool(U32 queueFamily, VkCommandPoolCreateFlags flags);
+Res<>                    AllocCommandBuffers(VkCommandPool vkCommandPool, U32 n, VkCommandBuffer* vkOutCommandBuffers);
+Res<>                    WaitTimelineSemaphore(VkSemaphore vkTimelineSemaphore, U64 waitVal);
+Res<>                    BeginCommandBuffer(VkCommandBuffer vkCommandBuffer, VkCommandBufferUsageFlags vkCommandBufferUsageFlags);
+Res<>                    SubmitQueue(Mem::TempAllocator* tempAllocator, VkQueue vkQueue, Span<VkCommandBuffer> vkCommandBuffers, Span<SemaphoreSubmit> waits, Span<SemaphoreSubmit> signals);
+VkPipelineStageFlagBits2 StageToVkPipelineStageFlagBits2(Stage stage);
+VkAccessFlagBits2        StageToVkAccessFlagBits2(Stage stage);
+VkImageLayout            StageToVkImageLayout(Stage stage);
+Str                      ColorSpaceStr(VkColorSpaceKHR c);
+Str                      FormatStr(VkFormat f);
+Str                      MemoryHeapFlagsStr(Mem::Allocator* allocator, VkMemoryHeapFlags f);
+Str                      MemoryPropertyFlagsStr(Mem::Allocator* allocator, VkMemoryPropertyFlags f);
+Str                      QueueFlagsStr(Mem::Allocator* allocator, VkQueueFlags f);
+Str                      PresentModeStr(VkPresentModeKHR m);
+Str                      ResultStr(VkResult r);
+Str                      PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
+Str                      VersionStr(Mem::Allocator* allocator, U32 v);
+Str                      SizeStr(Mem::Allocator* allocator, U64 size);
+U32                      FormatSize(VkFormat vkFormat);
+Bool                     IsDepthFormat(VkFormat vkFormat);
 
 //--------------------------------------------------------------------------------------------------
 

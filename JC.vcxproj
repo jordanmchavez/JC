@@ -148,7 +148,6 @@
     <ClInclude Include="JC\Random.h" />
     <ClInclude Include="JC\Gpu.h" />
     <ClInclude Include="JC\Gpu_Vk.h" />
-    <ClInclude Include="JC\Render.h" />
     <ClInclude Include="JC\StrDb.h" />
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Sys_Win.h" />
@@ -163,8 +162,8 @@
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
     <ClCompile Include="3rd\vma\vk_mem_alloc.cpp" />
-    <ClCompile Include="JC\Game_Shmup.h" />
     <ClCompile Include="JC\App.cpp" />
+    <ClCompile Include="JC\App_3D.cpp" />
     <ClCompile Include="JC\Array.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
     <ClCompile Include="JC\Camera.cpp" />
@@ -177,7 +176,6 @@
     <ClCompile Include="JC\Event.cpp" />
     <ClCompile Include="JC\File_Win.cpp" />
     <ClCompile Include="JC\Fmt.cpp" />
-    <ClCompile Include="JC\Game_Shmup.cpp" />
     <ClCompile Include="JC\HandleArray.cpp" />
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Json.cpp" />
@@ -196,10 +194,13 @@
     <ClCompile Include="JC\Unicode.cpp" />
     <ClCompile Include="JC\UnitTest.cpp" />
     <ClCompile Include="JC\Window_Win.cpp" />
-    <ClCompile Include="JC\Render.cpp" />
     <ClCompile Include="JC\Ui.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="JC.natstepfilter">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+    </None>
     <None Include="Notes\Game Design.md" />
     <None Include="Notes\Guidebook.md" />
     <None Include="Notes\Todo.md" />

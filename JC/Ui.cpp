@@ -2,7 +2,6 @@
 
 #include "JC/Array.h"
 #include "JC/Log.h"
-#include "JC/Render.h"
 
 namespace JC::Ui {
 

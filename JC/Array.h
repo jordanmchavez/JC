@@ -14,8 +14,13 @@ template <class T> struct Array {
 
 	Array() = default;
 
-	Array(Mem::Allocator* allocatorIn) {
+	explicit Array(Mem::Allocator* allocatorIn) {
 		allocator = allocatorIn;
+	}
+
+	Array(Mem::Allocator* allocatorIn, U64 size) {
+		allocator = allocatorIn;
+		Resize(size);
 	}
 
 	void Init(Mem::Allocator* allocatorIn) {

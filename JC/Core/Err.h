@@ -32,14 +32,14 @@ struct [[nodiscard]] Err {
 	template <class...A> Err(Str ns, Str code, A... args, SrcLoc sl) {
 		NamedArg namedArgs[1 + (sizeof...(A) / 2)];
 		BuildNamedArgs(namedArgs, args...);
-		Init(ns, code, Span<NamedArg>(namedArgs, sizeof...(A) / 2), sl);
+		Init(ns, code, Span<const NamedArg>(namedArgs, sizeof...(A) / 2), sl);
 	}
 
 	void Init(Str ns, Str code, Span<const NamedArg> namedArgs, SrcLoc sl);
 	void Init(Str ns, U64 code, Span<const NamedArg> namedArgs, SrcLoc sl);
 
 	Err Push(Err err);
-
+	
 	Str GetStr();
 };
 
