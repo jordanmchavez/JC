@@ -36,6 +36,9 @@ constexpr U64 U64Max = (U64)0xffffffffffffffff;
 #define MacroConcat2(x, y) x##y
 #define MacroConcat(x, y)  MacroConcat2(x, y)
 #define MacroName(x) MacroConcat(x, __LINE__)
+#define MacroStringize2(x) #x
+#define MacroStringize(x) MacroStringize2(x)
+#define LineStr MacroStringize(__LINE__)
 #define LenOf(a) (U64)(sizeof(a) / sizeof(a[0]))
 
 #define Defer \

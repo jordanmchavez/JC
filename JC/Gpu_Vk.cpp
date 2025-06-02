@@ -168,6 +168,68 @@ static VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT 
 	
 //-------------------------------------------------------------------------------------------------
 
+template <class T>
+static constexpr VkObjectType GetVkObjectType() {
+         if constexpr (IsSameType<T, VkInstance>)            { return VK_OBJECT_TYPE_INSTANCE; }
+    else if constexpr (IsSameType<T, VkPhysicalDevice>)      { return VK_OBJECT_TYPE_PHYSICAL_DEVICE; }
+    else if constexpr (IsSameType<T, VkDevice>)              { return VK_OBJECT_TYPE_DEVICE; }
+    else if constexpr (IsSameType<T, VkQueue>)               { return VK_OBJECT_TYPE_QUEUE; }
+    else if constexpr (IsSameType<T, VkSemaphore>)           { return VK_OBJECT_TYPE_SEMAPHORE; }
+    else if constexpr (IsSameType<T, VkCommandBuffer>)       { return VK_OBJECT_TYPE_COMMAND_BUFFER; }
+    else if constexpr (IsSameType<T, VkDeviceMemory>)        { return VK_OBJECT_TYPE_DEVICE_MEMORY; }
+    else if constexpr (IsSameType<T, VkBuffer>)              { return VK_OBJECT_TYPE_BUFFER; }
+    else if constexpr (IsSameType<T, VkImage>)               { return VK_OBJECT_TYPE_IMAGE; }
+    else if constexpr (IsSameType<T, VkImageView>)           { return VK_OBJECT_TYPE_IMAGE_VIEW; }
+    else if constexpr (IsSameType<T, VkShaderModule>)        { return VK_OBJECT_TYPE_SHADER_MODULE; }
+    else if constexpr (IsSameType<T, VkPipelineCache>)       { return VK_OBJECT_TYPE_PIPELINE_CACHE; }
+    else if constexpr (IsSameType<T, VkPipelineLayout>)      { return VK_OBJECT_TYPE_PIPELINE_LAYOUT; }
+    else if constexpr (IsSameType<T, VkPipeline>)            { return VK_OBJECT_TYPE_PIPELINE; }
+    else if constexpr (IsSameType<T, VkDescriptorSetLayout>) { return VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT; }
+    else if constexpr (IsSameType<T, VkSampler>)             { return VK_OBJECT_TYPE_SAMPLER; }
+    else if constexpr (IsSameType<T, VkDescriptorPool>)      { return VK_OBJECT_TYPE_DESCRIPTOR_POOL; }
+    else if constexpr (IsSameType<T, VkDescriptorSet>)       { return VK_OBJECT_TYPE_DESCRIPTOR_SET; }
+    else if constexpr (IsSameType<T, VkCommandPool>)         { return VK_OBJECT_TYPE_COMMAND_POOL; }
+    else if constexpr (IsSameType<T, VkSurfaceKHR>)          { return VK_OBJECT_TYPE_SURFACE_KHR; }
+    else if constexpr (IsSameType<T, VkSwapchainKHR>)        { return VK_OBJECT_TYPE_SWAPCHAIN_KHR; }
+	else {
+		static_assert(AlwaysFalse<T>, "Unhandled VkObjectType");
+	}
+}
+
+static constexpr void SetDbgNameImpl(VkObjectType vkObjectType, U64 handle, const char* name) {
+	const VkDebugUtilsObjectNameInfoEXT vkDebugUtilsObjectNameInfoEXT = {
+		.sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+		.pNext        = 0,
+		.objectType   = vkObjectType,
+		.objectHandle = handle,
+		.pObjectName  = name,
+	};
+	VkResult vkResult = vkSetDebugUtilsObjectNameEXT(vkDevice, &vkDebugUtilsObjectNameInfoEXT);
+	Assert(vkResult == VK_SUCCESS);
+}
+
+template <class T>
+static constexpr void SetDbgName(T obj, const char* name) {
+	SetDbgNameImpl(GetVkObjectType<T>(), (U64)obj, name);
+}
+
+template <class T>
+static constexpr void SetDbgNameI(T obj, const char* name, U64 i) {
+	SetDbgNameImpl(GetVkObjectType<T>(), (U64)obj, Fmt::Printfz(tempAllocator, "{}[{}]", name, i).data);
+}
+
+template <class T>
+static constexpr void SetDbgNameA(const T* objArr, const char* name, U64 i) {
+	SetDbgNameImpl(GetVkObjectType<T>(), (U64)objArr[i], Fmt::Printfz(tempAllocator, "{}[{}]", name, i).data);
+}
+
+// TODO: FileNameOnly
+#define DbgName(obj) (SetDbgName(obj, #obj " (" __FILE__ ":" LineStr ")"))
+#define DbgNameI(obj, i) (SetDbgNameI(obj, #obj " (" __FILE__ ":" LineStr ")", (i)))
+#define DbgNameA(obj, i) (SetDbgNameA(obj, #obj " (" __FILE__ ":" LineStr ")", (i)))
+
+//-------------------------------------------------------------------------------------------------
+
 static Res<> InitInstance() {
 	LoadRootFns();
 
@@ -538,6 +600,8 @@ static Res<> InitDevice() {
 	};
 
 	CheckVk(vkCreateDevice(physicalDevice->vkPhysicalDevice, &vkDeviceCreateInfo, vkAllocationCallbacks, &vkDevice));
+	DbgName(vkDevice);
+
 	LoadDeviceFns(vkDevice);
 
 	vkGetDeviceQueue(vkDevice, physicalDevice->queueFamily, 0, &vkQueue);
@@ -596,6 +660,7 @@ static Res<> InitSwapchain(U32 width, U32 height) {
 		.oldSwapchain          = 0,
 	};
 	CheckVk(vkCreateSwapchainKHR(vkDevice, &vkSwapchainCreateInfoKHR, vkAllocationCallbacks, &vkSwapchain));
+	DbgName(vkSwapchain);
 
 	U32 n = 0;
 	CheckVk(vkGetSwapchainImagesKHR(vkDevice, vkSwapchain, &n, 0));
@@ -604,6 +669,8 @@ static Res<> InitSwapchain(U32 width, U32 height) {
 
 	swapchainImages.Resize(n);
 	for (U64 i = 0; i < n; i++) {
+		DbgNameA(vkSwapchainImages, i);
+
 		const VkImageViewCreateInfo vkImageViewCreateInfo = {
 			.sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 			.pNext              = 0,
@@ -621,6 +688,7 @@ static Res<> InitSwapchain(U32 width, U32 height) {
 		};
 		VkImageView vkSwapchainImageView = VK_NULL_HANDLE;
 		CheckVk(vkCreateImageView(vkDevice, &vkImageViewCreateInfo, vkAllocationCallbacks, &vkSwapchainImageView));
+		DbgNameI(vkSwapchainImageView, i);
 
 		swapchainImages[i] = imageObjs.Alloc();
 		ImageObj* imageObj = imageObjs.Get(swapchainImages[i]);
@@ -642,11 +710,16 @@ static Res<> InitSwapchain(U32 width, U32 height) {
 
 static Res<> InitFrameSyncObjects() {
 	if (Res<> r = CreateTimelineSemaphore(MaxFrames - 1).To(vkFrameTimelineSemaphore); !r) { return r; }
+	DbgName(vkFrameTimelineSemaphore);
+
 	for (U64 i = 0; i < MaxFrames; i++) {
 		if (Res<> r = CreateSemaphore().To(vkFrameImageAcquiredSemaphores[i]);   !r) { return r; }
+		DbgNameA(vkFrameImageAcquiredSemaphores, i);
 		if (Res<> r = CreateSemaphore().To(vkFrameSubmitCompleteSemaphores[i]); !r) { return r; }
+		DbgNameA(vkFrameSubmitCompleteSemaphores, i);
 	}
 	if (Res<> r = CreateTimelineSemaphore(0).To(vkImmediateTimelineSemaphore); !r) { return r; }
+	DbgName(vkImmediateTimelineSemaphore);
 	return Ok();
 }
 
@@ -654,9 +727,15 @@ static Res<> InitFrameSyncObjects() {
 
 static Res<> InitCommandBuffers() {
 	if (Res<> r = CreateCommandPool(physicalDevice->queueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT).To(vkFrameCommandPool); !r) { return r; }
+	DbgName(vkFrameCommandPool);
 	if (Res<> r = CreateCommandPool(physicalDevice->queueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT).To(vkImmediateCommandPool); !r) { return r; }
+	DbgName(vkImmediateCommandPool);
 	if (Res<> r = AllocCommandBuffers(vkFrameCommandPool, MaxFrames, vkFrameCommandBuffers); !r) { return r; }
+	for (U64 i = 0; i < MaxFrames; i++) {
+		DbgNameA(vkFrameCommandBuffers, i);
+	}
 	if (Res<> r = AllocCommandBuffers(vkImmediateCommandPool, 1, &vkImmediateCommandBuffer); !r) { return r; }
+	DbgName(vkImmediateCommandBuffer);
 
 	cmdToVkCommandBuffer[0] = VK_NULL_HANDLE;	// reserve for invalid
 	for (U32 i = 0; i < MaxFrames; i++) {
@@ -683,6 +762,7 @@ static Res<> InitBindlessDescriptors() {
 		.pPoolSizes    = vkDescriptorPoolSizes,
 	};
 	CheckVk(vkCreateDescriptorPool(vkDevice, &vkDescriptorPoolCreateInfo, vkAllocationCallbacks, &vkDescriptorPool));
+	DbgName(vkDescriptorPool);
 
 	constexpr VkDescriptorBindingFlags vkDescriptorBindingFlags[] = {
 		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT,
@@ -718,6 +798,7 @@ static Res<> InitBindlessDescriptors() {
 		.pBindings    = vkMeshDescriptorSetLayoutBindings,
 	};
 	CheckVk(vkCreateDescriptorSetLayout(vkDevice, &vkDescriptorSetLayoutCreateInfo, vkAllocationCallbacks, &vkBindlessDescriptorSetLayout));
+	DbgName(vkBindlessDescriptorSetLayout);
 
 	const VkDescriptorSetAllocateInfo vkDescriptorSetAllocateInfo = {
 		.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -727,6 +808,7 @@ static Res<> InitBindlessDescriptors() {
 		.pSetLayouts        = &vkBindlessDescriptorSetLayout,
 	};
 	CheckVk(vkAllocateDescriptorSets(vkDevice, &vkDescriptorSetAllocateInfo, &vkBindlessDescriptorSet));
+	DbgName(vkBindlessDescriptorSet);
 
 	nextBindlessDescriptorIdx = 1;	// reserve index 0 for invalid
 
@@ -780,17 +862,20 @@ static Res<> InitBindlessSamplers() {
 		.borderColor             = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
 		.unnormalizedCoordinates = VK_FALSE,
 	};
-	VkSampler vkSampler = VK_NULL_HANDLE;
-	CheckVk(vkCreateSampler(vkDevice, &vkSamplerCreateInfo, vkAllocationCallbacks, &vkSampler));
-	AddBindlessSampler(vkSampler);
+	VkSampler vkNearestSampler = VK_NULL_HANDLE;
+	CheckVk(vkCreateSampler(vkDevice, &vkSamplerCreateInfo, vkAllocationCallbacks, &vkNearestSampler));
+	DbgName(vkNearestSampler);
+	AddBindlessSampler(vkNearestSampler);
 
-	vkSamplerCreateInfo.magFilter  = VK_FILTER_LINEAR;
-	vkSamplerCreateInfo.minFilter  = VK_FILTER_LINEAR;
-	vkSamplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	vkSamplerCreateInfo.magFilter        = VK_FILTER_LINEAR;
+	vkSamplerCreateInfo.minFilter        = VK_FILTER_LINEAR;
+	vkSamplerCreateInfo.mipmapMode       = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 	vkSamplerCreateInfo.anisotropyEnable = VK_TRUE;
 	vkSamplerCreateInfo.maxAnisotropy    = MaxAnisotropy;
-	CheckVk(vkCreateSampler(vkDevice, &vkSamplerCreateInfo, vkAllocationCallbacks, &vkSampler));
-	AddBindlessSampler(vkSampler);
+	VkSampler vkLinearSampler = VK_NULL_HANDLE;
+	CheckVk(vkCreateSampler(vkDevice, &vkSamplerCreateInfo, vkAllocationCallbacks, &vkLinearSampler));
+	DbgName(vkLinearSampler);
+	AddBindlessSampler(vkLinearSampler);
 
 	return Ok();
 }
@@ -846,11 +931,12 @@ static void FreeMem(Mem mem) {
 
 //-------------------------------------------------------------------------------------------------
 
-static Res<BufferObj> CreateBufferInternal(
+static Res<BufferObj> CreateBufferImpl(
 	U64                   size,
 	VkBufferUsageFlags    vkBufferUsageFlags,
 	VkMemoryPropertyFlags vkMemoryPropertyFlags,
-	VkMemoryAllocateFlags vkMemoryAllocateFlags
+	VkMemoryAllocateFlags vkMemoryAllocateFlags,
+	const char*           name
 ) {
 	const VkBufferCreateInfo vkBufferCreateInfo = {
 		.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -864,6 +950,7 @@ static Res<BufferObj> CreateBufferInternal(
 	};
 	VkBuffer vkBuffer = VK_NULL_HANDLE;
 	CheckVk(vkCreateBuffer(vkDevice, &vkBufferCreateInfo, vkAllocationCallbacks, &vkBuffer));
+	SetDbgName(vkBuffer, name);
 
 	VkMemoryRequirements vkMemoryRequirements = {};
 	vkGetBufferMemoryRequirements(vkDevice, vkBuffer, &vkMemoryRequirements);
@@ -907,11 +994,12 @@ static Res<BufferObj> CreateBufferInternal(
 static Res<> InitStagingBuffer() {
 	constexpr U64 StagingBufferSize = MaxFrames * StagingBufferPerFrameSize;
 
-	if (Res<> r = CreateBufferInternal(
+	if (Res<> r = CreateBufferImpl(
 		StagingBufferSize,
 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		0
+		0,
+		"Staging"
 	).To(stagingBufferObj); !r) {
 		return r;
 	}
@@ -1038,59 +1126,23 @@ ImageFormat GetSwapchainImageFormat() {
 
 //----------------------------------------------------------------------------------------------
 
-Res<Buffer> CreateBuffer(U64 size, BufferUsage::Flags usageFlags) {
+Res<Buffer> CreateBuffer(U64 size, BufferUsage::Flags usageFlags, const char* dbgName) {
 	VkBufferUsageFlags vkBufferUsageFlags = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 	if (usageFlags & BufferUsage::Storage)  { vkBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; }
 	if (usageFlags & BufferUsage::Index)    { vkBufferUsageFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT; }
 	if (usageFlags & BufferUsage::CpuWrite) { vkBufferUsageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT; }
 
-	const VkBufferCreateInfo vkBufferCreateInfo = {
-		.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		.pNext                 = 0,
-		.flags                 = 0,
-		.size                  = size,
-		.usage                 = vkBufferUsageFlags,
-		.sharingMode           = VK_SHARING_MODE_EXCLUSIVE,
-		.queueFamilyIndexCount = 1,
-		.pQueueFamilyIndices   = &physicalDevice->queueFamily,
-	};
-	VkBuffer vkBuffer = VK_NULL_HANDLE;
-	CheckVk(vkCreateBuffer(vkDevice, &vkBufferCreateInfo, vkAllocationCallbacks, &vkBuffer));
-
-	VkMemoryRequirements vkMemoryRequirements = {};
-	vkGetBufferMemoryRequirements(vkDevice, vkBuffer, &vkMemoryRequirements);
-
-	Mem mem = {};
-	if (Res<> r = AllocateMem(vkMemoryRequirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT).To(mem); !r) {
-		vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
-		return r.err;
-	}
-
-	if (const VkResult r = vkBindBufferMemory(vkDevice, vkBuffer, mem.vkDeviceMemory, 0); r != VK_SUCCESS) {
-		vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
-		FreeMem(mem);
-		return Err_Vk(r, "vkBindBufferMemory");
-	}
-
-	U64 addr = 0;
-	if (vkBufferUsageFlags & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
-		const VkBufferDeviceAddressInfo vkBufferDeviceAddressInfo = {
-			.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-			.pNext = 0,
-			.buffer = vkBuffer,
-		};
-		addr = vkGetBufferDeviceAddress(vkDevice, &vkBufferDeviceAddressInfo);
-	}
+	BufferObj bufferObj;
+	CheckRes(CreateBufferImpl(
+		size,
+		vkBufferUsageFlags,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT,
+		dbgName
+	).To(bufferObj));
 
 	const Buffer buffer = bufferObjs.Alloc();
-	*bufferObjs.Get(buffer) = {
-		.vkBuffer           = vkBuffer,
-		.mem                = mem,
-		.size               = size,
-		.vkBufferUsageFlags = vkBufferUsageFlags,
-		.addr               = addr,
-	};
-
+	*bufferObjs.Get(buffer) = bufferObj;
 	return buffer;
 }
 

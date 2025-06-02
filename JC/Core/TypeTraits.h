@@ -7,6 +7,8 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 template <class T>            struct                TypeIdentity               { using Type = T; };
+template <class T>            struct                RemovePtr                  { using Type = T; };
+template <class T>            struct                RemovePtr<T*>              { using Type = T; };
 template <class T>            struct                RemoveRef                  { using Type = T; };
 template <class T>            struct                RemoveRef<T&>              { using Type = T; };
 template <class T>            struct                RemoveRef<T&&>             { using Type = T; };
