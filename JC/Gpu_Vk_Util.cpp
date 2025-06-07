@@ -25,6 +25,18 @@ StageFlags GetStageFlags(Stage stage) {
 				.vkAccessFlagBits2        = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
 				.vkImageLayout            = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 			};
+		case Stage::TransferSrc:
+			return {
+				.vkPipelineStageFlagBits2 = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+				.vkAccessFlagBits2        = VK_ACCESS_2_TRANSFER_READ_BIT,
+				.vkImageLayout            = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			};
+		case Stage::TransferDst:
+			return {
+				.vkPipelineStageFlagBits2 = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+				.vkAccessFlagBits2        = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+				.vkImageLayout            = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			};
 		case Stage::PresentSrc:
 			return {
 				.vkPipelineStageFlagBits2 = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,

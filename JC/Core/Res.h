@@ -39,8 +39,8 @@ template <class T> struct [[nodiscard]] Res {
 constexpr Res<> Ok() { return Res<>(); }
 
 #define CheckRes(Code) \
-	if (Res<> r = Code; !r) { \
-		return r.err.Push(Err("", "", SrcLoc::Here())); \
+	if (Res<> _r = Code; !_r) { \
+		return _r.err.Push(Err("", "", SrcLoc::Here())); \
 	}
 
 //--------------------------------------------------------------------------------------------------

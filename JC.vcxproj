@@ -204,12 +204,15 @@
     <None Include="Notes\Game Design.md" />
     <None Include="Notes\Guidebook.md" />
     <None Include="Notes\Todo.md" />
+    <None Include="Shaders\MeshCommon.glsl" />
+    <None Include="Shaders\MeshFrag.glsl" />
+    <None Include="Shaders\MeshVert.glsl" />
     <None Include="Shaders\sprite.common.glsl" />
     <None Include="Shaders\sprite.frag.glsl" />
     <None Include="Shaders\sprite.vert.glsl" />
-    <None Include="Shaders\Common.glsl" />
-    <None Include="Shaders\Frag.glsl" />
-    <None Include="Shaders\Vert.glsl" />
+    <None Include="Shaders\SpriteCommon.glsl" />
+    <None Include="Shaders\SpriteFrag.glsl" />
+    <None Include="Shaders\SpriteVert.glsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

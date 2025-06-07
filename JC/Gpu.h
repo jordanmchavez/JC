@@ -73,6 +73,8 @@ struct Viewport {
 enum struct Stage {
 	Invalid = 0,
 	ColorAttachmentOutput,
+	TransferSrc,
+	TransferDst,
 	PresentSrc,
 };
 
@@ -92,11 +94,11 @@ U32           GetFrameIdx();
 
 Res<>         RecreateSwapchain(U32 width, U32 height);
 
-Res<Buffer>   CreateBuffer(U64 size, U32 flags);
+Res<Buffer>   CreateBuffer(U64 size, BufferUsage::Flags flags);
 void          DestroyBuffer(Buffer buffer);
 U64           GetBufferAddr(Buffer buffer);
 
-Res<Image>    CreateImage(U32 width, U32 height, ImageFormat format, U32 flags);
+Res<Image>    CreateImage(U32 width, U32 height, ImageFormat format, ImageUsage::Flags usageFlags);
 void          DestroyImage(Image image);
 U32           GetImageWidth(Image image);	// TODO; -> IVec2 or IExtent or something
 U32           GetImageHeight(Image image);
@@ -136,6 +138,11 @@ void          CmdDraw(Cmd cmd, U32 vertexCount, U32 instanceCount);
 void          CmdDrawIndexed(Cmd cmd, U32 indexCount);
 
 void          WaitIdle();
+
+void          SetName(Buffer   buffer,   const char* name);
+void          SetName(Image    image,    const char* name);
+void          SetName(Shader   shader,   const char* name);
+void          SetName(Pipeline pipeline, const char* name);
 
 //--------------------------------------------------------------------------------------------------
 

@@ -215,12 +215,12 @@ static constexpr void SetDbgName(T obj, const char* name) {
 
 template <class T>
 static constexpr void SetDbgNameI(T obj, const char* name, U64 i) {
-	SetDbgNameImpl(GetVkObjectType<T>(), (U64)obj, Fmt::Printfz(tempAllocator, "{}[{}]", name, i).data);
+	SetDbgNameImpl(GetVkObjectType<T>(), (U64)obj, Fmt::Printfz(tempAllocator, "{}[{}]", name, i));
 }
 
 template <class T>
 static constexpr void SetDbgNameA(const T* objArr, const char* name, U64 i) {
-	SetDbgNameImpl(GetVkObjectType<T>(), (U64)objArr[i], Fmt::Printfz(tempAllocator, "{}[{}]", name, i).data);
+	SetDbgNameImpl(GetVkObjectType<T>(), (U64)objArr[i], Fmt::Printfz(tempAllocator, "{}[{}]", name, i));
 }
 
 // TODO: FileNameOnly
@@ -1066,6 +1066,8 @@ Res<> Init(const InitDesc* initDesc) {
 //--------------------------------------------------------------------------------------------------
 
 void Shutdown() {
+	DestroyVk(stagingBufferObj.vkBuffer, vkDestroyBuffer);
+	FreeMem(stagingBufferObj.mem);
 	DestroyVkCArray(vkBindlessSamplers, vkDestroySampler);
 	vkBindlessSamplersLen = 0;
 	DestroyVk(vkBindlessDescriptorSetLayout, vkDestroyDescriptorSetLayout);
@@ -1078,6 +1080,8 @@ void Shutdown() {
 		vkFreeCommandBuffers(vkDevice, vkImmediateCommandPool, 1, &vkImmediateCommandBuffer);
 	}
 	DestroyVk(vkImmediateCommandPool, vkDestroyCommandPool);
+	DestroyVk(vkFrameTimelineSemaphore, vkDestroySemaphore);
+	DestroyVk(vkImmediateTimelineSemaphore, vkDestroySemaphore);
 	DestroyVkCArray(vkFrameImageAcquiredSemaphores, vkDestroySemaphore);
 	DestroyVkCArray(vkFrameSubmitCompleteSemaphores, vkDestroySemaphore);
 	for (U64 i = 0; i < swapchainImages.len; i++) {
@@ -1996,6 +2000,29 @@ void WaitIdle() {
 	if (vkDevice) {
 		vkDeviceWaitIdle(vkDevice);
 	}
+}
+
+//----------------------------------------------------------------------------------------------
+
+void SetName(Buffer  buffer, const char* name) {
+	BufferObj* const bufferObj = bufferObjs.Get(buffer);
+	SetDbgName(bufferObj->mem.vkDeviceMemory, Fmt::Printfz(tempAllocator, "{}Mem", name));
+	SetDbgName(bufferObj->vkBuffer, name);
+}
+
+void SetName(Image image, const char* name) {
+	ImageObj* const imageObj = imageObjs.Get(image);
+	SetDbgName(imageObj->mem.vkDeviceMemory, Fmt::Printfz(tempAllocator, "{}Mem", name));
+	SetDbgName(imageObj->vkImage, name);
+}
+
+void SetName(Shader shader, const char* name) {
+	SetDbgName(shaderObjs.Get(shader)->vkShaderModule, name);
+}
+
+void SetName(Pipeline pipeline, const char* name) {
+	SetDbgName(pipelineObjs.Get(pipeline)->vkPipeline, name);
+	SetDbgName(pipelineObjs.Get(pipeline)->vkPipelineLayout, Fmt::Printfz(tempAllocator, "{}Layout", name));
 }
 
 //----------------------------------------------------------------------------------------------
