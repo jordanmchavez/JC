@@ -1,8 +1,8 @@
-#include "JC/File.h"
+#include "JC/FS.h"
 #include "JC/Unicode.h"
 #include "JC/Sys_Win.h"
 
-namespace JC::File {
+namespace JC::FS {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -72,4 +72,4 @@ void Close(File file) {
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::File
+}	// namespace JC::FS

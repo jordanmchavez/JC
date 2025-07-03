@@ -1,6 +1,7 @@
 #include "JC/App.h"
 #include "JC/Array.h"
 #include "JC/Event.h"
+#include "JC/FS.h"
 #include "JC/Gpu.h"
 #include "JC/Log.h"
 #include "JC/Window.h"
@@ -58,8 +59,8 @@ struct App_3D : App {
 
 	//----------------------------------------------------------------------------------------------
 
-	static constexpr U64 VertexBufferSize = 1024 * 1024 * sizeof(Vertex);
-	static constexpr U64 IndexBufferSize  = 1024 * 1024 * sizeof(U32);
+	static constexpr U32 MaxVertices = 1024 * 1024;
+	static constexpr U32 MaxIndices  = 1024 * 1024;
 
 	Mem::Allocator*     allocator     = 0;
 	Mem::TempAllocator* tempAllocator = 0;
@@ -67,10 +68,13 @@ struct App_3D : App {
 
 	Gpu::Image          depthImage;
 	Gpu::Buffer         vertexBuffer;
-	U64                 vertexBufferUsed;
+	U32                 verticesUsed;
 	Gpu::Buffer         indexBuffer;
-	U64                 indexBufferUsed;
-
+	U32                 indicesUsed;
+	Mesh                cube;
+	Mesh                sphere;
+	Mesh                icosahedron;
+	Mesh                torus;
 	Array<Entity>       entities;
 
 	//----------------------------------------------------------------------------------------------
@@ -80,88 +84,116 @@ struct App_3D : App {
 		tempAllocator = tempAllocatorIn;
 		logger        = loggerIn;
 
-		vertexBufferUsed = 0;
-		indexBufferUsed  = 0;
+		verticesUsed = 0;
+		indicesUsed  = 0;
 
 		return Ok();
 	}
 
 	//----------------------------------------------------------------------------------------------
 
-	TODO: begin mesh / end mesh
-	return construct a mesh thingie
-	Res<Vertex*> BeginVertices(U32 n) {
+	struct VertexAllocation {
 		Gpu::Cmd cmd;
-		CheckRes(Gpu::BeginImmediateCmds().To(cmd));
-		const U64 sizeNeeded = n * sizeof(Vertex);
-		Assert(vertexBufferUsed + sizeNeeded < VertexBufferSize);
-		Vertex* const vertices = (Vertex*)Gpu::CmdBeginBufferUpload(cmd, vertexBuffer, vertexBufferUsed, sizeNeeded);
-		vertexBufferUsed += sizeNeeded;
-		return vertices;
+		Vertex*  ptr;
+		U32      offset;
+	};
+
+	VertexAllocation CmdBeginVertices(Gpu::Cmd cmd, U32 n) {
+		Assert(verticesUsed < MaxVertices);
+		VertexAllocation va = {
+			.cmd    = cmd,
+			.ptr    = (Vertex*)Gpu::CmdBeginBufferUpload(cmd, vertexBuffer, verticesUsed * sizeof(Vertex), n * sizeof(Vertex)),
+			.offset = verticesUsed,
+		};
+		verticesUsed += n;
+		return va;
 	}
 
-	Res<> EndVertices() {
-		CheckRes(Gpu::EndImmediateCmds(Gpu::Stage::TransferDst));
-		return Ok();
+	void CmdEndVertices(Gpu::Cmd cmd) {
+		Gpu::CmdEndBufferUpload(cmd, vertexBuffer);
 	}
 
 	//----------------------------------------------------------------------------------------------
 	
-	Res<U32*> BeginIndices(U32 n) {
-		Gpu::Cmd cmd;
-		CheckRes(Gpu::BeginImmediateCmds().To(cmd));
-		const U64 sizeNeeded = n * sizeof(U32);
-		Assert(indexBufferUsed + sizeNeeded < IndexBufferSize);
-		U32* const indices = (U32*)Gpu::CmdBeginBufferUpload(cmd, indexBuffer, indexBufferUsed, sizeNeeded);
-		indexBufferUsed += sizeNeeded;
-		return indices;
+	struct IndexAllocation {
+		U32* ptr;
+		U64  offset;
+	};
+
+	IndexAllocation CmdBeginIndices(Gpu::Cmd cmd, U32 n) {
+		Assert(indicesUsed < MaxIndices);
+		IndexAllocation ia = {
+			.ptr    = (U32*)Gpu::CmdBeginBufferUpload(cmd, indexBuffer, indicesUsed * sizeof(U32), n * sizeof(U32)),
+			.offset = indicesUsed,
+		};
+		indicesUsed += n;
+		return ia;
 	}
 
-	Res<> EndIndices() {
-		CheckRes(Gpu::EndImmediateCmds(Gpu::Stage::TransferDst));
-		return Ok();
+	void CmdEndIndices(Gpu::Cmd cmd) {
+		Gpu::CmdEndBufferUpload(cmd, indexBuffer);
 	}
 
 	//----------------------------------------------------------------------------------------------
 
-	Res<Mesh> InitCube() {
-		Vertex* vertices;
-		CheckRes(BeginVertices(12).To(vertices));
+	Res<Mesh> CreateCube(Gpu::Cmd cmd) {
+		VertexAllocation va = CmdBeginVertices(cmd, 12);
 		constexpr float r = -0.5f;
-		*vertices++ = { .pos = {  r,  r,  r } };
-		*vertices++ = { .pos = { -r,  r,  r } };
-		*vertices++ = { .pos = { -r, -r,  r } };
-		*vertices++ = { .pos = {  r, -r,  r } };
-		*vertices++ = { .pos = {  r,  r, -r } };
-		*vertices++ = { .pos = { -r,  r, -r } };
-		*vertices++ = { .pos = { -r, -r, -r } };
-		*vertices++ = { .pos = {  r, -r, -r } };
-		CheckRes(EndVertices());
+		*va.ptr++ = { .pos = { -r,  r,  r } };
+		*va.ptr++ = { .pos = {  r,  r,  r } };
+		*va.ptr++ = { .pos = {  r, -r,  r } };
+		*va.ptr++ = { .pos = { -r, -r,  r } };
+		*va.ptr++ = { .pos = { -r,  r, -r } };
+		*va.ptr++ = { .pos = {  r,  r, -r } };
+		*va.ptr++ = { .pos = {  r, -r, -r } };
+		*va.ptr++ = { .pos = { -r, -r, -r } };
+		CmdEndVertices(cmd);
 
-		U32* indices;
-		CheckRes(BeginIndices(6 * 2 * 3).To(indices));
-		CheckRes(EndIndices());
+		IndexAllocation ia = CmdBeginIndices(cmd, 6 * 2 * 3);
+		*ia.ptr++ = 0; *ia.ptr++ = 1; *ia.ptr++ = 2;
+		*ia.ptr++ = 0; *ia.ptr++ = 2; *ia.ptr++ = 3;
+		*ia.ptr++ = 1; *ia.ptr++ = 5; *ia.ptr++ = 6;
+		*ia.ptr++ = 1; *ia.ptr++ = 6; *ia.ptr++ = 2;
+		*ia.ptr++ = 5; *ia.ptr++ = 4; *ia.ptr++ = 7;
+		*ia.ptr++ = 5; *ia.ptr++ = 7; *ia.ptr++ = 6;
+		*ia.ptr++ = 4; *ia.ptr++ = 0; *ia.ptr++ = 3;
+		*ia.ptr++ = 4; *ia.ptr++ = 3; *ia.ptr++ = 7;
+		*ia.ptr++ = 4; *ia.ptr++ = 5; *ia.ptr++ = 1;
+		*ia.ptr++ = 4; *ia.ptr++ = 1; *ia.ptr++ = 0;
+		*ia.ptr++ = 3; *ia.ptr++ = 2; *ia.ptr++ = 6;
+		*ia.ptr++ = 3; *ia.ptr++ = 6; *ia.ptr++ = 7;
+		CmdEndIndices(cmd);
 
+		return Mesh {
+			.vertexOffset = va.offset,
+			.vertexCount  = 8,
+			.indexOffset  = ia.offset,
+			.indexCount   = 6 * 2 * 3,
+
+		};
+	}
+	/*
+	Res<Mesh> CreateIcosahedron() {
 		return Ok();
 	}
 
-	Res<Mesh> InitIcosahedron() {
+	Res<Mesh> CreateSphere() {
 		return Ok();
 	}
 
-	Res<Mesh> InitSphere() {
+	Res<Mesh> CreateTorus() {
 		return Ok();
 	}
+	*/
+	Res<> InitMeshes() {
+		Gpu::Cmd cmd;
+		CheckRes(Gpu::BeginImmediateCmds().To(cmd));
+		CheckRes(CreateCube(cmd).To(cube));
+		//CheckRes(CreateSphere());
+		//CheckRes(CreateIcosahedron());
+		//CheckRes(CreateTorus());
+		CheckRes(Gpu::EndImmediateCmds(Gpu::Stage::TransferDst));
 
-	Res<Mesh> InitTorus() {
-		return Ok();
-	}
-
-	Res<Mesh> InitMeshes() {
-		CheckRes(InitCube());
-		CheckRes(InitSphere());
-		CheckRes(InitIcosahedron());
-		CheckRes(InitTorus());
 		return Ok();
 	}
 
@@ -169,8 +201,8 @@ struct App_3D : App {
 
 	Res<> Init(const Window::State* windowState) {
 		CheckRes(Gpu::CreateImage(windowState->width, windowState->height, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::DepthAttachment).To(depthImage));
-		CheckRes(Gpu::CreateBuffer(VertexBufferSize, Gpu::BufferUsage::Storage | Gpu::BufferUsage::CpuWrite).To(vertexBuffer));
-		CheckRes(Gpu::CreateBuffer(IndexBufferSize, Gpu::BufferUsage::Storage | Gpu::BufferUsage::CpuWrite).To(indexBuffer));
+		CheckRes(Gpu::CreateBuffer(MaxVertices * sizeof(Vertex), Gpu::BufferUsage::Storage | Gpu::BufferUsage::CpuWrite).To(vertexBuffer));
+		CheckRes(Gpu::CreateBuffer(MaxIndices * sizeof(U32), Gpu::BufferUsage::Storage | Gpu::BufferUsage::CpuWrite).To(indexBuffer));
 
 		Gpu::SetName(depthImage, "depth");
 		Gpu::SetName(vertexBuffer, "vertices");

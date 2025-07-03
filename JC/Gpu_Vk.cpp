@@ -935,8 +935,7 @@ static Res<BufferObj> CreateBufferImpl(
 	U64                   size,
 	VkBufferUsageFlags    vkBufferUsageFlags,
 	VkMemoryPropertyFlags vkMemoryPropertyFlags,
-	VkMemoryAllocateFlags vkMemoryAllocateFlags,
-	const char*           name
+	VkMemoryAllocateFlags vkMemoryAllocateFlags
 ) {
 	const VkBufferCreateInfo vkBufferCreateInfo = {
 		.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -950,7 +949,6 @@ static Res<BufferObj> CreateBufferImpl(
 	};
 	VkBuffer vkBuffer = VK_NULL_HANDLE;
 	CheckVk(vkCreateBuffer(vkDevice, &vkBufferCreateInfo, vkAllocationCallbacks, &vkBuffer));
-	SetDbgName(vkBuffer, name);
 
 	VkMemoryRequirements vkMemoryRequirements = {};
 	vkGetBufferMemoryRequirements(vkDevice, vkBuffer, &vkMemoryRequirements);
@@ -998,11 +996,13 @@ static Res<> InitStagingBuffer() {
 		StagingBufferSize,
 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		0,
-		"Staging"
+		0
 	).To(stagingBufferObj); !r) {
 		return r;
 	}
+	SetDbgName(stagingBufferObj.mem.vkDeviceMemory, "stagingMem");
+	SetDbgName(stagingBufferObj.vkBuffer, "staging");
+
 	CheckVk(vkMapMemory(vkDevice, stagingBufferObj.mem.vkDeviceMemory, 0, StagingBufferSize, 0, (void**)&stagingBufferPtr));
 	stagingBufferUsed = 0;
 
@@ -1130,20 +1130,14 @@ ImageFormat GetSwapchainImageFormat() {
 
 //----------------------------------------------------------------------------------------------
 
-Res<Buffer> CreateBuffer(U64 size, BufferUsage::Flags usageFlags, const char* dbgName) {
+Res<Buffer> CreateBuffer(U64 size, BufferUsage::Flags usageFlags) {
 	VkBufferUsageFlags vkBufferUsageFlags = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 	if (usageFlags & BufferUsage::Storage)  { vkBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; }
 	if (usageFlags & BufferUsage::Index)    { vkBufferUsageFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT; }
 	if (usageFlags & BufferUsage::CpuWrite) { vkBufferUsageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT; }
 
 	BufferObj bufferObj;
-	CheckRes(CreateBufferImpl(
-		size,
-		vkBufferUsageFlags,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT,
-		dbgName
-	).To(bufferObj));
+	CheckRes(CreateBufferImpl(size, vkBufferUsageFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT).To(bufferObj));
 
 	const Buffer buffer = bufferObjs.Alloc();
 	*bufferObjs.Get(buffer) = bufferObj;
@@ -1690,13 +1684,14 @@ Res<> EndFrame() {
 //-------------------------------------------------------------------------------------------------
 
 Res<Cmd> BeginImmediateCmds() {
+	CheckRes(BeginCommandBuffer(vkImmediateCommandBuffer, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT));
 	return Cmd { .handle = 1 + MaxFrames };
 }
 
 //-------------------------------------------------------------------------------------------------
 
-Res<> EndImmediateCmds(Cmd cmd, Stage waitStage) {
-	CheckVk(vkEndCommandBuffer(CmdToVkCommandBuffer(cmd)));
+Res<> EndImmediateCmds(Stage waitStage) {
+	CheckVk(vkEndCommandBuffer(vkImmediateCommandBuffer));
 
 	immediateTimeline++;
 

@@ -111,7 +111,6 @@
     <ClInclude Include="3rd\vk_video\vulkan_video_codec_h265std.h" />
     <ClInclude Include="3rd\vk_video\vulkan_video_codec_h265std_decode.h" />
     <ClInclude Include="3rd\vk_video\vulkan_video_codec_h265std_encode.h" />
-    <ClInclude Include="3rd\vma\vk_mem_alloc.h" />
     <ClInclude Include="3rd\vulkan\vk_platform.h" />
     <ClInclude Include="3rd\vulkan\vulkan.h" />
     <ClInclude Include="3rd\vulkan\vulkan_core.h" />
@@ -128,7 +127,7 @@
     <ClInclude Include="JC\Core\Res.h" />
     <ClInclude Include="JC\Entity.h" />
     <ClInclude Include="JC\Event.h" />
-    <ClInclude Include="JC\File.h">
+    <ClInclude Include="JC\FS.h">
       <SubType>
       </SubType>
     </ClInclude>
@@ -139,6 +138,7 @@
     <ClInclude Include="JC\Core\Str.h" />
     <ClInclude Include="JC\Core\TypeTraits.h" />
     <ClInclude Include="JC\Core\Mem.h" />
+    <ClInclude Include="JC\Gpu_Vk_Mem.h" />
     <ClInclude Include="JC\HandleArray.h" />
     <ClInclude Include="JC\Hash.h" />
     <ClInclude Include="JC\Json.h" />
@@ -161,7 +161,6 @@
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
-    <ClCompile Include="3rd\vma\vk_mem_alloc.cpp" />
     <ClCompile Include="JC\App.cpp" />
     <ClCompile Include="JC\App_3D.cpp" />
     <ClCompile Include="JC\Array.cpp" />
@@ -174,7 +173,7 @@
     <ClCompile Include="JC\Core\Str.cpp" />
     <ClCompile Include="JC\Entity.cpp" />
     <ClCompile Include="JC\Event.cpp" />
-    <ClCompile Include="JC\File_Win.cpp" />
+    <ClCompile Include="JC\FS.cpp" />
     <ClCompile Include="JC\Fmt.cpp" />
     <ClCompile Include="JC\HandleArray.cpp" />
     <ClCompile Include="JC\Hash.cpp" />
@@ -193,6 +192,7 @@
     <ClCompile Include="JC\Time_Win.cpp" />
     <ClCompile Include="JC\Unicode.cpp" />
     <ClCompile Include="JC\UnitTest.cpp" />
+    <ClCompile Include="JC\vk_mem.cpp" />
     <ClCompile Include="JC\Window_Win.cpp" />
     <ClCompile Include="JC\Ui.cpp" />
   </ItemGroup>
