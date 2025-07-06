@@ -28,7 +28,7 @@ template <class... A> struct [[nodiscard]] Err_Vk : JC::Err {
 		Init("Vk", (I64)vkResult, Span<const NamedArg>(namedArgs, 1 + sizeof...(A) / 2), sl);
 	}
 };
-template <typename... A> Err_Vk(Str, VkResult, A...) -> Err_Vk<A...>;
+template <typename... A> Err_Vk(VkResult, Str, A...) -> Err_Vk<A...>;
 
 #define CheckVk(expr) { \
 	if (const VkResult r = expr; r != VK_SUCCESS) { \

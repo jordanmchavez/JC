@@ -883,7 +883,11 @@ static Res<> InitBindlessSamplers() {
 //----------------------------------------------------------------------------------------------
 	
 // TODO: buffer alignment
-static Res<Mem> AllocateMem(VkMemoryRequirements vkMemoryRequirements, VkMemoryPropertyFlags vkMemoryPropertyFlags, VkMemoryAllocateFlags vkMemoryAllocateFlags) {
+static Res<Mem> AllocateMem(
+	VkMemoryRequirements  vkMemoryRequirements,
+	VkMemoryPropertyFlags vkMemoryPropertyFlags,
+	VkMemoryAllocateFlags vkMemoryAllocateFlags
+) {
 	U32 memType = U32Max;
 	for (U32 i = 0; i < physicalDevice->vkPhysicalDeviceMemoryProperties.memoryTypeCount; i++) {
 		if (

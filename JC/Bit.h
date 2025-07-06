@@ -9,6 +9,7 @@ namespace JC::Bit {
 U32 Bsr64(U64 u);
 U32 Bsf64(U64 u);
 
+U32 PopCount32(U32 u);
 U32 PopCount64(U64 u);
 
 constexpr U64   AlignUp   (U64   u, U64 align) { return (u + (align - 1)) & ~(align - 1); }

@@ -32,6 +32,12 @@ U32 Bsf64(U64 u) {
 
 //--------------------------------------------------------------------------------------------------
 
+U32 PopCount32(U32 u) {
+	#if defined Compiler_Msvc
+		return (U32)__popcnt(u);
+	#endif	// Compiler_
+}
+
 U32 PopCount64(U64 u) {
 	#if defined Compiler_Msvc
 		return (U32)__popcnt64(u);

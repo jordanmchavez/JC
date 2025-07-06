@@ -54,7 +54,7 @@ static void AppPanicFn(const char* expr, const char* msg, Span<const NamedArg> n
 
 static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 	Mem::Init(
-		(U64)8 * 1024 * 1024,
+		(U64)        8 * 1024 * 1024,
 		(U64)16 * 1024 * 1024 * 1024,
 		(U64)16 * 1024 * 1024 * 1024
 	);

@@ -1,307 +1,269 @@
+#include "JC/Core.h"
+#include "JC/Gpu_Vk.h"
+#include "JC/Bit.h"
 
-//#include "JC/Bit.h"
+namespace JC::Gpu {
 
-//namespace JC::Gpu {
-/*
 //--------------------------------------------------------------------------------------------------
-// Interface
 
-usage pattern for the most basic game: allocate only, never free
-everything fits in vram, so just allocate a chunk of sufficient size and linearly allocate
+DefErr(Gpu, NoMemType);
+DefErr(Gpu, NoMem);
 
-more complex usage pattern
-levels
-need a level allocator as well as a perm allocator
-one simple option is to use the "top" of each chunk
-other option is to load all the perm stuff, "lock" those, then reset on top of that
+//--------------------------------------------------------------------------------------------------
+
+namespace AllocFlags {
+	using Type = U64;
+	constexpr Type CpuRead  = 1 << 0;
+	constexpr Type CpuWrite = 1 << 1;
+	constexpr Type Gpu      = 1 << 2;
+};
+
+struct AllocRequest {
+	U32                   size;
+	VkMemoryRequirements  vkMemoryRequirements;
+	VkMemoryAllocateFlags vkMemoryAllocateFlags;
+	Bool                  needDedicated;
+	Bool                  wantDedicated;
+	AllocFlags::Type      allocFlags;
+	VkFlags               vkBufferImageUsageFlags;
+	Bool                  linear;
+};
 
 struct Allocation {
 	VkDeviceMemory vkDeviceMemory;
-	U64            offset;
 	U64            size;
+	U64            offset;
 };
 
-//--------------------------------------------------------------------------------------------------
+enum struct MemChunkType { Linear, Dedicated };
 
-static VkDevice               vkDevice;
-static VkAllocationCallbacks* vkAllocationCallbacks;
-
-//--------------------------------------------------------------------------------------------------
-
-void Init(VkDevice vkDeviceIn, VkAllocationCallbacks* vkAllocationCallbacksIn) {
-	vkDevice              = vkDeviceIn;
-	vkAllocationCallbacks = vkAllocationCallbacksIn;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-Res<Allocation> Allocate() {
-	const VkMemoryAllocateFlagsInfo vkMemoryAllocateFlagsInfo = {
-		.sType      = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
-		.pNext      = 0,
-		.flags      = vkMemoryAllocateFlags,
-		.deviceMask = 0,
-	};
-
-	const VkMemoryAllocateInfo vkMemoryAllocateInfo = {
-		.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.pNext           = &vkMemoryAllocateFlagsInfo,
-		.allocationSize  = vkMemoryRequirements.size,
-		.memoryTypeIndex = memType,
-	};
-
+struct MemChunk {
+	MemChunkType   type;
 	VkDeviceMemory vkDeviceMemory;
-	vkAllocateMemory(vkDevice, vkMemoryAllocateInfo, vkAllocationCallbacks, &vkDeviceMemory);
-}
-
-//--------------------------------------------------------------------------------------------------
-
-enum struct MemUsage {
+	U64            size;
+	U64            used;
+	Bool           curPageLinear;
 };
 
-struct Chunk {
-	VkDeviceMemory vkDeviceMemory;
-};
-
-static constexpr U32 MaxChunksPerType = 64;	// Min chunk size is 1/64 heap size
+static constexpr U32 MaxChunks = 256;	// 196 dedicated (arbitrary) + 64 linear (each at least 1/64 heap size)
 
 struct MemType {
-	Chunk chunks[MaxChunksPerType];
-	U32   chunksLen;
-	U64   maxChunkSize;
-	U64   currentMaxChunkSize;
+	U32       idx;
+	MemChunk  chunks[MaxChunks];
+	U32       chunksLen;
+	MemChunk* curChunk;
+	U64       minChunkSize;
+	U64       maxChunkSize;
+	U64       biggestChunkSize;
 };
-
-static VkInstance                       vkInstance;
-static VkPhysicalDevice                 vkPhysicalDevice;
-static VkPhysicalDeviceProperties       vkPhysicalDeviceProperties;
-static VkPhysicalDeviceMemoryProperties vkPhysicalDeviceMemoryProperties;
-static U32                              memTypeBits;
-static Type                             types[VK_MAX_MEMORY_TYPES];
-
-Res<Allocation> Allocate() {
-	U32 memType = U32Max;
-	for (U32 i = 0; i < vkPhysicalDeviceMemoryProperties.memoryTypeCount; i++) {
-		if (
-			(vkMemoryRequirements.memoryTypeBits & (1 << i)) &&
-			(physicalDevice->vkPhysicalDeviceMemoryProperties.memoryTypes[i].propertyFlags & vkMemoryPropertyFlags)
-		) {
-			memType = i;
-		}
-	}
-	if (memType == U32Max) {
-		return Err_NoMem();
-	}
-	const VkMemoryAllocateFlagsInfo vkMemoryAllocateFlagsInfo = {
-		.sType      = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
-		.pNext      = 0,
-		.flags      = vkMemoryAllocateFlags,
-		.deviceMask = 0,
-	};
-	const VkMemoryAllocateInfo vkMemoryAllocateInfo = {
-		.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.pNext           = &vkMemoryAllocateFlagsInfo,
-		.allocationSize  = vkMemoryRequirements.size,
-		.memoryTypeIndex = memType,
-	};
-	VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
-	CheckVk(vkAllocateMemory(vkDevice, &vkMemoryAllocateInfo, vkAllocationCallbacks, &vkDeviceMemory));
-
-	return Mem {
-		.vkDeviceMemory        = vkDeviceMemory,
-		.offset                = 0,
-		.size                  = vkMemoryRequirements.size,
-		.type                  = memType,
-		.vkMemoryPropertyFlags = vkMemoryPropertyFlags,
-		.vkMemoryAllocateFlags = vkMemoryAllocateFlags,
-	};
-};
-
-
-Res<> Init() {
-/*
-General algorithm:
-heap.maxChunkSize = Min(256mb, heapSize / 8)
-each memtype has a set of chunks
-if requested size fits in an existing chunk, use it
-else allocate a new chunk for this memtype:
-	if not enough budget
-		fail
-	if requestedSize > heap.maxChunkSize
-		dedicated allocation
-	for frac in [1/8, 1/4, 1/2, 1]
-		newChunkSize = heap.maxChunkSize * frac
-		if newChunkSize >= maxExistingChunkSize && newChunkSize > requestedSize * 2
-			use newChunkSize
-	maxExistingChunkSize = max(newChunkSize, maxExistingChunkSize);
-	then use linear/tlsf or whatever for allocations
-
-*//*
-	U32 memTypeBits = U32Max;
-	// TODO: exclude VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD?
-	// vkPhysicalDeviceMemoryProperties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD_COPY
-
-	for (U32 m = 0; m < vkPhysicalDeviceMemoryProperties.memoryTypeCount; m++) {
-		const U32 h        = vkPhysicalDeviceMemoryProperties.memoryTypes[m].heapIndex;
-		const U64 heapSize = vkPhysicalDeviceMemoryProperties.memoryHeaps[h].size;
-		U64 blockSize;
-		if (heapSize < 1024 * 1024 * 1024) {
-			blockSize = heapSize / 8;
-		} else {
-			blockSize = 256 * 1024 * 1024;
-		}
-		blockSize = Bit::AlignUp(blockSize, 32);
-
-		U64 minAlign = 1;
-		const U64 flags = vkPhysicalDeviceMemoryProperties.memoryTypes[memTypeIndex].propertyFlags;
-		if (
-			(flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) &&
-			~(flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
-		) {
-			minAlign = vkPhysicalDeviceProperties.limits.nonCoherentAtomSize;
-		}
-
-		for each mem type
-			init suballocator for this type:
-			list of chunks
-			max chunk size
-			current max chunk size
-
-		m_pBlockVectors[m].Init(
-			m,
-			blockSize,
-			vkPhysicalDeviceProperties.limits.bufferImageGranularity,
-			minAlignGetMemoryTypeMinAlignment(memTypeIndex)
-		);
-
-	}
-
-	UpdateVulkanBudget();
-}
-
-struct MemReqs {
-	VkMemoryPropertyFlags required;
-	VkMemoryPropertyFlags preferred;
-	VkMemoryPropertyFlags notPreferred;
-};
-
-enum struct MemUsage {
-	
-};
-Res<MemReqs> CalcMemReqs() {
-	MemReqs memReqs;
-
-	const Bool discreteGpu  = (vkPhysicalDeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU);
-	const Bool deviceAccess = bufferUsageFlags & ~(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-	const Bool preferDevice = flags & PreferDevice;
-	const Bool preferHost   = flags & PreferHost;
-	if (flags & HostRandomAccess) {
-		// Prefer cached. Cannot require it, because some platforms don't have it (e.g. Raspberry Pi - see #362)!
-		memReqs.preferred |= VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
-
-		if (
-			discreteGpu &&
-			deviceAccess && 
-			(flags & HostAccess_AllowTransferInstead)
-		) {
-			// Picks DEVICE_LOCAL | HOST_VISIBLE | HOST_CACHED if possible
-			// Else whichever comes first between DEVICE_LOCAL and HOST_VISIBLE | HOST_CACHED
-			// Doesn't guarantee HOST_VISIBLE
-			memReqs.preferred |= VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-			// rely on caller to check for non-HOST_VISIBLE and do the staging deal
-		} else {
-			// Always CPU
-			memReqs.required |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-		}
-	} else if (flags & HostSequentialWrite) {
-		memReqs.notPreferred |= VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
-		if (
-			discreteGpu &&
-			deviceAccess &&
-			(flags & HostAccess_AllowTransferInstead)
-		) {
-			memReqs.preferred |= VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-			// rely on caller to check for non-HOST_VISIBLE and do the staging deal
-		} else {
-			memReqs.required |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-			if (deviceAccess) {
-				memReqs.preferred |= VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-			} else {
-				memReqs.preferred |= VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-			}
-		}
-	} else {
-		// No CPU
-		memReqs.preferred |= VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-	}
-
-	return memReqs;
-}
-
-void AllocateMemory() {
-	
-}
-/*
-
-large allocations
-what are my types?
-GPU only, like render targets, depth buffers, gbuffers, etc
-These get dedicated DEVICE_LOCAL allocations, but can fall back to HOST_VISIBLE
-	prefer DEVICE_LOCAL
-	prefer dedicated allocations, but this is user-specified
-cpu-loaded resources like geometry and textures
-	prefer DEVICE_LOCAL
-	use large shared buffers per resource type, but again this is user-specified
-	loaded with dedicated staging buffers
-staging buffers
-	rqeuire HOST_VISIBLE
-dynamic resources like sprites and UI
-	device_local / coherent
-
-bulk-loading resources:
-	have a fixed amount of staging memory (256mb)
-	begin an immediate submit batch
-	load as much as we can into staging memory
-	submit the batch and wait
-	repeat
-	so essentially we have a queue of load commands, possibly from files, possibly from lambdas (cubes and such)
-
-regarding BAR:
-	we need a dedicated code path to take advantage of this.
-	user code needs to allocate a "Dynamic" usage buffer and check whether it's DEVICE_LOCAL
-	If so, no staging. Otherwise, stage.
-	I think this is a TODO item: for now, everything dynamic is staged
-*/
-/*
-void CreateImage() {
-	vkCreateImage;
-	vkGetImageMemoryRequirements2;
-		VkImageMemoryRequirementsInfo2;
-		VkMemoryRequirements2 + VkMemoryDedicatedRequirements;
-		// gives prefers/requires dedicated
-}
-/*
-Static
-	>= 256mb
-		Dedicated DEVICE_LOCAL
-		Fallback  0
-	< 256mb
-		TLSF     DEVICE_LOCAL
-		Fallback 0
-
-Staging
-	HOST_VISIBLE | HOST_COHERENT
-	no fallback
-	< 64k allocation
-	>= 64k allocations do the linear arena thing on the list of blocks managed by the allocator
-	freeing a linear block decreases the usage and if zero offset goes to zero (full block reset)
-	arena allocator
-	256mb, rounded up to next multiple of 256mb for the linear allocator
-	64k minimum block size, but double arena (arena within arena, doesn't make any sense)
-*/
-
-// TODO: use memory budget and limit our top-end allocations to those values
 
 //--------------------------------------------------------------------------------------------------
 
-//}	// namespace JC::Gpu
+static VkDevice                         vkDevice;
+static VkPhysicalDevice                 vkPhysicalDevice;
+static VkAllocationCallbacks*           vkAllocationCallbacks;
+static VkPhysicalDeviceMemoryProperties vkPhysicalDeviceMemoryProperties;
+static VkPhysicalDeviceProperties       vkPhysicalDeviceProperties;
+static MemType                          memTypes[VK_MAX_MEMORY_TYPES];
+static U64                              totalAllocCount;
+static Bool                             discreteGpu;
+
+//--------------------------------------------------------------------------------------------------
+
+static void InitMem() {
+	for (U32 i = 0; i < vkPhysicalDeviceMemoryProperties.memoryTypeCount; i++) {
+		memTypes[i].idx = i;
+		const U64 heapSize = vkPhysicalDeviceMemoryProperties.memoryHeaps[vkPhysicalDeviceMemoryProperties.memoryTypes[i].heapIndex].size;
+		memTypes[i].minChunkSize     = Min(heapSize / 64,  32*MB);
+		memTypes[i].maxChunkSize     = Min(heapSize /  8, 256*MB);
+		memTypes[i].biggestChunkSize = memTypes[i].maxChunkSize;
+	}
+	discreteGpu = vkPhysicalDeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+// From gpuinfo.org as of 7/2025:
+//                                                           |  Win |  Lin |  Mac
+// ----------------------------------------------------------+------+------+-----
+// DEVICE_LOCAL |              |               |             | 89.4 | 81.5 | 99.0
+//              | HOST_VISIBLE | HOST_COHERENT | HOST_CACHED | 82.6 | 76.2 | 62.5
+//              | HOST_VISIBLE | HOST_COHERENT |             | 82.5 | 73.3 |  3.1
+// DEVICE_LOCAL | HOST_VISIBLE | HOST_COHERENT |             | 82.5 | 73.3 |  2.1
+// DEVICE_LOCAL | HOST_VISIBLE | HOST_COHERENT | HOST_CACHED | 17.1 | 21.2 | 39.6
+// DEVICE_LOCAL | HOST_VISIBLE |               | HOST_CACHED |  0.0 |  0.0 | 95.8
+
+static Res<MemType*> SelectMemType(AllocFlags::Type allocFlags, U32 memoryTypeBits) {
+	VkMemoryPropertyFlags needFlags  = 0;
+	VkMemoryPropertyFlags wantFlags  = 0;
+	VkMemoryPropertyFlags avoidFlags = 0;
+	if (allocFlags | AllocFlags::CpuRead) {
+		needFlags |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+		wantFlags |= VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+	} else if (allocFlags | AllocFlags::CpuWrite) {
+		needFlags  |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+		avoidFlags |= VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+		avoidFlags |= VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+	} else if (allocFlags | AllocFlags::Gpu) {
+		wantFlags |= VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+	}
+
+	U32 minCost = U32Max;
+	for (U32 i = 0, typeBit = 1; i < vkPhysicalDeviceMemoryProperties.memoryTypeCount; i++, typeBit <<= 1) {
+		if (!(memoryTypeBits & typeBit)) {
+			continue;
+		}
+		const VkMemoryPropertyFlags typeFlags = vkPhysicalDeviceMemoryProperties.memoryTypes[i].propertyFlags;
+		if ((typeFlags & needFlags) != needFlags) {
+			continue;
+		}
+		const U32 cost = Bit::PopCount32(wantFlags & ~typeFlags) + Bit::PopCount32(avoidFlags & ~typeFlags);
+		if (cost < minCost) {
+			if (cost == 0) {
+				return &memTypes[i];
+			}
+			minCost = cost;
+		}
+	}
+
+	return Err_NoMemType("allocFlags", allocFlags, "typeBits", memoryTypeBits);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static Res<VkDeviceMemory> AllocVkDeviceMemory(U32 memTypeIdx, U64 size) {
+	const VkMemoryAllocateInfo vkMemoryAllocateInfo = {
+		.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.pNext           = 0,
+		.allocationSize  = size,
+		.memoryTypeIndex = memTypeIdx,
+	};
+	VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
+	if (VkResult vkResult = vkAllocateMemory(vkDevice, &vkMemoryAllocateInfo, vkAllocationCallbacks, &vkDeviceMemory); vkResult != VK_SUCCESS) {
+		return Err_Vk(vkResult, "vkAllocateMemory", "memTypeIdx", memTypeIdx, "size", size);
+	}
+	totalAllocCount++;
+	return vkDeviceMemory;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static Res<Allocation> AllocDedicatedChunk(MemType* memType, U64 size) {
+	Assert(memType->chunksLen < MaxChunks);
+
+	const VkMemoryAllocateInfo vkMemoryAllocateInfo = {
+		.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.pNext           = 0,
+		.allocationSize  = size,
+		.memoryTypeIndex = memType->idx,
+	};
+	VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
+	if (Res<> r = AllocVkDeviceMemory(memType->idx, size).To(vkDeviceMemory); !r) {
+		return r.err;
+	}
+
+	memType->chunks[memType->chunksLen++] = {
+		.type           = MemChunkType::Dedicated,
+		.vkDeviceMemory = vkDeviceMemory,
+		.size           = size,
+		.used           = 0,
+	};
+
+	return Allocation {
+		.vkDeviceMemory = vkDeviceMemory,
+		.size           = size,
+		.offset         = 0,
+	};
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static Res<Allocation> AllocFromChunk(MemType* memType, U64 size, U64 align, Bool linear) {
+	if (!memType->curChunk || memType->curChunk->used + size > memType->curChunk->size) {
+		Assert(memType->chunksLen < MaxChunks);
+		U64 newChunkSize = Max(memType->biggestChunkSize, size * 2);
+		VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
+		for (;;) {
+			if (Res<> r = AllocVkDeviceMemory(memType->idx, size).To(vkDeviceMemory)) {
+				break;
+			}
+			newChunkSize /= 2;
+			if (newChunkSize < size) {
+				return Err_NoMem("memTypeIdx", memType->idx, "size", size);
+			}
+		}
+
+		// TODO: record waste from old chunk, if any
+		memType->curChunk = &memType->chunks[memType->chunksLen++];
+		*memType->curChunk = {
+			.type           = MemChunkType::Linear,
+			.vkDeviceMemory = vkDeviceMemory,
+			.size           = size,
+			.used           = 0,
+			.curPageLinear  = linear,	// Default to current request
+		};
+	}
+
+	U64 offset = Bit::AlignUp(memType->curChunk->used, align);
+
+	// Handle linear/nonlinear granularity
+	if (align >= vkPhysicalDeviceProperties.limits.bufferImageGranularity) {
+		// Automatically aligned
+		memType->curChunk->curPageLinear = linear;
+	} else if (memType->curChunk->curPageLinear != linear) {
+		// Need to align to linear/nonlinear page size
+		offset = Bit::AlignUp(offset, vkPhysicalDeviceProperties.limits.bufferImageGranularity);
+		// TODO: record waste
+		memType->curChunk->curPageLinear = linear;
+	}
+
+	return Allocation {
+		.vkDeviceMemory = memType->curChunk->vkDeviceMemory,
+		.size           = size,
+		.offset         = offset,
+	};
+}
+
+//--------------------------------------------------------------------------------------------------
+
+// TODO: add tracking here: file/line associated with each block
+static Res<Allocation> Alloc(const AllocRequest* req) {
+	U32 memoryTypeBits = req->vkMemoryRequirements.memoryTypeBits;
+	for (;;) {
+		MemType* memType;
+		if (Res<> r = SelectMemType(req->allocFlags, memoryTypeBits).To(memType); !r) {
+			return r.err;
+		}
+
+		if (req->needDedicated) {
+			return AllocDedicatedChunk(memType, req->size);
+		}
+		Bool wantDedicated =
+			(req->size > memType->maxChunkSize / 2) &&
+			(totalAllocCount<= (U64)vkPhysicalDeviceProperties.limits.maxMemoryAllocationCount * 3 / 4)
+		;
+		Allocation allocation;
+		if (wantDedicated) {
+			if (Res<> r = AllocDedicatedChunk(memType, req->size).To(allocation)) {
+				return allocation;
+			}
+		}
+	// https://registry.khronos.org/vulkan/specs/latest/html/vkspec.html#glossary-linear-resource
+	// Linear     == VkBuffer | VkImage+VK_IMAGE_TILING_LINEAR
+	// Non-linear == VkImage+VK_IMAGE_TILING_OPTIMAL
+		if (Res<> r = AllocFromChunk(memType, req->size, req->vkMemoryRequirements.alignment, req->linear).To(allocation)) {
+			return allocation;
+		}
+		if (!wantDedicated) {
+			if (Res<> r = AllocDedicatedChunk(memType, req->size).To(allocation)) {
+				return allocation;
+			}
+		}
+
+		memoryTypeBits &= ~(1u << memType->idx);
+	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Gpu

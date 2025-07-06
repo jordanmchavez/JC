@@ -41,6 +41,11 @@ constexpr U64 U64Max = (U64)0xffffffffffffffff;
 #define LineStr MacroStringize(__LINE__)
 #define LenOf(a) (U64)(sizeof(a) / sizeof(a[0]))
 
+constexpr U64 KB = 1024;
+constexpr U64 MB = 1024 * KB;
+constexpr U64 GB = 1024 * MB;
+constexpr U64 TB = 1024 * GB;
+
 #define Defer \
 	auto MacroName(Defer_) = DeferHelper() + [&]()
 
