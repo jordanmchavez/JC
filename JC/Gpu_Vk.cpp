@@ -40,7 +40,7 @@ static constexpr U32 MaxBindlessSampledImages  = 64 * 1024;
 static constexpr U32 MaxBindlessSamplers       = 8;
 static constexpr U32 MaxBindlessDescriptorSets = 32;
 static constexpr F32 MaxAnisotropy             = 8.0f;
-static constexpr U64 StagingBufferPerFrameSize = 256 * 1024 * 1024;
+static constexpr U64 StagingBufferPerFrameSize = 256 * MB;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -96,7 +96,6 @@ struct Chunk {
 };
 
 struct MemType {
-	U32       idx;
 	Chunk*    curArenaChunk;
 	U64       minArenaChunkSize;
 	U64       maxArenaChunkSize;
@@ -668,13 +667,6 @@ static Res<> InitDevice() {
 
 //-------------------------------------------------------------------------------------------------
 
-static Res<> InitPermPool() {
-	permPool = poolObjs.Alloc()->Handle();
-	return Ok();
-}
-
-//-------------------------------------------------------------------------------------------------
-
 static Res<> InitSwapchain(U32 width, U32 height) {
 	VkSurfaceCapabilitiesKHR vkSurfaceCapabilities;
 	CheckVk(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice->vkPhysicalDevice, vkSurface, &vkSurfaceCapabilities));
@@ -957,7 +949,7 @@ static Res<> InitBindlessSamplers() {
 // DEVICE_LOCAL | HOST_VISIBLE | HOST_COHERENT | HOST_CACHED | 17.1 | 21.2 | 39.6
 // DEVICE_LOCAL | HOST_VISIBLE |               | HOST_CACHED |  0.0 |  0.0 | 95.8
 
-static Res<MemType*> SelectMemType(PoolObj* poolObj, MemUsage usage, U32 memoryTypeBits) {
+static Res<U32> SelectMemTypeIdx(MemUsage usage, U32 memoryTypeBits) {
 	VkMemoryPropertyFlags needFlags  = 0;
 	VkMemoryPropertyFlags wantFlags  = 0;
 	VkMemoryPropertyFlags avoidFlags = 0;
@@ -986,10 +978,12 @@ static Res<MemType*> SelectMemType(PoolObj* poolObj, MemUsage usage, U32 memoryT
 		if ((typeFlags & needFlags) != needFlags) {
 			continue;
 		}
-		const U32 cost = Bit::PopCount32(wantFlags & ~typeFlags) + Bit::PopCount32(avoidFlags & ~typeFlags);
+		const U32 wantCost = Bit::PopCount32(wantFlags & ~typeFlags);
+		const U32 avoidCost = Bit::PopCount32(avoidFlags & typeFlags);
+		const U32 cost = wantCost + avoidCost;
 		if (cost < minCost) {
 			if (cost == 0) {
-				return &poolObj->memTypes[i];
+				return i;
 			}
 			minCost = cost;
 		}
@@ -1023,9 +1017,9 @@ static Res<VkDeviceMemory> AllocVkDeviceMemory(U32 memTypeIdx, U64 size, VkMemor
 
 //--------------------------------------------------------------------------------------------------
 
-static Res<Allocation> AllocDedicatedChunk(PoolObj* poolObj, MemType* memType, const AllocRequest* req) {
+static Res<Allocation> AllocDedicatedChunk(PoolObj* poolObj, U32 memTypeIdx, const AllocRequest* req) {
 	VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
-	CheckRes(AllocVkDeviceMemory(memType->idx, req->vkMemoryRequirements.size, req->vkMemoryAllocateFlags).To(vkDeviceMemory));
+	CheckRes(AllocVkDeviceMemory(memTypeIdx, req->vkMemoryRequirements.size, req->vkMemoryAllocateFlags).To(vkDeviceMemory));
 
 	Chunk* const chunk = chunkPool.Alloc();
 	chunk->vkDeviceMemory = vkDeviceMemory;
@@ -1043,18 +1037,19 @@ static Res<Allocation> AllocDedicatedChunk(PoolObj* poolObj, MemType* memType, c
 //--------------------------------------------------------------------------------------------------
 
 // reqSize is size of alloc request, NOT chunk size
-static Res<> AllocArenaChunk(PoolObj* poolObj, MemType* memType, const AllocRequest* req) {
+static Res<> AllocArenaChunk(PoolObj* poolObj, U32 memTypeIdx, const AllocRequest* req) {
+	MemType* const memType = &poolObj->memTypes[memTypeIdx];
 	Assert(req->vkMemoryRequirements.size * 2 < memType->maxArenaChunkSize);
 
 	U64 chunkSize = Max(memType->biggestArenaChunkSize, req->vkMemoryRequirements.size * 2);
 	VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
 	for (;;) {
-		if (Res<> r = AllocVkDeviceMemory(memType->idx, chunkSize, req->vkMemoryAllocateFlags).To(vkDeviceMemory)) {
+		if (Res<> r = AllocVkDeviceMemory(memTypeIdx, chunkSize, req->vkMemoryAllocateFlags).To(vkDeviceMemory)) {
 			break;
 		}
 		chunkSize /= 2;
 		if (chunkSize < req->vkMemoryRequirements.size) {
-			return Err_NoMem("memTypeIdx", memType->idx, "reqSize", req->vkMemoryRequirements.size);
+			return Err_NoMem("memTypeIdx", memTypeIdx, "reqSize", req->vkMemoryRequirements.size);
 		}
 	}
 
@@ -1108,11 +1103,12 @@ static Res<Allocation> Alloc(const AllocRequest* req) {
 	PoolObj* const poolObj = poolObjs.Get(req->pool);
 	U32 memoryTypeBits = req->vkMemoryRequirements.memoryTypeBits;
 	for (;;) {
-		MemType* memType = 0;
-		CheckRes(SelectMemType(poolObj, req->usage, memoryTypeBits).To(memType));
+		U32 memTypeIdx = 0;
+		CheckRes(SelectMemTypeIdx(req->usage, memoryTypeBits).To(memTypeIdx));
+		MemType* const memType = &poolObj->memTypes[memTypeIdx];
 
 		if (req->needDedicated) {
-			return AllocDedicatedChunk(poolObj, memType, req);
+			return AllocDedicatedChunk(poolObj, memTypeIdx, req);
 		}
 
 		const Bool wantDedicated =
@@ -1121,7 +1117,7 @@ static Res<Allocation> Alloc(const AllocRequest* req) {
 
 		Allocation allocation;
 		if (wantDedicated) {
-			if (Res<> r = AllocDedicatedChunk(poolObj, memType, req).To(allocation)) {
+			if (Res<> r = AllocDedicatedChunk(poolObj, memTypeIdx, req).To(allocation)) {
 				return allocation;
 			}
 		}
@@ -1131,19 +1127,19 @@ static Res<Allocation> Alloc(const AllocRequest* req) {
 		}
 
 		// TODO: record waste from old arena chunk, if any
-		CheckRes(AllocArenaChunk(poolObj, memType, req));
+		CheckRes(AllocArenaChunk(poolObj, memTypeIdx, req));
 
 		if (AllocFromArenaChunk(memType->curArenaChunk, req, &allocation)) {
 			return allocation;
 		}
 
 		if (!wantDedicated) {
-			if (Res<> r = AllocDedicatedChunk(poolObj, memType, req).To(allocation)) {
+			if (Res<> r = AllocDedicatedChunk(poolObj, memTypeIdx, req).To(allocation)) {
 				return allocation;
 			}
 		}
 
-		memoryTypeBits &= ~(1u << memType->idx);
+		memoryTypeBits &= ~(1u << memTypeIdx);
 	}
 }
 
@@ -1247,7 +1243,7 @@ Res<> Init(const InitDesc* initDesc) {
 	CheckRes(InitInstance());
 	CheckRes(InitSurface(initDesc->windowPlatformDesc));
 	CheckRes(InitDevice());
-	CheckRes(InitPermPool());
+	permPool = CreatePool();
 	CheckRes(InitSwapchain(initDesc->windowWidth, initDesc->windowHeight));
 	CheckRes(InitFrameSyncObjects());
 	CheckRes(InitCommandBuffers());
@@ -1349,7 +1345,6 @@ Pool CreatePool() {
 	PoolPool::Entry* const entry = poolObjs.Alloc();
 	PoolObj* const poolObj = &entry->obj;
 	for (U32 i = 0; i < physicalDevice->vkPhysicalDeviceMemoryProperties.memoryTypeCount; i++) {
-		poolObj->memTypes[i].idx = i;
 		const U64 heapSize = physicalDevice->vkPhysicalDeviceMemoryProperties.memoryHeaps[physicalDevice->vkPhysicalDeviceMemoryProperties.memoryTypes[i].heapIndex].size;
 		poolObj->memTypes[i].minArenaChunkSize     = Min(heapSize / 64,  32*MB);
 		poolObj->memTypes[i].maxArenaChunkSize     = Min(heapSize /  8, 256*MB);

@@ -244,3 +244,4 @@ map zero memory and tests
 use REBAR for sprite xfer if available
 VK_EXT_host_image_copy
 Report vulkan linear block internal fragmentation (amt we lose at the end of the current block if its not big enough). May want to scan all linear for remaining size, sort by remaining size, etc
+Test vk mem alloc paths: reducing chunk size when out of memory, dedicated/arena boundary conditions, etc
