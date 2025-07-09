@@ -7,9 +7,9 @@
 #include "JC/Bit.h"
 #include "JC/Config.h"
 #include "JC/Fmt.h"
-#include "JC/HandleArray.h"
 #include "JC/Log.h"
 #include "JC/Math.h"
+#include "JC/Pool.h"
 #include "JC/Sys.h"
 #include "JC/Window.h"
 
@@ -23,17 +23,26 @@ DefErr(Gpu, Version);
 DefErr(Gpu, NoLayer);
 DefErr(Gpu, NoExt);
 DefErr(Gpu, NoDevice);
+DefErr(Gpu, NoMemType);
 DefErr(Gpu, NoMem);
 DefErr(Gpu, ShaderTooManyPushConstantBlocks);
 DefErr(Gpu, SpvReflect);
 
 //--------------------------------------------------------------------------------------------------
 
+static constexpr U32 MaxChunks                 = (64 * VK_MAX_MEMORY_TYPES) + 1024;	// Arbitrary 1024 dedicated
+static constexpr U32 MaxPools	               = 64;
+static constexpr U32 MaxBuffers	               = 4096;
+static constexpr U32 MaxImages	               = 4096;
+static constexpr U32 MaxShaders	               = 1024;
+static constexpr U32 MaxPipelines              = 128;
 static constexpr U32 MaxBindlessSampledImages  = 64 * 1024;
 static constexpr U32 MaxBindlessSamplers       = 8;
 static constexpr U32 MaxBindlessDescriptorSets = 32;
 static constexpr F32 MaxAnisotropy             = 8.0f;
 static constexpr U64 StagingBufferPerFrameSize = 256 * 1024 * 1024;
+
+//--------------------------------------------------------------------------------------------------
 
 struct QueueFamily {
 	VkQueueFamilyProperties vkQueueFamilyProperties;
@@ -56,18 +65,53 @@ struct PhysicalDevice {
 	U32                              queueFamily;
 };
 
-struct Mem {
-	VkDeviceMemory        vkDeviceMemory;
-	U64                   offset;
-	U64                   size;
-	U32                   type;
-	VkMemoryPropertyFlags vkMemoryPropertyFlags;
+struct AllocRequest {
+	Pool                  pool;
+	VkMemoryRequirements  vkMemoryRequirements;
 	VkMemoryAllocateFlags vkMemoryAllocateFlags;
+	Bool                  needDedicated;
+	Bool                  wantDedicated;
+	MemUsage              usage;
+	bool                  nonLinearResource;
+};
+
+struct Allocation {
+	VkDeviceMemory vkDeviceMemory;
+	U64            size;
+	U64            offset;
+};
+
+struct SubAllocation {
+	U64            offset;
+	U64            size;
+	SubAllocation* next;
+};
+
+struct Chunk {
+	VkDeviceMemory vkDeviceMemory;
+	U64            size;
+	U64            used;
+	bool           curPageNonLinear;
+	Chunk*         next;
+};
+
+struct MemType {
+	U32       idx;
+	Chunk*    curArenaChunk;
+	U64       minArenaChunkSize;
+	U64       maxArenaChunkSize;
+	U64       biggestArenaChunkSize;
+};
+
+struct PoolObj {
+	Chunk*   chunks;
+	MemType  memTypes[VK_MAX_MEMORY_TYPES];
+	PoolObj* next;
 };
 
 struct BufferObj {
 	VkBuffer           vkBuffer;
-	Mem                mem;
+	Allocation         allocation;
 	U64                size;
 	VkBufferUsageFlags vkBufferUsageFlags;
 	U64                addr;
@@ -79,7 +123,7 @@ struct BufferObj {
 struct ImageObj {
 	VkImage           vkImage;
 	VkImageView       vkImageView;
-	Mem               mem;
+	Allocation        allocation;
 	U32               width;
 	U32               height;
 	VkFormat          vkFormat;
@@ -103,46 +147,59 @@ struct PipelineObj {
 	VkPushConstantRange vkPushConstantRange;
 };
 
-static JC::Mem::Allocator*                allocator;
-static JC::Mem::TempAllocator*            tempAllocator;
-static Log::Logger*                       logger;
-static Sys::Mutex                         mutex;
-static HandleArray<BufferObj, Buffer>     bufferObjs;
-static HandleArray<ImageObj, Image>       imageObjs;
-static HandleArray<ShaderObj, Shader>     shaderObjs;
-static HandleArray<PipelineObj, Pipeline> pipelineObjs;
-       VkAllocationCallbacks*             vkAllocationCallbacks;	// not static: referenced in Gpu_Vk_Util.cpp
-static VkInstance                         vkInstance;
-static VkDebugUtilsMessengerEXT           vkDebugUtilsMessenger;
-static VkSurfaceKHR                       vkSurface;
-static Array<PhysicalDevice>              physicalDevices;
-static PhysicalDevice*                    physicalDevice;
-       VkDevice                           vkDevice;		// not static: referenced in Gpu_Vk_Util.cpp
-static VkQueue                            vkQueue;
-static VkSwapchainKHR                     vkSwapchain;
-static Array<Image>                       swapchainImages;
-static U32                                swapchainImageIdx;
-static VkCommandPool                      vkFrameCommandPool;
-static VkCommandBuffer                    vkFrameCommandBuffers[MaxFrames];
-static VkCommandPool                      vkImmediateCommandPool;
-static VkCommandBuffer                    vkImmediateCommandBuffer;
-static VkCommandBuffer                    cmdToVkCommandBuffer[1 + MaxFrames + 1];	// [0] invalid, then frame cmds, then immediate cmd
-static VkDescriptorPool                   vkDescriptorPool;
-static VkDescriptorSetLayout              vkBindlessDescriptorSetLayout;
-static VkDescriptorSet                    vkBindlessDescriptorSet;
-static U32                                nextBindlessDescriptorIdx;
-static VkSampler                          vkBindlessSamplers[MaxBindlessSamplers];
-static U32                                vkBindlessSamplersLen;
-static BufferObj                          stagingBufferObj;
-static U8*                                stagingBufferPtr;
-static U64                                stagingBufferUsed;
-static VkSemaphore                        vkFrameTimelineSemaphore;
-static VkSemaphore                        vkFrameImageAcquiredSemaphores[MaxFrames];
-static VkSemaphore                        vkFrameSubmitCompleteSemaphores[MaxFrames];
-static VkSemaphore                        vkImmediateTimelineSemaphore;
-static U64                                immediateTimeline;
-static U32                                frameIdx;
-static U64                                frame;
+//--------------------------------------------------------------------------------------------------
+//	discreteGpu = physicalDevice->vkPhysicalDeviceProperties2.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+
+using PoolPool     = HandlePool<PoolObj,     Pool,     MaxPools>;
+using BufferPool   = HandlePool<BufferObj,   Buffer,   MaxBuffers>;
+using ImagePool    = HandlePool<ImageObj,    Image,    MaxImages>;
+using ShaderPool   = HandlePool<ShaderObj,   Shader,   MaxShaders>;
+using PipelinePool = HandlePool<PipelineObj, Pipeline, MaxPipelines>;
+
+static JC::Mem::Allocator*       allocator;
+static JC::Mem::TempAllocator*   tempAllocator;
+static Log::Logger*              logger;
+static Sys::Mutex                mutex;
+static U32                       totalAllocCount;
+static ObjPool<Chunk, MaxChunks> chunkPool;
+static PoolPool                  poolObjs;
+static Pool                      permPool;
+static BufferPool                bufferObjs;
+static ImagePool                 imageObjs;
+static ShaderPool                shaderObjs;
+static PipelinePool              pipelineObjs;
+       VkAllocationCallbacks*    vkAllocationCallbacks;	// not static: referenced in Gpu_Vk_Util.cpp
+static VkInstance                vkInstance;
+static VkDebugUtilsMessengerEXT  vkDebugUtilsMessenger;
+static VkSurfaceKHR              vkSurface;
+static Array<PhysicalDevice>     physicalDevices;
+static PhysicalDevice*           physicalDevice;
+       VkDevice                  vkDevice;		// not static: referenced in Gpu_Vk_Util.cpp
+static VkQueue                   vkQueue;
+static VkSwapchainKHR            vkSwapchain;
+static Array<Image>              swapchainImages;
+static U32                       swapchainImageIdx;
+static VkCommandPool             vkFrameCommandPool;
+static VkCommandBuffer           vkFrameCommandBuffers[MaxFrames];
+static VkCommandPool             vkImmediateCommandPool;
+static VkCommandBuffer           vkImmediateCommandBuffer;
+static VkCommandBuffer           cmdToVkCommandBuffer[1 + MaxFrames + 1];	// [0] invalid, then frame cmds, then immediate cmd
+static VkDescriptorPool          vkDescriptorPool;
+static VkDescriptorSetLayout     vkBindlessDescriptorSetLayout;
+static VkDescriptorSet           vkBindlessDescriptorSet;
+static U32                       nextBindlessDescriptorIdx;
+static VkSampler                 vkBindlessSamplers[MaxBindlessSamplers];
+static U32                       vkBindlessSamplersLen;
+static BufferObj                 stagingBufferObj;
+static U8*                       stagingBufferPtr;
+static U64                       stagingBufferUsed;
+static VkSemaphore               vkFrameTimelineSemaphore;
+static VkSemaphore               vkFrameImageAcquiredSemaphores[MaxFrames];
+static VkSemaphore               vkFrameSubmitCompleteSemaphores[MaxFrames];
+static VkSemaphore               vkImmediateTimelineSemaphore;
+static U64                       immediateTimeline;
+static U32                       frameIdx;
+static U64                       frame;
 
 //-------------------------------------------------------------------------------------------------
 
@@ -611,6 +668,13 @@ static Res<> InitDevice() {
 
 //-------------------------------------------------------------------------------------------------
 
+static Res<> InitPermPool() {
+	permPool = poolObjs.Alloc()->Handle();
+	return Ok();
+}
+
+//-------------------------------------------------------------------------------------------------
+
 static Res<> InitSwapchain(U32 width, U32 height) {
 	VkSurfaceCapabilitiesKHR vkSurfaceCapabilities;
 	CheckVk(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice->vkPhysicalDevice, vkSurface, &vkSurfaceCapabilities));
@@ -690,15 +754,15 @@ static Res<> InitSwapchain(U32 width, U32 height) {
 		CheckVk(vkCreateImageView(vkDevice, &vkImageViewCreateInfo, vkAllocationCallbacks, &vkSwapchainImageView));
 		DbgNameI(vkSwapchainImageView, i);
 
-		swapchainImages[i] = imageObjs.Alloc();
-		ImageObj* imageObj = imageObjs.Get(swapchainImages[i]);
-		imageObj->vkImage       = vkSwapchainImages[i];
-		imageObj->vkImageView   = vkSwapchainImageView;
-		imageObj->mem           = {};
-		imageObj->width         = vkSwapchainExtent.width;
-		imageObj->height        = vkSwapchainExtent.height;
-		imageObj->vkFormat      = physicalDevice->vkSwapchainFormat;
-		imageObj->vkImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		ImagePool::Entry* const entry = imageObjs.Alloc();
+		swapchainImages[i] = entry->Handle();
+		entry->obj.vkImage       = vkSwapchainImages[i];
+		entry->obj.vkImageView   = vkSwapchainImageView;
+		entry->obj.allocation    = {};
+		entry->obj.width         = vkSwapchainExtent.width;
+		entry->obj.height        = vkSwapchainExtent.height;
+		entry->obj.vkFormat      = physicalDevice->vkSwapchainFormat;
+		entry->obj.vkImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	}
 
 	vkDeviceWaitIdle(vkDevice);
@@ -880,26 +944,63 @@ static Res<> InitBindlessSamplers() {
 	return Ok();
 }
 
+
 //----------------------------------------------------------------------------------------------
-	
-// TODO: buffer alignment
-static Res<Mem> AllocateMem(
-	VkMemoryRequirements  vkMemoryRequirements,
-	VkMemoryPropertyFlags vkMemoryPropertyFlags,
-	VkMemoryAllocateFlags vkMemoryAllocateFlags
-) {
-	U32 memType = U32Max;
-	for (U32 i = 0; i < physicalDevice->vkPhysicalDeviceMemoryProperties.memoryTypeCount; i++) {
-		if (
-			(vkMemoryRequirements.memoryTypeBits & (1 << i)) &&
-			(physicalDevice->vkPhysicalDeviceMemoryProperties.memoryTypes[i].propertyFlags & vkMemoryPropertyFlags)
-		) {
-			memType = i;
+
+// From gpuinfo.org as of 7/2025:
+//                                                           |  Win |  Lin |  Mac
+// ----------------------------------------------------------+------+------+-----
+// DEVICE_LOCAL |              |               |             | 89.4 | 81.5 | 99.0
+//              | HOST_VISIBLE | HOST_COHERENT | HOST_CACHED | 82.6 | 76.2 | 62.5
+//              | HOST_VISIBLE | HOST_COHERENT |             | 82.5 | 73.3 |  3.1
+// DEVICE_LOCAL | HOST_VISIBLE | HOST_COHERENT |             | 82.5 | 73.3 |  2.1
+// DEVICE_LOCAL | HOST_VISIBLE | HOST_COHERENT | HOST_CACHED | 17.1 | 21.2 | 39.6
+// DEVICE_LOCAL | HOST_VISIBLE |               | HOST_CACHED |  0.0 |  0.0 | 95.8
+
+static Res<MemType*> SelectMemType(PoolObj* poolObj, MemUsage usage, U32 memoryTypeBits) {
+	VkMemoryPropertyFlags needFlags  = 0;
+	VkMemoryPropertyFlags wantFlags  = 0;
+	VkMemoryPropertyFlags avoidFlags = 0;
+	switch (usage) {
+		case MemUsage::CpuRead:
+			needFlags |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+			wantFlags |= VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+			break;
+		case MemUsage::CpuWrite:
+			needFlags  |= VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+			avoidFlags |= VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+			avoidFlags |= VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+			break;
+		case MemUsage::Gpu:
+			wantFlags |= VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+			break;
+		default: Panic("Unhandled MemUsage", "usage", usage);
+	}
+
+	U32 minCost = U32Max;
+	for (U32 i = 0, typeBit = 1; i < physicalDevice->vkPhysicalDeviceMemoryProperties.memoryTypeCount; i++, typeBit <<= 1) {
+		if (!(memoryTypeBits & typeBit)) {
+			continue;
+		}
+		const VkMemoryPropertyFlags typeFlags = physicalDevice->vkPhysicalDeviceMemoryProperties.memoryTypes[i].propertyFlags;
+		if ((typeFlags & needFlags) != needFlags) {
+			continue;
+		}
+		const U32 cost = Bit::PopCount32(wantFlags & ~typeFlags) + Bit::PopCount32(avoidFlags & ~typeFlags);
+		if (cost < minCost) {
+			if (cost == 0) {
+				return &poolObj->memTypes[i];
+			}
+			minCost = cost;
 		}
 	}
-	if (memType == U32Max) {
-		return Err_NoMem();
-	}
+
+	return Err_NoMemType("usage", usage, "typeBits", memoryTypeBits);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static Res<VkDeviceMemory> AllocVkDeviceMemory(U32 memTypeIdx, U64 size, VkMemoryAllocateFlags vkMemoryAllocateFlags) {
 	const VkMemoryAllocateFlagsInfo vkMemoryAllocateFlagsInfo = {
 		.sType      = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
 		.pNext      = 0,
@@ -909,37 +1010,151 @@ static Res<Mem> AllocateMem(
 	const VkMemoryAllocateInfo vkMemoryAllocateInfo = {
 		.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 		.pNext           = &vkMemoryAllocateFlagsInfo,
-		.allocationSize  = vkMemoryRequirements.size,
-		.memoryTypeIndex = memType,
+		.allocationSize  = size,
+		.memoryTypeIndex = memTypeIdx,
 	};
 	VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
-	CheckVk(vkAllocateMemory(vkDevice, &vkMemoryAllocateInfo, vkAllocationCallbacks, &vkDeviceMemory));
+	if (VkResult vkResult = vkAllocateMemory(vkDevice, &vkMemoryAllocateInfo, vkAllocationCallbacks, &vkDeviceMemory); vkResult != VK_SUCCESS) {
+		return Err_Vk(vkResult, "vkAllocateMemory", "memTypeIdx", memTypeIdx, "size", size);
+	}
+	totalAllocCount++;
+	return vkDeviceMemory;
+}
 
-	return Mem {
-		.vkDeviceMemory        = vkDeviceMemory,
-		.offset                = 0,
-		.size                  = vkMemoryRequirements.size,
-		.type                  = memType,
-		.vkMemoryPropertyFlags = vkMemoryPropertyFlags,
-		.vkMemoryAllocateFlags = vkMemoryAllocateFlags,
+//--------------------------------------------------------------------------------------------------
+
+static Res<Allocation> AllocDedicatedChunk(PoolObj* poolObj, MemType* memType, const AllocRequest* req) {
+	VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
+	CheckRes(AllocVkDeviceMemory(memType->idx, req->vkMemoryRequirements.size, req->vkMemoryAllocateFlags).To(vkDeviceMemory));
+
+	Chunk* const chunk = chunkPool.Alloc();
+	chunk->vkDeviceMemory = vkDeviceMemory;
+	chunk->size           = req->vkMemoryRequirements.size;
+	chunk->next           = poolObj->chunks;
+	poolObj->chunks = chunk;
+
+	return Allocation {
+		.vkDeviceMemory = vkDeviceMemory,
+		.size           = req->vkMemoryRequirements.size,
+		.offset         = 0,
 	};
 }
 
-//-------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
-static void FreeMem(Mem mem) {
-	if (mem.vkDeviceMemory != VK_NULL_HANDLE) {
-		vkFreeMemory(vkDevice, mem.vkDeviceMemory, vkAllocationCallbacks);
+// reqSize is size of alloc request, NOT chunk size
+static Res<> AllocArenaChunk(PoolObj* poolObj, MemType* memType, const AllocRequest* req) {
+	Assert(req->vkMemoryRequirements.size * 2 < memType->maxArenaChunkSize);
+
+	U64 chunkSize = Max(memType->biggestArenaChunkSize, req->vkMemoryRequirements.size * 2);
+	VkDeviceMemory vkDeviceMemory = VK_NULL_HANDLE;
+	for (;;) {
+		if (Res<> r = AllocVkDeviceMemory(memType->idx, chunkSize, req->vkMemoryAllocateFlags).To(vkDeviceMemory)) {
+			break;
+		}
+		chunkSize /= 2;
+		if (chunkSize < req->vkMemoryRequirements.size) {
+			return Err_NoMem("memTypeIdx", memType->idx, "reqSize", req->vkMemoryRequirements.size);
+		}
+	}
+
+	Chunk* chunk = chunkPool.Alloc();
+	chunk->vkDeviceMemory   = vkDeviceMemory,
+	chunk->size             = req->vkMemoryRequirements.size,
+	chunk->used             = 0,
+	chunk->curPageNonLinear = req->nonLinearResource,	// Default to current request
+	chunk->next = poolObj->chunks;
+	poolObj->chunks = chunk;
+	memType->curArenaChunk = chunk;
+
+	return Ok();
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static bool AllocFromArenaChunk(Chunk* chunk, const AllocRequest* req, Allocation* outAllocation) {
+	U64 offset = Bit::AlignUp(chunk->used, req->vkMemoryRequirements.alignment);
+	// Handle linear/nonlinear granularity
+	if (req->vkMemoryRequirements.alignment >= physicalDevice->vkPhysicalDeviceProperties2.properties.limits.bufferImageGranularity) {
+		// Automatically aligned
+		chunk->curPageNonLinear = req->nonLinearResource;
+	} else if (chunk->curPageNonLinear != req->nonLinearResource) {
+		// Need to align to linear/nonlinear page size
+		offset = Bit::AlignUp(offset, physicalDevice->vkPhysicalDeviceProperties2.properties.limits.bufferImageGranularity);
+		// TODO: record waste
+		chunk->curPageNonLinear = req->nonLinearResource;
+	}
+	if (offset + req->vkMemoryRequirements.size > chunk->size) {
+		false;
+	}
+	chunk->used = offset + req->vkMemoryRequirements.size;
+
+	*outAllocation = {
+		.vkDeviceMemory = chunk->vkDeviceMemory,
+		.size           = req->vkMemoryRequirements.size,
+		.offset         = offset,
+	};
+	return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+// https://registry.khronos.org/vulkan/specs/latest/html/vkspec.html#glossary-linear-resource
+// Linear     == VkBuffer | VkImage+VK_IMAGE_TILING_LINEAR
+// Non-linear == VkImage+VK_IMAGE_TILING_OPTIMAL
+
+// TODO: add tracking here: file/line associated with each block
+static Res<Allocation> Alloc(const AllocRequest* req) {
+	PoolObj* const poolObj = poolObjs.Get(req->pool);
+	U32 memoryTypeBits = req->vkMemoryRequirements.memoryTypeBits;
+	for (;;) {
+		MemType* memType = 0;
+		CheckRes(SelectMemType(poolObj, req->usage, memoryTypeBits).To(memType));
+
+		if (req->needDedicated) {
+			return AllocDedicatedChunk(poolObj, memType, req);
+		}
+
+		const Bool wantDedicated =
+			(req->vkMemoryRequirements.size > memType->maxArenaChunkSize / 2) &&
+			(totalAllocCount<= (U64)physicalDevice->vkPhysicalDeviceProperties2.properties.limits.maxMemoryAllocationCount * 3 / 4);
+
+		Allocation allocation;
+		if (wantDedicated) {
+			if (Res<> r = AllocDedicatedChunk(poolObj, memType, req).To(allocation)) {
+				return allocation;
+			}
+		}
+
+		if (memType->curArenaChunk && AllocFromArenaChunk(memType->curArenaChunk, req, &allocation)) {
+			return allocation;
+		}
+
+		// TODO: record waste from old arena chunk, if any
+		CheckRes(AllocArenaChunk(poolObj, memType, req));
+
+		if (AllocFromArenaChunk(memType->curArenaChunk, req, &allocation)) {
+			return allocation;
+		}
+
+		if (!wantDedicated) {
+			if (Res<> r = AllocDedicatedChunk(poolObj, memType, req).To(allocation)) {
+				return allocation;
+			}
+		}
+
+		memoryTypeBits &= ~(1u << memType->idx);
 	}
 }
 
-//-------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 static Res<BufferObj> CreateBufferImpl(
+	Pool                  pool,
 	U64                   size,
 	VkBufferUsageFlags    vkBufferUsageFlags,
-	VkMemoryPropertyFlags vkMemoryPropertyFlags,
-	VkMemoryAllocateFlags vkMemoryAllocateFlags
+	VkMemoryAllocateFlags vkMemoryAllocateFlags,
+	MemUsage              memUsage
 ) {
 	const VkBufferCreateInfo vkBufferCreateInfo = {
 		.sType                 = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -954,18 +1169,23 @@ static Res<BufferObj> CreateBufferImpl(
 	VkBuffer vkBuffer = VK_NULL_HANDLE;
 	CheckVk(vkCreateBuffer(vkDevice, &vkBufferCreateInfo, vkAllocationCallbacks, &vkBuffer));
 
-	VkMemoryRequirements vkMemoryRequirements = {};
-	vkGetBufferMemoryRequirements(vkDevice, vkBuffer, &vkMemoryRequirements);
+	AllocRequest req;
+	vkGetBufferMemoryRequirements(vkDevice, vkBuffer, &req.vkMemoryRequirements);
+	req.pool                     = pool;
+	req.vkMemoryAllocateFlags    = vkMemoryAllocateFlags;
+	req.needDedicated            = false;	// TODO
+	req.wantDedicated            = false;
+	req.usage                    = memUsage;
+	req.nonLinearResource        = false;
 
-	Mem mem = {};
-	if (Res<> r = AllocateMem(vkMemoryRequirements, vkMemoryPropertyFlags, vkMemoryAllocateFlags).To(mem); !r) {
+	Allocation allocation = {};
+	if (Res<> r = Alloc(&req).To(allocation); !r) {
 		vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
 		return r.err;
 	}
 
-	if (const VkResult r = vkBindBufferMemory(vkDevice, vkBuffer, mem.vkDeviceMemory, 0); r != VK_SUCCESS) {
+	if (const VkResult r = vkBindBufferMemory(vkDevice, vkBuffer, allocation.vkDeviceMemory, 0); r != VK_SUCCESS) {
 		vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
-		FreeMem(mem);
 		return Err_Vk(r, "vkBindBufferMemory");
 	}
 
@@ -981,7 +1201,7 @@ static Res<BufferObj> CreateBufferImpl(
 
 	return BufferObj {
 		.vkBuffer           = vkBuffer,
-		.mem                = mem,
+		.allocation         = allocation,
 		.size               = size,
 		.vkBufferUsageFlags = vkBufferUsageFlags,
 		.addr               = addr,
@@ -997,17 +1217,18 @@ static Res<> InitStagingBuffer() {
 	constexpr U64 StagingBufferSize = MaxFrames * StagingBufferPerFrameSize;
 
 	if (Res<> r = CreateBufferImpl(
+		permPool,
 		StagingBufferSize,
 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		0
+		0,
+		MemUsage::CpuWrite
 	).To(stagingBufferObj); !r) {
 		return r;
 	}
-	SetDbgName(stagingBufferObj.mem.vkDeviceMemory, "stagingMem");
+	SetDbgName(stagingBufferObj.allocation.vkDeviceMemory, "stagingMem");
 	SetDbgName(stagingBufferObj.vkBuffer, "staging");
 
-	CheckVk(vkMapMemory(vkDevice, stagingBufferObj.mem.vkDeviceMemory, 0, StagingBufferSize, 0, (void**)&stagingBufferPtr));
+	CheckVk(vkMapMemory(vkDevice, stagingBufferObj.allocation.vkDeviceMemory, 0, StagingBufferSize, 0, (void**)&stagingBufferPtr));
 	stagingBufferUsed = 0;
 
 	return Ok();
@@ -1020,22 +1241,19 @@ Res<> Init(const InitDesc* initDesc) {
 	tempAllocator = initDesc->tempAllocator;
 	logger        = initDesc->logger;
 	Sys::InitMutex(&mutex);
-	bufferObjs.Init(allocator);
-	imageObjs.Init(allocator);
-	shaderObjs.Init(allocator);
-	pipelineObjs.Init(allocator);
 	physicalDevices.Init(allocator);
 	swapchainImages.Init(allocator);
 
-	if (Res<> r = InitInstance();                                               !r) { return r; }
-	if (Res<> r = InitSurface(initDesc->windowPlatformDesc);                    !r) { return r; }
-	if (Res<> r = InitDevice();                                                 !r) { return r; }
-	if (Res<> r = InitSwapchain(initDesc->windowWidth, initDesc->windowHeight); !r) { return r; }
-	if (Res<> r = InitFrameSyncObjects();                                       !r) { return r; }
-	if (Res<> r = InitCommandBuffers();                                         !r) { return r; }
-	if (Res<> r = InitBindlessDescriptors();                                    !r) { return r; }
-	if (Res<> r = InitBindlessSamplers();                                       !r) { return r; }
-	if (Res<> r = InitStagingBuffer();                                          !r) { return r; }
+	CheckRes(InitInstance());
+	CheckRes(InitSurface(initDesc->windowPlatformDesc));
+	CheckRes(InitDevice());
+	CheckRes(InitPermPool());
+	CheckRes(InitSwapchain(initDesc->windowWidth, initDesc->windowHeight));
+	CheckRes(InitFrameSyncObjects());
+	CheckRes(InitCommandBuffers());
+	CheckRes(InitBindlessDescriptors());
+	CheckRes(InitBindlessSamplers());
+	CheckRes(InitStagingBuffer());
 
 	immediateTimeline = 0;
 	frame             = 0;
@@ -1071,7 +1289,6 @@ Res<> Init(const InitDesc* initDesc) {
 
 void Shutdown() {
 	DestroyVk(stagingBufferObj.vkBuffer, vkDestroyBuffer);
-	FreeMem(stagingBufferObj.mem);
 	DestroyVkCArray(vkBindlessSamplers, vkDestroySampler);
 	vkBindlessSamplersLen = 0;
 	DestroyVk(vkBindlessDescriptorSetLayout, vkDestroyDescriptorSetLayout);
@@ -1128,24 +1345,50 @@ Res<> RecreateSwapchain(U32 width, U32 height) {
 
 //----------------------------------------------------------------------------------------------
 
-ImageFormat GetSwapchainImageFormat() {
-	return VkFormatToImageFormat(physicalDevice->vkSwapchainFormat);
+Pool CreatePool() {
+	PoolPool::Entry* const entry = poolObjs.Alloc();
+	PoolObj* const poolObj = &entry->obj;
+	for (U32 i = 0; i < physicalDevice->vkPhysicalDeviceMemoryProperties.memoryTypeCount; i++) {
+		poolObj->memTypes[i].idx = i;
+		const U64 heapSize = physicalDevice->vkPhysicalDeviceMemoryProperties.memoryHeaps[physicalDevice->vkPhysicalDeviceMemoryProperties.memoryTypes[i].heapIndex].size;
+		poolObj->memTypes[i].minArenaChunkSize     = Min(heapSize / 64,  32*MB);
+		poolObj->memTypes[i].maxArenaChunkSize     = Min(heapSize /  8, 256*MB);
+		poolObj->memTypes[i].biggestArenaChunkSize = poolObj->memTypes[i].maxArenaChunkSize;
+	}
+	return entry->Handle();
 }
 
-//----------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
 
-Res<Buffer> CreateBuffer(U64 size, BufferUsage::Flags usageFlags) {
+void DestroyPool(Pool pool) {
+	PoolObj* const poolObj = poolObjs.Get(pool);
+	for (Chunk* chunk = poolObj->chunks; chunk; ) {
+		Chunk* next = chunk->next;
+		vkFreeMemory(vkDevice, chunk->vkDeviceMemory, vkAllocationCallbacks);
+		chunkPool.Free(chunk);
+		chunk = next;
+	}
+	poolObjs.Free(pool);
+}
+
+//-------------------------------------------------------------------------------------------------
+
+Pool PermPool() { return permPool; }
+
+//-------------------------------------------------------------------------------------------------
+
+Res<Buffer> CreateBuffer(Pool pool, U64 size, BufferUsage::Flags bufferUsageFlags, MemUsage memUsage) {
 	VkBufferUsageFlags vkBufferUsageFlags = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-	if (usageFlags & BufferUsage::Storage)  { vkBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; }
-	if (usageFlags & BufferUsage::Index)    { vkBufferUsageFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT; }
-	if (usageFlags & BufferUsage::CpuWrite) { vkBufferUsageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT; }
+	if (bufferUsageFlags & BufferUsage::Storage)  { vkBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; }
+	if (bufferUsageFlags & BufferUsage::Index)    { vkBufferUsageFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT; }
+	if (bufferUsageFlags & BufferUsage::Transfer) { vkBufferUsageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT; }
 
 	BufferObj bufferObj;
-	CheckRes(CreateBufferImpl(size, vkBufferUsageFlags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT).To(bufferObj));
+	CheckRes(CreateBufferImpl(pool, size, vkBufferUsageFlags, VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT, memUsage).To(bufferObj));
 
-	const Buffer buffer = bufferObjs.Alloc();
-	*bufferObjs.Get(buffer) = bufferObj;
-	return buffer;
+	BufferPool::Entry* const entry = bufferObjs.Alloc();
+	entry->obj = bufferObj;
+	return entry->Handle();
 }
 
 //----------------------------------------------------------------------------------------------
@@ -1154,7 +1397,6 @@ void DestroyBuffer(Buffer buffer) {
 	if (buffer.handle) {
 		BufferObj* const bufferObj = bufferObjs.Get(buffer);
 		DestroyVk(bufferObj->vkBuffer, vkDestroyBuffer);
-		FreeMem(bufferObj->mem);
 		memset(bufferObj, 0, sizeof(*bufferObj));
 		bufferObjs.Free(buffer);
 	}
@@ -1172,21 +1414,21 @@ Res<void*> MapBuffer(Buffer buffer, U64 offset, U64 size) {
     BufferObj* const bufferObj = bufferObjs.Get(buffer);
 	U8* ptr = 0;
 	if (size == 0) { size = bufferObj->size; }
-	CheckVk(vkMapMemory(vkDevice, bufferObj->mem.vkDeviceMemory, offset, size, 0, (void**)&ptr));
+	CheckVk(vkMapMemory(vkDevice, bufferObj->allocation.vkDeviceMemory, offset, size, 0, (void**)&ptr));
     return ptr;
 }
 
 //----------------------------------------------------------------------------------------------
 
-Res<Image> CreateImage(U32 width, U32 height, ImageFormat format, ImageUsage::Flags usageFlags) {
+Res<Image> CreateImage(Pool pool, U32 width, U32 height, ImageFormat format, ImageUsage::Flags imageUsageFlags, MemUsage memUsage) {
 	// TODO: check format properties optimal tiling supports the requested format/feature
 	const VkFormat vkFormat = ImageFormatToVkFormat(format);
 
 	VkImageUsageFlags vkImageUsageFlags = 0;
-	if (usageFlags & ImageUsage::Sampled)         { vkImageUsageFlags |= VK_IMAGE_USAGE_SAMPLED_BIT; }
-	if (usageFlags & ImageUsage::ColorAttachment) { vkImageUsageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; }
-	if (usageFlags & ImageUsage::DepthAttachment) { vkImageUsageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; }
-	if (usageFlags & ImageUsage::CpuWrite)        { vkImageUsageFlags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT; }
+	if (imageUsageFlags & ImageUsage::Sampled)         { vkImageUsageFlags |= VK_IMAGE_USAGE_SAMPLED_BIT; }
+	if (imageUsageFlags & ImageUsage::ColorAttachment) { vkImageUsageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; }
+	if (imageUsageFlags & ImageUsage::DepthAttachment) { vkImageUsageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; }
+	if (imageUsageFlags & ImageUsage::Transfer)        { vkImageUsageFlags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT; }
 
 	const VkImageCreateInfo vkImageCreateInfo = {
 		.sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -1208,18 +1450,23 @@ Res<Image> CreateImage(U32 width, U32 height, ImageFormat format, ImageUsage::Fl
 	VkImage vkImage = VK_NULL_HANDLE;
 	CheckVk(vkCreateImage(vkDevice, &vkImageCreateInfo, vkAllocationCallbacks, &vkImage));
 
-	VkMemoryRequirements vkMemoryRequirements = {};
-	vkGetImageMemoryRequirements(vkDevice, vkImage, &vkMemoryRequirements);
+	AllocRequest req;
+	vkGetImageMemoryRequirements(vkDevice, vkImage, &req.vkMemoryRequirements);
+	req.pool                     = pool;
+	req.vkMemoryAllocateFlags    = 0;
+	req.needDedicated            = false;	// TODO
+	req.wantDedicated            = false;
+	req.usage                    = memUsage;
+	req.nonLinearResource        = true;	// Since always VK_IMAGE_TILING_OPTIMAL
 
-	Mem mem = {};
-	if (Res<> r = AllocateMem(vkMemoryRequirements, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0).To(mem); !r) {
+	Allocation allocation = {};
+	if (Res<> r = Alloc(&req).To(allocation); !r) {
 		vkDestroyImage(vkDevice, vkImage, vkAllocationCallbacks);
 		return r.err;
 	}
 		
-	if (const VkResult r = vkBindImageMemory(vkDevice, vkImage, mem.vkDeviceMemory, 0); r != VK_SUCCESS) {
+	if (const VkResult r = vkBindImageMemory(vkDevice, vkImage, allocation.vkDeviceMemory, 0); r != VK_SUCCESS) {
 		vkDestroyImage(vkDevice, vkImage, vkAllocationCallbacks);
-		FreeMem(mem);
 		return Err_Vk(r, "vkBindImageMemory");
 	}
 
@@ -1236,7 +1483,6 @@ Res<Image> CreateImage(U32 width, U32 height, ImageFormat format, ImageUsage::Fl
 	VkImageView vkImageView = VK_NULL_HANDLE;
 	if (VkResult r = vkCreateImageView(vkDevice, &vkImageViewCreateInfo, vkAllocationCallbacks, &vkImageView); r != VK_SUCCESS) {
 		vkDestroyImage(vkDevice, vkImage, vkAllocationCallbacks);
-		FreeMem(mem);
 		return Err_Vk(r, "vkCreateImageView");
 	}
 
@@ -1263,21 +1509,19 @@ Res<Image> CreateImage(U32 width, U32 height, ImageFormat format, ImageUsage::Fl
 		vkUpdateDescriptorSets(vkDevice, 1, &vkWriteDescriptorSet, 0, 0);
 	}
 
-	const Image image = imageObjs.Alloc();
-	*imageObjs.Get(image) = {
-		.vkImage           = vkImage,
-		.vkImageView       = vkImageView,
-		.mem               = mem,
-		.width             = width,
-		.height            = height,
-		.vkFormat          = vkFormat,
-		.vkImageUsageFlags = vkImageUsageFlags,
-		.vkImageLayout     = VK_IMAGE_LAYOUT_UNDEFINED,
-		.bindlessIdx       = bindlessIdx,
-		.stagingOffset     = U64Max,
-	};
+	ImagePool::Entry* const entry = imageObjs.Alloc();
+	entry->obj.vkImage           = vkImage;
+	entry->obj.vkImageView       = vkImageView;
+	entry->obj.allocation        = allocation;
+	entry->obj.width             = width;
+	entry->obj.height            = height;
+	entry->obj.vkFormat          = vkFormat;
+	entry->obj.vkImageUsageFlags = vkImageUsageFlags;
+	entry->obj.vkImageLayout     = VK_IMAGE_LAYOUT_UNDEFINED;
+	entry->obj.bindlessIdx       = bindlessIdx;
+	entry->obj.stagingOffset     = U64Max;
 
-	return image;
+	return entry->Handle();
 }
 //-------------------------------------------------------------------------------------------------
 
@@ -1285,7 +1529,6 @@ void DestroyImage(Image image) {
 	if (image.handle) {
 		ImageObj* const imageObj = imageObjs.Get(image);
 		DestroyVk(imageObj->vkImageView, vkDestroyImageView);
-		FreeMem(imageObj->mem);
 		DestroyVk(imageObj->vkImage, vkDestroyImage);
 		imageObjs.Free(image);
 	}
@@ -1324,21 +1567,20 @@ Res<Shader> CreateShader(const void* data, U64 len) {
 		return Err_Vk(r, "vkCreateShaderModule");
 	}
 
-	const Shader shader = shaderObjs.Alloc();
-	ShaderObj* const shaderObj = shaderObjs.Get(shader);
-	shaderObj->vkShaderModule = vkShaderModule;
-	shaderObj->vkShaderStage = (VkShaderStageFlagBits)spvReflectShaderModule.shader_stage;	// SPV flags defined 1:1 with VK flags
+	ShaderPool::Entry* const entry = shaderObjs.Alloc();
+	entry->obj.vkShaderModule = vkShaderModule;
+	entry->obj.vkShaderStage = (VkShaderStageFlagBits)spvReflectShaderModule.shader_stage;	// SPV flags defined 1:1 with VK flags
 	if (spvReflectShaderModule.push_constant_block_count && spvReflectShaderModule.push_constant_blocks) {
-		shaderObj->pushConstantsOffset = spvReflectShaderModule.push_constant_blocks[0].offset;
-		shaderObj->pushConstantsSize   = spvReflectShaderModule.push_constant_blocks[0].size;
+		entry->obj.pushConstantsOffset = spvReflectShaderModule.push_constant_blocks[0].offset;
+		entry->obj.pushConstantsSize   = spvReflectShaderModule.push_constant_blocks[0].size;
 	} else {
-		shaderObj->pushConstantsOffset = 0;
-		shaderObj->pushConstantsSize   = 0;
+		entry->obj.pushConstantsOffset = 0;
+		entry->obj.pushConstantsSize   = 0;
 	}
 
 	spvReflectDestroyShaderModule(&spvReflectShaderModule);
 
-	return shader;
+	return entry->Handle();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -1570,14 +1812,13 @@ Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> col
 		return Err_Vk(r, "vkCreateGraphicsPipelines");
 	}
 
-	const Pipeline pipeline = pipelineObjs.Alloc();
-	PipelineObj* const pipelineObj = pipelineObjs.Get(pipeline);
-	pipelineObj->vkPipelineLayout    = vkPipelineLayout;
-	pipelineObj->vkPipeline          = vkPipeline;
-	pipelineObj->vkPipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	pipelineObj->vkPushConstantRange = vkPushConstantRange;
+	PipelinePool::Entry* const entry = pipelineObjs.Alloc();
+	entry->obj.vkPipelineLayout    = vkPipelineLayout;
+	entry->obj.vkPipeline          = vkPipeline;
+	entry->obj.vkPipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	entry->obj.vkPushConstantRange = vkPushConstantRange;
 
-	return pipeline;
+	return entry->Handle();
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -2005,13 +2246,11 @@ void WaitIdle() {
 
 void SetName(Buffer  buffer, const char* name) {
 	BufferObj* const bufferObj = bufferObjs.Get(buffer);
-	SetDbgName(bufferObj->mem.vkDeviceMemory, Fmt::Printfz(tempAllocator, "{}Mem", name));
 	SetDbgName(bufferObj->vkBuffer, name);
 }
 
 void SetName(Image image, const char* name) {
 	ImageObj* const imageObj = imageObjs.Get(image);
-	SetDbgName(imageObj->mem.vkDeviceMemory, Fmt::Printfz(tempAllocator, "{}Mem", name));
 	SetDbgName(imageObj->vkImage, name);
 }
 

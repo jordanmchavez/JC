@@ -6,28 +6,44 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-template <class T, class H> struct HandleArray {
+template <class T, U32 N> struct ObjPool {
+	T   objs[N];
+	U32 len;
+	T*  free;
+
+	T* Alloc() {
+		if (free) {
+			T* obj = free;
+			free = free->next;
+			return obj;
+		}
+		Assert(len < N);
+		return &objs[len++];
+	}
+
+	void Free(T* obj) {
+		obj->next = free;
+		free = obj;
+	}
+};
+
+//--------------------------------------------------------------------------------------------------
+
+// H must be of the form 
+// struct { U64 handle = 0; };
+template <class T, class H, U32 N> struct HandlePool {
 	struct Entry {
 		T   obj = {};
 		U32 gen = 0;
 		U32 idx = 0;
+
+		H Handle() const { return H { .handle = ((U64)gen << 32) | idx }; }
 	};
 
-	Mem::Allocator* allocator = 0;
-	Entry*          entries   = 0;
-	U32             len       = 0;
-	U32             cap       = 0;
-	U32             gen       = 1;
-	U32             free      = 0;
-
-	void Init(Mem::Allocator* allocatorIn) {
-		allocator = allocatorIn;
-		entries   = allocator->AllocT<Entry>(16);
-		len       = 1;	// rserve index 0 for invalid
-		cap       = 16;
-		gen       = 1;
-		free      = 0;
-	}
+	Entry entries[N];
+	U32   len  = 1;
+	U32   gen  = 1;
+	U32   free = 0;
 
 	Entry* GetEntry(H h) {
 		const U32 i = (U32)(h.handle & 0xffffffff);
@@ -44,20 +60,15 @@ template <class T, class H> struct HandleArray {
 		return &GetEntry(h)->obj;
 	}
 
-	H Alloc(SrcLoc sl = SrcLoc::Here()) {
+	Entry* Alloc() {
 		U32 i = 0;
 		if (free) {
 			i = free;
 			free = (U32)entries[free].idx;	// next
 		} else {
-			if (len >= cap) {
-				const U32 newCap = cap * 2;
-				entries = allocator->ReallocT<Entry>(entries, cap, newCap, sl);
-				cap = newCap;
-			}
+			Assert(len < N);
 			i = len;
 			len++;
-			Assert(len <= cap);
 		}
 
 		Entry* const entry = &entries[i];
@@ -69,7 +80,7 @@ template <class T, class H> struct HandleArray {
 			gen = 1;
 		}
 
-		return H { .handle = ((U64)entry->gen << 32) | i };
+		return entry;
 	}
 
 	void Free(H h) {

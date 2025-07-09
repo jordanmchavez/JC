@@ -29,18 +29,19 @@ struct InitDesc {
 	const Window::PlatformDesc* windowPlatformDesc = {};
 };
 
-struct Buffer    { U64 handle = 0; };
-struct Sampler   { U64 handle = 0; };
-struct Image     { U64 handle = 0; };
-struct Shader    { U64 handle = 0; };
-struct Pipeline  { U64 handle = 0; };
-struct Cmd       { U64 handle = 0; };
+struct Pool     { U64 handle = 0; };
+struct Buffer   { U64 handle = 0; };
+struct Sampler  { U64 handle = 0; };
+struct Image    { U64 handle = 0; };
+struct Shader   { U64 handle = 0; };
+struct Pipeline { U64 handle = 0; };
+struct Cmd      { U64 handle = 0; };
 
 namespace BufferUsage {
 	using Flags = U32;
 	constexpr Flags Storage  = 1 << 0;
 	constexpr Flags Index    = 1 << 1;
-	constexpr Flags CpuWrite = 1 << 2;
+	constexpr Flags Transfer = 1 << 2;
 }
 
 namespace ImageUsage {
@@ -48,8 +49,14 @@ namespace ImageUsage {
 	constexpr Flags Sampled         = 1 << 0;
 	constexpr Flags ColorAttachment = 1 << 1;
 	constexpr Flags DepthAttachment = 1 << 2;
-	constexpr Flags CpuWrite        = 1 << 3;
+	constexpr Flags Transfer        = 1 << 3;
 }
+
+enum struct MemUsage {
+	CpuRead,
+	CpuWrite,
+	Gpu,
+};
 
 enum struct ImageFormat {
 	Undefined = 0,
@@ -87,62 +94,66 @@ struct Pass {
 	bool        clear;
 };
 
-Res<>         Init(const InitDesc* initDesc);
-void          Shutdown();
+Res<>        Init(const InitDesc* initDesc);
+void         Shutdown();
 
-U32           GetFrameIdx();
+U32          GetFrameIdx();
 
-Res<>         RecreateSwapchain(U32 width, U32 height);
+Res<>        RecreateSwapchain(U32 width, U32 height);
 
-Res<Buffer>   CreateBuffer(U64 size, BufferUsage::Flags flags);
-void          DestroyBuffer(Buffer buffer);
-U64           GetBufferAddr(Buffer buffer);
+Pool         CreatePool();
+void         DestroyPool(Pool pool);
+Pool         PermPool();
 
-Res<Image>    CreateImage(U32 width, U32 height, ImageFormat format, ImageUsage::Flags usageFlags);
-void          DestroyImage(Image image);
-U32           GetImageWidth(Image image);	// TODO; -> IVec2 or IExtent or something
-U32           GetImageHeight(Image image);
-ImageFormat   GetImageFormat(Image image);
-U32           GetImageBindIdx(Image image);
+Res<Buffer>  CreateBuffer(Pool pool, U64 size, BufferUsage::Flags bufferUsageFlags, MemUsage memUsage);
+void         DestroyBuffer(Buffer buffer);
+U64          GetBufferAddr(Buffer buffer);
 
-Res<Shader>   CreateShader(const void* data, U64 len);
-void          DestroyShader(Shader shader);
+Res<Image>   CreateImage(Pool pool, U32 width, U32 height, ImageFormat format, ImageUsage::Flags imageUsageFlags, MemUsage memUsage);
+void         DestroyImage(Image image);
+U32          GetImageWidth(Image image);	// TODO; -> IVec2 or IExtent or something
+U32          GetImageHeight(Image image);
+ImageFormat  GetImageFormat(Image image);
+U32          GetImageBindIdx(Image image);
 
-Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> colorAttachmentFormats, ImageFormat depthAttachmentFormat);
-void          DestroyPipeline(Pipeline pipeline);
+Res<Shader>  CreateShader(const void* data, U64 len);
+void         DestroyShader(Shader shader);
 
-Res<Frame>    BeginFrame();	// TODO: instead return an array of cmds, one per thread
-Res<>         EndFrame();
+Res<Pipeline>CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> colorAttachmentFormats, ImageFormat depthAttachmentFormat);
+void         DestroyPipeline(Pipeline pipeline);
 
-Res<Cmd>      BeginImmediateCmds();
-Res<>         EndImmediateCmds(Stage waitStage);
+Res<Frame>   BeginFrame();	// TODO: instead return an array of cmds, one per thread
+Res<>        EndFrame();
 
-void          CmdBeginPass(Cmd cmd, const Pass* pass);
-void          CmdEndPass(Cmd cmd);
+Res<Cmd>     BeginImmediateCmds();
+Res<>        EndImmediateCmds(Stage waitStage);
 
-void*         CmdBeginBufferUpload(Cmd cmd, Buffer buffer, U64 offset, U64 size);
-void          CmdEndBufferUpload(Cmd cmd, Buffer buffer);
+void         CmdBeginPass(Cmd cmd, const Pass* pass);
+void         CmdEndPass(Cmd cmd);
 
-void*         CmdBeginImageUpload(Cmd cmd, Image image);
-void          CmdEndImageUpload(Cmd cmd, Image image);
+void*        CmdBeginBufferUpload(Cmd cmd, Buffer buffer, U64 offset, U64 size);
+void         CmdEndBufferUpload(Cmd cmd, Buffer buffer);
 
-void          CmdBufferBarrier(Cmd cmd, Buffer buffer, Stage srcStage, Stage dstStage);
-void          CmdImageBarrier(Cmd cmd, Image image, Stage srcStage, Stage dstStage);
-void          CmdDebugBarrier(Cmd cmd);
+void*        CmdBeginImageUpload(Cmd cmd, Image image);
+void         CmdEndImageUpload(Cmd cmd, Image image);
 
-void          CmdBindIndexBuffer(Cmd cmd, Buffer buffer);
+void         CmdBufferBarrier(Cmd cmd, Buffer buffer, Stage srcStage, Stage dstStage);
+void         CmdImageBarrier(Cmd cmd, Image image, Stage srcStage, Stage dstStage);
+void         CmdDebugBarrier(Cmd cmd);
 
-void          CmdPushConstants(Cmd cmd, Pipeline pipeline, const void* data, U32 len);
+void         CmdBindIndexBuffer(Cmd cmd, Buffer buffer);
 
-void          CmdDraw(Cmd cmd, U32 vertexCount, U32 instanceCount);
-void          CmdDrawIndexed(Cmd cmd, U32 indexCount);
+void         CmdPushConstants(Cmd cmd, Pipeline pipeline, const void* data, U32 len);
 
-void          WaitIdle();
+void         CmdDraw(Cmd cmd, U32 vertexCount, U32 instanceCount);
+void         CmdDrawIndexed(Cmd cmd, U32 indexCount);
 
-void          SetName(Buffer   buffer,   const char* name);
-void          SetName(Image    image,    const char* name);
-void          SetName(Shader   shader,   const char* name);
-void          SetName(Pipeline pipeline, const char* name);
+void         WaitIdle();
+
+void         SetName(Buffer   buffer,   const char* name);
+void         SetName(Image    image,    const char* name);
+void         SetName(Shader   shader,   const char* name);
+void         SetName(Pipeline pipeline, const char* name);
 
 //--------------------------------------------------------------------------------------------------
 

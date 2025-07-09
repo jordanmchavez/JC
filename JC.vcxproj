@@ -138,7 +138,7 @@
     <ClInclude Include="JC\Core\Str.h" />
     <ClInclude Include="JC\Core\TypeTraits.h" />
     <ClInclude Include="JC\Core\Mem.h" />
-    <ClInclude Include="JC\HandleArray.h" />
+    <ClInclude Include="JC\Pool.h" />
     <ClInclude Include="JC\Hash.h" />
     <ClInclude Include="JC\Json.h" />
     <ClInclude Include="JC\Log.h" />
@@ -174,8 +174,7 @@
     <ClCompile Include="JC\Event.cpp" />
     <ClCompile Include="JC\FS.cpp" />
     <ClCompile Include="JC\Fmt.cpp" />
-    <ClCompile Include="JC\Gpu_Vk_Mem.cpp" />
-    <ClCompile Include="JC\HandleArray.cpp" />
+    <ClCompile Include="JC\Pool.cpp" />
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Json.cpp" />
     <ClCompile Include="JC\Log.cpp" />

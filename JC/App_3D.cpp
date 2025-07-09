@@ -66,6 +66,7 @@ struct App_3D : App {
 	Mem::TempAllocator* tempAllocator = 0;
 	Log::Logger*        logger        = 0;
 
+	Gpu::Pool           permPool;
 	Gpu::Image          depthImage;
 	Gpu::Buffer         vertexBuffer;
 	U32                 verticesUsed;
@@ -200,9 +201,10 @@ struct App_3D : App {
 	//----------------------------------------------------------------------------------------------
 
 	Res<> Init(const Window::State* windowState) {
-		CheckRes(Gpu::CreateImage(windowState->width, windowState->height, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::DepthAttachment).To(depthImage));
-		CheckRes(Gpu::CreateBuffer(MaxVertices * sizeof(Vertex), Gpu::BufferUsage::Storage | Gpu::BufferUsage::CpuWrite).To(vertexBuffer));
-		CheckRes(Gpu::CreateBuffer(MaxIndices * sizeof(U32), Gpu::BufferUsage::Storage | Gpu::BufferUsage::CpuWrite).To(indexBuffer));
+		permPool = Gpu::PermPool();
+		CheckRes(Gpu::CreateImage(permPool, windowState->width, windowState->height, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::DepthAttachment, Gpu::MemUsage::Gpu).To(depthImage));
+		CheckRes(Gpu::CreateBuffer(permPool, MaxVertices * sizeof(Vertex), Gpu::BufferUsage::Storage, Gpu::MemUsage::CpuWrite).To(vertexBuffer));
+		CheckRes(Gpu::CreateBuffer(permPool, MaxIndices * sizeof(U32), Gpu::BufferUsage::Storage, Gpu::MemUsage::CpuWrite).To(indexBuffer));
 
 		Gpu::SetName(depthImage, "depth");
 		Gpu::SetName(vertexBuffer, "vertices");
