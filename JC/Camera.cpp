@@ -40,13 +40,6 @@ void PerspectiveCamera::Pitch(F32 delta) {
 	y = Math::Cross(z, x);
 }
 
-Mat4 PerspectiveCamera::GetProjView() {
-	return Math::Mul(
-		Math::Look(pos, x, y, z),
-		Math::Perspective(Math::DegToRad(fov), aspect, 0.01f, 100000000.0f)
-	);
-}
-
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC

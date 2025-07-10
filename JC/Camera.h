@@ -31,7 +31,6 @@ struct PerspectiveCamera {
 	void Up(F32 delta);
 	void Yaw(F32 delta);
 	void Pitch(F32 delta);
-	Mat4 GetProjView();
 };
 
 //--------------------------------------------------------------------------------------------------

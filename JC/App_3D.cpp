@@ -1,9 +1,11 @@
 #include "JC/App.h"
 #include "JC/Array.h"
+#include "JC/Camera.h"
 #include "JC/Event.h"
 #include "JC/FS.h"
 #include "JC/Gpu.h"
 #include "JC/Log.h"
+#include "JC/Math.h"
 #include "JC/Window.h"
 
 namespace JC {
@@ -59,8 +61,10 @@ struct App_3D : App {
 
 	//----------------------------------------------------------------------------------------------
 
-	static constexpr U32 MaxVertices = 1024 * 1024;
-	static constexpr U32 MaxIndices  = 1024 * 1024;
+	static constexpr U32 MaxMaterials = 1024;
+	static constexpr U32 MaxVertices  = 1024 * 1024;
+	static constexpr U32 MaxIndices   = 1024 * 1024;
+	static constexpr U32 MaxEntities  = 1024 * 1024;
 
 	Mem::Allocator*     allocator     = 0;
 	Mem::TempAllocator* tempAllocator = 0;
@@ -72,6 +76,10 @@ struct App_3D : App {
 	U32                 verticesUsed;
 	Gpu::Buffer         indexBuffer;
 	U32                 indicesUsed;
+	Gpu::Buffer         materialBuffer;
+	Gpu::Buffer         transformBuffer;
+	Gpu::Buffer         sceneBuffer;
+	Gpu::Buffer         drawIndirectBuffer;
 	Mesh                cube;
 	Mesh                sphere;
 	Mesh                icosahedron;
@@ -170,7 +178,6 @@ struct App_3D : App {
 			.vertexCount  = 8,
 			.indexOffset  = ia.offset,
 			.indexCount   = 6 * 2 * 3,
-
 		};
 	}
 	/*
@@ -202,13 +209,27 @@ struct App_3D : App {
 
 	Res<> Init(const Window::State* windowState) {
 		permPool = Gpu::PermPool();
-		CheckRes(Gpu::CreateImage(permPool, windowState->width, windowState->height, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::DepthAttachment, Gpu::MemUsage::Gpu).To(depthImage));
-		CheckRes(Gpu::CreateBuffer(permPool, MaxVertices * sizeof(Vertex), Gpu::BufferUsage::Storage, Gpu::MemUsage::CpuWrite).To(vertexBuffer));
-		CheckRes(Gpu::CreateBuffer(permPool, MaxIndices * sizeof(U32), Gpu::BufferUsage::Storage, Gpu::MemUsage::CpuWrite).To(indexBuffer));
 
+		CheckRes(Gpu::CreateImage(permPool, windowState->width, windowState->height, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::DepthAttachment, Gpu::MemUsage::Gpu).To(depthImage));
 		Gpu::SetName(depthImage, "depth");
-		Gpu::SetName(vertexBuffer, "vertices");
-		Gpu::SetName(indexBuffer, "indices");
+
+		CheckRes(Gpu::CreateBuffer(permPool, MaxVertices * sizeof(Vertex), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Upload, Gpu::MemUsage::CpuWrite).To(vertexBuffer));
+		Gpu::SetName(vertexBuffer, "vertex");
+
+		CheckRes(Gpu::CreateBuffer(permPool, MaxIndices * sizeof(U32), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Upload, Gpu::MemUsage::CpuWrite).To(indexBuffer));
+		Gpu::SetName(indexBuffer, "index");
+
+		CheckRes(Gpu::CreateBuffer(permPool, MaxMaterials * sizeof(Material), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Upload, Gpu::MemUsage::CpuWrite).To(materialBuffer));
+		Gpu::SetName(materialBuffer, "material");
+
+		CheckRes(Gpu::CreateBuffer(permPool, MaxEntities * sizeof(Mat4), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Upload, Gpu::MemUsage::CpuWrite).To(transformBuffer));
+		Gpu::SetName(transformBuffer, "transform");
+
+		CheckRes(Gpu::CreateBuffer(permPool, sizeof(Scene), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Upload, Gpu::MemUsage::CpuWrite).To(sceneBuffer));
+		Gpu::SetName(sceneBuffer, "scene");
+
+		CheckRes(Gpu::CreateBuffer(permPool, MaxEntities * sizeof(DrawIndirect), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Upload, Gpu::MemUsage::CpuWrite).To(drawIndirectBuffer));
+		Gpu::SetName(drawIndirectBuffer, "drawIndirect");
 
 		CheckRes(InitMeshes());
 
@@ -219,8 +240,12 @@ struct App_3D : App {
 
 	void Shutdown() {
 		Gpu::DestroyImage(depthImage);
+		Gpu::DestroyBuffer(materialBuffer);
 		Gpu::DestroyBuffer(vertexBuffer);
 		Gpu::DestroyBuffer(indexBuffer);
+		Gpu::DestroyBuffer(transformBuffer);
+		Gpu::DestroyBuffer(sceneBuffer);
+		Gpu::DestroyBuffer(drawIndirectBuffer);
 	}
 
 	//----------------------------------------------------------------------------------------------
@@ -246,16 +271,32 @@ struct App_3D : App {
 
 	//----------------------------------------------------------------------------------------------
 
+	PerspectiveCamera camera;
+
 	Res<> Draw(Gpu::Cmd cmd, Gpu::Image swapchainImage) {
-		cmd;swapchainImage;
-		// setup scene buffer
-		// map transform buffer
-		// map indirect draw buffer
+		const Mat4 view = Math::Look(camera.pos, camera.x, camera.y, camera.z);
+		const Mat4 proj = Math::Perspective(Math::DegToRad(camera.fov), camera.aspect, 0.01f, 100000000.0f);
+		const Mat4 projView = Math::Mul(view, proj);	// TODO: order?
+		*(Scene*)Gpu::CmdBeginBufferUpload(cmd, sceneBuffer, 0, sizeof(Scene)) = {
+			.view     = view,
+			.proj     = proj,
+			.projView = projView,
+		};
+		Gpu::CmdEndBufferUpload(cmd, sceneBuffer);
+
+		Mat4* const transforms = (Mat4*)Gpu::CmdBeginBufferUpload(cmd, transformBuffer, 0, entities.len * sizeof(Mat4));
+		DrawIndirect* drawIndirects = (DrawIndirect*)Gpu::CmdBeginBufferUpload(cmd, drawIndirectBuffer, 0, entities.len * sizeof(DrawIndirect));
 		for (U64 i = 0; i < entities.len; i++) {
 //			const Entity* const entity = &entities[i];
 			// write transform buffer
 			// write ind draw cmd
+
 		}
+		Gpu::CmdEndBufferUpload(cmd, transformBuffer);
+		Gpu::CmdEndBufferUpload(cmd, drawIndirectBuffer);
+
+		Gpu::
+		swapchainImage;
 		return Ok();
 	}
 };

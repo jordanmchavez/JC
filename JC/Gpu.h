@@ -41,7 +41,7 @@ namespace BufferUsage {
 	using Flags = U32;
 	constexpr Flags Storage  = 1 << 0;
 	constexpr Flags Index    = 1 << 1;
-	constexpr Flags Transfer = 1 << 2;
+	constexpr Flags Upload   = 1 << 2;
 }
 
 namespace ImageUsage {
@@ -49,7 +49,7 @@ namespace ImageUsage {
 	constexpr Flags Sampled         = 1 << 0;
 	constexpr Flags ColorAttachment = 1 << 1;
 	constexpr Flags DepthAttachment = 1 << 2;
-	constexpr Flags Transfer        = 1 << 3;
+	constexpr Flags Upload          = 1 << 3;
 }
 
 enum struct MemUsage {
@@ -137,7 +137,7 @@ void         CmdEndBufferUpload(Cmd cmd, Buffer buffer);
 void*        CmdBeginImageUpload(Cmd cmd, Image image);
 void         CmdEndImageUpload(Cmd cmd, Image image);
 
-void         CmdBufferBarrier(Cmd cmd, Buffer buffer, Stage srcStage, Stage dstStage);
+void         CmdBufferBarrier(Cmd cmd, Buffer buffer, U64 offset, U64 size, Stage srcStage, Stage dstStage);
 void         CmdImageBarrier(Cmd cmd, Image image, Stage srcStage, Stage dstStage);
 void         CmdDebugBarrier(Cmd cmd);
 

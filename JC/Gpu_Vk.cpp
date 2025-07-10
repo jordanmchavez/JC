@@ -77,8 +77,8 @@ struct AllocRequest {
 
 struct Allocation {
 	VkDeviceMemory vkDeviceMemory;
-	U64            size;
 	U64            offset;
+	U64            size;
 };
 
 struct SubAllocation {
@@ -1029,8 +1029,8 @@ static Res<Allocation> AllocDedicatedChunk(PoolObj* poolObj, U32 memTypeIdx, con
 
 	return Allocation {
 		.vkDeviceMemory = vkDeviceMemory,
-		.size           = req->vkMemoryRequirements.size,
 		.offset         = 0,
+		.size           = req->vkMemoryRequirements.size,
 	};
 }
 
@@ -1055,7 +1055,7 @@ static Res<> AllocArenaChunk(PoolObj* poolObj, U32 memTypeIdx, const AllocReques
 
 	Chunk* chunk = chunkPool.Alloc();
 	chunk->vkDeviceMemory   = vkDeviceMemory,
-	chunk->size             = req->vkMemoryRequirements.size,
+	chunk->size             = chunkSize,
 	chunk->used             = 0,
 	chunk->curPageNonLinear = req->nonLinearResource,	// Default to current request
 	chunk->next = poolObj->chunks;
@@ -1080,14 +1080,14 @@ static bool AllocFromArenaChunk(Chunk* chunk, const AllocRequest* req, Allocatio
 		chunk->curPageNonLinear = req->nonLinearResource;
 	}
 	if (offset + req->vkMemoryRequirements.size > chunk->size) {
-		false;
+		return false;
 	}
 	chunk->used = offset + req->vkMemoryRequirements.size;
 
 	*outAllocation = {
 		.vkDeviceMemory = chunk->vkDeviceMemory,
-		.size           = req->vkMemoryRequirements.size,
 		.offset         = offset,
+		.size           = req->vkMemoryRequirements.size,
 	};
 	return true;
 }
@@ -1145,6 +1145,13 @@ static Res<Allocation> Alloc(const AllocRequest* req) {
 
 //--------------------------------------------------------------------------------------------------
 
+void Free(Pool pool, Allocation allocation) {
+	// TODO
+	pool; allocation;
+}
+
+//--------------------------------------------------------------------------------------------------
+
 static Res<BufferObj> CreateBufferImpl(
 	Pool                  pool,
 	U64                   size,
@@ -1180,7 +1187,8 @@ static Res<BufferObj> CreateBufferImpl(
 		return r.err;
 	}
 
-	if (const VkResult r = vkBindBufferMemory(vkDevice, vkBuffer, allocation.vkDeviceMemory, 0); r != VK_SUCCESS) {
+	if (const VkResult r = vkBindBufferMemory(vkDevice, vkBuffer, allocation.vkDeviceMemory, allocation.offset); r != VK_SUCCESS) {
+		Free(pool, allocation);
 		vkDestroyBuffer(vkDevice, vkBuffer, vkAllocationCallbacks);
 		return Err_Vk(r, "vkBindBufferMemory");
 	}
@@ -1307,6 +1315,7 @@ void Shutdown() {
 		imageObjs.Free(swapchainImages[i]);
 	}
 	swapchainImages.len = 0;
+	DestroyPool(permPool);
 	DestroyVk(vkSwapchain, vkDestroySwapchainKHR);
 	if (vkDevice != VK_NULL_HANDLE) { vkDestroyDevice(vkDevice, vkAllocationCallbacks); vkDevice = VK_NULL_HANDLE; }
 	if (vkSurface != VK_NULL_HANDLE) { vkDestroySurfaceKHR(vkInstance, vkSurface, vkAllocationCallbacks); vkSurface = VK_NULL_HANDLE; }
@@ -1348,7 +1357,7 @@ Pool CreatePool() {
 		const U64 heapSize = physicalDevice->vkPhysicalDeviceMemoryProperties.memoryHeaps[physicalDevice->vkPhysicalDeviceMemoryProperties.memoryTypes[i].heapIndex].size;
 		poolObj->memTypes[i].minArenaChunkSize     = Min(heapSize / 64,  32*MB);
 		poolObj->memTypes[i].maxArenaChunkSize     = Min(heapSize /  8, 256*MB);
-		poolObj->memTypes[i].biggestArenaChunkSize = poolObj->memTypes[i].maxArenaChunkSize;
+		poolObj->memTypes[i].biggestArenaChunkSize = poolObj->memTypes[i].minArenaChunkSize;
 	}
 	return entry->Handle();
 }
@@ -1374,9 +1383,9 @@ Pool PermPool() { return permPool; }
 
 Res<Buffer> CreateBuffer(Pool pool, U64 size, BufferUsage::Flags bufferUsageFlags, MemUsage memUsage) {
 	VkBufferUsageFlags vkBufferUsageFlags = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-	if (bufferUsageFlags & BufferUsage::Storage)  { vkBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; }
-	if (bufferUsageFlags & BufferUsage::Index)    { vkBufferUsageFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT; }
-	if (bufferUsageFlags & BufferUsage::Transfer) { vkBufferUsageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT; }
+	if (bufferUsageFlags & BufferUsage::Storage) { vkBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; }
+	if (bufferUsageFlags & BufferUsage::Index)   { vkBufferUsageFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT; }
+	if (bufferUsageFlags & BufferUsage::Upload)  { vkBufferUsageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT; }
 
 	BufferObj bufferObj;
 	CheckRes(CreateBufferImpl(pool, size, vkBufferUsageFlags, VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT, memUsage).To(bufferObj));
@@ -1423,7 +1432,7 @@ Res<Image> CreateImage(Pool pool, U32 width, U32 height, ImageFormat format, Ima
 	if (imageUsageFlags & ImageUsage::Sampled)         { vkImageUsageFlags |= VK_IMAGE_USAGE_SAMPLED_BIT; }
 	if (imageUsageFlags & ImageUsage::ColorAttachment) { vkImageUsageFlags |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; }
 	if (imageUsageFlags & ImageUsage::DepthAttachment) { vkImageUsageFlags |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; }
-	if (imageUsageFlags & ImageUsage::Transfer)        { vkImageUsageFlags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT; }
+	if (imageUsageFlags & ImageUsage::Upload)          { vkImageUsageFlags |= VK_IMAGE_USAGE_TRANSFER_DST_BIT; }
 
 	const VkImageCreateInfo vkImageCreateInfo = {
 		.sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
@@ -2041,7 +2050,7 @@ void CmdEndPass(Cmd cmd) {
 void* CmdBeginBufferUpload(Cmd, Buffer buffer, U64 offset, U64 size) {
 	BufferObj* const bufferObj = bufferObjs.Get(buffer);
 	Assert(bufferObj->stagingOffset == U64Max);
-	Assert(offset + size < bufferObj->size);
+	Assert(offset + size <= bufferObj->size);
 	bufferObj->stagingOffset = AllocStagingMem(size);
 	bufferObj->uploadOffset  = offset;
 	bufferObj->uploadSize    = size;
@@ -2067,7 +2076,6 @@ void CmdEndBufferUpload(Cmd cmd, Buffer buffer) {
 		.pRegions    = &vkBufferCopy2,
 	};
 	vkCmdCopyBuffer2(vkCommandBuffer, &vkCopyBufferInfo2);
-
 	bufferObj->stagingOffset = U64Max;
 	bufferObj->uploadOffset  = U64Max;
 	bufferObj->uploadSize    = U64Max;
@@ -2111,7 +2119,7 @@ void CmdEndImageUpload(Cmd cmd, Image image) {
 
 //-------------------------------------------------------------------------------------------------
 
-void CmdBufferBarrier(Cmd cmd, Buffer buffer, Stage srcStage, Stage dstStage) {
+void CmdBufferBarrier(Cmd cmd, Buffer buffer, U64 offset, U64 size, Stage srcStage, Stage dstStage) {
 	const StageFlags srcStageFlags = GetStageFlags(srcStage);
 	const StageFlags dstStageFlags = GetStageFlags(dstStage);
 	const VkBufferMemoryBarrier2 vkBufferMemoryBarrier2 = {
@@ -2124,8 +2132,8 @@ void CmdBufferBarrier(Cmd cmd, Buffer buffer, Stage srcStage, Stage dstStage) {
 		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
 		.buffer              = bufferObjs.Get(buffer)->vkBuffer,
-		.offset              = 0,
-		.size                = VK_WHOLE_SIZE,
+		.offset              = offset,
+		.size                = size,
 	};
 	const VkDependencyInfo vkDependencyInfo = {
 		.sType                    = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
