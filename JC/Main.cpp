@@ -1,10 +1,9 @@
 #include "JC/App.h"
-#include "JC/UnitTest.h"
 
-//--------------------------------------------------------------------------------------------------
+namespace JC::App3D { extern App::Fns appFns; };
 
 int main(int argc, const char* argv[])
 {
-	RunApp(JC::g_app, argc, argv);
+	JC::App::Run(&JC::App3D::appFns, argc, argv);
 	return 0;
 }

@@ -1330,6 +1330,12 @@ U32 GetFrameIdx() { return frameIdx; }
 
 //----------------------------------------------------------------------------------------------
 
+ImageFormat GetSwapchainImageFormat() {
+	return VkFormatToImageFormat(physicalDevice->vkSwapchainFormat);
+}
+
+//----------------------------------------------------------------------------------------------
+
 Res<> RecreateSwapchain(U32 width, U32 height) {
 	vkDeviceWaitIdle(vkDevice);
 
@@ -1383,9 +1389,10 @@ Pool PermPool() { return permPool; }
 
 Res<Buffer> CreateBuffer(Pool pool, U64 size, BufferUsage::Flags bufferUsageFlags, MemUsage memUsage) {
 	VkBufferUsageFlags vkBufferUsageFlags = VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-	if (bufferUsageFlags & BufferUsage::Storage) { vkBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; }
-	if (bufferUsageFlags & BufferUsage::Index)   { vkBufferUsageFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT; }
-	if (bufferUsageFlags & BufferUsage::Upload)  { vkBufferUsageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT; }
+	if (bufferUsageFlags & BufferUsage::Storage)  { vkBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; }
+	if (bufferUsageFlags & BufferUsage::Index)    { vkBufferUsageFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT; }
+	if (bufferUsageFlags & BufferUsage::Indirect) { vkBufferUsageFlags |= VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT; }
+	if (bufferUsageFlags & BufferUsage::Upload)   { vkBufferUsageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT; }
 
 	BufferObj bufferObj;
 	CheckRes(CreateBufferImpl(pool, size, vkBufferUsageFlags, VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT, memUsage).To(bufferObj));
@@ -2237,6 +2244,11 @@ void CmdDrawIndexed(Cmd cmd, U32 indexCount) {
 	vkCmdDrawIndexed(vkCommandBuffer, indexCount, 1, 0, 0, 0);
 }
 
+void CmdDrawIndexedIndirect(Cmd cmd, Buffer indirectBuffer, U32 drawCount) {
+	const VkCommandBuffer vkCommandBuffer = CmdToVkCommandBuffer(cmd);
+	BufferObj* const bufferObj = bufferObjs.Get(indirectBuffer);
+	vkCmdDrawIndexedIndirect(vkCommandBuffer, bufferObj->vkBuffer, 0, drawCount, 0);
+}
 //----------------------------------------------------------------------------------------------
 
 void WaitIdle() {

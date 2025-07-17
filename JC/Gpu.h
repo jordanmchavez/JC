@@ -41,7 +41,8 @@ namespace BufferUsage {
 	using Flags = U32;
 	constexpr Flags Storage  = 1 << 0;
 	constexpr Flags Index    = 1 << 1;
-	constexpr Flags Upload   = 1 << 2;
+	constexpr Flags Indirect = 1 << 2;
+	constexpr Flags Upload   = 1 << 3;
 }
 
 namespace ImageUsage {
@@ -77,13 +78,52 @@ struct Viewport {
 	F32 h;
 };
 
-enum struct Stage {
-	Invalid = 0,
-	ColorAttachmentOutput,
-	TransferSrc,
-	TransferDst,
-	PresentSrc,
-};
+namespace Stage {
+	using Flags = U32;
+	constexpr Flags None              = 0;
+	constexpr Flags TopOfPipe         = 1 <<  0;
+	constexpr Flags DrawIndirect      = 1 <<  1;
+	constexpr Flags VertexInput       = 1 <<  2;
+	constexpr Flags VerexShader       = 1 <<  3;
+	constexpr Flags FragmentShader    = 1 <<  4;
+	constexpr Flags EarlyFragmentTest = 1 <<  5;
+	constexpr Flags LateFragmenTest   = 1 <<  6;
+	constexpr Flags ColorOutput       = 1 <<  7;
+	constexpr Flags Copy              = 1 << 13;
+	constexpr Flags ComputShader      = 1 <<  8;
+	constexpr Flags BottomOfPipe      = 1 <<  9;
+
+	constexpr Flags Host              = 1 << 10;
+	constexpr Flags AllGraphics       = 1 << 11;
+	constexpr Flags AllCommands       = 1 << 12;
+	constexpr Flags IndexInput        = 1 << 14;
+	constexpr Flags VertexAttrInput   = 1 << 15;
+}
+
+namespace Access {
+	using Flags = U32;
+	constexpr Flags None                        = 0;
+	constexpr Flags IndirectRead                = 1 <<  0;
+	constexpr Flags IndexRead                   = 1 <<  1;
+	constexpr Flags VertexAttrRead              = 1 <<  2;
+	constexpr Flags UniformRead                 = 1 <<  3;
+	constexpr Flags InputAttachmentRead         = 1 <<  4;
+	constexpr Flags ShaderRead                  = 1 <<  5;
+	constexpr Flags ShaderWrite                 = 1 <<  6;
+	constexpr Flags ColorAttachmentRead         = 1 <<  7;
+	constexpr Flags ColorAttachmentWrite        = 1 <<  8;
+	constexpr Flags DepthStencilAttachmentRead  = 1 <<  9;
+	constexpr Flags DepthStencilAttachmentWrite = 1 << 10;
+	constexpr Flags TransferRead                = 1 << 11;
+	constexpr Flags TransferWrite               = 1 << 12;
+	constexpr Flags HostRead                    = 1 << 13;
+	constexpr Flags HostWrite                   = 1 << 14;
+	constexpr Flags MemoryRead                  = 1 << 15;
+	constexpr Flags MemoryWrite                 = 1 << 16;
+	constexpr Flags ShaderSampledRead           = 1 << 17;
+	constexpr Flags ShaderStorageRead           = 1 << 18;
+	constexpr Flags ShaderStorageWrite          = 1 << 19;
+}
 
 struct Pass {
 	Pipeline    pipeline;
@@ -99,6 +139,7 @@ void         Shutdown();
 
 U32          GetFrameIdx();
 
+ImageFormat  GetSwapchainImageFormat();
 Res<>        RecreateSwapchain(U32 width, U32 height);
 
 Pool         CreatePool();
@@ -147,6 +188,7 @@ void         CmdPushConstants(Cmd cmd, Pipeline pipeline, const void* data, U32 
 
 void         CmdDraw(Cmd cmd, U32 vertexCount, U32 instanceCount);
 void         CmdDrawIndexed(Cmd cmd, U32 indexCount);
+void         CmdDrawIndexedIndirect(Cmd cmd, Buffer indirectBuffer, U32 drawCount);
 
 void         WaitIdle();
 

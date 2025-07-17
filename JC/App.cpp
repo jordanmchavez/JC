@@ -11,7 +11,7 @@
 #include "JC/UnitTest.h"
 #include "JC/Window.h"
 
-namespace JC {
+namespace JC::App {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -52,7 +52,7 @@ static void AppPanicFn(const char* expr, const char* msg, Span<const NamedArg> n
 }
 //--------------------------------------------------------------------------------------------------
 
-static Res<> RunAppInternal(App* app, int argc, const char** argv) {
+static Res<> RunAppInternal(Fns* fns, int argc, const char** argv) {
 	Mem::Init(
 		(U64)        8 * 1024 * 1024,
 		(U64)16 * 1024 * 1024 * 1024,
@@ -83,7 +83,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 
 	Event::Init(logger);
 
-	if (Res<> r = app->PreInit(permAllocator, tempAllocator, logger); !r) {
+	if (Res<> r = fns->PreInit(permAllocator, tempAllocator, logger); !r) {
 		return r.err.Push(Err_Init());
 	}
 
@@ -117,7 +117,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		return r;
 	}
 
-	if (Res<> r = app->Init(&windowState); !r) {
+	if (Res<> r = fns->Init(&windowState); !r) {
 		return r;
 	}
 
@@ -163,10 +163,10 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 
 		Span<Event::Event> events = Event::Get();
 		if (Res<> r = Ui::Events(events); !r) { return r; }
-		if (Res<> r = app->Events(events); !r) { return r; }
+		if (Res<> r = fns->Events(events); !r) { return r; }
 		Event::Clear();
 
-		if (Res<> r = app->Update(secs); !r) { return r; }
+		if (Res<> r = fns->Update(secs); !r) { return r; }
 
 		if (windowState.minimized || !windowState.width || !windowState.height) {
 			continue;
@@ -194,7 +194,7 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 		}
 		if (skipFrame) { continue; }
 
-		if (Res<> r = app->Draw(frame.cmd, frame.swapchainImage); !r) { return r; }
+		if (Res<> r = fns->Draw(frame.cmd, frame.swapchainImage); !r) { return r; }
 		
 		if (Res<> r = Gpu::EndFrame(); !r) {
 			if (r.err == Gpu::EC_RecreateSwapchain) {
@@ -213,25 +213,25 @@ static Res<> RunAppInternal(App* app, int argc, const char** argv) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Shutdown(App* app) {
+void Shutdown(Fns* fns) {
 	Gpu::WaitIdle();
-	app->Shutdown();
+	fns->Shutdown();
 	Gpu::Shutdown();
 	Window::Shutdown();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void RunApp(App* app, int argc, const char** argv) {
-	if (Res<> r = RunAppInternal(app, argc, argv); !r) {
+void Run(Fns* fns, int argc, const char** argv) {
+	if (Res<> r = RunAppInternal(fns, argc, argv); !r) {
 		if (logger) {
 			Errorf("{}", r.err.GetStr());
 		}
 	}
 
-	Shutdown(app);
+	Shutdown(fns);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC
+}	// namespace JC::App

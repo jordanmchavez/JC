@@ -6,6 +6,7 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
+// Intrusive, assumes T.free is a T*
 template <class T, U32 N> struct ObjPool {
 	T   objs[N];
 	U32 len;
