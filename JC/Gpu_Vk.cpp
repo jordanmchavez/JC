@@ -158,6 +158,8 @@ static U32                      nextBindlessDescriptorIdx;
 static VkSampler                vkBindlessSamplers[MaxBindlessSamplers];
 static U32                      vkBindlessSamplersLen;
 
+//-------------------------------------------------------------------------------------------------
+
 static Res<BufferObj> CreateBufferImpl(
 	U64                   size,
 	VkBufferUsageFlags    vkBufferUsageFlags,
@@ -2075,6 +2077,7 @@ Res<Image> BeginFrame() {
 		vkFrameCommandBuffers[frameIdx],
 		imageObjs.Get(swapchainImages[swapchainImageIdx])->vkImage,
 		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+		//VK_PIPELINE_STAGE_2_NONE,
 		0,
 		VK_IMAGE_LAYOUT_UNDEFINED,
 		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -2089,31 +2092,53 @@ Res<Image> BeginFrame() {
 //----------------------------------------------------------------------------------------------
 
 Res<> EndFrame() {
+    VkRenderingAttachmentInfo colorAtt{};
+    colorAtt.sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    colorAtt.imageView   = imageObjs.Get(swapchainImages[swapchainImageIdx])->vkImageView,
+    colorAtt.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAtt.loadOp      = VK_ATTACHMENT_LOAD_OP_CLEAR;   // this draws something
+    colorAtt.storeOp     = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAtt.clearValue.color = { { 0.10f, 0.20f, 0.35f, 1.0f } }; // pick any color
+
+    // 2) Begin dynamic rendering
+    VkRenderingInfo ri{};
+    ri.sType                = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    ri.renderArea.offset    = {0, 0};
+    ri.renderArea.extent    = { 100, 100 };
+    ri.layerCount           = 1;
+    ri.colorAttachmentCount = 1;
+    ri.pColorAttachments    = &colorAtt;
+
+    vkCmdBeginRendering(vkFrameCommandBuffers[frameIdx], &ri);
+    vkCmdEndRendering(vkFrameCommandBuffers[frameIdx]);
+	
+	
 	ImageBarrierImpl(
 		vkFrameCommandBuffers[frameIdx],
 		imageObjs.Get(swapchainImages[swapchainImageIdx])->vkImage,
+
+		// previous failed
 		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
 		VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
 		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+		VK_PIPELINE_STAGE_2_NONE,
 		0,
 		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+
+		// chatgpt
+		//VK_PIPELINE_STAGE_2_NONE,
+		//0,
+		//VK_IMAGE_LAYOUT_UNDEFINED,
+		//VK_PIPELINE_STAGE_2_NONE,
+		//0,
+		//VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+
 		VK_IMAGE_ASPECT_COLOR_BIT
 	);
 
+	DebugBarrier();
+
 	CheckVk(vkEndCommandBuffer(vkFrameCommandBuffers[frameIdx]));
-
-
-
-
-
-
-
-
-
-
-
-
 
 	const VkSemaphoreSubmitInfo vkWaitSemaphoreSubmitInfo = {
 		.sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
@@ -2121,6 +2146,7 @@ Res<> EndFrame() {
 		.semaphore   = vkFrameImageAcquiredSemaphores[frameIdx],
 		.value       = 0,
 		.stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+		//.stageMask   = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
 		.deviceIndex = 0,
 	};
 	const VkCommandBufferSubmitInfo vkCommandBufferSubmitInfo = {
@@ -2136,6 +2162,7 @@ Res<> EndFrame() {
 			.semaphore   = vkFrameSubmitCompleteSemaphores[frameIdx],
 			.value       = 0,
 			.stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+			//.stageMask   = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
 			.deviceIndex = 0,
 		},
 		{
@@ -2143,7 +2170,8 @@ Res<> EndFrame() {
 			.pNext       = 0,
 			.semaphore   = vkFrameTimelineSemaphore,
 			.value       = frame + MaxFrames,
-			.stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+			.stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+			//.stageMask   = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
 			.deviceIndex = 0,
 		},
 	};

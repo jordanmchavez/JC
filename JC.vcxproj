@@ -156,10 +156,10 @@
     <ClCompile Include="JC\Bit.cpp" />
     <ClCompile Include="JC\Camera.cpp" />
     <ClCompile Include="JC\Config.cpp" />
-    <ClCompile Include="JC\Core\Err.cpp" />
-    <ClCompile Include="JC\Core\Mem.cpp" />
-    <ClCompile Include="JC\Core\Panic.cpp" />
-    <ClCompile Include="JC\Core\Str.cpp" />
+    <ClCompile Include="JC\Err.cpp" />
+    <ClCompile Include="JC\Mem.cpp" />
+    <ClCompile Include="JC\Panic.cpp" />
+    <ClCompile Include="JC\Str.cpp" />
     <ClCompile Include="JC\Entity.cpp" />
     <ClCompile Include="JC\Event.cpp" />
     <ClCompile Include="JC\FS.cpp" />
