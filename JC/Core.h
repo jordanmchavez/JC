@@ -351,10 +351,235 @@ template <class... A> struct _FmtStr {
 };
 template <class... A> using FmtStr = _FmtStr<typename TypeIdentity<A>::Type...>;
 
-}	// namespace JC
+//--------------------------------------------------------------------------------------------------
 
-#include "JC/Core/Panic.h"
-#include "JC/Core/Mem.h"
-#include "JC/Core/Str.h"
-#include "JC/Core/Err.h"
-#include "JC/Core/Res.h"
+[[noreturn]] void VPanic(SrcLoc sl, const char* expr, const char* fmt, Span<const Arg> args);
+
+
+template <class... A> [[noreturn]] void Panic(SrcLoc sl, FmtStr<A...> fmt, A... args) {
+	VPanic(sl, 0, fmt, { MakeArg(args)... });
+}
+
+using PanicFn = void (SrcLoc sl, const char* expr, const char* msg);
+PanicFn* SetPanicFn(PanicFn* panicFn);
+
+[[noreturn]] inline void AssertFail(SrcLoc sl, const char* expr) {
+	VPanic(sl, expr, 0, {});
+}
+
+template <class... A> [[noreturn]] void AssertFail(SrcLoc sl, const char* expr, FmtStr<A...> fmt, A... args) {
+	VPanic(sl, expr, fmt, { MakeArg<A>(args)... });
+}
+
+#define JC_PANIC(fmt, ...) JC::Panic(SrcLoc::Here(), fmt, ##__VA_ARGS__)
+
+//--------------------------------------------------------------------------------------------------
+
+} namespace JC::Mem {
+
+constexpr U32 AllocFlag_NoInit   = 1 << 0;	// memset for new regions, memcpy for realloc'd regions
+
+struct Allocator {
+	virtual void* Alloc(void* ptr, U64 ptrSize, U64 newSize, U32 flags, SrcLoc sl = SrcLoc::Here()) = 0;
+
+	void* Alloc  (                        U64 newSize, SrcLoc sl = SrcLoc::Here()) { return Alloc(0,   0,       newSize, 0, sl); }
+	void* Realloc(void* ptr, U64 ptrSize, U64 newSize, SrcLoc sl = SrcLoc::Here()) { return Alloc(ptr, ptrSize, newSize, 0, sl); }
+	void  Free   (void* ptr, U64 ptrSize,              SrcLoc sl = SrcLoc::Here()) {        Alloc(ptr, ptrSize,    0,    0, sl); }
+
+	template <class T> T* AllocT  (                  U64 n = 1, SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(0,   0,                n * sizeof(T), 0, sl); }
+	template <class T> T* ReallocT(T* ptr, U64 oldN, U64 n,     SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(ptr, oldN * sizeof(T), n * sizeof(T), 0, sl); }
+};
+
+struct TempAllocator : Allocator {
+	virtual void Reset() = 0;
+};
+
+void Init(U64 permCommitSize, U64 permReserveSize, U64 tempReserveSize);
+
+extern Allocator*     permAllocator;
+extern TempAllocator* tempAllocator;
+
+} namespace JC {
+
+//--------------------------------------------------------------------------------------------------
+
+#define JC_ASSERT(expr, ...) \
+	do { \
+		if (!(expr)) { \
+			JC::AssertFail(SrcLoc::Here(), #expr, ##__VA_ARGS__); \
+		} \
+	} while (false)
+
+constexpr U64 ConstExprStrLen(const char* s) {
+	JC_IF_CONSTEVAL {
+		const char* i = s; 
+		for (; *i; i++) {}
+		return (U64)(i - s);
+	} else {
+		return strlen(s);
+	}
+}
+
+constexpr U64 ConstExprWStrLen(const wchar_t* s) {
+	if (s == nullptr) {
+		return 0;
+	}
+	const wchar_t* p = s;
+	while (*p) {
+		++p;
+	}
+	return (U64)(p - s);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+struct Str {
+	const char* data = "";
+	U64         len  = 0;
+
+	constexpr Str() = default;
+	constexpr Str(const Str&) = default;
+	constexpr Str(const char* s)                {                  data = s; len = ConstExprStrLen(s); }
+	constexpr Str(const char* d, U64 l)         { JC_ASSERT(d || !l); data = d; len = l; }
+	constexpr Str(const char* b, const char* e) { JC_ASSERT(b <= e);  data = b; len = e - b; }
+
+	constexpr Str& operator=(const Str&) = default;
+	constexpr Str& operator=(const char* s) { data = s; len = ConstExprStrLen(s); return *this; }
+
+	constexpr char operator[](U64 i) const { JC_ASSERT(i < len); return data[i]; }
+};
+
+inline Bool operator==(Str         s1, Str         s2) { return s1.len == s2.len && !memcmp(s1.data, s2.data, s1.len); }
+inline Bool operator==(const char* s1, Str         s2) { return !strcmp(s1,      s2.data); }
+inline Bool operator==(Str         s1, const char* s2) { return !strcmp(s1.data, s2); }
+inline Bool operator!=(Str         s1, Str         s2) { return s1.len != s2.len || memcmp(s1.data, s2.data, s1.len); }
+inline Bool operator!=(const char* s1, Str         s2) { return strcmp(s1,      s2.data); }
+inline Bool operator!=(Str         s1, const char* s2) { return strcmp(s1.data, s2); }
+
+constexpr Arg MakeArg(Str val) { return { .type = ArgType::Str, .s = { .data = val.data, .len = val.len } }; }
+
+Str Copy(Mem::Allocator* allocator, Str s);
+
+//--------------------------------------------------------------------------------------------------
+
+struct WStrZ {
+	const wchar_t* data = nullptr;
+	U64            len  = 0;
+
+	constexpr WStrZ() = default;
+	constexpr WStrZ(const WStrZ&) = default;
+	constexpr WStrZ(const wchar_t* sz)       { data = sz;                  len = ConstExprWStrLen(sz); }
+	constexpr WStrZ(const wchar_t* p, U64 l) { JC_ASSERT(!l || p); data = p;  len = l; }
+
+	constexpr WStrZ& operator=(const WStrZ& s)    { data = s.data;  len = s.len;                return *this; }
+	constexpr WStrZ& operator=(const wchar_t* sz) { data = sz;      len = ConstExprWStrLen(sz); return *this; }
+
+	constexpr wchar_t operator[](U64 i) const { JC_ASSERT(i < len); return data[i]; }
+};
+
+inline Bool operator==(WStrZ s1,          WStrZ          s2) { return s1.len == s2.len && !memcmp(s1.data, s2.data, s1.len); }
+inline Bool operator==(WStrZ s1,          const wchar_t* s2) { return !wcscmp(s1.data, s2); }
+inline Bool operator==(const wchar_t* s1, WStrZ          s2) { return !wcscmp(s1,      s2.data);  }
+
+inline Bool operator!=(WStrZ s1,          WStrZ          s2) { return s1.len != s2.len || memcmp(s1.data, s2.data, s1.len); }
+inline Bool operator!=(WStrZ s1,          const wchar_t* s2) { return wcscmp(s1.data, s2); }
+inline Bool operator!=(const wchar_t* s1, WStrZ          s2) { return wcscmp(s1,      s2.data);  }
+
+//--------------------------------------------------------------------------------------------------
+
+struct ErrCode {
+	Str ns;
+	Str code;
+};
+
+struct [[nodiscard]] Err {
+	static constexpr U32 MaxArgs = 32;
+
+	struct Data {
+		Data*    prev               = {};
+		SrcLoc   sl                 = {};
+		Str      ns                 = {};
+		Str      code               = {};
+		NamedArg namedArgs[MaxArgs] = {};
+		U32      namedArgsLen       = 0;
+	};
+
+	Data* data = 0;
+
+	static void Init(Mem::TempAllocator* tempAllocator);
+
+	Err() = default;
+
+	template <class...A> Err(Str ns, Str code, A... args, SrcLoc sl) {
+		NamedArg namedArgs[1 + (sizeof...(A) / 2)];
+		BuildNamedArgs(namedArgs, args...);
+		Init(ns, code, Span<const NamedArg>(namedArgs, sizeof...(A) / 2), sl);
+	}
+
+	void Init(Str ns, Str code, Span<const NamedArg> namedArgs, SrcLoc sl);
+	void Init(Str ns, U64 code, Span<const NamedArg> namedArgs, SrcLoc sl);
+
+	Err Push(Err err);
+	
+	Str GetStr();
+};
+
+constexpr bool operator==(ErrCode ec, Err err) { return err.data && ec.ns == err.data->ns && ec.code == err.data->code; }
+constexpr bool operator==(Err err, ErrCode ec) { return err.data && ec.ns == err.data->ns && ec.code == err.data->code; }
+
+static_assert(sizeof(Err) == 8);
+
+#define DefErr(InNs, InCode) \
+	constexpr ErrCode EC_##InCode = { .ns = #InNs, .code = #InCode }; \
+	template <class... A> struct Err_##InCode : JC::Err { \
+		static inline U8 Sig = 0; \
+		Err_##InCode(A... args, SrcLoc sl = SrcLoc::Here()) { \
+			NamedArg namedArgs[1 + (sizeof...(A) / 2)]; \
+			BuildNamedArgs(namedArgs, args...); \
+			Init(#InNs, #InCode, Span<const NamedArg>(namedArgs, sizeof...(A) / 2), sl); \
+		} \
+	}; \
+	template <class...A> Err_##InCode(A...) -> Err_##InCode<A...>
+
+//--------------------------------------------------------------------------------------------------
+
+template <class T = void> struct [[nodiscard]] Res;
+
+template <> struct [[nodiscard]] Res<void> {
+	Err err = {};
+
+	constexpr Res() = default;
+	constexpr Res(Err e) { err = e; }	// implicit
+	constexpr Res(const Res<>&) = default;
+	constexpr operator Bool() const { return !err.data; }
+};
+
+static_assert(sizeof(Res<>) == 8);
+
+template <class T> struct [[nodiscard]] Res {
+	union {
+		T   val;
+		Err err;
+	};
+	Bool hasVal = false;
+
+	constexpr Res() = default;
+	constexpr Res(T v)   { val = v; hasVal = true;  }	// implicit
+	constexpr Res(Err e) { err = e; hasVal = false; }	// implicit
+	constexpr Res(const Res<T>&) = default;
+	constexpr operator Bool() const { return hasVal; }
+	constexpr Res<> To(T& out) { if (hasVal) { out = val; return Res<>{}; } return Res<>(err); }
+	constexpr T Or(T def) { return hasVal ? val : def; }
+	template <class T> constexpr bool Is() { return !hasVal && err.Is<T>(); }
+};
+
+constexpr Res<> Ok() { return Res<>(); }
+
+#define CheckRes(Code) \
+	if (Res<> _r = Code; !_r) { \
+		return _r.err.Push(Err("", "", SrcLoc::Here())); \
+	}
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC

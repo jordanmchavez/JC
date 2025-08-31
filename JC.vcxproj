@@ -121,8 +121,6 @@
     <ClInclude Include="JC\Camera.h" />
     <ClInclude Include="JC\Config.h" />
     <ClInclude Include="JC\Core.h" />
-    <ClInclude Include="JC\Core\Err.h" />
-    <ClInclude Include="JC\Core\Res.h" />
     <ClInclude Include="JC\Entity.h" />
     <ClInclude Include="JC\Event.h" />
     <ClInclude Include="JC\FS.h">
@@ -130,9 +128,6 @@
       </SubType>
     </ClInclude>
     <ClInclude Include="JC\Fmt.h" />
-    <ClInclude Include="JC\Core\Panic.h" />
-    <ClInclude Include="JC\Core\Str.h" />
-    <ClInclude Include="JC\Core\Mem.h" />
     <ClInclude Include="JC\Pool.h" />
     <ClInclude Include="JC\Hash.h" />
     <ClInclude Include="JC\Json.h" />
