@@ -11,7 +11,7 @@
 namespace JC::App3D {
 
 //------------------------------------------------------------------------------------------------------
-/*
+
 static constexpr U64 StagingBufferSize = 256 * MB;	// Per frame
 
 struct Vertex {
@@ -59,7 +59,7 @@ struct PushConstants {
 	U64 materialBufferAddr;
 	U64 sceneBufferAddr;
 };
-*/
+
 //------------------------------------------------------------------------------------------------------
 
 static constexpr U32 MaxMaterials = 1024;
@@ -70,11 +70,8 @@ static constexpr U32 MaxEntities  = 1024 * 1024;
 static Mem::Allocator*     allocator     = 0;
 static Mem::TempAllocator* tempAllocator = 0;
 static Log::Logger*        logger        = 0;
-/*
-static Gpu::MemPool        permMemPool;
-static Gpu::Image          depthImage;
 
-static Gpu::Buffer         stagingBuffer;
+static Gpu::Image          depthImage;
 
 static Gpu::Buffer         vertexBuffer;
 static U64                 vertexBufferAddr;
@@ -99,7 +96,7 @@ static Gpu::Shader         vertShader;
 static Gpu::Shader         fragShader;
 static Gpu::Pipeline       pipeline;
 static PerspectiveCamera   camera;
-*/
+
 //--------------------------------------------------------------------------------------------------
 
 static Res<> PreInit(Mem::Allocator* allocatorIn, Mem::TempAllocator* tempAllocatorIn, Log::Logger* loggerIn) {
@@ -107,95 +104,85 @@ static Res<> PreInit(Mem::Allocator* allocatorIn, Mem::TempAllocator* tempAlloca
 	tempAllocator = tempAllocatorIn;
 	logger        = loggerIn;
 
-	//verticesUsed = 0;
-	//indicesUsed  = 0;
+	verticesUsed = 0;
+	indicesUsed  = 0;
 
 	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
-/*
-struct StagingBuffer {
-	Gpu::Buffer buffer;
-	U8*         ptr;
-	U64         size;
-	U64         head;
-	U64         tail;
-	U64         free;
 
-	void* Alloc(U64 n) {
-		Assert(free >= n);
-		head += n;
-		if (head > size) { head -= size; }
-		free -= n;
-		return ptr + head;
-	}
-
-	void FreeHead(U64 n) {
-		
-	}
-
-	void FreeTail(U64 n) {
-	}
-};
-
-//--------------------------------------------------------------------------------------------------
-
-static Vertex* CmdBeginVertices(Gpu::Cmd cmd, U32 n) {
-	Assert(verticesUsed + n <= MaxVertices);
-	Vertex* const ptr = (Vertex*)Gpu::CmdBeginBufferUpload(cmd, vertexBuffer, verticesUsed * sizeof(Vertex), n * sizeof(Vertex));
-	verticesUsed += n;
-	return ptr;
-	
-}
-
-//--------------------------------------------------------------------------------------------------
-	
-static U32* CmdBeginIndexUpload(Gpu::Cmd cmd, U32 n) {
-	Assert(indicesUsed < MaxIndices);
-	IndexAllocation ia = {
-		.ptr    = (U32*)Gpu::CmdBeginBufferUpload(cmd, indexBuffer, indicesUsed * sizeof(U32), n * sizeof(U32)),
-		.offset = indicesUsed,
-	};
-	indicesUsed += n;
-	return ia;
+static Res<U32> UploadVertices(Span<const Vertex> vertices) {
+	JC_ASSERT(verticesUsed + vertices.len <= MaxVertices);
+	CheckRes(Gpu::UploadToBuffer(
+		vertexBuffer,
+		verticesUsed * sizeof(Vertex),
+		vertices.data,
+		vertices.len * sizeof(Vertex),
+		Gpu::BarrierStage::None,
+		Gpu::BarrierStage::VertexShader_StorageRead
+	));
+	const U32 offset = verticesUsed;
+	verticesUsed += (U32)vertices.len;
+	return offset;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static Res<Mesh> CmdCreateCube(Gpu::Cmd cmd) {
-	Vertex* vertices = CmdBeginVertexUpload(cmd, 12);
+static Res<U32> UploadIndices(Span<const U32> indices) {
+	JC_ASSERT(indicesUsed + indices.len <= MaxIndices);
+	CheckRes(Gpu::UploadToBuffer(
+		indexBuffer,
+		indicesUsed * sizeof(U32),
+		indices.data,
+		indices.len * sizeof(U32),
+		Gpu::BarrierStage::None,
+		Gpu::BarrierStage::IndexInput_Read
+	));
+	const U32 offset = indicesUsed;
+	indicesUsed += (U32)indices.len;
+	return offset;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static Res<Mesh> CreateCube() {
 	constexpr float r = -0.5f;
-	*vertices++ = { .pos = { -r,  r,  r } };
-	*vertices++ = { .pos = {  r,  r,  r } };
-	*vertices++ = { .pos = {  r, -r,  r } };
-	*vertices++ = { .pos = { -r, -r,  r } };
-	*vertices++ = { .pos = { -r,  r, -r } };
-	*vertices++ = { .pos = {  r,  r, -r } };
-	*vertices++ = { .pos = {  r, -r, -r } };
-	*vertices++ = { .pos = { -r, -r, -r } };
-	Gpu::CmdEndBufferUpload(cmd, vertexBuffer);
+	constexpr Vertex vertices[] = {
+		{ .pos = { -r,  r,  r } },
+		{ .pos = {  r,  r,  r } },
+		{ .pos = {  r, -r,  r } },
+		{ .pos = { -r, -r,  r } },
+		{ .pos = { -r,  r, -r } },
+		{ .pos = {  r,  r, -r } },
+		{ .pos = {  r, -r, -r } },
+		{ .pos = { -r, -r, -r } },
+	};
+	U32 vertexOffset = 0;
+	CheckRes(UploadVertices(vertices).To(vertexOffset));
 
-	IndexAllocation ia = CmdBeginIndices(cmd, 6 * 2 * 3);
-	*ia.ptr++ = 0; *ia.ptr++ = 1; *ia.ptr++ = 2;
-	*ia.ptr++ = 0; *ia.ptr++ = 2; *ia.ptr++ = 3;
-	*ia.ptr++ = 1; *ia.ptr++ = 5; *ia.ptr++ = 6;
-	*ia.ptr++ = 1; *ia.ptr++ = 6; *ia.ptr++ = 2;
-	*ia.ptr++ = 5; *ia.ptr++ = 4; *ia.ptr++ = 7;
-	*ia.ptr++ = 5; *ia.ptr++ = 7; *ia.ptr++ = 6;
-	*ia.ptr++ = 4; *ia.ptr++ = 0; *ia.ptr++ = 3;
-	*ia.ptr++ = 4; *ia.ptr++ = 3; *ia.ptr++ = 7;
-	*ia.ptr++ = 4; *ia.ptr++ = 5; *ia.ptr++ = 1;
-	*ia.ptr++ = 4; *ia.ptr++ = 1; *ia.ptr++ = 0;
-	*ia.ptr++ = 3; *ia.ptr++ = 2; *ia.ptr++ = 6;
-	*ia.ptr++ = 3; *ia.ptr++ = 6; *ia.ptr++ = 7;
-	CmdEndIndices(cmd);
+	constexpr U32 indices[] = {
+		0, 1, 2,
+		0, 2, 3,
+		1, 5, 6,
+		1, 6, 2,
+		5, 4, 7,
+		5, 7, 6,
+		4, 0, 3,
+		4, 3, 7,
+		4, 5, 1,
+		4, 1, 0,
+		3, 2, 6,
+		3, 6, 7,
+	};
+	U32 indexOffset = 0;
+	CheckRes(UploadIndices(indices).To(indexOffset));
 
 	return Mesh {
-		.vertexOffset = va.offset,
-		.vertexCount  = 8,
-		.indexOffset  = ia.offset,
-		.indexCount   = 6 * 2 * 3,
+		.vertexOffset = vertexOffset,
+		.vertexCount  = JC_LENOF(vertices),
+		.indexOffset  = indexOffset,
+		.indexCount   = JC_LENOF(indices)
 	};
 }
 /*
@@ -232,25 +219,19 @@ static Res<Gpu::Shader> LoadShader(Str path) {
 
 static Res<> Init(const Window::State* windowState) {
 	windowState;
-	/*
-	permPool = Gpu::CreatePool();
 
-	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		CheckRes(Gpu::CreateBuffer(permPool, StagingBufferSize, Gpu::BufferUsage::CopySrc, Gpu::MemUsage::CpuWrite).To(frameStagingBuffers[i]));
-		Gpu_DbgNameF(frameStagingBuffers[i], "frameStagingBuffers[{}]", i);
-	}
-
-	CheckRes(Gpu::CreateImage(permPool, windowState->width, windowState->height, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::DepthAttachment, Gpu::MemUsage::Gpu).To(depthImage));
+	CheckRes(Gpu::CreateImage(windowState->width, windowState->height, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(depthImage));
 	Gpu_DbgName(depthImage);
 
-	CheckRes(Gpu::CreateBuffer(permPool, MaxVertices * sizeof(Vertex), Gpu::BufferUsage::Storage | Gpu::BufferUsage::CopySrc, Gpu::MemUsage::CpuWrite).To(vertexBuffer));
+	CheckRes(Gpu::CreateBuffer(MaxVertices * sizeof(Vertex), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Upload | Gpu::BufferUsage::Addr).To(vertexBuffer));
 	vertexBufferAddr = Gpu::GetBufferAddr(vertexBuffer);
 	Gpu_DbgName(vertexBuffer);
 
-	CheckRes(Gpu::CreateBuffer(permPool, MaxIndices * sizeof(U32), Gpu::BufferUsage::Index | Gpu::BufferUsage::CopySrc, Gpu::MemUsage::CpuWrite).To(indexBuffer));
+	CheckRes(Gpu::CreateBuffer(MaxIndices * sizeof(U32), Gpu::BufferUsage::Index | Gpu::BufferUsage::Upload | Gpu::BufferUsage::Addr).To(indexBuffer));
 	indexBufferAddr = Gpu::GetBufferAddr(indexBuffer);
 	Gpu_DbgName(indexBuffer);
 
+	/*
 	CheckRes(Gpu::CreateBuffer(permPool, MaxMaterials * sizeof(Material), Gpu::BufferUsage::Storage | Gpu::BufferUsage::CopySrc, Gpu::MemUsage::CpuWrite).To(materialBuffer));
 	materialBufferAddr = Gpu::GetBufferAddr(materialBuffer);
 	Gpu_DbgName(materialBuffer);
@@ -266,14 +247,14 @@ static Res<> Init(const Window::State* windowState) {
 	CheckRes(Gpu::CreateBuffer(permPool, MaxEntities * sizeof(DrawIndirect), Gpu::BufferUsage::Indirect | Gpu::BufferUsage::CopySrc, Gpu::MemUsage::CpuWrite).To(drawIndirectBuffer));
 	drawIndirectBufferAddr = Gpu::GetBufferAddr(drawIndirectBuffer);
 	Gpu_DbgName(drawIndirectBuffer, "drawIndirect");
+	*/
 
-	Gpu::Cmd cmd;
-	CheckRes(Gpu::BeginImmediateCmds().To(cmd));
-	CheckRes(CmdCreateCube(cmd).To(cube));
+	CheckRes(CreateCube().To(cube));
 	//CheckRes(CreateSphere());
 	//CheckRes(CreateIcosahedron());
 	//CheckRes(CreateTorus());
-	Gpu::CmdImageBarrier(
+	CheckRes(Gpu::WaitForUploads());
+/*	Gpu::CmdImageBarrier(
 		cmd,
 		depthImage,
 		Gpu::BarrierStage::None,
@@ -307,21 +288,16 @@ static Res<> Init(const Window::State* windowState) {
 //--------------------------------------------------------------------------------------------------
 
 static void Shutdown() {
-/*
-	Gpu::DestroyPipeline(pipeline);
-	Gpu::DestroyShader(vertShader);
-	Gpu::DestroyShader(fragShader);
 	Gpu::DestroyImage(depthImage);
-	Gpu::DestroyBuffer(materialBuffer);
 	Gpu::DestroyBuffer(vertexBuffer);
 	Gpu::DestroyBuffer(indexBuffer);
-	Gpu::DestroyBuffer(transformBuffer);
-	Gpu::DestroyBuffer(sceneBuffer);
-	Gpu::DestroyBuffer(drawIndirectBuffer);
-	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		Gpu::DestroyBuffer(frameStagingBuffers[i]);
-	}
-	*/
+	//Gpu::DestroyPipeline(pipeline);
+	//Gpu::DestroyShader(vertShader);
+	//Gpu::DestroyShader(fragShader);
+	//Gpu::DestroyBuffer(materialBuffer);
+	//Gpu::DestroyBuffer(transformBuffer);
+	//Gpu::DestroyBuffer(sceneBuffer);
+	//Gpu::DestroyBuffer(drawIndirectBuffer);
 }
 
 //--------------------------------------------------------------------------------------------------

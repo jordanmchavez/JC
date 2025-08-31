@@ -169,6 +169,18 @@ static Res<BufferObj> CreateBufferImpl(
 	VkMemoryAllocateFlags vkMemoryAllocateFlags
 );
 
+static void ImageBarrierImpl(
+	VkCommandBuffer          vkCommandBuffer,
+	VkImage                  vkImage,
+	VkPipelineStageFlags2    vkSrcPipelineStageFlags2,
+	VkAccessFlagBits2        vkSrcAccessFlagBits2,
+	VkImageLayout            vkSrcImageLayout,
+	VkPipelineStageFlagBits2 vkDstPipelineStageFlagBits2,
+	VkAccessFlagBits2        vkDstAccessFlagBits2,
+	VkImageLayout            vkDstImageLayout,
+	VkImageAspectFlags       vkImageAspectFlagBits
+);
+
 //-------------------------------------------------------------------------------------------------
 
 static VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT, const VkDebugUtilsMessengerCallbackDataEXT* data, void*) {
@@ -687,6 +699,11 @@ static Res<> InitFrame() {
 	if (Res<> r = CreateCommandPool(physicalDevice->queueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT).To(vkFrameCommandPool); !r) { return r; }
 	Gpu_DbgName(vkFrameCommandPool);
 
+	if (Res<> r = AllocCommandBuffers(vkFrameCommandPool, MaxFrames, vkFrameCommandBuffers); !r) { return r; }
+	for (U64 i = 0; i < MaxFrames; i++) {
+		Gpu_DbgNameF(vkFrameCommandBuffers, "vkFrameCommandBuffers[{}]", i);
+	}
+
 	if (Res<> r = CreateTimelineSemaphore(MaxFrames - 1).To(vkFrameTimelineSemaphore); !r) { return r; }
 	Gpu_DbgName(vkFrameTimelineSemaphore);
 
@@ -724,10 +741,7 @@ static Res<> InitFrame() {
 static Res<> InitImmediate() {
 	if (Res<> r = CreateCommandPool(physicalDevice->queueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT).To(vkImmediateCommandPool); !r) { return r; }
 	Gpu_DbgName(vkImmediateCommandPool);
-	if (Res<> r = AllocCommandBuffers(vkFrameCommandPool, MaxFrames, vkFrameCommandBuffers); !r) { return r; }
-	for (U64 i = 0; i < MaxFrames; i++) {
-		Gpu_DbgNameF(vkFrameCommandBuffers, "vkFrameCommandBuffers[{}]", i);
-	}
+
 	if (Res<> r = AllocCommandBuffers(vkImmediateCommandPool, 1, &vkImmediateCommandBuffer); !r) { return r; }
 	Gpu_DbgName(vkImmediateCommandBuffer);
 	vkImmediateCommandBufferBegun = false;
@@ -976,6 +990,31 @@ Res<> Init(const InitDesc* initDesc) {
 	CheckRes(InitImmediate());
 	CheckRes(InitBindless());
 
+	const VkCommandBufferBeginInfo vkCommandBufferBeginInfo = {
+		.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.pNext            = 0,
+		.flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+		.pInheritanceInfo = 0,
+	};
+	vkBeginCommandBuffer(vkImmediateCommandBuffer, &vkCommandBufferBeginInfo);
+	vkImmediateCommandBufferBegun = true;
+
+	for (U64 i = 0; i < swapchainImages.len; i++) {
+		ImageBarrierImpl(
+			vkImmediateCommandBuffer,
+			imageObjs.Get(swapchainImages[i])->vkImage,
+			VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+			VK_ACCESS_2_NONE,
+			VK_IMAGE_LAYOUT_UNDEFINED,
+			VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+			VK_ACCESS_2_NONE,
+			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+			VK_IMAGE_ASPECT_COLOR_BIT
+		);
+	}
+
+	CheckRes(WaitForUploads());
+
 	return Ok();
 }
 
@@ -1005,22 +1044,7 @@ Res<> Init(const InitDesc* initDesc) {
 //--------------------------------------------------------------------------------------------------
 
 void Shutdown() {
-	DestroyVkCArray(vkBindlessSamplers, vkDestroySampler);
-	vkBindlessSamplersLen = 0;
-	DestroyVk(vkBindlessDescriptorSetLayout, vkDestroyDescriptorSetLayout);
-	DestroyVk(vkDescriptorPool, vkDestroyDescriptorPool);
-	if (vkFrameCommandPool != VK_NULL_HANDLE) {
-		vkFreeCommandBuffers(vkDevice, vkFrameCommandPool, MaxFrames, vkFrameCommandBuffers);
-	}
-	DestroyVk(vkFrameCommandPool, vkDestroyCommandPool);
-	if (vkImmediateCommandPool != VK_NULL_HANDLE) {
-		vkFreeCommandBuffers(vkDevice, vkImmediateCommandPool, 1, &vkImmediateCommandBuffer);
-	}
-	DestroyVk(vkImmediateCommandPool, vkDestroyCommandPool);
-	DestroyVk(vkFrameTimelineSemaphore, vkDestroySemaphore);
-	DestroyVk(vkImmediateTimelineSemaphore, vkDestroySemaphore);
-	DestroyVkCArray(vkFrameImageAcquiredSemaphores, vkDestroySemaphore);
-	DestroyVkCArray(vkFrameSubmitCompleteSemaphores, vkDestroySemaphore);
+
 	for (U64 i = 0; i < swapchainImages.len; i++) {
 		ImageObj* const imageObj = imageObjs.Get(swapchainImages[i]);
 		DestroyVk(imageObj->vkImageView, vkDestroyImageView);
@@ -1028,6 +1052,30 @@ void Shutdown() {
 	}
 	swapchainImages.len = 0;
 	DestroyVk(vkSwapchain, vkDestroySwapchainKHR);
+
+	if (vkFrameCommandPool != VK_NULL_HANDLE) {
+		vkFreeCommandBuffers(vkDevice, vkFrameCommandPool, MaxFrames, vkFrameCommandBuffers);
+	}
+	DestroyVk(vkFrameCommandPool, vkDestroyCommandPool);
+	DestroyVk(frameStagingBuffer.vkBuffer, vkDestroyBuffer);
+	DestroyVk(frameStagingBuffer.allocation.vkDeviceMemory, vkFreeMemory);
+	DestroyVk(vkFrameTimelineSemaphore, vkDestroySemaphore);
+	DestroyVkCArray(vkFrameImageAcquiredSemaphores, vkDestroySemaphore);
+	DestroyVkCArray(vkFrameSubmitCompleteSemaphores, vkDestroySemaphore);
+
+	if (vkImmediateCommandPool != VK_NULL_HANDLE) {
+		vkFreeCommandBuffers(vkDevice, vkImmediateCommandPool, 1, &vkImmediateCommandBuffer);
+	}
+	DestroyVk(vkImmediateCommandPool, vkDestroyCommandPool);
+	DestroyVk(vkImmediateTimelineSemaphore, vkDestroySemaphore);
+	DestroyVk(immediateStagingBuffer.vkBuffer, vkDestroyBuffer);
+	DestroyVk(immediateStagingBuffer.allocation.vkDeviceMemory, vkFreeMemory);
+
+	DestroyVkCArray(vkBindlessSamplers, vkDestroySampler);
+	vkBindlessSamplersLen = 0;
+	DestroyVk(vkBindlessDescriptorSetLayout, vkDestroyDescriptorSetLayout);
+	DestroyVk(vkDescriptorPool, vkDestroyDescriptorPool);
+
 	if (vkDevice != VK_NULL_HANDLE) { vkDestroyDevice(vkDevice, vkAllocationCallbacks); vkDevice = VK_NULL_HANDLE; }
 	if (vkSurface != VK_NULL_HANDLE) { vkDestroySurfaceKHR(vkInstance, vkSurface, vkAllocationCallbacks); vkSurface = VK_NULL_HANDLE; }
 	if (vkDebugUtilsMessenger != VK_NULL_HANDLE) { vkDestroyDebugUtilsMessengerEXT(vkInstance, vkDebugUtilsMessenger, vkAllocationCallbacks); vkDebugUtilsMessenger = VK_NULL_HANDLE; }
@@ -1146,7 +1194,7 @@ Res<Buffer> CreateBuffer(U64 size, BufferUsage::Flags bufferUsageFlags) {
 	if (bufferUsageFlags & BufferUsage::Storage)      { vkBufferUsageFlags |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT; }
 	if (bufferUsageFlags & BufferUsage::Index)        { vkBufferUsageFlags |= VK_BUFFER_USAGE_INDEX_BUFFER_BIT; }
 	if (bufferUsageFlags & BufferUsage::DrawIndirect) { vkBufferUsageFlags |= VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT; }
-	if (bufferUsageFlags & BufferUsage::Upload)       { vkBufferUsageFlags |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT; }
+	if (bufferUsageFlags & BufferUsage::Upload)       { vkBufferUsageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT; }
 
 	VkMemoryAllocateFlags vkMemoryAllocateFlags = 0;
 	if (bufferUsageFlags & BufferUsage::Addr)         { vkMemoryAllocateFlags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT; }
@@ -1172,6 +1220,7 @@ void DestroyBuffer(Buffer buffer) {
 	if (buffer.handle) {
 		BufferObj* const bufferObj = bufferObjs.Get(buffer);
 		DestroyVk(bufferObj->vkBuffer, vkDestroyBuffer);
+		DestroyVk(bufferObj->allocation.vkDeviceMemory, vkFreeMemory);
 		memset(bufferObj, 0, sizeof(*bufferObj));
 		bufferObjs.Free(buffer);
 	}
@@ -1185,12 +1234,13 @@ U64 GetBufferAddr(Buffer buffer) {
 
 //----------------------------------------------------------------------------------------------
 
-static Res<> SubmitImmediateCommands() {
+Res<> WaitForUploads() {
 	if (!vkImmediateCommandBufferBegun) {
 		return Ok();
 	}
 
 	vkEndCommandBuffer(vkImmediateCommandBuffer);
+	vkImmediateCommandBufferBegun = false;
 
 	immediateTimeline++;
 
@@ -1385,8 +1435,8 @@ Res<> UploadToBuffer(
 		const VkCopyBufferInfo2 vkCopyBufferInfo2 = {
 			.sType       = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
 			.pNext       = 0,
-			.srcBuffer   = bufferObj->vkBuffer,
-			.dstBuffer   = immediateStagingBuffer.vkBuffer,
+			.srcBuffer   = immediateStagingBuffer.vkBuffer,
+			.dstBuffer   = bufferObj->vkBuffer,
 			.regionCount = 1,
 			.pRegions    = &vkBufferCopy2,
 		};
@@ -1588,6 +1638,8 @@ void DestroyImage(Image image) {
 		ImageObj* const imageObj = imageObjs.Get(image);
 		DestroyVk(imageObj->vkImageView, vkDestroyImageView);
 		DestroyVk(imageObj->vkImage, vkDestroyImage);
+		DestroyVk(imageObj->allocation.vkDeviceMemory, vkFreeMemory);
+		memset(imageObj, 0, sizeof(*imageObj));
 		imageObjs.Free(image);
 	}
 }
@@ -1660,7 +1712,7 @@ Res<> UploadToImage(
 	U64 len = imageObj->width * imageObj->height * FormatSize(imageObj->vkFormat);
 	JC_ASSERT(len <= ImmediateStagingBufferSize);
 	if (len < ImmediateStagingBufferSize - immediateStagingBufferUsed) {
-		CheckRes(SubmitImmediateCommands());
+		CheckRes(WaitForUploads());
 	}
 
 	memcpy(immediateStagingBufferPtr + immediateStagingBufferUsed, data, len);
@@ -2077,11 +2129,10 @@ Res<Image> BeginFrame() {
 		vkFrameCommandBuffers[frameIdx],
 		imageObjs.Get(swapchainImages[swapchainImageIdx])->vkImage,
 		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-		//VK_PIPELINE_STAGE_2_NONE,
-		0,
-		VK_IMAGE_LAYOUT_UNDEFINED,
+		VK_ACCESS_2_NONE,
+		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-		VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+		VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
 		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		VK_IMAGE_ASPECT_COLOR_BIT
 	);
@@ -2092,51 +2143,17 @@ Res<Image> BeginFrame() {
 //----------------------------------------------------------------------------------------------
 
 Res<> EndFrame() {
-    VkRenderingAttachmentInfo colorAtt{};
-    colorAtt.sType       = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    colorAtt.imageView   = imageObjs.Get(swapchainImages[swapchainImageIdx])->vkImageView,
-    colorAtt.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    colorAtt.loadOp      = VK_ATTACHMENT_LOAD_OP_CLEAR;   // this draws something
-    colorAtt.storeOp     = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAtt.clearValue.color = { { 0.10f, 0.20f, 0.35f, 1.0f } }; // pick any color
-
-    // 2) Begin dynamic rendering
-    VkRenderingInfo ri{};
-    ri.sType                = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    ri.renderArea.offset    = {0, 0};
-    ri.renderArea.extent    = { 100, 100 };
-    ri.layerCount           = 1;
-    ri.colorAttachmentCount = 1;
-    ri.pColorAttachments    = &colorAtt;
-
-    vkCmdBeginRendering(vkFrameCommandBuffers[frameIdx], &ri);
-    vkCmdEndRendering(vkFrameCommandBuffers[frameIdx]);
-	
-	
 	ImageBarrierImpl(
 		vkFrameCommandBuffers[frameIdx],
 		imageObjs.Get(swapchainImages[swapchainImageIdx])->vkImage,
-
-		// previous failed
 		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-		VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+		VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
 		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		VK_PIPELINE_STAGE_2_NONE,
-		0,
+		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+		VK_ACCESS_2_NONE,
 		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-
-		// chatgpt
-		//VK_PIPELINE_STAGE_2_NONE,
-		//0,
-		//VK_IMAGE_LAYOUT_UNDEFINED,
-		//VK_PIPELINE_STAGE_2_NONE,
-		//0,
-		//VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-
 		VK_IMAGE_ASPECT_COLOR_BIT
 	);
-
-	DebugBarrier();
 
 	CheckVk(vkEndCommandBuffer(vkFrameCommandBuffers[frameIdx]));
 
@@ -2146,7 +2163,6 @@ Res<> EndFrame() {
 		.semaphore   = vkFrameImageAcquiredSemaphores[frameIdx],
 		.value       = 0,
 		.stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-		//.stageMask   = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
 		.deviceIndex = 0,
 	};
 	const VkCommandBufferSubmitInfo vkCommandBufferSubmitInfo = {
@@ -2162,7 +2178,6 @@ Res<> EndFrame() {
 			.semaphore   = vkFrameSubmitCompleteSemaphores[frameIdx],
 			.value       = 0,
 			.stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-			//.stageMask   = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
 			.deviceIndex = 0,
 		},
 		{
@@ -2171,7 +2186,6 @@ Res<> EndFrame() {
 			.semaphore   = vkFrameTimelineSemaphore,
 			.value       = frame + MaxFrames,
 			.stageMask   = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-			//.stageMask   = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
 			.deviceIndex = 0,
 		},
 	};

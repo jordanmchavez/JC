@@ -162,6 +162,7 @@ template <class T> struct Span {
 	constexpr Span() = default;
 	constexpr Span(T* d, U64 l) { data = d; len = l; }
 	constexpr Span(std::initializer_list<T> il) { data = const_cast<T*>(il.begin()); len = il.size(); }
+	template <U64 N> Span(T (&arr)[N]) { data = arr; len = N; }
 	constexpr Span(const Span&) = default;
 
 	constexpr Span& operator=(const Span&) = default;

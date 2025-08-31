@@ -127,6 +127,8 @@ U32           GetImageBindIdx(Image image);
 Res<>         UploadToImage(Image image, const void* data, BarrierStage::Flags srcBarrierStageFlags, ImageLayout srcImageLayout, BarrierStage::Flags dstBarrierStageFlags, ImageLayout dstImageLayout);
 void          ImageBarrier(Image image, BarrierStage::Flags srcBarrierStageFlags, ImageLayout srcImageLayout, BarrierStage::Flags dstBarrierStageFlags, ImageLayout dstImageLayout);
 
+Res<>         WaitForUploads();
+
 Res<Shader>   CreateShader(const void* data, U64 len);
 void          DestroyShader(Shader shader);
 
