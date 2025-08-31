@@ -21,54 +21,42 @@ constexpr Str Cfg_EnableDebug        = "Gpu::EnableDebug";
 constexpr U32 MaxFrames = 3;
 
 struct InitDesc {
-	Mem::Allocator*             allocator          = 0;
-	Mem::TempAllocator*         tempAllocator      = 0;
-	Log::Logger*                logger             = 0;
-	U32                         windowWidth        = 0;
-	U32                         windowHeight       = 0;
-	const Window::PlatformDesc* windowPlatformDesc = {};
+	Mem::Allocator*             allocator;
+	Mem::TempAllocator*         tempAllocator;
+	Log::Logger*                logger;
+	U32                         windowWidth;
+	U32                         windowHeight;
+	const Window::PlatformDesc* windowPlatformDesc;
 };
 
-struct Pool     { U64 handle = 0; };
 struct Buffer   { U64 handle = 0; };
 struct Sampler  { U64 handle = 0; };
 struct Image    { U64 handle = 0; };
 struct Shader   { U64 handle = 0; };
 struct Pipeline { U64 handle = 0; };
-struct Cmd      { U64 handle = 0; };
 
 namespace BufferUsage {
 	using Flags = U32;
-	constexpr Flags Storage  = 1 << 0;
-	constexpr Flags Index    = 1 << 1;
-	constexpr Flags Indirect = 1 << 2;
-	constexpr Flags Upload   = 1 << 3;
+	constexpr Flags Storage      = 1 << 0;
+	constexpr Flags Index        = 1 << 1;
+	constexpr Flags DrawIndirect = 1 << 2;
+	constexpr Flags Upload       = 1 << 3;
+	constexpr Flags Addr         = 1 << 4;
 }
 
 namespace ImageUsage {
 	using Flags = U32;
-	constexpr Flags Sampled         = 1 << 0;
-	constexpr Flags ColorAttachment = 1 << 1;
-	constexpr Flags DepthAttachment = 1 << 2;
-	constexpr Flags Upload          = 1 << 3;
+	constexpr Flags Sampled = 1 << 0;
+	constexpr Flags Color   = 1 << 1;
+	constexpr Flags Depth   = 1 << 2;
+	constexpr Flags Upload  = 1 << 3;
 }
-
-enum struct MemUsage {
-	CpuRead,
-	CpuWrite,
-	Gpu,
-};
 
 enum struct ImageFormat {
 	Undefined = 0,
 	B8G8R8A8_UNorm,
 	R8G8B8A8_UNorm,
 	D32_Float,
-};
-
-struct Frame {
-	Cmd   cmd;
-	Image swapchainImage;
 };
 
 struct Viewport {
@@ -78,52 +66,36 @@ struct Viewport {
 	F32 h;
 };
 
-namespace Stage {
-	using Flags = U32;
-	constexpr Flags None              = 0;
-	constexpr Flags TopOfPipe         = 1 <<  0;
-	constexpr Flags DrawIndirect      = 1 <<  1;
-	constexpr Flags VertexInput       = 1 <<  2;
-	constexpr Flags VerexShader       = 1 <<  3;
-	constexpr Flags FragmentShader    = 1 <<  4;
-	constexpr Flags EarlyFragmentTest = 1 <<  5;
-	constexpr Flags LateFragmenTest   = 1 <<  6;
-	constexpr Flags ColorOutput       = 1 <<  7;
-	constexpr Flags Copy              = 1 << 13;
-	constexpr Flags ComputShader      = 1 <<  8;
-	constexpr Flags BottomOfPipe      = 1 <<  9;
+namespace BarrierStage {
+	using Flags = U64;
+	constexpr Flags None                            = 0;
+	constexpr Flags DrawIndirect_Read               = 1 <<  1;
+	constexpr Flags IndexInput_Read                 = 1 <<  2;
+	constexpr Flags VertexShader_UniformRead        = 1 <<  3;
+	constexpr Flags VertexShader_SamplerRead        = 1 <<  4;
+	constexpr Flags VertexShader_StorageRead        = 1 <<  5;
+	constexpr Flags VertexShader_StorageWrite       = 1 <<  6;
+	constexpr Flags FragmentShader_UniformRead      = 1 <<  7;
+	constexpr Flags FragmentShader_SamplerRead      = 1 <<  8;
+	constexpr Flags FragmentShader_StorageRead      = 1 <<  9;
+	constexpr Flags FragmentShader_StorageWrite     = 1 << 10;
+	constexpr Flags FragmentShader_ColorRead        = 1 << 11;
+	constexpr Flags FragmentShader_DepthStencilRead = 1 << 12;
+	constexpr Flags ComputeShader_UniformRead       = 1 << 13;
+	constexpr Flags ComputeShader_SamplerRead       = 1 << 14;
+	constexpr Flags ComputeShader_StorageRead       = 1 << 15;
+	constexpr Flags ComputeShader_StorageWrite      = 1 << 16;
+	constexpr Flags DepthStencilTest_Read           = 1 << 17;
+	constexpr Flags DepthStencilTest_Write          = 1 << 18;
+	constexpr Flags ColorOutput_ColorRead           = 1 << 19;
+	constexpr Flags ColorOutput_ColorWrite          = 1 << 20;
+	constexpr Flags Copy_Read                       = 1 << 21;
+	constexpr Flags Copy_Write                      = 1 << 22;
+};
 
-	constexpr Flags Host              = 1 << 10;
-	constexpr Flags AllGraphics       = 1 << 11;
-	constexpr Flags AllCommands       = 1 << 12;
-	constexpr Flags IndexInput        = 1 << 14;
-	constexpr Flags VertexAttrInput   = 1 << 15;
-}
-
-namespace Access {
-	using Flags = U32;
-	constexpr Flags None                        = 0;
-	constexpr Flags IndirectRead                = 1 <<  0;
-	constexpr Flags IndexRead                   = 1 <<  1;
-	constexpr Flags VertexAttrRead              = 1 <<  2;
-	constexpr Flags UniformRead                 = 1 <<  3;
-	constexpr Flags InputAttachmentRead         = 1 <<  4;
-	constexpr Flags ShaderRead                  = 1 <<  5;
-	constexpr Flags ShaderWrite                 = 1 <<  6;
-	constexpr Flags ColorAttachmentRead         = 1 <<  7;
-	constexpr Flags ColorAttachmentWrite        = 1 <<  8;
-	constexpr Flags DepthStencilAttachmentRead  = 1 <<  9;
-	constexpr Flags DepthStencilAttachmentWrite = 1 << 10;
-	constexpr Flags TransferRead                = 1 << 11;
-	constexpr Flags TransferWrite               = 1 << 12;
-	constexpr Flags HostRead                    = 1 << 13;
-	constexpr Flags HostWrite                   = 1 << 14;
-	constexpr Flags MemoryRead                  = 1 << 15;
-	constexpr Flags MemoryWrite                 = 1 << 16;
-	constexpr Flags ShaderSampledRead           = 1 << 17;
-	constexpr Flags ShaderStorageRead           = 1 << 18;
-	constexpr Flags ShaderStorageWrite          = 1 << 19;
-}
+enum struct ImageLayout {
+	Undefined = 0,
+};
 
 struct Pass {
 	Pipeline    pipeline;
@@ -134,68 +106,65 @@ struct Pass {
 	bool        clear;
 };
 
-Res<>        Init(const InitDesc* initDesc);
-void         Shutdown();
+Res<>         Init(const InitDesc* initDesc);
+void          Shutdown();
+U32           GetFrameIdx();
+ImageFormat   GetSwapchainImageFormat();
+Res<>         RecreateSwapchain(U32 width, U32 height);
 
-U32          GetFrameIdx();
+Res<Buffer>   CreateBuffer(U64 size, BufferUsage::Flags bufferUsageFlags);
+void          DestroyBuffer(Buffer buffer);
+U64           GetBufferAddr(Buffer buffer);
+Res<>         UploadToBuffer(Buffer buffer, U64 offset, const void* data, U64 len, BarrierStage::Flags srcBarrierStageFlags, BarrierStage::Flags dstBarrierStageFlags);
+void          BufferBarrier(Buffer buffer, U64 offset, U64 size, BarrierStage::Flags srcBarrierStageFlags, BarrierStage::Flags dstBarrierStageFlags);
 
-ImageFormat  GetSwapchainImageFormat();
-Res<>        RecreateSwapchain(U32 width, U32 height);
+Res<Image>    CreateImage(U32 width, U32 height, ImageFormat format, ImageUsage::Flags imageUsageFlags);
+void          DestroyImage(Image image);
+U32           GetImageWidth(Image image);	// TODO; -> IVec2 or IExtent or something
+U32           GetImageHeight(Image image);
+ImageFormat   GetImageFormat(Image image);
+U32           GetImageBindIdx(Image image);
+Res<>         UploadToImage(Image image, const void* data, BarrierStage::Flags srcBarrierStageFlags, ImageLayout srcImageLayout, BarrierStage::Flags dstBarrierStageFlags, ImageLayout dstImageLayout);
+void          ImageBarrier(Image image, BarrierStage::Flags srcBarrierStageFlags, ImageLayout srcImageLayout, BarrierStage::Flags dstBarrierStageFlags, ImageLayout dstImageLayout);
 
-Pool         CreatePool();
-void         DestroyPool(Pool pool);
-Pool         PermPool();
+Res<Shader>   CreateShader(const void* data, U64 len);
+void          DestroyShader(Shader shader);
 
-Res<Buffer>  CreateBuffer(Pool pool, U64 size, BufferUsage::Flags bufferUsageFlags, MemUsage memUsage);
-void         DestroyBuffer(Buffer buffer);
-U64          GetBufferAddr(Buffer buffer);
+Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> colorAttachmentFormats, ImageFormat depthAttachmentFormat);
+void          DestroyPipeline(Pipeline pipeline);
 
-Res<Image>   CreateImage(Pool pool, U32 width, U32 height, ImageFormat format, ImageUsage::Flags imageUsageFlags, MemUsage memUsage);
-void         DestroyImage(Image image);
-U32          GetImageWidth(Image image);	// TODO; -> IVec2 or IExtent or something
-U32          GetImageHeight(Image image);
-ImageFormat  GetImageFormat(Image image);
-U32          GetImageBindIdx(Image image);
+Res<Image>    BeginFrame();
+Res<>         EndFrame();
 
-Res<Shader>  CreateShader(const void* data, U64 len);
-void         DestroyShader(Shader shader);
+void          BeginPass(const Pass* pass);
+void          EndPass();
 
-Res<Pipeline>CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> colorAttachmentFormats, ImageFormat depthAttachmentFormat);
-void         DestroyPipeline(Pipeline pipeline);
+void          BindIndexBuffer(Buffer buffer);
+void          PushConstants(Pipeline pipeline, const void* data, U32 len);
 
-Res<Frame>   BeginFrame();	// TODO: instead return an array of cmds, one per thread
-Res<>        EndFrame();
+void          Draw(U32 vertexCount, U32 instanceCount);
+void          DrawIndexed(U32 indexCount);
+void          DrawIndexedIndirect(Buffer indirectBuffer, U32 drawCount);
 
-Res<Cmd>     BeginImmediateCmds();
-Res<>        EndImmediateCmds(Stage waitStage);
+void          WaitIdle();
 
-void         CmdBeginPass(Cmd cmd, const Pass* pass);
-void         CmdEndPass(Cmd cmd);
+void          DebugBarrier();
 
-void*        CmdBeginBufferUpload(Cmd cmd, Buffer buffer, U64 offset, U64 size);
-void         CmdEndBufferUpload(Cmd cmd, Buffer buffer);
+void          DbgName(Buffer   buffer,   SrcLoc sl, const char* fmt, Span<const Arg> args);
+void          DbgName(Image    image,    SrcLoc sl, const char* fmt, Span<const Arg> args);
+void          DbgName(Shader   shader,   SrcLoc sl, const char* fmt, Span<const Arg> args);
+void          DbgName(Pipeline pipeline, SrcLoc sl, const char* fmt, Span<const Arg> args);
 
-void*        CmdBeginImageUpload(Cmd cmd, Image image);
-void         CmdEndImageUpload(Cmd cmd, Image image);
+template <class T, class... Args>
+void DbgNameF(T obj, SrcLoc sl, FmtStr<Args...> fmt, Args... args) {
+	DbgName(obj, sl, fmt, { MakeArg(args)..., });
+}
 
-void         CmdBufferBarrier(Cmd cmd, Buffer buffer, U64 offset, U64 size, Stage srcStage, Stage dstStage);
-void         CmdImageBarrier(Cmd cmd, Image image, Stage srcStage, Stage dstStage);
-void         CmdDebugBarrier(Cmd cmd);
+//#define Gpu_DbgName(obj)            Gpu::DbgNameF(obj, SrcLoc::Here(), #obj)
+//#define Gpu_DbgNameF(obj, fmt, ...) Gpu::DbgNameF(obj, SrcLoc::Here(), fmt, ##__VA_ARGS__)
 
-void         CmdBindIndexBuffer(Cmd cmd, Buffer buffer);
-
-void         CmdPushConstants(Cmd cmd, Pipeline pipeline, const void* data, U32 len);
-
-void         CmdDraw(Cmd cmd, U32 vertexCount, U32 instanceCount);
-void         CmdDrawIndexed(Cmd cmd, U32 indexCount);
-void         CmdDrawIndexedIndirect(Cmd cmd, Buffer indirectBuffer, U32 drawCount);
-
-void         WaitIdle();
-
-void         SetName(Buffer   buffer,   const char* name);
-void         SetName(Image    image,    const char* name);
-void         SetName(Shader   shader,   const char* name);
-void         SetName(Pipeline pipeline, const char* name);
+#define Gpu_DbgName(obj)            
+#define Gpu_DbgNameF(obj, fmt, ...) 
 
 //--------------------------------------------------------------------------------------------------
 

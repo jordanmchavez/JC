@@ -16,58 +16,73 @@ extern VkAllocationCallbacks* vkAllocationCallbacks;
 static void Add(Array<char>* a, Str s) { a->Add(s.data, s.len); }
 
 //--------------------------------------------------------------------------------------------------
-
-StageFlags GetStageFlags(Stage stage) {
+/*
+VkPipelineStageFlagBits2 StageToVkPipelineStageFlagBits2(Stage stage) {
 	switch (stage) {
-		case Stage::ColorAttachmentOutput:
-			return {
-				.vkPipelineStageFlagBits2 = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-				.vkAccessFlagBits2        = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-				.vkImageLayout            = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-			};
-		case Stage::TransferSrc:
-			return {
-				.vkPipelineStageFlagBits2 = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-				.vkAccessFlagBits2        = VK_ACCESS_2_TRANSFER_READ_BIT,
-				.vkImageLayout            = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			};
-		case Stage::TransferDst:
-			return {
-				.vkPipelineStageFlagBits2 = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-				.vkAccessFlagBits2        = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-				.vkImageLayout            = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			};
-		case Stage::PresentSrc:
-			return {
-				.vkPipelineStageFlagBits2 = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-				.vkAccessFlagBits2        = VK_ACCESS_2_NONE,
-				.vkImageLayout            = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-			};
-		default: Panic("Unhandled Stage", "stage", stage);
+		case Stage::None:                                return VK_PIPELINE_STAGE_2_NONE;
+		case Stage::Read_DrawIndirect:                   return VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
+		case Stage::Read_IndexInput:                     return VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT;
+		case Stage::Read_VertexShaderUniform:            return VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+		case Stage::Read_FragmentShaderUniform:          return VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		case Stage::Read_ComputeShaderUniform:           return VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		case Stage::Read_FragmentShaderInputAttachment:  return VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		case Stage::Read_FragmentColorAttachment:        return VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		case Stage::Read_ColorAttachment:                return VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		case Stage::Read_FragmentDepthStencil:           return VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		case Stage::Read_EarlyFragmentDepthStencil:      return VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+		case Stage::Read_LateFragmentDepthStencil:       return VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+		case Stage::Read_Copy:                           return VK_PIPELINE_STAGE_2_COPY_BIT;
+		case Stage::Read_VertexShaderSampled:            return VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+		case Stage::Read_FragmentShaderSampled:          return VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		case Stage::Read_ComputeShaderSampled:           return VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		case Stage::Read_VertexShaderStorage:            return VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+		case Stage::Read_FragmentShaderStorage:          return VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		case Stage::Read_ComputeShaderStorage:           return VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		case Stage::Write_ColorAttachment:               return VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		case Stage::Write_EarlyFragmentDepthStencil:     return VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+		case Stage::Write_LateFragmentDepthStencil:      return VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+		case Stage::Write_Copy:                          return VK_PIPELINE_STAGE_2_COPY_BIT;
+		case Stage::Write_VertexShaderStorage:           return VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+		case Stage::Write_FragmentShaderStorage:         return VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		case Stage::Write_ComputeShaderStorage:          return VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		default: JC_PANIC("Unhandled Stage {}", stage);
 	}
 }
 
 //--------------------------------------------------------------------------------------------------
 
-VkImageSubresourceRange MakeVkSubresourceRange(VkImageAspectFlags vkImageAspectFlags) {
-	return VkImageSubresourceRange {
-		.aspectMask      = vkImageAspectFlags,
-		.baseMipLevel    = 0,
-		.levelCount      = 1,
-		.baseArrayLayer  = 0,
-		.layerCount      = 1,
-	};
+VkAccessFlagBits2 StageToVkAccessFlagBits2(Stage stage) {
+	switch (stage) {
+		case Stage::None:                                return VK_ACCESS_2_NONE;
+		case Stage::Read_DrawIndirect:                   return VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+		case Stage::Read_IndexInput:                     return VK_ACCESS_2_INDEX_READ_BIT;
+		case Stage::Read_VertexShaderUniform:            return VK_ACCESS_2_UNIFORM_READ_BIT;
+		case Stage::Read_FragmentShaderUniform:          return VK_ACCESS_2_UNIFORM_READ_BIT;
+		case Stage::Read_ComputeShaderUniform:           return VK_ACCESS_2_UNIFORM_READ_BIT;
+		case Stage::Read_FragmentShaderInputAttachment:  return VK_ACCESS_2_INPUT_ATTACHMENT_READ_BIT;
+		case Stage::Read_FragmentColorAttachment:        return VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT;
+		case Stage::Read_ColorAttachment:                return VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT;
+		case Stage::Read_FragmentDepthStencil:           return VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+		case Stage::Read_EarlyFragmentDepthStencil:      return VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+		case Stage::Read_LateFragmentDepthStencil:       return VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+		case Stage::Read_Copy:                           return VK_ACCESS_2_TRANSFER_READ_BIT;
+		case Stage::Read_VertexShaderSampled:            return VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+		case Stage::Read_FragmentShaderSampled:          return VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+		case Stage::Read_ComputeShaderSampled:           return VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+		case Stage::Read_VertexShaderStorage:            return VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+		case Stage::Read_FragmentShaderStorage:          return VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+		case Stage::Read_ComputeShaderStorage:           return VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+		case Stage::Write_ColorAttachment:               return VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		case Stage::Write_EarlyFragmentDepthStencil:     return VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		case Stage::Write_LateFragmentDepthStencil:      return VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		case Stage::Write_Copy:                          return VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		case Stage::Write_VertexShaderStorage:           return VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+		case Stage::Write_FragmentShaderStorage:         return VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+		case Stage::Write_ComputeShaderStorage:          return VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+		default: JC_PANIC("Unhandled Stage {}", stage);
+	}
 }
-
-VkImageSubresourceLayers MakeVkImageSubresourceLayers(VkImageAspectFlags vkImageAspectFlags) {
-	return VkImageSubresourceLayers {
-		.aspectMask      = vkImageAspectFlags,
-		.mipLevel        = 0,
-		.baseArrayLayer  = 0,
-		.layerCount      = 1,
-	};
-}
-
+*/
 //--------------------------------------------------------------------------------------------------
 
 Res<VkSemaphore> CreateSemaphore() {
@@ -141,68 +156,6 @@ Res<> AllocCommandBuffers(VkCommandPool vkCommandPool, U32 n, VkCommandBuffer* v
 		.commandBufferCount = n,
 	};
 	CheckVk(vkAllocateCommandBuffers(vkDevice, &vkCommandBufferAllocateInfo, vkOutCommandBuffers));
-	return Ok();
-}
-
-//--------------------------------------------------------------------------------------------------
-
-Res<> BeginCommandBuffer(VkCommandBuffer vkCommandBuffer, VkCommandBufferUsageFlags vkCommandBufferUsageFlags) {
-	const VkCommandBufferBeginInfo vkCommandBufferBeginInfo = {
-		.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-		.pNext            = 0,
-		.flags            = vkCommandBufferUsageFlags,
-		.pInheritanceInfo = 0,
-	};
-	CheckVk(vkBeginCommandBuffer(vkCommandBuffer, &vkCommandBufferBeginInfo));
-	return Ok();
-}
-
-//--------------------------------------------------------------------------------------------------
-
-Res<> SubmitQueue(Mem::TempAllocator* tempAllocator, VkQueue vkQueue, Span<VkCommandBuffer> vkCommandBuffers, Span<SemaphoreSubmit> waits, Span<SemaphoreSubmit> signals) {
-	VkSemaphoreSubmitInfo* const vkWaitSemaphoreSubmitInfos = tempAllocator->AllocT<VkSemaphoreSubmitInfo>(waits.len);
-	for (U64 i = 0; i < waits.len; i++) {
-		vkWaitSemaphoreSubmitInfos[i] = {
-			.sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-			.pNext       = 0,
-			.semaphore   = waits[i].vkSemaphore,
-			.value       = waits[i].val,
-			.stageMask   = waits[i].vkPipelineStageFlags2,
-			.deviceIndex = 0,
-		};
-	}
-	VkCommandBufferSubmitInfo* const vkCommandBufferSubmitInfos = tempAllocator->AllocT<VkCommandBufferSubmitInfo>(vkCommandBuffers.len);
-	for (U64 i = 0; i < vkCommandBuffers.len; i++) {
-		vkCommandBufferSubmitInfos[i] = {
-			.sType         = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-			.pNext         = 0,
-			.commandBuffer = vkCommandBuffers[i],
-			.deviceMask    = 0,
-		};
-	}
-	VkSemaphoreSubmitInfo* const vkSignalSemaphoreSubmitInfos = tempAllocator->AllocT<VkSemaphoreSubmitInfo>(signals.len);
-	for (U64 i = 0; i < signals.len; i++) {
-		vkSignalSemaphoreSubmitInfos[i] = {
-			.sType       = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-			.pNext       = 0,
-			.semaphore   = signals[i].vkSemaphore,
-			.value       = signals[i].val,
-			.stageMask   = signals[i].vkPipelineStageFlags2,
-			.deviceIndex = 0,
-		};
-	}
-	const VkSubmitInfo2 vkSubmitInfo2 = {
-		.sType                    = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-		.pNext                    = 0,
-		.flags                    = 0,
-		.waitSemaphoreInfoCount   = (U32)waits.len,
-		.pWaitSemaphoreInfos      = vkWaitSemaphoreSubmitInfos,
-		.commandBufferInfoCount   = (U32)vkCommandBuffers.len,
-		.pCommandBufferInfos      = vkCommandBufferSubmitInfos,
-		.signalSemaphoreInfoCount = (U32)signals.len,
-		.pSignalSemaphoreInfos    = vkSignalSemaphoreSubmitInfos,
-	};
-	CheckVk(vkQueueSubmit2(vkQueue, 1, &vkSubmitInfo2, 0));
 	return Ok();
 }
 
@@ -919,7 +872,7 @@ U32 FormatSize(VkFormat vkFormat) {
 		case VK_FORMAT_A1B5G5R5_UNORM_PACK16_KHR:
 		case VK_FORMAT_A8_UNORM_KHR:
 		default:
-			Panic("Unhandled VkFormat", "vkformat", vkFormat);
+			JC_PANIC("Unhandled VkFormat {}", vkFormat);
 
 	}
 }
@@ -948,7 +901,7 @@ ImageFormat VkFormatToImageFormat(VkFormat vkFormat) {
 		case VK_FORMAT_B8G8R8A8_UNORM: return ImageFormat::B8G8R8A8_UNorm;
 		case VK_FORMAT_R8G8B8A8_UNORM: return ImageFormat::R8G8B8A8_UNorm;
 		case VK_FORMAT_D32_SFLOAT:     return ImageFormat::D32_Float;
-		default: Panic("Unhandled VkFormat", "vkformat", vkFormat);
+		default: JC_PANIC("Unhandled VkFormat {}", vkFormat);
 	}
 }
 
@@ -960,7 +913,7 @@ VkFormat ImageFormatToVkFormat(ImageFormat imageFormat) {
 		case ImageFormat::B8G8R8A8_UNorm: return VK_FORMAT_B8G8R8A8_UNORM;
 		case ImageFormat::R8G8B8A8_UNorm: return VK_FORMAT_R8G8B8A8_UNORM;
 		case ImageFormat::D32_Float :     return VK_FORMAT_D32_SFLOAT;
-		default: Panic("Unhandled ImageFormat", "imageformat", imageFormat);
+		default: JC_PANIC("Unhandled ImageFormat {}", imageFormat);
 	}
 }
 

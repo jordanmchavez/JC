@@ -1,5 +1,5 @@
-#include "JC/Core.h"	// not Core/Panic.h to preserve core inclusion order
-
+#include "JC/Core.h"
+#include "JC/Fmt.h"
 #include "JC/Sys.h"
 
 namespace JC {
@@ -14,21 +14,23 @@ PanicFn* SetPanicFn(PanicFn* newPanicFn) {
 	return oldPanicFn;
 }
 
-void VPanic(const char* expr, const char* fmt, Span<const NamedArg> namedArgs, SrcLoc sl) {
+void VPanic(SrcLoc sl, const char* expr, const char* fmt, Span<const Arg> args) {
 	static Bool recursive = false;
 	if (recursive) {
 		if (Sys::IsDebuggerPresent()) {
-			Sys_DebuggerBreak();
+			JC_DEBUGGER_BREAK();
 		}
 		Sys::Abort();
 	}
 	recursive = true;
 
 	if (panicFn) {
-		panicFn(expr, fmt, namedArgs, sl);
+		char msg[2048];
+		*Fmt::VPrintf(msg, msg + JC_LENOF(msg) - 1, fmt, args) = '\0';
+		panicFn(sl, expr, msg);
 	} else {
 		if (Sys::IsDebuggerPresent()) {
-			Sys_DebuggerBreak();
+			JC_DEBUGGER_BREAK();
 		}
 		Sys::Abort();
 	}

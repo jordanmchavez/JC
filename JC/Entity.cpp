@@ -118,7 +118,7 @@ static Bool Contains(const ComponentMask* m1, const ComponentMask* m2) {
 //--------------------------------------------------------------------------------------------------
 
 static TypeId CreateType(const ComponentMask* mask) {
-	Assert(typesLen < MaxTypes);
+	JC_ASSERT(typesLen < MaxTypes);
 	const TypeId typeId = typesLen;
 	Type* const type = &types[typesLen++];
 
@@ -184,7 +184,7 @@ void Init(Mem::Allocator* allocatorIn, Mem::TempAllocator* tempAllocatorIn) {
 
 	const ComponentMask emptyMask = {};
 	const TypeId emptyTypeId = CreateType(&emptyMask);
-	Assert(emptyTypeId == 0);
+	JC_ASSERT(emptyTypeId == 0);
 
 	componentObjsLen = 1;	// reserve 0 for invalid
 	queryObjsLen = 1;	// reserve 0 for invalid
@@ -317,9 +317,9 @@ void DestroyEntities(Span<Entity> entities) {
 	for (U32 i = 0; i < entities.len; i++) {
 		const U32 idx = (U32)(entities[i].id & 0xffffffff);
 		const U32 gen = (U32)(entities[i].id >> 32);
-		Assert(idx < entityObjs.len);
+		JC_ASSERT(idx < entityObjs.len);
 		EntityObj* const entityObj = &entityObjs[idx];
-		Assert(entityObj->gen == gen);
+		JC_ASSERT(entityObj->gen == gen);
 
 		RemoveRow(&types[entityObj->typeId], entityObj->row);
 		entityObj->gen++;
@@ -331,7 +331,7 @@ void DestroyEntities(Span<Entity> entities) {
 //--------------------------------------------------------------------------------------------------
 
 Component CreateComponent(Str name, U32 size) {
-	Assert(componentObjsLen < MaxComponents);
+	JC_ASSERT(componentObjsLen < MaxComponents);
 	size = (U32)Bit::AlignUp(size, 8);
 	componentObjs[componentObjsLen++] = {
 		.name = Copy(allocator, name),
@@ -345,9 +345,9 @@ Component CreateComponent(Str name, U32 size) {
 static EntityObj* GetEntityObj(Entity entity) {
 	const U32 idx = (U32)(entity.id & 0xffffffff);
 	const U32 gen = (U32)(entity.id >> 32);
-	Assert(idx < entityObjs.len);
+	JC_ASSERT(idx < entityObjs.len);
 	EntityObj* const entityObj = &entityObjs[idx];
-	Assert(gen == entityObj->gen);
+	JC_ASSERT(gen == entityObj->gen);
 	return entityObj;
 }
 
@@ -418,7 +418,7 @@ Span<void*> GetComponentData(Entity entity, Span<Component> components) {
 //--------------------------------------------------------------------------------------------------
 
 Query CreateQuery(Span<Component> components) {
-	Assert(components.len < MaxQueryComponents);
+	JC_ASSERT(components.len < MaxQueryComponents);
 
 	const ComponentMask mask = BuildComponentMask(components);
 	const PreHash maskHash = Hash(&mask, sizeof(mask));
@@ -428,7 +428,7 @@ Query CreateQuery(Span<Component> components) {
 		return Query { .id = *queryIdPtr };
 	}
 
-	Assert(queryObjsLen < MaxQueries);
+	JC_ASSERT(queryObjsLen < MaxQueries);
 	QueryObj* const queryObj = &queryObjs[queryObjsLen];
 	const QueryId queryId = queryObjsLen++;
 
@@ -448,7 +448,7 @@ Query CreateQuery(Span<Component> components) {
 //--------------------------------------------------------------------------------------------------
 
 Iter* RunQuery(Query query) {
-	Assert(query.id && query.id < queryObjsLen);
+	JC_ASSERT(query.id && query.id < queryObjsLen);
 	QueryObj* const queryObj = &queryObjs[query.id];
 
 	Iter* iter = tempAllocator->AllocT<Iter>();

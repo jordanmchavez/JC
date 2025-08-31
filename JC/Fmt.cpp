@@ -22,7 +22,7 @@ static constexpr U32 Flag_Sci   = 1 << 7;
 
 struct FixedOut {
 	char* begin;
-	char* end;
+	const char* end;
 
 	void Add(char c) {
 		if (begin < end) {
@@ -30,27 +30,21 @@ struct FixedOut {
 		}
 	}
 	void Add(const char* vals, U64 valsLen) {
-		const U64 len = (U64)(end - begin);
-		if (valsLen > len) {
-			valsLen = len;
-		}
+		const U64 len = Min(valsLen, (U64)(end - begin));
 		memcpy(begin, vals, valsLen);
-		begin += valsLen;
+		begin += len;
 	}
 
 	void Add(const char* valsBegin, const char* valsEnd) {
-		U64 valsLen = Min((U64)(valsEnd - valsBegin), (U64)(end - begin));
-		memcpy(begin, valsBegin, valsLen);
-		begin += valsLen;
+		const U64 len = Min((U64)(valsEnd - valsBegin), (U64)(end - begin));
+		memcpy(begin, valsBegin, len);
+		begin += len;
 	}
 
 	void Fill(char c, U64 count) {
-		const U64 len = (U64)(end - begin);
-		if (count > len) {
-			count = len;
-		}
+		const U64 len = Min(count, (U64)(end - begin));
 		memset(begin, c, count);
-		begin += count;
+		begin += len;
 	}
 };
 
@@ -390,7 +384,7 @@ void VPrintfImpl(Out out, const char* fmt, Span<const Arg> args) {
 		for (;;) {
 			if (!*i) {
 				out->Add(text, i);
-				Assert(nextArg == args.len, "Too many args");
+				JC_ASSERT(nextArg == args.len, "Too many args");
 				return;
 			} else if (*i == '{') {
 				out->Add(text, i);
@@ -399,7 +393,7 @@ void VPrintfImpl(Out out, const char* fmt, Span<const Arg> args) {
 			} else if (*i == '}') {
 				i++;
 				out->Add(text, i);
-				Assert(*i == '}');
+				JC_ASSERT(*i == '}');
 				i++;
 				text = i;
 			} else {
@@ -438,11 +432,11 @@ void VPrintfImpl(Out out, const char* fmt, Span<const Arg> args) {
 			case 'e': flags |= Flag_Sci; i++; break;
 			default:                          break;
 		}
-		Assert(*i == '}');
+		JC_ASSERT(*i == '}');
 		i++;
 
 		DoArg:
-		Assert(nextArg < args.len);
+		JC_ASSERT(nextArg < args.len);
 		const Arg* arg = &args[nextArg++];
 		switch (arg->type)
 		{
@@ -453,14 +447,14 @@ void VPrintfImpl(Out out, const char* fmt, Span<const Arg> args) {
 			case ArgType::F64:  WriteF64(out, arg->f,                       flags, width, prec); break;
 			case ArgType::Str:  WriteStr(out, Str(arg->s.data, arg->s.len), flags, width, prec); break;
 			case ArgType::Ptr:  WritePtr(out, arg->p,                       flags, width);       break;
-			default: Panic("Unhandled ArgType", "type", arg->type);
+			default: JC_PANIC("Unhandled ArgType {}", arg->type);
 		}
 	}
 }
 
 //--------------------------------------------------------------------------------------------------
 
-char* VPrintf(char* outBegin, char* outEnd, const char* fmt, Span<const Arg> args) {
+char* VPrintf(char* outBegin, const char* outEnd, const char* fmt, Span<const Arg> args) {
 	FixedOut out = { .begin = outBegin, .end = outEnd };
 	VPrintfImpl(&out, fmt, args);
 	return out.begin;
@@ -475,7 +469,14 @@ Str VPrintf(Mem::Allocator* allocator, const char* fmt, Span<const Arg> args) {
 	VPrintfImpl(&out, fmt, args);
 	return Str(out.data, out.len);
 }
-	
+
+char* VPrintfz(Mem::Allocator* allocator,   const char* fmt, Span<const Arg> args) {
+	Array<char> out(allocator);
+	VPrintf(&out, fmt, args);
+	out.Add('\0');
+	return out.data;
+}
+
 //--------------------------------------------------------------------------------------------------
 
 UnitTest("Fmt") {

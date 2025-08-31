@@ -30,8 +30,8 @@ template <class T> struct Array {
 		cap       = 0;
 	}
 
-	constexpr       T& operator[](U64 i)       { Assert(i < len); return data[i]; }
-	constexpr const T& operator[](U64 i) const { Assert(i < len); return data[i]; }
+	constexpr       T& operator[](U64 i)       { JC_ASSERT(i < len); return data[i]; }
+	constexpr const T& operator[](U64 i) const { JC_ASSERT(i < len); return data[i]; }
 
 	operator Span<T>() const { return Span(data, len); }
 
@@ -55,7 +55,7 @@ template <class T> struct Array {
 	}
 
 	void Add(const T* vals, U64 valsLen, SrcLoc sl = SrcLoc::Here()) {
-		Assert(!valsLen || vals);
+		JC_ASSERT(!valsLen || vals);
 		if (len + valsLen > cap) {
 			Grow(len + valsLen, sl);
 		}
@@ -64,7 +64,7 @@ template <class T> struct Array {
 	}
 
 	void Add(const T* begin, const T* end, SrcLoc sl = SrcLoc::Here()) {
-		Assert(begin <= end);
+		JC_ASSERT(begin <= end);
 		const U64 valsLen = (U64)(end - begin);
 		if (len + valsLen > cap) {
 			Grow(len + valsLen, sl);
@@ -114,7 +114,7 @@ template <class T> struct Array {
 	}
 
 	void RemoveUnordered(U64 i) {
-		Assert(i < len);
+		JC_ASSERT(i < len);
 		len--;
 		data[i] = data[len];
 	}
@@ -147,7 +147,7 @@ template <class T> struct Array {
 	}
 
 	void Grow(U64 newCap, SrcLoc sl = SrcLoc::Here()) {
-		Assert(newCap > cap);
+		JC_ASSERT(newCap > cap);
 		newCap = Max(Max((U64)16, newCap), cap * 2);
 		data = allocator->ReallocT(data, cap, newCap, sl);
 		cap = newCap;

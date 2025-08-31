@@ -25,7 +25,7 @@ struct Fns {
 	void  (*Shutdown)();
 	Res<> (*Events)(Span<Event::Event> events);
 	Res<> (*Update)(double secs);
-	Res<> (*Draw)(Gpu::Cmd cmd, Gpu::Image swapchainImage);
+	Res<> (*Draw)(Gpu::Image swapchainImage);
 };
 
 void Run(Fns* fns, int argc, const char** argv);

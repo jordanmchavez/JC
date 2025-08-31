@@ -78,7 +78,7 @@ struct AllocatorObj : Allocator {
 
 	void InsertFreeBlock(Block* block) {
 		const Index idx = CalcIndex(block->Size());
-		Assert((U64)block % Align  == 0);
+		JC_ASSERT((U64)block % Align  == 0);
 		block->nextFree = blocks[idx.f][idx.s];
 		block->prevFree = &nullBlock;
 		blocks[idx.f][idx.s]->prevFree = block;
@@ -124,7 +124,7 @@ struct AllocatorObj : Allocator {
 			}
 			idx.f = Bit::Bsf64(fMap);
 			sMap = second[idx.f];
-			Assert(sMap);
+			JC_ASSERT(sMap);
 		}
 		idx.s = Bit::Bsf64(sMap);
 
@@ -136,12 +136,12 @@ struct AllocatorObj : Allocator {
 
 	void Commit() {
 		const U64 extendSize = Max((U64)4096, (U64)(endCommit - begin));
-		Assert(endCommit + extendSize <= endReserve);
+		JC_ASSERT(endCommit + extendSize <= endReserve);
 		U8* const oldEndCommit = endCommit;
 		endCommit = (U8*)Sys::VirtualCommit(endCommit, extendSize);
 
 		Block* block = ((Block*)(oldEndCommit - 16))->prev;
-		Assert(block);	// block->prev should have been set during the last commit
+		JC_ASSERT(block);	// block->prev should have been set during the last commit
 		if (block->IsFree()) {
 			RemoveFreeBlock(block);
 			block->size += extendSize;
@@ -157,7 +157,7 @@ struct AllocatorObj : Allocator {
 	//----------------------------------------------------------------------------------------------
 
 	void* Alloc(U64 size) {
-		Assert(size < BlockSizeMax);
+		JC_ASSERT(size < BlockSizeMax);
 
 		size = Max(Bit::AlignUp(size, Align), BlockSizeMin);
 
@@ -167,20 +167,20 @@ struct AllocatorObj : Allocator {
 		}
 
 		Block* const block = blocks[idx.f][idx.s];
-		Assert(block != &nullBlock);
-		Assert(block->Size() >= size);
-		Assert(block->IsFree());
-		Assert(!block->IsPrevFree());
+		JC_ASSERT(block != &nullBlock);
+		JC_ASSERT(block->Size() >= size);
+		JC_ASSERT(block->IsFree());
+		JC_ASSERT(!block->IsPrevFree());
 	
 		RemoveFreeBlock(block, idx);
 
 		Block* const next = block->Next();
-		Assert(next->IsPrevFree());
+		JC_ASSERT(next->IsPrevFree());
 		if (block->Size() >= sizeof(Block) + size) {
 			Block* const rem = (Block*)((U8*)block + size + 8);
 			rem->prev = block;
 			rem->size = (block->Size() - size - 8) | FreeBit;
-			Assert(rem->Next() == next);
+			JC_ASSERT(rem->Next() == next);
 			block->size = size;	// !free, !prevFree 
 			next->prev = rem;
 
@@ -198,10 +198,10 @@ struct AllocatorObj : Allocator {
 
 	Bool Extend(void* ptr, U64 newSize) {
 		newSize = Max(Bit::AlignUp(newSize, Align), BlockSizeMin);
-		Assert(newSize <= BlockSizeMax);
+		JC_ASSERT(newSize <= BlockSizeMax);
 
 		Block* const block = (Block*)((U8*)ptr - 16);
-		Assert(!block->IsFree());
+		JC_ASSERT(!block->IsFree());
 
 		const U64 blockSize = block->Size();
 		if (blockSize >= newSize) {
@@ -244,7 +244,7 @@ struct AllocatorObj : Allocator {
 
 	void Free(void* ptr) {
 		Block* block = (Block*)((U8*)ptr - 16);
-		Assert(!block->IsFree());
+		JC_ASSERT(!block->IsFree());
 		block->size |= FreeBit;
 
 		Block* const next = block->Next();
@@ -252,7 +252,7 @@ struct AllocatorObj : Allocator {
 
 		if (block->IsPrevFree()) {
 			Block* const prev = block->prev;
-			Assert(prev->IsFree());
+			JC_ASSERT(prev->IsFree());
 			RemoveFreeBlock(prev);
 			prev->size += block->Size() + 8;
 			next->prev = prev;
@@ -278,7 +278,7 @@ struct AllocatorObj : Allocator {
 
 		} else if (size) {
 			// TODO: is this even worth it? Our uses of Extend() are overwhelmingly to double our size,
-			// so isn't it simpler to just always alloc-new/memcpy/free?
+			// which will almost always fail this path, so isn't it better to always alloc-new/memcpy/free?
 
 			bool extendSucceeded = true;
 			if (!Extend(ptr, size)) {
@@ -303,10 +303,10 @@ struct AllocatorObj : Allocator {
 	//----------------------------------------------------------------------------------------------
 
 	void Init(U64 commitSize, U64 reserveSize) {
-		Assert(Bit::IsPow2(commitSize));
-		Assert(Bit::IsPow2(reserveSize));
-		Assert(commitSize >= 48);	// 8 prev + 8 sz + 24 body + 8 sz
-		Assert(reserveSize >= commitSize);
+		JC_ASSERT(Bit::IsPow2(commitSize));
+		JC_ASSERT(Bit::IsPow2(reserveSize));
+		JC_ASSERT(commitSize >= 48);	// 8 prev + 8 sz + 24 body + 8 sz
+		JC_ASSERT(reserveSize >= commitSize);
 		nullBlock.prev     = 0;
 		nullBlock.size     = 0;
 		nullBlock.nextFree = &nullBlock;
@@ -368,14 +368,14 @@ struct TempAllocatorObj : TempAllocator {
 	void* Alloc(U64 size) {
 		// alloc
 		size = Bit::AlignUp(size, Align);
-		Assert(endCommit >= end);
+		JC_ASSERT(endCommit >= end);
 		const U64 avail = (U64)(endCommit - end);
 		if (avail < size) {
 			const U64 commitSize = (U64)(endCommit - begin);
 			U64 extendSize = Max((U64)4096, commitSize);
 			while (avail + extendSize < size) {
 				extendSize *= 2;
-				Assert(endCommit + extendSize < endReserve);
+				JC_ASSERT(endCommit + extendSize < endReserve);
 			}
 			Sys::VirtualCommit(endCommit, extendSize);
 			endCommit += extendSize;
@@ -384,38 +384,38 @@ struct TempAllocatorObj : TempAllocator {
 		end += size;
 
 
-		Assert(end <= endCommit);
-		Assert(endCommit <= endReserve);
+		JC_ASSERT(end <= endCommit);
+		JC_ASSERT(endCommit <= endReserve);
 		last = oldEnd;
 
 		return oldEnd;
 	}
 
 	void Extend(void* ptr, U64 size) {
-		Assert(end >= last);
+		JC_ASSERT(end >= last);
 		size = Bit::AlignUp(size, Align);
 		end = (U8*)ptr;
-		Assert(endCommit >= end);
+		JC_ASSERT(endCommit >= end);
 		const U64 avail = (U64)(endCommit - end);
 		if (avail < size) {
 			const U64 commitSize = (U64)(endCommit - begin);
 			U64 extendSize = Max((U64)4096, commitSize);
 			while (avail + extendSize < size) {
 				extendSize *= 2;
-				Assert(endCommit + extendSize < endReserve);
+				JC_ASSERT(endCommit + extendSize < endReserve);
 			}
 			Sys::VirtualCommit(endCommit, extendSize);
 			endCommit += extendSize;
 		}
 		end += size;
 
-		Assert(end <= endCommit);
-		Assert(endCommit <= endReserve);
+		JC_ASSERT(end <= endCommit);
+		JC_ASSERT(endCommit <= endReserve);
 	}
 
 	void* Alloc(void* ptr, U64 ptrSize, U64 size, U32 flags, SrcLoc) override {
 		if (!ptr) {
-			Assert(!ptrSize);
+			JC_ASSERT(!ptrSize);
 			ptr = Alloc(size);
 			if (!(flags & AllocFlag_NoInit)) {
 				memset(ptr, 0x0, size);
@@ -547,7 +547,7 @@ void Init(U64 permCommitSize, U64 permReserveSize, U64 tempReserveSize)
 //--------------------------------------------------------------------------------------------------
 
 UnitTest("Mem") {
-	//      |  Max |  Free Rng | Free Classes           | Alloc Rng | Alloc Classes
+	//      |  Max |  Free Rng |           Free Classes | Alloc Rng | Alloc Classes
 	// -----+------+-----------+------------------------+-----------+---------------
 	// 2.27 |  944 |           |                        |           |
 	// 2.28 |  960 |   960-975 |  960,  968             |   945-960 | 952, 960
@@ -589,7 +589,7 @@ UnitTest("Mem") {
 	SubTest("Alloc/Extend/Free") {
 		constexpr U64 commitSize  =       64 * 1024;
 		constexpr U64 reserveSize = 64 * 1024 * 1024;
-		Defer { Sys::VirtualFree(allocator.begin); };
+		JC_DEFER { Sys::VirtualFree(allocator.begin); };
 		allocator.Init(commitSize, reserveSize);
 		U64 base = commitSize - 24;
 		const Bool f = true;	// free

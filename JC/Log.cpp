@@ -67,7 +67,7 @@ Logger* InitLogger(Mem::TempAllocator* tempAllocator) {
 }
 
 void AddFn(Fn* fn) {
-	Assert(loggerObj.fnsLen < LoggerObj::MaxFns);
+	JC_ASSERT(loggerObj.fnsLen < LoggerObj::MaxFns);
 	loggerObj.fns[loggerObj.fnsLen++] = fn;
 }
 

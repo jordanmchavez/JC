@@ -73,7 +73,7 @@ template <class K, class V> struct Map {
 
 	V* FindChecked(K k) {
 		V* v = FindOrNull(k);
-		Assert(v);
+		JC_ASSERT(v);
 		return v;
 	}
 

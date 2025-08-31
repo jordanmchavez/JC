@@ -26,7 +26,7 @@ static Bool                exit;
 
 void App::Exit() { exit = true; }
 
-static void AppPanicFn(const char* expr, const char* msg, Span<const NamedArg> namedArgs, SrcLoc sl) {
+static void AppPanicFn(SrcLoc sl, const char* expr, const char* msg) {
 	char buf[1024];
 	char* iter = buf;
 	char* end = buf + sizeof(buf) - 1;
@@ -38,14 +38,11 @@ static void AppPanicFn(const char* expr, const char* msg, Span<const NamedArg> n
 	if (msg) {
 		iter = Fmt::Printf(iter, end, "{}\n", msg);
 	}
-	for (U64 i = 0; i < namedArgs.len; i++) {
-		iter = Fmt::Printf(iter, end, "  {}={}", namedArgs[i].name, namedArgs[i].arg);
-	}
 	iter--;
 	Logf("{}", Str(buf, (U64)(iter - buf)));
 
 	if (Sys::IsDebuggerPresent()) {
-		Sys_DebuggerBreak();
+		JC_DEBUGGER_BREAK();
 	}
 
 	Sys::Abort();
@@ -180,8 +177,8 @@ static Res<> RunAppInternal(Fns* fns, int argc, const char** argv) {
 		}
 
 		bool skipFrame = false;
-		Gpu::Frame frame;
-		if (Res<> r = Gpu::BeginFrame().To(frame); !r) {
+		Gpu::Image swapchainImage;
+		if (Res<> r = Gpu::BeginFrame().To(swapchainImage); !r) {
 			if (r.err == Gpu::EC_RecreateSwapchain) {
 				if (r = Gpu::RecreateSwapchain(windowState.width, windowState.height); !r) {
 					return r;
@@ -194,7 +191,7 @@ static Res<> RunAppInternal(Fns* fns, int argc, const char** argv) {
 		}
 		if (skipFrame) { continue; }
 
-		if (Res<> r = fns->Draw(frame.cmd, frame.swapchainImage); !r) { return r; }
+		if (Res<> r = fns->Draw(swapchainImage); !r) { return r; }
 		
 		if (Res<> r = Gpu::EndFrame(); !r) {
 			if (r.err == Gpu::EC_RecreateSwapchain) {

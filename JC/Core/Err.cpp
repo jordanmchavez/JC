@@ -18,7 +18,7 @@ void Err::Init(Mem::TempAllocator* tempAllocatorIn) {
 //--------------------------------------------------------------------------------------------------
 
 void Err::Init(Str ns, Str code, Span<const NamedArg> namedArgs, SrcLoc sl) {
-	Assert(namedArgs.len <= MaxArgs);
+	JC_ASSERT(namedArgs.len <= MaxArgs);
 
 	data = tempAllocator->AllocT<Data>();
 	data->prev = 0;
@@ -31,11 +31,11 @@ void Err::Init(Str ns, Str code, Span<const NamedArg> namedArgs, SrcLoc sl) {
 	}
 	data->namedArgsLen = (U32)namedArgs.len;
 
-	#if defined DebugBreakOnErr
+	#if defined JC_DEBUG_BREAK_ON_ERR
 	if (Sys::IsDebuggerPresent()) {
-		Sys_DebuggerBreak();
+		JC_DEBUGGER_BREAK();
 	}
-	#endif	// DebugBreakOnErr
+	#endif	// JC_DEBUG_BREAK_ON_ERR
 }
 
 void Err::Init(Str ns, U64 code, Span<const NamedArg> namedArgs, SrcLoc sl) {
@@ -52,7 +52,7 @@ Err Err::Push(Err err) {
 //--------------------------------------------------------------------------------------------------
 
 Str Err::GetStr() {
-	Assert(data);
+	JC_ASSERT(data);
 	Array<char> a(tempAllocator);
 	Fmt::Printf(&a, "Error: ");
 	for (Data* d = data; d; d = d->prev) {

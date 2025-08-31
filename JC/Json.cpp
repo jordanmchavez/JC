@@ -71,7 +71,7 @@ static Elem AddArr(Doc* doc, Span<Elem> elems) {
 }
 
 static Elem AddObj(Doc* doc, Span<Elem> keys, Span<Elem> vals) {
-	Assert(keys.len == vals.len);
+	JC_ASSERT(keys.len == vals.len);
 	U8* ptr = Extend(doc, (U32)(sizeof(U64) + (keys.len * 2 * sizeof(Elem))));
 	*((U32*)ptr) = (U32)keys.len;
 	memcpy(ptr + sizeof(U32), keys.data, keys.len * sizeof(Elem));
@@ -94,39 +94,39 @@ void Free(Doc* doc) {
 }
 
 Bool GetBool(const Doc*, Elem elem) {
-	Assert(elem.type == Type::Bool);
+	JC_ASSERT(elem.type == Type::Bool);
 	return (Bool)elem.offset;
 }
 
 I64 GetI64(const Doc* doc, Elem elem) {
-	Assert(elem.type == Type::I64);
+	JC_ASSERT(elem.type == Type::I64);
 	return *(I64*)(doc->data + elem.offset);
 }
 
 U64 GetU64(const Doc* doc, Elem elem) {
-	Assert(elem.type == Type::I64);	// We store U64 as i64
+	JC_ASSERT(elem.type == Type::I64);	// We store U64 as i64
 	return *(U64*)(doc->data + elem.offset);
 }
 
 F64 GetF64(const Doc* doc, Elem elem) {
-	Assert(elem.type == Type::F64);
+	JC_ASSERT(elem.type == Type::F64);
 	return *(F64*)(doc->data + elem.offset);
 }
 
 Str GetStr(const Doc* doc, Elem elem) {
-	Assert(elem.type == Type::Str);
+	JC_ASSERT(elem.type == Type::Str);
 	const U32* ptr = (U32*)(doc->data + elem.offset);
 	return Str((const char*)(ptr + 1), (U64)*ptr);
 }
 
 Span<Elem> GetArr(const Doc* doc, Elem elem) {
-	Assert(elem.type == Type::Arr);
+	JC_ASSERT(elem.type == Type::Arr);
 	const U32* ptr = (U32*)(doc->data + elem.offset);
 	return Span<Elem>((Elem*)(ptr + 1), (U64)*ptr);
 }
 
 Obj GetObj(const Doc* doc, Elem elem) {
-	Assert(elem.type == Type::Obj);
+	JC_ASSERT(elem.type == Type::Obj);
 	const U8* ptr = doc->data + elem.offset;
 	const U64 len = (U64)(*((U32*)ptr));
 	ptr += sizeof(U32);
@@ -219,7 +219,7 @@ static Res<Elem> ParseFalse(ParseCtx* ctx) {
 //--------------------------------------------------------------------------------------------------
 
 static Res<Elem> ParseNum(ParseCtx* ctx) {
-	Assert(ctx->iter < ctx->end);
+	JC_ASSERT(ctx->iter < ctx->end);
 
 	I64 sign = 1;
 	if (*ctx->iter == '-') {
@@ -322,7 +322,7 @@ static Res<Str> ParseStrRaw(ParseCtx* ctx) {
 		}
 	}
 
-	Assert(ctx->iter < ctx->end && *ctx->iter == '"');
+	JC_ASSERT(ctx->iter < ctx->end && *ctx->iter == '"');
 	ctx->iter++;
 	return Str(a.data, a.len);
 }
@@ -357,7 +357,7 @@ static Res<Elem> ParseArr(ParseCtx* ctx) {
 		if (Res<> r = Expect(ctx, ','); !r) { return r.err; }
 	}
 
-	Assert(ctx->iter < ctx->end && *ctx->iter == ']');
+	JC_ASSERT(ctx->iter < ctx->end && *ctx->iter == ']');
 	ctx->iter++;
 	if (Res<> r = SkipWhitespace(ctx); !r) { return r.err; }
 	if (ctx->iter < ctx->end && *ctx->iter == ',') { ctx->iter++; }
@@ -367,7 +367,7 @@ static Res<Elem> ParseArr(ParseCtx* ctx) {
 //--------------------------------------------------------------------------------------------------
 
 static Res<Elem> ParseKey(ParseCtx* ctx) {
-	Assert(ctx->iter < ctx->end);
+	JC_ASSERT(ctx->iter < ctx->end);
 	if (char c = *ctx->iter; c == '"') {
 		return ParseStr(ctx);
 		
@@ -434,7 +434,7 @@ static Res<Elem> ParseObj(ParseCtx* ctx) {
 		if (Res<> r = Expect(ctx, ','); !r) { return r.err; }
 	}
 
-	Assert(ctx->iter < ctx->end && *ctx->iter == '}');
+	JC_ASSERT(ctx->iter < ctx->end && *ctx->iter == '}');
 	ctx->iter++;
 	return AddObj(ctx->doc, keys, vals);
 }
@@ -442,7 +442,7 @@ static Res<Elem> ParseObj(ParseCtx* ctx) {
 //--------------------------------------------------------------------------------------------------
 
 static Res<Elem> ParseElem(ParseCtx* ctx) {
-	Assert(ctx->iter < ctx->end);
+	JC_ASSERT(ctx->iter < ctx->end);
 
 	switch (ctx->iter[0]) {
 		case 't': return ParseTrue(ctx);

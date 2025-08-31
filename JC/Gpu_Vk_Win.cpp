@@ -1,6 +1,6 @@
 #include "JC/Gpu_Vk.h"
 
-#if defined Platform_Windows
+#if defined JC_PLATFORM_WINDOWS
 	typedef __int64 (__stdcall *FARPROC)();
 
 	extern "C" __declspec(dllimport) void*   __stdcall LoadLibraryW(const wchar_t*);
@@ -8,22 +8,22 @@
 	extern "C" __declspec(dllimport) int     __stdcall FreeLibrary(void*);
 
 	static void* vulkanDll = nullptr;
-#endif	// Platform_
+#endif	// JC_PLATFORM
 
 namespace JC::Gpu {
 
 //--------------------------------------------------------------------------------------------------
 
 void LoadRootFns() {
-	#if defined Platform_Windows
+	#if defined JC_PLATFORM_WINDOWS
 		vulkanDll = LoadLibraryW(L"vulkan-1.dll");
-		Assert(vulkanDll);
+		JC_ASSERT(vulkanDll);
 		vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)GetProcAddress(vulkanDll, "vkGetInstanceProcAddr");
 		vkCreateInstance = (PFN_vkCreateInstance)vkGetInstanceProcAddr(nullptr, "vkCreateInstance");
 		vkEnumerateInstanceExtensionProperties = (PFN_vkEnumerateInstanceExtensionProperties)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceExtensionProperties");
 		vkEnumerateInstanceLayerProperties = (PFN_vkEnumerateInstanceLayerProperties)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceLayerProperties");
 		vkEnumerateInstanceVersion = (PFN_vkEnumerateInstanceVersion)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion");
-	#endif	// Platform_
+	#endif	// JC_PLATFORM
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -280,9 +280,9 @@ void LoadDeviceFns(VkDevice vkDevice) {
 //--------------------------------------------------------------------------------------------------
 
 void FreeFns() {
-	#if defined Platform_Windows
+	#if defined JC_PLATFORM_WINDOWS
 		FreeLibrary(vulkanDll);
-	#endif	// Platform_Windows
+	#endif	// JC_PLATFORM
 }
 
 //--------------------------------------------------------------------------------------------------

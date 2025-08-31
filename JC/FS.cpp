@@ -47,7 +47,7 @@ Res<Span<U8>> ReadAll(Mem::Allocator* allocator, Str path) {
 	if (Res<> r = Open(path).To(file); !r) {
 		return r.err;
 	}
-	Defer { Close(file); };
+	JC_DEFER { Close(file); };
 
 	U64 len = 0;
 	if (Res<> r = Len(file).To(len); !r) {

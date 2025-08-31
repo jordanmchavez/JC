@@ -165,7 +165,7 @@ Str EventStr(Mem::Allocator* allocator, Event e) {
 		case Type::WindowRestored:  return "WindowRestored";
 		case Type::Key:             return Fmt::Printf(allocator, "Key(key={}, down={})", e.key.key, e.key.down);
 		case Type::MouseMove:       return Fmt::Printf(allocator, "MouseMove(x={}, y={})", e.mouseMove.x, e.mouseMove.y);
-		default:                    Panic("Unhandled EventType", "type", e.type);
+		default:                    JC_PANIC("Unhandled EventType {}", e.type);
 	}
 }
 

@@ -209,7 +209,7 @@ static BOOL MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
 	UINT unused = 0;
 	GetDpiForMonitor(hmonitor, MDT_EFFECTIVE_DPI, &dpi, &unused);
 
-	Assert(displaysLen < MaxDisplays);
+	JC_ASSERT(displaysLen < MaxDisplays);
 	displays[displaysLen] = {
 		.x      = (I32)rect->left,
 		.y      = (I32)rect->top,
@@ -238,7 +238,7 @@ Res<> Init(const InitDesc* initDesc) {
 	if (EnumDisplayMonitors(0, 0, MonitorEnumFn, 0) == FALSE) {
 		return Err_WinLast("EnumDisplayMonitors");
 	}
-	Assert(displaysLen > 0);
+	JC_ASSERT(displaysLen > 0);
 
 	if (SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) == FALSE) {
 		return Err_WinLast("SetProcessDpiAwarenessContext");

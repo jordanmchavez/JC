@@ -55,7 +55,7 @@ struct Subtest {
 	~Subtest();
 };
 
-#define TestDebuggerBreak ([]() { Sys_DebuggerBreak(); return false; }())
+#define TestDebuggerBreak ([]() { JC_DEBUGGER_BREAK(); return false; }())
 
 #define UnitTestImpl(name, fn, registrarVar) \
 	static void fn([[maybe_unused]] JC::Mem::TempAllocator* testAllocator); \
@@ -63,12 +63,12 @@ struct Subtest {
 	static void fn([[maybe_unused]] JC::Mem::TempAllocator* testAllocator)
 
 #define UnitTest(name) \
-	UnitTestImpl(name, MacroName(UnitTestFn_), MacroName(UnitTestRegistrar_))
+	UnitTestImpl(name, JC_MACRO_UNIQUE_NAME(UnitTestFn_), JC_MACRO_UNIQUE_NAME(UnitTestRegistrar_))
 
 #define SubTestImpl(name, subtestVar) \
 	if (UnitTest::Subtest subtestVar = UnitTest::Subtest(name, SrcLoc::Here()); subtestVar.shouldRun)
 
-#define SubTest(name) SubTestImpl(name, MacroName(UnitSubtest_))
+#define SubTest(name) SubTestImpl(name, JC_MACRO_UNIQUE_NAME(UnitSubtest_))
 
 #define CheckFailAt(sl)         (UnitTest::CheckFailImpl(sl) || TestDebuggerBreak)
 #define CheckFail()             (UnitTest::CheckFailImpl(SrcHere) || TestDebuggerBreak)

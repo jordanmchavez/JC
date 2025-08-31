@@ -166,7 +166,7 @@ struct Game : App {
 				case ParticleEmitterShape::Line: {
 					break;
 				}
-				default: Panic("Unhandled ParticleEmitterShape", "shape", emitter->shape);
+				default: JC_PANIC("Unhandled ParticleEmitterShape", "shape", emitter->shape);
 			}
 			p->size     = Math::Lerp(t->scaleMin, t->scaleMax, Random::NextF32());
 			p->angle    = Math::Lerp(t->angleMin, t->angleMax, Random::NextF32());

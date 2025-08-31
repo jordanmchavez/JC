@@ -32,29 +32,29 @@ void DebuggerPrint(const char* msg) {
 //--------------------------------------------------------------------------------------------------
 
 void* VirtualAlloc(U64 size) {
-	Assert(size % 4096 == 0);
+	JC_ASSERT(size % 4096 == 0);
 	void* p = ::VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	if (!p) {
-		Panic("VirtualAlloc failed with MEM_RESERVE", "lasterror", GetLastError(), "size", size);
+		JC_PANIC("VirtualAlloc failed with MEM_RESERVE: lasterror={}, size={}", GetLastError(), size);
 	}
 	return p;
 }
 
 void* VirtualReserve(U64 size) {
-	Assert(size % 65536 == 0);
+	JC_ASSERT(size % 65536 == 0);
 	void* p = ::VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
 	if (!p) {
-		Panic("VirtualAlloc failed with MEM_RESERVE", "lasterror", GetLastError(), "size", size);
+		JC_PANIC("VirtualAlloc failed with MEM_RESERVE: lasterror={}, size={}", GetLastError(), size);
 	}
 	return p;
 }
 
 void* VirtualCommit(void* p, U64 size) {
-	Assert(p);
-	Assert((U64)p % 4096 == 0);
-	Assert(size % 4096 == 0);
+	JC_ASSERT(p);
+	JC_ASSERT((U64)p % 4096 == 0);
+	JC_ASSERT(size % 4096 == 0);
 	if (::VirtualAlloc(p, size, MEM_COMMIT, PAGE_READWRITE) == nullptr) {
-		Panic("VirtualAlloc failed with MEM_COMMIT", "lasterror", GetLastError(), "size", size, "ptr", p);
+		JC_PANIC("VirtualAlloc failed with MEM_COMMIT: lasterror={}, size={}, ptr={}", GetLastError(), size, p);
 	}
 	return (U8*)p + size;
 }

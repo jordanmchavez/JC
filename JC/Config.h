@@ -6,8 +6,8 @@ namespace JC::Config {
 
 //--------------------------------------------------------------------------------------------------
 
-#define DebugBreakOnErr
-#define Render_Debug
+#define JC_DEBUG_BREAK_ON_ERR
+#define JC_RENDER_DEBUG
 
 void Init(Mem::Allocator* allocator);
 

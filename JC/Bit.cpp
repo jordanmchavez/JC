@@ -3,7 +3,7 @@
 #include "JC/Bit.h"
 #include "JC/UnitTest.h"
 
-#if defined Compiler_Msvc
+#if defined JC_COMPILER_MSVC
 	#include <intrin.h>
 	#pragma intrinsic(_BitScanReverse64)
 	#pragma intrinsic(_BitScanForward64)
@@ -15,33 +15,33 @@ namespace JC::Bit {
 //--------------------------------------------------------------------------------------------------
 
 U32 Bsr64(U64 u) {
-	#if defined Compiler_Msvc
+	#if defined JC_COMPILER_MSVC
 		U32 idx;
 		_BitScanReverse64((unsigned long*)&idx, u);
 		return idx;
-	#endif	// Compiler_
+	#endif	// JC_COMPILER
 }
 
 U32 Bsf64(U64 u) {
-	#if defined Compiler_Msvc
+	#if defined JC_COMPILER_MSVC
 		U32 idx;
 		_BitScanForward64((unsigned long*)&idx, u);
 		return idx;
-	#endif	// Compiler_Msvc_
+	#endif	// JC_COMPILER
 }
 
 //--------------------------------------------------------------------------------------------------
 
 U32 PopCount32(U32 u) {
-	#if defined Compiler_Msvc
+	#if defined JC_COMPILER_MSVC
 		return (U32)__popcnt(u);
-	#endif	// Compiler_
+	#endif	// JC_COMPILER
 }
 
 U32 PopCount64(U64 u) {
-	#if defined Compiler_Msvc
+	#if defined JC_COMPILER_MSVC
 		return (U32)__popcnt64(u);
-	#endif	// Compiler_
+	#endif	// JC_COMPILER
 }
 
 //--------------------------------------------------------------------------------------------------

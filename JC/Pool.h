@@ -18,7 +18,7 @@ template <class T, U32 N> struct ObjPool {
 			free = free->next;
 			return obj;
 		}
-		Assert(len < N);
+		JC_ASSERT(len < N);
 		return &objs[len++];
 	}
 
@@ -49,11 +49,11 @@ template <class T, class H, U32 N> struct HandlePool {
 	Entry* GetEntry(H h) {
 		const U32 i = (U32)(h.handle & 0xffffffff);
 		const U32 g = (U32)(h.handle >> 32);
-		Assert(i > 0 && i < len);
-		Assert(g);
+		JC_ASSERT(i > 0 && i < len);
+		JC_ASSERT(g);
 		Entry* const entry = &entries[i];
-		Assert(entry->gen == g);
-		Assert(entry->idx == i);
+		JC_ASSERT(entry->gen == g);
+		JC_ASSERT(entry->idx == i);
 		return entry;
 	}
 
@@ -67,7 +67,7 @@ template <class T, class H, U32 N> struct HandlePool {
 			i = free;
 			free = (U32)entries[free].idx;	// next
 		} else {
-			Assert(len < N);
+			JC_ASSERT(len < N);
 			i = len;
 			len++;
 		}

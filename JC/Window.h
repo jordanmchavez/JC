@@ -53,12 +53,10 @@ struct InitDesc {
 };
 
 struct PlatformDesc {
-	#if defined Platform_Windows
+	#if defined JC_PLATFORM_WINDOWS
 		void* hinstance = 0;
 		void* hwnd      = 0;
-	#else	// Platform_
-		#error("unsupported platform");
-	#endif	// Platform_
+	#endif	// JC_PLATFORM
 };
 
 Res<>         Init(const InitDesc* initDesc);

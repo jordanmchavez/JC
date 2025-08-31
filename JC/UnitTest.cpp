@@ -37,7 +37,7 @@ Bool operator==(Subtest::Sig s1, Subtest::Sig s2) {
 }
 
 TestRegistrar::TestRegistrar(Str name, SrcLoc sl, TestFn* fn) {
-	Assert(testsLen < MaxTests);
+	JC_ASSERT(testsLen < MaxTests);
 	tests[testsLen++] = {
 		.name = name,
 		.sl   = sl,
@@ -51,7 +51,7 @@ Subtest::Subtest(Str nameIn, SrcLoc slIn) {
 	switch (state) {
 		case State::Run:
 			if (nextLen <= curLen || next[curLen] == sig) {
-				Assert(curLen < MaxSubtests);
+				JC_ASSERT(curLen < MaxSubtests);
 				cur[curLen++] = sig;
 				shouldRun = true;
 			}
@@ -69,7 +69,7 @@ Subtest::Subtest(Str nameIn, SrcLoc slIn) {
 
 Subtest::~Subtest() {
 	if (shouldRun) {
-		Assert(lastLen < MaxSubtests);
+		JC_ASSERT(lastLen < MaxSubtests);
 		last[lastLen++] = sig;
 		switch (state) {
 			case State::Run:
@@ -178,7 +178,7 @@ static U32 records[128];
 static U32 recordsLen;
 
 void Record(U32 u) {
-	Assert(recordsLen < (sizeof(records) / sizeof(records[0])));
+	JC_ASSERT(recordsLen < (sizeof(records) / sizeof(records[0])));
 	records[recordsLen++] = u;
 }
 

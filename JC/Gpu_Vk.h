@@ -6,7 +6,7 @@
 #define VK_NO_PROTOTYPES
 #include "vulkan/vulkan_core.h"
 
-#if defined Platform_Windows
+#if defined JC_PLATFORM_WINDOWS
 	typedef unsigned long DWORD;
 	typedef _Null_terminated_ const wchar_t* LPCWSTR;
 	typedef void* HANDLE;
@@ -15,7 +15,7 @@
 	typedef struct HMONITOR__* HMONITOR;
 	typedef struct _SECURITY_ATTRIBUTES SECURITY_ATTRIBUTES;
 	#include "vulkan/vulkan_win32.h"
-#endif	// Platform_
+#endif	// JC_PLATFORM
 
 namespace JC::Gpu {
 
@@ -38,12 +38,6 @@ template <typename... A> Err_Vk(VkResult, Str, A...) -> Err_Vk<A...>;
 
 //--------------------------------------------------------------------------------------------------
 
-struct StageFlags {
-	VkPipelineStageFlagBits2 vkPipelineStageFlagBits2;
-	VkAccessFlagBits2        vkAccessFlagBits2; 
-	VkImageLayout            vkImageLayout; 
-};
-
 struct SemaphoreSubmit {
 	VkSemaphore           vkSemaphore;
 	VkPipelineStageFlags2 vkPipelineStageFlags2;
@@ -56,8 +50,6 @@ void                     LoadRootFns();
 void                     LoadInstanceFns(VkInstance vkInstance);
 void                     LoadDeviceFns(VkDevice vkDevice);
 void                     FreeFns();
-StageFlags               GetStageFlags(Stage stage);
-VkImageSubresourceRange  MakeVkSubresourceRange(VkImageAspectFlags vkImageAspectFlags);
 VkImageSubresourceLayers MakeVkImageSubresourceLayers(VkImageAspectFlags vkImageAspectFlags);
 ImageFormat              VkFormatToImageFormat(VkFormat vkFormat);
 VkFormat                 ImageFormatToVkFormat(ImageFormat imageFormat);
@@ -68,9 +60,8 @@ Res<>                    AllocCommandBuffers(VkCommandPool vkCommandPool, U32 n,
 Res<>                    WaitTimelineSemaphore(VkSemaphore vkTimelineSemaphore, U64 waitVal);
 Res<>                    BeginCommandBuffer(VkCommandBuffer vkCommandBuffer, VkCommandBufferUsageFlags vkCommandBufferUsageFlags);
 Res<>                    SubmitQueue(Mem::TempAllocator* tempAllocator, VkQueue vkQueue, Span<VkCommandBuffer> vkCommandBuffers, Span<SemaphoreSubmit> waits, Span<SemaphoreSubmit> signals);
-VkPipelineStageFlagBits2 StageToVkPipelineStageFlagBits2(Stage stage);
-VkAccessFlagBits2        StageToVkAccessFlagBits2(Stage stage);
-VkImageLayout            StageToVkImageLayout(Stage stage);
+VkPipelineStageFlagBits2 BarrierStageToVkPipelineStageFlagBits2(BarrierStage::Flags stageFlags);
+VkAccessFlagBits2        BarrierStageToVkAccessFlagBits2(BarrierStage::Flags stageFlags);
 Str                      ColorSpaceStr(VkColorSpaceKHR c);
 Str                      FormatStr(VkFormat f);
 Str                      MemoryHeapFlagsStr(Mem::Allocator* allocator, VkMemoryHeapFlags f);
@@ -328,12 +319,12 @@ extern PFN_vkDestroySwapchainKHR vkDestroySwapchainKHR;
 extern PFN_vkGetSwapchainImagesKHR vkGetSwapchainImagesKHR;
 extern PFN_vkQueuePresentKHR vkQueuePresentKHR;
 #endif // VK_KHR_swapchain
-#if defined Platform_Windows
+#if defined JC_PLATFORM_WINDOWS
 	#if defined VK_KHR_win32_surface
 	extern PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR;
 	extern PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR vkGetPhysicalDeviceWin32PresentationSupportKHR;
 	#endif // VK_KHR_win32_surface
-#endif	// Platform_
+#endif	// JC_PLATFORM
 
 //--------------------------------------------------------------------------------------------------
 

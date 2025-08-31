@@ -234,7 +234,7 @@ Res<Render::Image> LoadImage(Arena* arena, s8 path) {
 	int channels = 0;
 	u8* imageData = (u8*)stbi_load_from_memory(data.data, (int)data.len, &width, &height, &channels, 0);
 	if (!imageData) {
-		Panic("bad");
+		JC_PANIC("bad");
 	}
 	Assert(channels == 3 || channels == 4);
 	Defer { stbi_image_free(imageData); };

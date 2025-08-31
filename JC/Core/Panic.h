@@ -6,31 +6,32 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-[[noreturn]] void VPanic(const char* expr, const char* msg, Span<const NamedArg> namedArgs, SrcLoc sl);
+[[noreturn]] void VPanic(SrcLoc sl, const char* expr, const char* fmt, Span<const Arg> args);
 
-template <class... A> [[noreturn]] void Panic(SrcLocWrapper<const char*> msgSl, A... args) {
-	NamedArg namedArgs[1 + sizeof...(A) / 2];
-	BuildNamedArgs(namedArgs, args...);
-	VPanic(0, msgSl.val, Span<const NamedArg>(namedArgs, sizeof...(A) / 2), msgSl.sl);
+
+template <class... A> [[noreturn]] void Panic(SrcLoc sl, FmtStr<A...> fmt, A... args) {
+	VPanic(sl, 0, fmt, { MakeArg(args)... });
 }
 
-[[noreturn]] inline void _AssertFail(const char* expr, SrcLoc sl) {
-	VPanic(expr, "",  {}, sl);
-}
-template <class... A> [[noreturn]] void _AssertFail(const char* expr, const char* msg, A... args, SrcLoc sl) {
-	NamedArg namedArgs[1 + sizeof...(A) / 2];
-	BuildNamedArgs(namedArgs, args...);
-	VPanic(expr, msg, Span<const NamedArg>(namedArgs, sizeof...(A) / 2), sl);
-}
-
-using PanicFn = void (const char* expr, const char* fmt, Span<const NamedArg> namedArgs, SrcLoc sl);
-
+using PanicFn = void (SrcLoc sl, const char* expr, const char* msg);
 PanicFn* SetPanicFn(PanicFn* panicFn);
 
-#define Assert(expr, ...) \
+[[noreturn]] inline void AssertFail(SrcLoc sl, const char* expr) {
+	VPanic(sl, expr, 0, {});
+}
+
+template <class... A> [[noreturn]] void AssertFail(SrcLoc sl, const char* expr, FmtStr<A...> fmt, A... args) {
+	VPanic(sl, expr, fmt, { MakeArg<A>(args)... });
+}
+
+#define JC_PANIC(fmt, ...) JC::Panic(SrcLoc::Here(), fmt, ##__VA_ARGS__)
+
+//--------------------------------------------------------------------------------------------------
+
+#define JC_ASSERT(expr, ...) \
 	do { \
 		if (!(expr)) { \
-			_AssertFail(#expr, ##__VA_ARGS__, SrcLoc::Here()); \
+			JC::AssertFail(SrcLoc::Here(), #expr, ##__VA_ARGS__); \
 		} \
 	} while (false)
 

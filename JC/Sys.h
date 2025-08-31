@@ -12,11 +12,9 @@ void Abort();
 
 void Print(Str msg);
 
-#if defined Compiler_Msvc
-	#define Sys_DebuggerBreak() __debugbreak()
-#else // Compiler_
-	#error("unsupported compiler")
-#endif	// Compiler_
+#if defined JC_COMPILER_MSVC
+	#define JC_DEBUGGER_BREAK() __debugbreak()
+#endif	// JC_COMPILER
 
 Bool  IsDebuggerPresent();
 void  DebuggerPrint(const char* msg);
@@ -32,9 +30,9 @@ void  VirtualDecommit(void* p, U64 size);
 //--------------------------------------------------------------------------------------------------
 
 struct Mutex {
-	#if defined Platform_Windows
+	#if defined JC_PLATFORM_WINDOWS
 		U64 opaque = 0;
-	#endif	// Platform
+	#endif	// JC_PLATFORM
 };
 
 void InitMutex(Mutex* mutex);
