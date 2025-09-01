@@ -4,7 +4,7 @@
 
 struct DrawCmd {
 	vec2  pos;
-	vec2  size;
+	vec2  scale;
 	vec2  uv1;
 	vec2  uv2;
 	vec4  color;

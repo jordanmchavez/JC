@@ -1,4 +1,4 @@
-#include "JC/Render2D.h"
+#include "JC/Draw.h"
 
 #include "JC/Array.h"
 #include "JC/Bit.h"
@@ -9,10 +9,11 @@
 #include "JC/Log.h"
 #include "JC/Map.h"
 #include "JC/Math.h"
+#include "JC/Pool.h"
 
 #include "stb/stb_image.h"
 
-namespace JC::Render2D {
+namespace JC::Draw {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -24,6 +25,11 @@ DefErr(Render, SpriteNotFound);
 
 //--------------------------------------------------------------------------------------------------
 
+static constexpr U32 MaxDrawCmds = 1 * 1024 * 1024;
+static constexpr U32 MaxCanvases = 64;
+
+//--------------------------------------------------------------------------------------------------
+
 struct SpriteObj {
 	U32  imageIdx;
 	Vec2 uv1;
@@ -31,6 +37,13 @@ struct SpriteObj {
 	Vec2 size;
 	Str  name;
 };
+
+struct CanvasObj {
+	Gpu::Image colorImage;
+	Gpu::Image depthImage;
+};
+
+using CanvasPool = HandlePool<CanvasObj, Canvas, MaxCanvases>;
 
 struct Scene {
 	Mat4  projView;
@@ -43,7 +56,7 @@ struct PushConstants {
 
 struct DrawCmd {
 	Vec2 pos;
-	Vec2 size;
+	Vec2 scale;
 	Vec2 uv1;
 	Vec2 uv2;
 	Vec4 color;
@@ -56,9 +69,6 @@ struct DrawCmd {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr U32 MaxDrawCmds = 1 * 1024 * 1024;
-static constexpr U32 StagingBufferSize = 128 * 1024 * 1024;
-
 static Mem::Allocator*     allocator;
 static Mem::TempAllocator* tempAllocator;
 static Log::Logger*        logger;
@@ -67,6 +77,7 @@ static U32                 windowHeight;
 static Gpu::Image          depthImage;
 static Gpu::Shader         vertexShader;
 static Gpu::Shader         fragmentShader;
+static CanvasPool          canvasPool;
 static Gpu::Pipeline       pipeline;
 static Gpu::Buffer         sceneBuffer;
 static U64                 sceneBufferAddr;
@@ -77,6 +88,7 @@ static U32                 drawCmdCount;
 static Array<Gpu::Image>   spriteImages;
 static Array<SpriteObj>    spriteObjs;
 static Map<Str, U32>       spriteObjsByName;
+static Gpu::Frame          frame;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -103,7 +115,11 @@ Res<> Init(const InitDesc* initDesc) {
 	JC_CHECK_RES(LoadShader("Shaders/SpriteFrag.spv").To(fragmentShader));
 	JC_GPU_NAME(fragmentShader);
 
-	JC_CHECK_RES(Gpu::CreateGraphicsPipeline({ vertexShader, fragmentShader }, { Gpu::GetSwapchainImageFormat() }, Gpu::ImageFormat::D32_Float).To(pipeline));
+	JC_CHECK_RES(Gpu::CreateGraphicsPipeline(
+		{ vertexShader, fragmentShader },
+		{ Gpu::GetSwapchainImageFormat() },
+		Gpu::ImageFormat::D32_Float
+	).To(pipeline));
 	JC_GPU_NAME(pipeline);
 
 	JC_CHECK_RES(Gpu::CreateBuffer(sizeof(Scene), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Addr | Gpu::BufferUsage::Copy).To(sceneBuffer));
@@ -267,7 +283,20 @@ Vec2 GetSpriteSize(Sprite sprite) {
 
 //--------------------------------------------------------------------------------------------------
 
-static Gpu::Frame frame;
+Res<Canvas> CreateCanvas(U32 width, U32 height) {
+	Gpu::Image image;
+	JC_CHECK_RES(Gpu::CreateImage(width, height, Gpu::ImageFormat::B8G8R8A8_UNorm, Gpu::ImageUsage::Color | Gpu::ImageUsage::Sampled).To(image));
+	CanvasPool::Entry* const entry = canvasPool.Alloc();
+	entry->obj.image = image;
+	return entry->Handle();
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void DestroyCanvas(Canvas canvas) {
+}
+
+//--------------------------------------------------------------------------------------------------
 
 void BeginFrame(Gpu::Frame inFrame) {
 	frame = inFrame;
@@ -335,6 +364,7 @@ void DrawSprite(Sprite sprite, Vec2 pos) {
 		.textureIdx   = spriteObj->imageIdx,
 	};
 }
+
 void DrawSprite(Sprite sprite, Vec2 pos, F32 size, F32 rotation, Vec4 color) {
 	SpriteObj* const spriteObj = &spriteObjs[sprite.handle];
 	*AllocDrawCmds(1) =  {
@@ -350,6 +380,8 @@ void DrawSprite(Sprite sprite, Vec2 pos, F32 size, F32 rotation, Vec4 color) {
 		.textureIdx   = spriteObj->imageIdx,
 	};
 }
+
+//--------------------------------------------------------------------------------------------------
 
 void DrawRect(Vec2 pos, Vec2 size, Vec4 color, Vec4 borderColor, F32 border, F32 cornerRadius) {
 	*AllocDrawCmds(1) =  {
@@ -368,4 +400,21 @@ void DrawRect(Vec2 pos, Vec2 size, Vec4 color, Vec4 borderColor, F32 border, F32
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Render2D
+void DrawCanvas(Canvas canvas, Vec2 pos, Vec2 scale) {
+	*AllocDrawCmds(1) =  {
+		.pos          = pos,
+		.size         = size,
+		.uv1          = Vec2(),
+		.uv2          = Vec2(),
+		.color        = color,
+		.borderColor  = borderColor,
+		.border       = border,
+		.cornerRadius = cornerRadius,
+		.rotation     = 0.0f,
+		.textureIdx   = 0,
+	};
+}
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Draw

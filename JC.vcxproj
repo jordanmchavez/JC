@@ -137,7 +137,7 @@
     <ClInclude Include="JC\Random.h" />
     <ClInclude Include="JC\Gpu.h" />
     <ClInclude Include="JC\Gpu_Vk.h" />
-    <ClInclude Include="JC\Render2D.h" />
+    <ClInclude Include="JC\Draw.h" />
     <ClInclude Include="JC\StrDb.h" />
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Sys_Win.h" />
@@ -160,7 +160,7 @@
     <ClCompile Include="JC\Err.cpp" />
     <ClCompile Include="JC\Mem.cpp" />
     <ClCompile Include="JC\Panic.cpp" />
-    <ClCompile Include="JC\Render2D.cpp" />
+    <ClCompile Include="JC\Draw.cpp" />
     <ClCompile Include="JC\Str.cpp" />
     <ClCompile Include="JC\Entity.cpp" />
     <ClCompile Include="JC\Event.cpp" />

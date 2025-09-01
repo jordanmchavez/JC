@@ -27,14 +27,14 @@ void main() {
 	DrawCmd drawCmd = pushConstants.sceneBuffer.drawCmdBuffer.drawCmds[gl_InstanceIndex];
 	uint idx = gl_VertexIndex % 6;
 	vec2 offset = offsets[idx];
-	vec2 worldPos = drawCmd.pos + (offset * drawCmd.size);
+	vec2 worldPos = drawCmd.pos + (offset * drawCmd.scale);
 	gl_Position = pushConstants.sceneBuffer.projView * vec4(worldPos, 0.0f, 1.0f);
 	uvOut = vec2(
 		drawCmd.uv1.x * (1.0f - offset.x) + (drawCmd.uv2.x * offset.x),
 		drawCmd.uv1.y * (1.0f - offset.y) + (drawCmd.uv2.y * offset.y)
 	);
 	sdfPosOut       = offset * drawCmd.size;
-	halfRectOut     = drawCmd.size / 2.0f;
+	halfRectOut     = drawCmd.scale / 2.0f;
 	colorOut        = drawCmd.color;
 	borderColorOut  = drawCmd.borderColor;
 	borderOut       = drawCmd.border;

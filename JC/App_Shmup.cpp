@@ -1,13 +1,13 @@
 #include "JC/App.h"
 #include "JC/Array.h"
 #include "JC/Config.h"
+#include "JC/Draw.h"
 #include "JC/Event.h"
 #include "JC/Fmt.h"
 #include "JC/Gpu.h"
 #include "JC/Log.h"
 #include "JC/Math.h"
 #include "JC/Random.h"
-#include "JC/Render2D.h"
 #include "JC/Window.h"
 #include <math.h>
 
@@ -30,7 +30,7 @@ struct ParticleType {
 	// animated
 	// stretch animation over particle lifetime, or repeat, or runonce
 	// use random subimage
-	Render2D::Sprite sprite;
+	Draw::Sprite sprite;
 	F32             scaleMin;
 	F32             scaleMax;
 	F32             scaleInc;
@@ -85,7 +85,6 @@ struct ParticleEmitter {
 };
 
 static constexpr Vec2 PlayAreaVirtualSize = { 800.0f, 900.0f };
-static constexpr F32 SpriteScale = 8.0f;
 static constexpr F32 ShipFireCooldown = 0.2f;
 
 struct Ship {
@@ -93,10 +92,10 @@ struct Ship {
 	Vec2              speed                            = {};
 	Vec2              size                             = {};
 	F32               fireCooldown                     = 0.0f;
-	Render2D::Sprite  spriteNotMoving                  = {};
-	Render2D::Sprite  spriteMovingLeft                 = {};
-	Render2D::Sprite  spriteMovingRight                = {};
-	Render2D::Sprite* sprite                           = 0;
+	Draw::Sprite  spriteNotMoving                  = {};
+	Draw::Sprite  spriteMovingLeft                 = {};
+	Draw::Sprite  spriteMovingRight                = {};
+	Draw::Sprite* sprite                           = 0;
 };
 
 struct Bullet {
@@ -112,7 +111,7 @@ F32                    windowWidth                   = 0.0f;
 F32                    windowHeight                  = 0.0f;
 Bool                   keyDown[(U32)Event::Key::Max] = {};
 Ship                   ship                          = {};
-Render2D::Sprite       bulletSprite                  = {};
+Draw::Sprite       bulletSprite                  = {};
 Vec2                   bulletSize                    = {};
 Array<Bullet>          bullets                       = {};
 Array<ParticleEmitter> particleEmitters              = {};
@@ -185,7 +184,7 @@ static void UpdateParticleEmitter(F32 secs, ParticleEmitter* emitter) {
 static void DrawParticleType(const ParticleType* type) {
 	for (U64 i = 0; i < type->particles.len; i++) {
 		const Particle* const p = &type->particles[i];
-		Render2D::DrawSprite(type->sprite, p->pos, p->size * SpriteScale, p->rotation, p->color);
+		Draw::DrawSprite(type->sprite, p->pos, p->size, p->rotation, p->color);
 	}
 }
 
@@ -211,7 +210,7 @@ static Res<> Init(const Window::State* windowState) {
 	windowWidth  = (F32)windowState->width;
 	windowHeight = (F32)windowState->height;
 
-	Render2D::InitDesc initDesc = {
+	Draw::InitDesc initDesc = {
 		.allocator     = allocator,
 		.tempAllocator = tempAllocator,
 		.logger        = logger,
@@ -219,20 +218,20 @@ static Res<> Init(const Window::State* windowState) {
 		.windowHeight  = WindowHeight,
 
 	};
-	JC_CHECK_RES(Render2D::Init(&initDesc));
+	JC_CHECK_RES(Draw::Init(&initDesc));
 
-	JC_CHECK_RES(Render2D::LoadSpriteAtlas("Assets/SpaceShooter.png", "Assets/SpaceShooter.atlas"));
+	JC_CHECK_RES(Draw::LoadSpriteAtlas("Assets/SpaceShooter.png", "Assets/SpaceShooter.atlas"));
 JC_CHECK_RES(Gpu::ImmediateWait());
-	JC_CHECK_RES(Render2D::GetSprite("Ship1").To(ship.spriteNotMoving));
-	JC_CHECK_RES(Render2D::GetSprite("Ship1Left").To(ship.spriteMovingLeft));
-	JC_CHECK_RES(Render2D::GetSprite("Ship1Right").To(ship.spriteMovingRight));
-	JC_CHECK_RES(Render2D::GetSprite("Bullet").To(bulletSprite));
+	JC_CHECK_RES(Draw::GetSprite("Ship1").To(ship.spriteNotMoving));
+	JC_CHECK_RES(Draw::GetSprite("Ship1Left").To(ship.spriteMovingLeft));
+	JC_CHECK_RES(Draw::GetSprite("Ship1Right").To(ship.spriteMovingRight));
+	JC_CHECK_RES(Draw::GetSprite("Bullet").To(bulletSprite));
 
-	ship.size = Render2D::GetSpriteSize(ship.spriteNotMoving);
+	ship.size = Draw::GetSpriteSize(ship.spriteNotMoving);
 	ship.speed = { 300.0f, 300.0f };
 	ship.sprite = &ship.spriteNotMoving;
 		
-	bulletSize = Render2D::GetSpriteSize(bulletSprite);
+	bulletSize = Draw::GetSpriteSize(bulletSprite);
 
 	bullets.Init(allocator);
 
@@ -241,7 +240,7 @@ JC_CHECK_RES(Gpu::ImmediateWait());
 	particles.Init(allocator);
 
 	ParticleType* const type = particleTypes.Add();
-	if (Res<> r = Render2D::GetSprite("Particle1").To(type->sprite); !r) { return r; }
+	if (Res<> r = Draw::GetSprite("Particle1").To(type->sprite); !r) { return r; }
 	type->scaleMin          = 0.25f;
 	type->scaleMax          = 1.0f;
 	type->scaleInc          = 1.0f;
@@ -288,7 +287,7 @@ JC_CHECK_RES(Gpu::ImmediateWait());
 //---------------------------------------------------------------------------------------------
 
 static void Shutdown() {
-	Render2D::Shutdown();
+	Draw::Shutdown();
 }
 
 //---------------------------------------------------------------------------------------------
@@ -385,29 +384,29 @@ static Res<> Update(double secs) {
 //---------------------------------------------------------------------------------------------
 
 static Res<> Draw(Gpu::Frame frame) {
-	Render2D::BeginFrame(frame);
+	Draw::BeginFrame(frame);
 
 	const Vec2 origin = { 100.0f, 50.0f };
 	Vec2 pos = origin;
 
 	const Vec2 PlayAreaSize = { windowWidth / 2.0f, windowHeight - 100.0f };
-	//Render2D::DrawRect(origin, PlayAreaSize, { 0.1f, 0.2f, 0.05f, 1.0f }, Vec4(), 0.0f, 0.0f);
+	Draw::DrawRect(origin, PlayAreaSize, { 0.1f, 0.2f, 0.05f, 1.0f }, Vec4(), 0.0f, 0.0f);
 
 	Vec2 finalPos = {
 		(ship.pos.x * PlayAreaSize.x / PlayAreaVirtualSize.x) + origin.x,
 		(ship.pos.y * PlayAreaSize.y / PlayAreaVirtualSize.y) + origin.y,
 	};
-	Render2D::DrawSprite(*ship.sprite, finalPos, SpriteScale, 0.0f, Vec4(1.0f, 1.0f, 1.0f, 1.0f));
+	Draw::DrawSprite(*ship.sprite, finalPos, SpriteScale, 0.0f, Vec4(1.0f, 1.0f, 1.0f, 1.0f));
 
 	for (U64 i = 0; i < bullets.len; i++) {
-		Render2D::DrawSprite(bulletSprite, bullets[i].pos);
+		Draw::DrawSprite(bulletSprite, bullets[i].pos);
 	}
 
 	for (U64 i = 0; i < particleTypes.len; i++) {
 		DrawParticleType(&particleTypes[i]);
 	}
 
-	Render2D::EndFrame();
+	Draw::EndFrame();
 	return Ok();
 }
 
