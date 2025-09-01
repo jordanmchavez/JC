@@ -3,7 +3,7 @@
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_buffer_reference     : require
 
-#include "Common.glsl"
+#include "SpriteCommon.glsl"
 
 layout (location = 0)      in  vec2  uvIn;
 layout (location = 1)      in  vec2  sdfPosIn;

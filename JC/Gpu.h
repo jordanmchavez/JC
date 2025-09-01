@@ -40,7 +40,7 @@ namespace BufferUsage {
 	constexpr Flags Storage      = 1 << 0;
 	constexpr Flags Index        = 1 << 1;
 	constexpr Flags DrawIndirect = 1 << 2;
-	constexpr Flags Upload       = 1 << 3;
+	constexpr Flags Copy         = 1 << 3;
 	constexpr Flags Addr         = 1 << 4;
 }
 
@@ -49,7 +49,7 @@ namespace ImageUsage {
 	constexpr Flags Sampled = 1 << 0;
 	constexpr Flags Color   = 1 << 1;
 	constexpr Flags Depth   = 1 << 2;
-	constexpr Flags Upload  = 1 << 3;
+	constexpr Flags Copy    = 1 << 3;
 }
 
 enum struct ImageFormat {
@@ -57,6 +57,12 @@ enum struct ImageFormat {
 	B8G8R8A8_UNorm,
 	R8G8B8A8_UNorm,
 	D32_Float,
+};
+
+enum struct ImageLayout {
+	Undefined = 0,
+	ShaderRead,
+	CopyDst,
 };
 
 struct Viewport {
@@ -93,10 +99,6 @@ namespace BarrierStage {
 	constexpr Flags Copy_Write                      = 1 << 22;
 };
 
-enum struct ImageLayout {
-	Undefined = 0,
-};
-
 struct Pass {
 	Pipeline    pipeline;
 	Span<Image> colorAttachments;
@@ -106,17 +108,20 @@ struct Pass {
 	bool        clear;
 };
 
+struct Frame {
+	U64   frame;
+	Image swapchainImage;
+};
+
 Res<>         Init(const InitDesc* initDesc);
 void          Shutdown();
-U32           GetFrameIdx();
+
 ImageFormat   GetSwapchainImageFormat();
 Res<>         RecreateSwapchain(U32 width, U32 height);
 
 Res<Buffer>   CreateBuffer(U64 size, BufferUsage::Flags bufferUsageFlags);
 void          DestroyBuffer(Buffer buffer);
 U64           GetBufferAddr(Buffer buffer);
-Res<>         UploadToBuffer(Buffer buffer, U64 offset, const void* data, U64 len, BarrierStage::Flags srcBarrierStageFlags, BarrierStage::Flags dstBarrierStageFlags);
-void          BufferBarrier(Buffer buffer, U64 offset, U64 size, BarrierStage::Flags srcBarrierStageFlags, BarrierStage::Flags dstBarrierStageFlags);
 
 Res<Image>    CreateImage(U32 width, U32 height, ImageFormat format, ImageUsage::Flags imageUsageFlags);
 void          DestroyImage(Image image);
@@ -124,10 +129,6 @@ U32           GetImageWidth(Image image);	// TODO; -> IVec2 or IExtent or someth
 U32           GetImageHeight(Image image);
 ImageFormat   GetImageFormat(Image image);
 U32           GetImageBindIdx(Image image);
-Res<>         UploadToImage(Image image, const void* data, BarrierStage::Flags srcBarrierStageFlags, ImageLayout srcImageLayout, BarrierStage::Flags dstBarrierStageFlags, ImageLayout dstImageLayout);
-void          ImageBarrier(Image image, BarrierStage::Flags srcBarrierStageFlags, ImageLayout srcImageLayout, BarrierStage::Flags dstBarrierStageFlags, ImageLayout dstImageLayout);
-
-Res<>         WaitForUploads();
 
 Res<Shader>   CreateShader(const void* data, U64 len);
 void          DestroyShader(Shader shader);
@@ -135,38 +136,40 @@ void          DestroyShader(Shader shader);
 Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> colorAttachmentFormats, ImageFormat depthAttachmentFormat);
 void          DestroyPipeline(Pipeline pipeline);
 
-Res<Image>    BeginFrame();
-Res<>         EndFrame();
+Res<>         ImmediateCopyToBuffer(const void* data, U64 len, Buffer buffer, U64 offset);
+Res<>         ImmediateCopyToImage(const void* data, Image image, BarrierStage::Flags finalBarrierStageFlags, ImageLayout finalImageLayout);
+Res<>         ImmediateWait();
 
+Res<Frame>    BeginFrame();
+Res<>         EndFrame();
+void          WaitIdle();
+
+void*         AllocStaging(U64 len);
+void          CopyStagingToBuffer(void* staging, U64 len, Buffer buffer, U64 offset);
+void          CopyStagingToImage(void* staging, Image image);
+void          BufferBarrier(Buffer buffer, U64 offset, U64 size, BarrierStage::Flags srcBarrierStageFlags, BarrierStage::Flags dstBarrierStageFlags);
+void          ImageBarrier(Image image, BarrierStage::Flags srcBarrierStageFlags, ImageLayout srcImageLayout, BarrierStage::Flags dstBarrierStageFlags, ImageLayout dstImageLayout);
+void          DebugBarrier();
 void          BeginPass(const Pass* pass);
 void          EndPass();
-
 void          BindIndexBuffer(Buffer buffer);
 void          PushConstants(Pipeline pipeline, const void* data, U32 len);
-
 void          Draw(U32 vertexCount, U32 instanceCount);
 void          DrawIndexed(U32 indexCount);
 void          DrawIndexedIndirect(Buffer indirectBuffer, U32 drawCount);
 
-void          WaitIdle();
-
-void          DebugBarrier();
-
-void          DbgName(Buffer   buffer,   SrcLoc sl, const char* fmt, Span<const Arg> args);
-void          DbgName(Image    image,    SrcLoc sl, const char* fmt, Span<const Arg> args);
-void          DbgName(Shader   shader,   SrcLoc sl, const char* fmt, Span<const Arg> args);
-void          DbgName(Pipeline pipeline, SrcLoc sl, const char* fmt, Span<const Arg> args);
+void          Name(SrcLoc sl, Buffer   buffer,   const char* fmt, Span<const Arg> args);
+void          Name(SrcLoc sl, Image    image,    const char* fmt, Span<const Arg> args);
+void          Name(SrcLoc sl, Shader   shader,   const char* fmt, Span<const Arg> args);
+void          Name(SrcLoc sl, Pipeline pipeline, const char* fmt, Span<const Arg> args);
 
 template <class T, class... Args>
-void DbgNameF(T obj, SrcLoc sl, FmtStr<Args...> fmt, Args... args) {
-	DbgName(obj, sl, fmt, { MakeArg(args)..., });
+void NameF(SrcLoc sl, T obj, FmtStr<Args...> fmt, Args... args) {
+	Name(sl, obj, fmt, { MakeArg(args)..., });
 }
 
-//#define Gpu_DbgName(obj)            Gpu::DbgNameF(obj, SrcLoc::Here(), #obj)
-//#define Gpu_DbgNameF(obj, fmt, ...) Gpu::DbgNameF(obj, SrcLoc::Here(), fmt, ##__VA_ARGS__)
-
-#define Gpu_DbgName(obj)            
-#define Gpu_DbgNameF(obj, fmt, ...) 
+#define JC_GPU_NAME(obj)            Gpu::NameF(SrcLoc::Here(), obj, #obj)
+#define JC_GPU_NAMEF(obj, fmt, ...) Gpu::NameF(SrcLoc::Here(), obj, fmt, ##__VA_ARGS__)
 
 //--------------------------------------------------------------------------------------------------
 

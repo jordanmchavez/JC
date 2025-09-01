@@ -30,7 +30,7 @@ template <class... A> struct [[nodiscard]] Err_Vk : JC::Err {
 };
 template <typename... A> Err_Vk(VkResult, Str, A...) -> Err_Vk<A...>;
 
-#define CheckVk(expr) { \
+#define JC_CHECK_VK(expr) { \
 	if (const VkResult r = expr; r != VK_SUCCESS) { \
 		return Err_Vk(r, #expr); \
 	} \
@@ -46,34 +46,39 @@ struct SemaphoreSubmit {
 
 //--------------------------------------------------------------------------------------------------
 
-void                     LoadRootFns();
-void                     LoadInstanceFns(VkInstance vkInstance);
-void                     LoadDeviceFns(VkDevice vkDevice);
-void                     FreeFns();
-VkImageSubresourceLayers MakeVkImageSubresourceLayers(VkImageAspectFlags vkImageAspectFlags);
-ImageFormat              VkFormatToImageFormat(VkFormat vkFormat);
-VkFormat                 ImageFormatToVkFormat(ImageFormat imageFormat);
-Res<VkSemaphore>         CreateSemaphore();
-Res<VkSemaphore>         CreateTimelineSemaphore(U64 initialValue);
-Res<VkCommandPool>       CreateCommandPool(U32 queueFamily, VkCommandPoolCreateFlags flags);
-Res<>                    AllocCommandBuffers(VkCommandPool vkCommandPool, U32 n, VkCommandBuffer* vkOutCommandBuffers);
-Res<>                    WaitTimelineSemaphore(VkSemaphore vkTimelineSemaphore, U64 waitVal);
-Res<>                    BeginCommandBuffer(VkCommandBuffer vkCommandBuffer, VkCommandBufferUsageFlags vkCommandBufferUsageFlags);
-Res<>                    SubmitQueue(Mem::TempAllocator* tempAllocator, VkQueue vkQueue, Span<VkCommandBuffer> vkCommandBuffers, Span<SemaphoreSubmit> waits, Span<SemaphoreSubmit> signals);
-VkPipelineStageFlagBits2 BarrierStageToVkPipelineStageFlagBits2(BarrierStage::Flags stageFlags);
-VkAccessFlagBits2        BarrierStageToVkAccessFlagBits2(BarrierStage::Flags stageFlags);
-Str                      ColorSpaceStr(VkColorSpaceKHR c);
-Str                      FormatStr(VkFormat f);
-Str                      MemoryHeapFlagsStr(Mem::Allocator* allocator, VkMemoryHeapFlags f);
-Str                      MemoryPropertyFlagsStr(Mem::Allocator* allocator, VkMemoryPropertyFlags f);
-Str                      QueueFlagsStr(Mem::Allocator* allocator, VkQueueFlags f);
-Str                      PresentModeStr(VkPresentModeKHR m);
-Str                      ResultStr(VkResult r);
-Str                      PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
-Str                      VersionStr(Mem::Allocator* allocator, U32 v);
-Str                      SizeStr(Mem::Allocator* allocator, U64 size);
-U32                      FormatSize(VkFormat vkFormat);
-Bool                     IsDepthFormat(VkFormat vkFormat);
+void                  LoadRootFns();
+void                  LoadInstanceFns(VkInstance vkInstance);
+void                  LoadDeviceFns(VkDevice vkDevice);
+void                  FreeFns();
+
+ImageFormat           VkFormatToImageFormat(VkFormat vkFormat);
+VkFormat              ImageFormatToVkFormat(ImageFormat imageFormat);
+U32                   FormatSize(VkFormat vkFormat);
+Bool                  IsDepthFormat(VkFormat vkFormat);
+VkImageLayout         ImageLayoutToVkImageLayout(ImageLayout imageLayout);
+VkPipelineStageFlags2 BarrierStageFlagsToVkPipelineStageFlags2(BarrierStage::Flags barrierStageFlags);
+VkAccessFlags2        BarrierStageFlagsToVkAccessFlags2(BarrierStage::Flags barrierStageFlags);
+void                  ImageMemoryBarrier(
+	VkCommandBuffer          vkCommandBuffer,
+	VkImage                  vkImage,
+	VkPipelineStageFlags2    vkSrcPipelineStageFlags2,
+	VkAccessFlagBits2        vkSrcAccessFlagBits2,
+	VkImageLayout            vkSrcImageLayout,
+	VkPipelineStageFlagBits2 vkDstPipelineStageFlagBits2,
+	VkAccessFlagBits2        vkDstAccessFlagBits2,
+	VkImageLayout            vkDstImageLayout,
+	VkImageAspectFlags       vkImageAspectFlagBits
+);
+Str                   ColorSpaceStr(VkColorSpaceKHR c);
+Str                   FormatStr(VkFormat f);
+Str                   MemoryHeapFlagsStr(Mem::Allocator* allocator, VkMemoryHeapFlags f);
+Str                   MemoryPropertyFlagsStr(Mem::Allocator* allocator, VkMemoryPropertyFlags f);
+Str                   QueueFlagsStr(Mem::Allocator* allocator, VkQueueFlags f);
+Str                   PresentModeStr(VkPresentModeKHR m);
+Str                   ResultStr(VkResult r);
+Str                   PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
+Str                   VersionStr(Mem::Allocator* allocator, U32 v);
+Str                   SizeStr(Mem::Allocator* allocator, U64 size);
 
 //--------------------------------------------------------------------------------------------------
 

@@ -39,7 +39,7 @@ static void AppPanicFn(SrcLoc sl, const char* expr, const char* msg) {
 		iter = Fmt::Printf(iter, end, "{}\n", msg);
 	}
 	iter--;
-	Logf("{}", Str(buf, (U64)(iter - buf)));
+	JC_LOG("{}", Str(buf, (U64)(iter - buf)));
 
 	if (Sys::IsDebuggerPresent()) {
 		JC_DEBUGGER_BREAK();
@@ -173,17 +173,17 @@ static Res<> RunAppInternal(Fns* fns, int argc, const char** argv) {
 			if (Res<> r = Gpu::RecreateSwapchain(windowState.width, windowState.height); !r) {
 				return r;
 			}
-			Logf("Window size changed: {}x{} -> {}x{}", prevWindowState.width, prevWindowState.height, windowState.width, windowState.height);
+			JC_LOG("Window size changed: {}x{} -> {}x{}", prevWindowState.width, prevWindowState.height, windowState.width, windowState.height);
 		}
 
 		bool skipFrame = false;
-		Gpu::Image swapchainImage;
-		if (Res<> r = Gpu::BeginFrame().To(swapchainImage); !r) {
+		Gpu::Frame frame;
+		if (Res<> r = Gpu::BeginFrame().To(frame); !r) {
 			if (r.err == Gpu::EC_RecreateSwapchain) {
 				if (r = Gpu::RecreateSwapchain(windowState.width, windowState.height); !r) {
 					return r;
 				}
-				Logf("Recreated swapchain after BeginFrame() with w={}, h={}", windowState.width, windowState.height);
+				JC_LOG("Recreated swapchain after BeginFrame() with w={}, h={}", windowState.width, windowState.height);
 				skipFrame = true;
 			} else {
 				return r;
@@ -191,14 +191,14 @@ static Res<> RunAppInternal(Fns* fns, int argc, const char** argv) {
 		}
 		if (skipFrame) { continue; }
 
-		if (Res<> r = fns->Draw(swapchainImage); !r) { return r; }
+		if (Res<> r = fns->Draw(frame); !r) { return r; }
 		
 		if (Res<> r = Gpu::EndFrame(); !r) {
 			if (r.err == Gpu::EC_RecreateSwapchain) {
 				if (r = Gpu::RecreateSwapchain(windowState.width, windowState.height); !r) {
 					return r;
 				}
-				Logf("Recreated swapchain after BeginFrame() with w={}, h={}", windowState.width, windowState.height);
+				JC_LOG("Recreated swapchain after BeginFrame() with w={}, h={}", windowState.width, windowState.height);
 			} else {
 				return r;
 			}
@@ -222,7 +222,7 @@ void Shutdown(Fns* fns) {
 void Run(Fns* fns, int argc, const char** argv) {
 	if (Res<> r = RunAppInternal(fns, argc, argv); !r) {
 		if (logger) {
-			Errorf("{}", r.err.GetStr());
+			JC_LOG_ERROR("{}", r.err.GetStr());
 		}
 	}
 

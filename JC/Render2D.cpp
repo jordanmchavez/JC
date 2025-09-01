@@ -1,8 +1,8 @@
-#include "JC/Render.h"
+#include "JC/Render2D.h"
 
 #include "JC/Array.h"
 #include "JC/Bit.h"
-#include "JC/File.h"
+#include "JC/FS.h"
 #include "JC/Gpu.h"
 #include "JC/Hash.h"
 #include "JC/Json.h"
@@ -12,7 +12,7 @@
 
 #include "stb/stb_image.h"
 
-namespace JC::Render {
+namespace JC::Render2D {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -54,12 +54,6 @@ struct DrawCmd {
 	U32  textureIdx;
 };
 
-struct StagingMem {
-	void* ptr;
-	U32   offset;
-	U32   size;
-};
-
 //--------------------------------------------------------------------------------------------------
 
 static constexpr U32 MaxDrawCmds = 1 * 1024 * 1024;
@@ -70,20 +64,15 @@ static Mem::TempAllocator* tempAllocator;
 static Log::Logger*        logger;
 static U32                 windowWidth;
 static U32                 windowHeight;
-static U64                 frame;
-static U32                 frameIdx;
 static Gpu::Image          depthImage;
 static Gpu::Shader         vertexShader;
 static Gpu::Shader         fragmentShader;
 static Gpu::Pipeline       pipeline;
-static Gpu::Buffer         stagingBuffers[Gpu::MaxFrames];
-static void*               stagingBufferPtrs[Gpu::MaxFrames];
-static U32                 stagingBufferUsed[Gpu::MaxFrames];
 static Gpu::Buffer         sceneBuffer;
 static U64                 sceneBufferAddr;
 static Gpu::Buffer         drawCmdBuffer;
 static U64                 drawCmdBufferAddr;
-static StagingMem          drawCmdStagingMem;
+static DrawCmd*            drawCmds;
 static U32                 drawCmdCount;
 static Array<Gpu::Image>   spriteImages;
 static Array<SpriteObj>    spriteObjs;
@@ -93,7 +82,7 @@ static Map<Str, U32>       spriteObjsByName;
 
 static Res<Gpu::Shader> LoadShader(Str path) {
 	Span<U8> data;
-	if (Res<> r = File::ReadAll(tempAllocator, path).To(data); !r) { return r.err; }
+	if (Res<> r = FS::ReadAll(tempAllocator, path).To(data); !r) { return r.err; }
 	return Gpu::CreateShader(data.data, data.len);
 }
 
@@ -105,24 +94,25 @@ Res<> Init(const InitDesc* initDesc) {
 	logger        = initDesc->logger;
 	windowWidth   = initDesc->windowWidth;
 	windowHeight  = initDesc->windowHeight;
-	frameIdx      = 0;
 
-	if (Res<> r = Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::DepthAttachment).To(depthImage); !r) { return r; }
-	if (Res<> r = LoadShader("Shaders/Vert.spv").To(vertexShader); !r) { return r; }
-	if (Res<> r = LoadShader("Shaders/Frag.spv").To(fragmentShader); !r) { return r; }
-	if (Res<> r = Gpu::CreateGraphicsPipeline({ vertexShader, fragmentShader }, { Gpu::GetImageFormat(Gpu::GetSwapchainImage()) }, Gpu::ImageFormat::D32_Float).To(pipeline); !r) { return r; }
+	JC_CHECK_RES(Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(depthImage));
+	JC_GPU_NAME(depthImage);
 
-	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		if (Res<> r = Gpu::CreateBuffer(StagingBufferSize, Gpu::BufferUsage::Staging).To(stagingBuffers[i]); !r) { return r.err; }
-		if (Res<> r = Gpu::MapBuffer(stagingBuffers[i], 0, 0).To(stagingBufferPtrs[i]); !r) { return r.err; }
+	JC_CHECK_RES(LoadShader("Shaders/SpriteVert.spv").To(vertexShader));
+	JC_GPU_NAME(vertexShader);
+	JC_CHECK_RES(LoadShader("Shaders/SpriteFrag.spv").To(fragmentShader));
+	JC_GPU_NAME(fragmentShader);
 
-		if (Res<> r = Gpu::CreateBuffer(sizeof(Scene), Gpu::BufferUsage::Storage).To(sceneBuffers[i]); !r) { return r.err; }
-		sceneBufferAddrs[i] = Gpu::GetBufferAddr(sceneBuffers[i]);
+	JC_CHECK_RES(Gpu::CreateGraphicsPipeline({ vertexShader, fragmentShader }, { Gpu::GetSwapchainImageFormat() }, Gpu::ImageFormat::D32_Float).To(pipeline));
+	JC_GPU_NAME(pipeline);
 
-		if (Res<> r = Gpu::CreateBuffer(MaxDrawCmds * sizeof(DrawCmd), Gpu::BufferUsage::Storage).To(drawCmdBuffers[i]); !r) { return r.err; }
-		drawCmdBufferAddrs[i] = Gpu::GetBufferAddr(drawCmdBuffers[i]);
+	JC_CHECK_RES(Gpu::CreateBuffer(sizeof(Scene), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Addr | Gpu::BufferUsage::Copy).To(sceneBuffer));
+	JC_GPU_NAME(sceneBuffer);
+	sceneBufferAddr = Gpu::GetBufferAddr(sceneBuffer);
 
-	}
+	JC_CHECK_RES(Gpu::CreateBuffer(MaxDrawCmds * sizeof(DrawCmd), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Addr | Gpu::BufferUsage::Copy).To(drawCmdBuffer));
+	JC_GPU_NAME(drawCmdBuffer);
+	drawCmdBufferAddr = Gpu::GetBufferAddr(drawCmdBuffer);
 
 	spriteImages.Init(allocator);
 	spriteObjs.Init(allocator);
@@ -138,11 +128,8 @@ void Shutdown() {
 	for (U64 i = 0; i < spriteImages.len; i++) {
 		Gpu::DestroyImage(spriteImages[i]);
 	}
-	for (U64 i = 0; i < Gpu::MaxFrames; i++) {
-		Gpu::DestroyBuffer(stagingBuffers[i]);
-		Gpu::DestroyBuffer(sceneBuffers[i]);
-		Gpu::DestroyBuffer(drawCmdBuffers[i]);
-	}
+	Gpu::DestroyBuffer(sceneBuffer);
+	Gpu::DestroyBuffer(drawCmdBuffer);
 	Gpu::DestroyPipeline(pipeline);
 	Gpu::DestroyShader(vertexShader);
 	Gpu::DestroyShader(fragmentShader);
@@ -155,38 +142,19 @@ Res<> WindowResized(U32 inWindowWidth, U32 inWindowHeight) {
 	windowWidth  = inWindowWidth;
 	windowHeight = inWindowHeight;
 
-	if (Res<> r = Gpu::RecreateSwapchain(windowWidth, windowHeight); !r) {
-		return r;
-	}
-
+	JC_CHECK_RES(Gpu::RecreateSwapchain(windowWidth, windowHeight));
 	Gpu::WaitIdle();
 	Gpu::DestroyImage(depthImage);
-	if (Res<> r = Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::DepthAttachment).To(depthImage); !r) {
-		return r;
-	}
+	JC_CHECK_RES(Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(depthImage));
 
 	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static StagingMem AllocStagingMem(U32 size) {
-	stagingBufferUsed[frameIdx] = (U32)Bit::AlignUp(stagingBufferUsed[frameIdx], 8);
-	const U32 offset = stagingBufferUsed[frameIdx];
-	stagingBufferUsed[frameIdx] += size;
-	Assert(stagingBufferUsed[frameIdx] < StagingBufferSize);
-	return StagingMem {
-		.ptr    = ((U8*)stagingBufferPtrs[frameIdx]) + offset,
-		.offset = offset,
-		.size   = size,
-	};
-}
-
-//--------------------------------------------------------------------------------------------------
-
 static Res<Gpu::Image> LoadImage(Str path) {
 	Span<U8> data;
-	if (Res<> r = File::ReadAll(Mem::tempAllocator, path).To(data); !r) { return r.err; }
+	if (Res<> r = FS::ReadAll(tempAllocator, path).To(data); !r) { return r.err; }
 
 	int width = 0;
 	int height = 0;
@@ -195,36 +163,30 @@ static Res<Gpu::Image> LoadImage(Str path) {
 	if (!imageData) {
 		return Err_LoadImage("path", path, "desc", stbi_failure_reason());
 	}
+	JC_DEFER { stbi_image_free(imageData); };
+
 	if (channels != 3 && channels != 4) {
 		return Err_ImageFmt("path", path, "channels", channels);
 	}
 
-	const StagingMem stagingMem = AllocStagingMem(width * height * 4);
-
-	if (channels == 4) {
-		memcpy(stagingMem.ptr, imageData, width * height * channels);
-	} else {
-		U8* in = imageData;
-		U8* out = (U8*)stagingMem.ptr;
+	U8* copySrc = imageData;
+	if (channels != 4) {
+		copySrc = (U8*)tempAllocator->Alloc(width * height * 4);
+		U8* imageDataIter = imageData;
+		U8* copySrcIter   = copySrc;
 		for (int y = 0; y < height; y++) {
 			for (int x = 0; x < width; x++) {
-				*out++ = *in++;
-				*out++ = *in++;
-				*out++ = *in++;
-				*out++ = 0xff;
+				*copySrcIter++ = *imageDataIter++;
+				*copySrcIter++ = *imageDataIter++;
+				*copySrcIter++ = *imageDataIter++;
+				*copySrcIter++ = 0xff;
 			}
 		}
 	}
-	stbi_image_free(imageData);
 
 	Gpu::Image image;
-	if (Res<> r = Gpu::CreateImage(width, height, Gpu::ImageFormat::R8G8B8A8_UNorm, Gpu::ImageUsage::Sampled).To(image); !r) {
-		return r.err;
-	}
-
-	Gpu::ImageBarrier(image, Gpu::Stage::None, Gpu::Stage::TransferDst);
-	Gpu::CopyBufferToImage(stagingBuffers[frameIdx], stagingMem.offset, image);
-	Gpu::ImageBarrier(image, Gpu::Stage::TransferDst, Gpu::Stage::FragmentShaderSample);
+	JC_CHECK_RES(Gpu::CreateImage(width, height, Gpu::ImageFormat::R8G8B8A8_UNorm, Gpu::ImageUsage::Sampled | Gpu::ImageUsage::Copy).To(image));
+	JC_CHECK_RES(Gpu::ImmediateCopyToImage(copySrc, image, Gpu::BarrierStage::VertexShader_SamplerRead, Gpu::ImageLayout::ShaderRead));
 
 	return image;
 }
@@ -234,11 +196,11 @@ static Res<Gpu::Image> LoadImage(Str path) {
 Res<> LoadSpriteAtlas(Str imagePath, Str atlasPath) {
 	Gpu::Image image;
 	if (Res<> r = LoadImage(imagePath).To(image); !r) { return r; }
-	const U32 imageIdx = Gpu::BindImage(image);
+	const U32 imageIdx = Gpu::GetImageBindIdx(image);
 	spriteImages.Add(image);
 
 	Span<U8> data;
-	if (Res<> r = File::ReadAll(Mem::tempAllocator, atlasPath).To(data); !r) { return r.err; }	// TODO: ctx
+	if (Res<> r = FS::ReadAll(Mem::tempAllocator, atlasPath).To(data); !r) { return r.err; }	// TODO: ctx
 	Json::Doc* doc = 0;
 	if (Res<> r = Json::Parse(Mem::tempAllocator, Mem::tempAllocator, Str((const char*)data.data, data.len)).To(doc); !r) { return r.err; }	// TODO: ctx
 
@@ -262,7 +224,7 @@ Res<> LoadSpriteAtlas(Str imagePath, Str atlasPath) {
 		const U64 ih   = Json::GetU64(doc, obj.vals[3]);
 		const Str name = Json::GetStr(doc, obj.vals[4]);
 
-		const F32 imageWidth = (F32)Gpu::GetImageWidth(image);
+		const F32 imageWidth  = (F32)Gpu::GetImageWidth(image);
 		const F32 imageHeight = (F32)Gpu::GetImageHeight(image);
 		const F32 x = (F32)ix / imageWidth;
 		const F32 y = (F32)iy / imageHeight;
@@ -299,65 +261,64 @@ Res<Sprite> GetSprite(Str name) {
 //--------------------------------------------------------------------------------------------------
 
 Vec2 GetSpriteSize(Sprite sprite) {
-	Assert(sprite.handle < spriteObjs.len);
+	JC_ASSERT(sprite.handle < spriteObjs.len);
 	return spriteObjs[sprite.handle].size;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void BeginFrame() {
-	frame++;
-	frameIdx = Gpu::GetFrameIdx();
-	drawCmdStagingMem = AllocStagingMem(MaxDrawCmds * sizeof(DrawCmd));
+static Gpu::Frame frame;
+
+void BeginFrame(Gpu::Frame inFrame) {
+	frame = inFrame;
+	drawCmds = (DrawCmd*)Gpu::AllocStaging(MaxDrawCmds * sizeof(DrawCmd));
 	drawCmdCount = 0;
 }
 
 //--------------------------------------------------------------------------------------------------
 
 void EndFrame() {
-	const Gpu::Image swapchainImage = Gpu::GetSwapchainImage();
-
-	StagingMem sceneStagingMem = AllocStagingMem(sizeof(Scene));
-	Scene* scene = (Scene*)sceneStagingMem.ptr;
+	Scene* const scene = (Scene*)Gpu::AllocStaging(sizeof(Scene));
 	scene->projView = Math::Ortho(
 		0.0f, (F32)windowWidth,
 		(F32)windowHeight, 0.0f,
 		-100.0f, 100.0f
 	);
-	scene->drawCmdBufferAddr = drawCmdBufferAddrs[frameIdx];
-	Gpu::BufferBarrier(sceneBuffers[frameIdx], Gpu::Stage::VertexShaderRead, Gpu::Stage::TransferDst);
-	Gpu::CopyBuffer(stagingBuffers[frameIdx], sceneStagingMem.offset, sceneBuffers[frameIdx], 0, sceneStagingMem.size);
-	Gpu::BufferBarrier(sceneBuffers[frameIdx], Gpu::Stage::TransferDst, Gpu::Stage::VertexShaderRead);
+	scene->drawCmdBufferAddr = drawCmdBufferAddr;
 
-	Gpu::BufferBarrier(drawCmdBuffers[frameIdx], Gpu::Stage::VertexShaderRead, Gpu::Stage::TransferDst);
-	Gpu::CopyBuffer(stagingBuffers[frameIdx], drawCmdStagingMem.offset, drawCmdBuffers[frameIdx], 0, drawCmdCount * sizeof(DrawCmd));
-	Gpu::BufferBarrier(drawCmdBuffers[frameIdx], Gpu::Stage::TransferDst, Gpu::Stage::VertexShaderRead);
+	Gpu::BufferBarrier(sceneBuffer, 0, sizeof(Scene), Gpu::BarrierStage::VertexShader_StorageRead, Gpu::BarrierStage::Copy_Write);
+	Gpu::CopyStagingToBuffer(scene, sizeof(Scene), sceneBuffer, 0);
+	Gpu::BufferBarrier(sceneBuffer, 0, sizeof(Scene), Gpu::BarrierStage::Copy_Write, Gpu::BarrierStage::VertexShader_StorageRead);
+
+	Gpu::BufferBarrier(drawCmdBuffer, 0, drawCmdCount * sizeof(DrawCmd), Gpu::BarrierStage::VertexShader_StorageRead, Gpu::BarrierStage::Copy_Write);
+	Gpu::CopyStagingToBuffer(drawCmds, drawCmdCount * sizeof(DrawCmd), drawCmdBuffer, 0);
+	Gpu::BufferBarrier(drawCmdBuffer, 0, drawCmdCount * sizeof(DrawCmd), Gpu::BarrierStage::Copy_Write, Gpu::BarrierStage::VertexShader_StorageRead);
 
 	const Gpu::Pass pass = {
 		.pipeline         = pipeline,
-		.colorAttachments = { swapchainImage },
+		.colorAttachments = { frame.swapchainImage },
 		.depthAttachment  = depthImage,
 		.viewport         = { .x = 0.0f, .y = 0.0f, .w = (F32)windowWidth, .h = (F32)windowHeight },
 		.scissor          = { .x = 0,    .y = 0,    .w = windowWidth,      .h = windowHeight },
 		.clear            = true,
 	};
 	Gpu::BeginPass(&pass);
-	PushConstants pushConstants = { .sceneBufferAddr = sceneBufferAddrs[frameIdx] };
+	PushConstants pushConstants = { .sceneBufferAddr = sceneBufferAddr };
 	Gpu::PushConstants(pipeline, &pushConstants, sizeof(pushConstants));
 	Gpu::Draw(6, (U32)drawCmdCount);
 	Gpu::EndPass();
-
-	stagingBufferUsed[frameIdx] = 0;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-DrawCmd* AllocDrawCmds(U32 n) {
-	Assert(drawCmdCount + n < MaxDrawCmds);
-	DrawCmd* drawCmds = (DrawCmd*)(((U8*)drawCmdStagingMem.ptr) + (drawCmdCount * sizeof(DrawCmd)));
+static DrawCmd* AllocDrawCmds(U32 n) {
+	JC_ASSERT(drawCmdCount + n < MaxDrawCmds);
+	DrawCmd* ptr = drawCmds + drawCmdCount;
 	drawCmdCount += n;
-	return drawCmds;
+	return ptr;
 }
+
+//--------------------------------------------------------------------------------------------------
 
 void DrawSprite(Sprite sprite, Vec2 pos) {
 	SpriteObj* const spriteObj = &spriteObjs[sprite.handle];
@@ -374,7 +335,6 @@ void DrawSprite(Sprite sprite, Vec2 pos) {
 		.textureIdx   = spriteObj->imageIdx,
 	};
 }
-
 void DrawSprite(Sprite sprite, Vec2 pos, F32 size, F32 rotation, Vec4 color) {
 	SpriteObj* const spriteObj = &spriteObjs[sprite.handle];
 	*AllocDrawCmds(1) =  {
@@ -408,4 +368,4 @@ void DrawRect(Vec2 pos, Vec2 size, Vec4 color, Vec4 borderColor, F32 border, F32
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Render
+}	// namespace JC::Render2D

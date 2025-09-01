@@ -25,8 +25,10 @@ void VPanic(SrcLoc sl, const char* expr, const char* fmt, Span<const Arg> args) 
 	recursive = true;
 
 	if (panicFn) {
-		char msg[2048];
-		*Fmt::VPrintf(msg, msg + JC_LENOF(msg) - 1, fmt, args) = '\0';
+		char msg[2048] = {};
+		if (fmt) {
+			*Fmt::VPrintf(msg, msg + JC_LENOF(msg) - 1, fmt, args) = '\0';
+		}
 		panicFn(sl, expr, msg);
 	} else {
 		if (Sys::IsDebuggerPresent()) {

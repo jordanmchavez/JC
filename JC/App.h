@@ -5,7 +5,7 @@
 namespace JC::Log { struct Logger; } 
 namespace JC::Event { struct Event; }
 namespace JC::Window { struct State; }
-namespace JC::Gpu { struct Cmd; struct Image; }
+namespace JC::Gpu { struct Frame; }
 
 namespace JC::App {
 
@@ -25,7 +25,7 @@ struct Fns {
 	void  (*Shutdown)();
 	Res<> (*Events)(Span<Event::Event> events);
 	Res<> (*Update)(double secs);
-	Res<> (*Draw)(Gpu::Image swapchainImage);
+	Res<> (*Draw)(Gpu::Frame frame);
 };
 
 void Run(Fns* fns, int argc, const char** argv);

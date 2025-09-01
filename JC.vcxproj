@@ -137,6 +137,7 @@
     <ClInclude Include="JC\Random.h" />
     <ClInclude Include="JC\Gpu.h" />
     <ClInclude Include="JC\Gpu_Vk.h" />
+    <ClInclude Include="JC\Render2D.h" />
     <ClInclude Include="JC\StrDb.h" />
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Sys_Win.h" />
@@ -151,7 +152,7 @@
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
     <ClCompile Include="JC\App.cpp" />
-    <ClCompile Include="JC\App_3D.cpp" />
+    <ClCompile Include="JC\App_Shmup.cpp" />
     <ClCompile Include="JC\Array.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
     <ClCompile Include="JC\Camera.cpp" />
@@ -159,6 +160,7 @@
     <ClCompile Include="JC\Err.cpp" />
     <ClCompile Include="JC\Mem.cpp" />
     <ClCompile Include="JC\Panic.cpp" />
+    <ClCompile Include="JC\Render2D.cpp" />
     <ClCompile Include="JC\Str.cpp" />
     <ClCompile Include="JC\Entity.cpp" />
     <ClCompile Include="JC\Event.cpp" />

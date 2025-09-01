@@ -73,6 +73,7 @@ template <class T, class H, U32 N> struct HandlePool {
 		}
 
 		Entry* const entry = &entries[i];
+		memset(&entry->obj, 0, sizeof(entry->obj));
 		entry->gen = gen;
 		entry->idx = i;
 

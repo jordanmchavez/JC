@@ -110,10 +110,10 @@ Bool Run(Mem::TempAllocator* tempAllocatorIn, Log::Logger* loggerIn) {
 			lastStr.len -= 2;
 
 			if (checkFails > 0) {
-				Logf("Failed: {}", Str(lastStr.data, lastStr.len));
+				JC_LOG("Failed: {}", Str(lastStr.data, lastStr.len));
 				failedTests++;
 			} else {
-				Logf("Passed: {}", Str(lastStr.data, lastStr.len));
+				JC_LOG("Passed: {}", Str(lastStr.data, lastStr.len));
 				passedTests++;
 			}
 
@@ -122,52 +122,52 @@ Bool Run(Mem::TempAllocator* tempAllocatorIn, Log::Logger* loggerIn) {
 		} while (nextLen > 0);
 	}
 
-	Logf("Total passed: {}", passedTests);
-	Logf("Total failed: {}", failedTests);
+	JC_LOG("Total passed: {}", passedTests);
+	JC_LOG("Total failed: {}", failedTests);
 	return failedTests == 0;
 }
 
 Bool CheckFailImpl(SrcLoc sl) {
-	Logf("***CHECK FAILED***");
-	Logf("{}({})", sl.file, sl.line);
+	JC_LOG("***CHECK FAILED***");
+	JC_LOG("{}({})", sl.file, sl.line);
 	checkFails++;
 	return false;
 }
 
 Bool CheckExprFail(SrcLoc sl, Str expr) {
-	Logf("***CHECK FAILED***");
-	Logf("{}({})", sl.file, sl.line);
-	Logf("  {}\n", expr);
+	JC_LOG("***CHECK FAILED***");
+	JC_LOG("{}({})", sl.file, sl.line);
+	JC_LOG("  {}\n", expr);
 	checkFails++;
 	return false;
 }
 
 Bool CheckRelFail(SrcLoc sl, Str expr, Arg x, Arg y) {
-	Logf("***CHECK FAILED***");
-	Logf("{}({})", sl.file, sl.line);
-	Logf("  {}", expr);
-	Logf("  l: {}", x);
-	Logf("  r: {}\n", y);
+	JC_LOG("***CHECK FAILED***");
+	JC_LOG("{}({})", sl.file, sl.line);
+	JC_LOG("  {}", expr);
+	JC_LOG("  l: {}", x);
+	JC_LOG("  r: {}\n", y);
 	checkFails++;
 	return false;
 }
 
 Bool CheckSpanEqFail_Len(SrcLoc sl, Str expr, U64 xLen, U64 yLen) {
-	Logf("***CHECK FAILED***");
-	Logf("{}({})", sl.file, sl.line);
-	Logf("  {}", expr);
-	Logf("  l len: {}", xLen);
-	Logf("  r len: {}\n", yLen);
+	JC_LOG("***CHECK FAILED***");
+	JC_LOG("{}({})", sl.file, sl.line);
+	JC_LOG("  {}", expr);
+	JC_LOG("  l len: {}", xLen);
+	JC_LOG("  r len: {}\n", yLen);
 	checkFails++;
 	return false;
 }
 
 Bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, U64 i, Arg x, Arg y) {
-	Logf("***CHECK FAILED***");
-	Logf("{}({})", sl.file, sl.line);
-	Logf("  {}", expr);
-	Logf("  l[{}]: {}", i, x);
-	Logf("  r[{}]: {}\n", i, y);
+	JC_LOG("***CHECK FAILED***");
+	JC_LOG("{}({})", sl.file, sl.line);
+	JC_LOG("  {}", expr);
+	JC_LOG("  l[{}]: {}", i, x);
+	JC_LOG("  r[{}]: {}\n", i, y);
 	checkFails++;
 	return false;
 }

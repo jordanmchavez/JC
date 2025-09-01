@@ -3,7 +3,7 @@
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_buffer_reference     : require
 
-#include "Common.glsl"
+#include "SpriteCommon.glsl"
 
 layout (location = 0)      out vec2  uvOut;
 layout (location = 1)      out vec2  sdfPosOut;
@@ -29,7 +29,6 @@ void main() {
 	vec2 offset = offsets[idx];
 	vec2 worldPos = drawCmd.pos + (offset * drawCmd.size);
 	gl_Position = pushConstants.sceneBuffer.projView * vec4(worldPos, 0.0f, 1.0f);
-
 	uvOut = vec2(
 		drawCmd.uv1.x * (1.0f - offset.x) + (drawCmd.uv2.x * offset.x),
 		drawCmd.uv1.y * (1.0f - offset.y) + (drawCmd.uv2.y * offset.y)
@@ -41,5 +40,4 @@ void main() {
 	borderOut       = drawCmd.border;
 	cornerRadiusOut = drawCmd.cornerRadius;
 	textureIdxOut   = drawCmd.textureIdx;
-
 }

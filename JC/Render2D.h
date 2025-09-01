@@ -3,8 +3,9 @@
 #include "JC/Core.h"
 
 namespace JC::Log { struct Logger; }
+namespace JC::Gpu { struct Frame; }
 
-namespace JC::Render {
+namespace JC::Render2D {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -26,7 +27,7 @@ Res<>       LoadSpriteAtlas(Str imagePath, Str atlasPath);
 Res<Sprite> GetSprite(Str name);
 Vec2        GetSpriteSize(Sprite sprite);
 
-void        BeginFrame();
+void        BeginFrame(Gpu::Frame frame);
 void        EndFrame();
 
 void        DrawSprite(Sprite sprite, Vec2 pos);
@@ -35,4 +36,4 @@ void        DrawRect(Vec2 pos, Vec2 size, Vec4 color, Vec4 borderColor, F32 bord
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Render
+}	// namespace JC::Render2D

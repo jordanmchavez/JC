@@ -114,14 +114,7 @@ static Res<> PreInit(Mem::Allocator* allocatorIn, Mem::TempAllocator* tempAlloca
 
 static Res<U32> UploadVertices(Span<const Vertex> vertices) {
 	JC_ASSERT(verticesUsed + vertices.len <= MaxVertices);
-	CheckRes(Gpu::UploadToBuffer(
-		vertexBuffer,
-		verticesUsed * sizeof(Vertex),
-		vertices.data,
-		vertices.len * sizeof(Vertex),
-		Gpu::BarrierStage::None,
-		Gpu::BarrierStage::VertexShader_StorageRead
-	));
+	JC_CHECK_RES(Gpu::ImmediateCopyToBuffer(vertices.data, vertices.len * sizeof(Vertex), vertexBuffer, verticesUsed * sizeof(Vertex)));
 	const U32 offset = verticesUsed;
 	verticesUsed += (U32)vertices.len;
 	return offset;
@@ -131,14 +124,7 @@ static Res<U32> UploadVertices(Span<const Vertex> vertices) {
 
 static Res<U32> UploadIndices(Span<const U32> indices) {
 	JC_ASSERT(indicesUsed + indices.len <= MaxIndices);
-	CheckRes(Gpu::UploadToBuffer(
-		indexBuffer,
-		indicesUsed * sizeof(U32),
-		indices.data,
-		indices.len * sizeof(U32),
-		Gpu::BarrierStage::None,
-		Gpu::BarrierStage::IndexInput_Read
-	));
+	JC_CHECK_RES(Gpu::ImmediateCopyToBuffer(indices.data, indices.len * sizeof(U32), indexBuffer, indicesUsed * sizeof(U32)));
 	const U32 offset = indicesUsed;
 	indicesUsed += (U32)indices.len;
 	return offset;
@@ -159,7 +145,7 @@ static Res<Mesh> CreateCube() {
 		{ .pos = { -r, -r, -r } },
 	};
 	U32 vertexOffset = 0;
-	CheckRes(UploadVertices(vertices).To(vertexOffset));
+	JC_CHECK_RES(UploadVertices(vertices).To(vertexOffset));
 
 	constexpr U32 indices[] = {
 		0, 1, 2,
@@ -176,7 +162,7 @@ static Res<Mesh> CreateCube() {
 		3, 6, 7,
 	};
 	U32 indexOffset = 0;
-	CheckRes(UploadIndices(indices).To(indexOffset));
+	JC_CHECK_RES(UploadIndices(indices).To(indexOffset));
 
 	return Mesh {
 		.vertexOffset = vertexOffset,
@@ -220,16 +206,16 @@ static Res<Gpu::Shader> LoadShader(Str path) {
 static Res<> Init(const Window::State* windowState) {
 	windowState;
 
-	CheckRes(Gpu::CreateImage(windowState->width, windowState->height, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(depthImage));
-	Gpu_DbgName(depthImage);
+	JC_CHECK_RES(Gpu::CreateImage(windowState->width, windowState->height, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(depthImage));
+	JC_GPU_NAME(depthImage);
 
-	CheckRes(Gpu::CreateBuffer(MaxVertices * sizeof(Vertex), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Upload | Gpu::BufferUsage::Addr).To(vertexBuffer));
+	JC_CHECK_RES(Gpu::CreateBuffer(MaxVertices * sizeof(Vertex), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Upload | Gpu::BufferUsage::Addr).To(vertexBuffer));
 	vertexBufferAddr = Gpu::GetBufferAddr(vertexBuffer);
-	Gpu_DbgName(vertexBuffer);
+	JC_GPU_NAME(vertexBuffer);
 
-	CheckRes(Gpu::CreateBuffer(MaxIndices * sizeof(U32), Gpu::BufferUsage::Index | Gpu::BufferUsage::Upload | Gpu::BufferUsage::Addr).To(indexBuffer));
+	JC_CHECK_RES(Gpu::CreateBuffer(MaxIndices * sizeof(U32), Gpu::BufferUsage::Index | Gpu::BufferUsage::Upload | Gpu::BufferUsage::Addr).To(indexBuffer));
 	indexBufferAddr = Gpu::GetBufferAddr(indexBuffer);
-	Gpu_DbgName(indexBuffer);
+	JC_GPU_NAME(indexBuffer);
 
 	/*
 	CheckRes(Gpu::CreateBuffer(permPool, MaxMaterials * sizeof(Material), Gpu::BufferUsage::Storage | Gpu::BufferUsage::CopySrc, Gpu::MemUsage::CpuWrite).To(materialBuffer));
@@ -249,11 +235,11 @@ static Res<> Init(const Window::State* windowState) {
 	Gpu_DbgName(drawIndirectBuffer, "drawIndirect");
 	*/
 
-	CheckRes(CreateCube().To(cube));
+	JC_CHECK_RES(CreateCube().To(cube));
 	//CheckRes(CreateSphere());
 	//CheckRes(CreateIcosahedron());
 	//CheckRes(CreateTorus());
-	CheckRes(Gpu::WaitForUploads());
+	JC_CHECK_RES(Gpu::ImmediateWait());
 /*	Gpu::CmdImageBarrier(
 		cmd,
 		depthImage,
@@ -323,8 +309,8 @@ static Res<> Update(double secs) {
 
 //--------------------------------------------------------------------------------------------------
 
-static Res<> Draw(Gpu::Image swapchainImage) {
-swapchainImage;
+static Res<> Draw(Gpu::Frame frame) {
+	frame;
 /*
 	const Mat4 view = Math::Look(camera.pos, camera.x, camera.y, camera.z);
 	const Mat4 proj = Math::Perspective(Math::DegToRad(camera.fov), camera.aspect, 0.01f, 100000000.0f);

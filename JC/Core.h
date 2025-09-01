@@ -576,7 +576,7 @@ template <class T> struct [[nodiscard]] Res {
 
 constexpr Res<> Ok() { return Res<>(); }
 
-#define CheckRes(Code) \
+#define JC_CHECK_RES(Code) \
 	if (Res<> _r = Code; !_r) { \
 		return _r.err.Push(Err("", "", SrcLoc::Here())); \
 	}
