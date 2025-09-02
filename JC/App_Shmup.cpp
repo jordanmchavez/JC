@@ -31,6 +31,7 @@ struct ParticleType {
 	// stretch animation over particle lifetime, or repeat, or runonce
 	// use random subimage
 	Draw::Sprite    sprite;
+	Vec2            spriteSize;
 	F32             scaleMin;
 	F32             scaleMax;
 	F32             scaleInc;
@@ -84,8 +85,9 @@ struct ParticleEmitter {
 	F32                         emitAccum;
 };
 
-static constexpr Vec2 CanvasSize = { 300.0f, 200.0f };
-static constexpr F32 ShipFireCooldown = 0.2f;
+static constexpr Vec2 CanvasSize       = { 300.0f, 200.0f };
+static constexpr F32  CanvasScale      = 5.f;
+static constexpr F32  ShipFireCooldown = 0.1f;
 
 struct Ship {
 	Vec2          pos               = {};
@@ -102,7 +104,6 @@ struct Bullet {
 	Vec2 pos;
 	Vec2 speed;
 };
-
 
 static Mem::Allocator*        allocator; 
 static Mem::TempAllocator*    tempAllocator; 
@@ -154,8 +155,9 @@ static void UpdateParticleEmitter(F32 secs, ParticleEmitter* emitter) {
 		Particle* const p = t->particles.Add();
 		switch (emitter->shape) {
 			case ParticleEmitterShape::Rectangle: {
-				p->pos.x = emitter->pos.x + Math::Lerp(emitter->minX, emitter->maxX, Random::NextF32());
-				p->pos.y = emitter->pos.y + Math::Lerp(emitter->minY, emitter->maxY, Random::NextF32());
+				p->pos.x = emitter->pos.x + Math::Lerp(emitter->minX, emitter->maxX, Random::NextF32()) - (t->spriteSize.x / 2) + 0.5f;
+				p->pos.y = emitter->pos.y + Math::Lerp(emitter->minY, emitter->maxY, Random::NextF32()) - (t->spriteSize.x / 2) + 0.5f;
+
 				break;
 			}
 			case ParticleEmitterShape::Ellipse: {
@@ -232,7 +234,8 @@ static Res<> Init(const Window::State* windowState) {
 	JC_CHECK_RES(Draw::GetSprite("Bullet").To(bulletSprite));
 
 	ship.size = Draw::GetSpriteSize(ship.spriteNotMoving);
-	ship.speed = { 300.0f, 300.0f };
+	ship.pos   = { CanvasSize.x / 2.f, CanvasSize.y / 2.f };
+	ship.speed = { 150.0f, 150.0f };
 	ship.sprite = &ship.spriteNotMoving;
 		
 	bulletSize = Draw::GetSpriteSize(bulletSprite);
@@ -245,17 +248,18 @@ static Res<> Init(const Window::State* windowState) {
 
 	ParticleType* const type = particleTypes.Add();
 	if (Res<> r = Draw::GetSprite("Particle1").To(type->sprite); !r) { return r; }
+	type->spriteSize        = Draw::GetSpriteSize(type->sprite);
 	type->scaleMin          = 0.25f;
 	type->scaleMax          = 1.0f;
 	type->scaleInc          = 1.0f;
 	//type->sizeWiggle        = ;
-	type->speedMin          = 20.0f;
-	type->speedMax          = 40.0f;
+	type->speedMin          = 40.0f;
+	type->speedMax          = 80.0f;
 	type->speedInc          = -0.0f;
 	//type->speedWiggle       = ;
-	type->angleMin          = 270.0f - 30.0f;
-	type->angleMax          = 270.0f + 30.0f;
-	type->angleInc          = 100.0f;
+	type->angleMin          = 90.0f - 30.0f;
+	type->angleMax          = 90.0f + 30.0f;
+	type->angleInc          = 0.0f;//100.0f;
 	//type->angleWiggle       = ;
 	//type->gravityAngle      = ;
 	//type->gravityAmount     = ;
@@ -267,8 +271,8 @@ static Res<> Init(const Window::State* windowState) {
 	type->color1            = Vec4(1.0f, 1.0f, 1.0f, 1.0f);
 	type->color2            = Vec4(1.0f, 1.0f, 1.0f, 0.5f);
 	type->color3            = Vec4(1.0f, 1.0f, 1.0f, 0.0f);
-	type->lifeMin           = 2.0f;
-	type->lifeMax           = 4.0f;
+	type->lifeMin           = 0.5f;
+	type->lifeMax           = 1.0f;
 	type->particles.Init(allocator);
 
 	ParticleEmitter* const emitter = particleEmitters.Add();
@@ -373,15 +377,14 @@ static Res<> Update(double secs) {
 		if (ship.fireCooldown <= 0.0f) {
 				
 			bullets.Add(Bullet {
-				.pos   = { ship.pos.x, ship.pos.y + (ship.size.y / 2.0f) - (bulletSize.y / 2.0f) },
-				.speed = { 0.0f, -120.0f },
+				.pos   = { ship.pos.x + (ship.size.x / 2.f) - (bulletSize.x / 2.f), ship.pos.y },
+				.speed = { 0.0f, -100.0f },
 			});
 			ship.fireCooldown = ShipFireCooldown;
 		}
 	}
 
-	particleEmitters[emitterIdx].pos = ship.pos;
-	//particleEmitters[emitterIdx].pos.y -= ship.size.y / 2.0f;
+	particleEmitters[emitterIdx].pos = Vec2(ship.pos.x + (ship.size.x / 2.f), ship.pos.y + ship.size.y);
 
 	return Ok();
 }
@@ -406,7 +409,7 @@ static Res<> Draw(Gpu::Frame frame) {
 	}
 
 	Draw::SetCanvas();
-	Draw::DrawCanvas(canvas, Vec2(80.f, 60.f), Vec2(3.f, 3.f));
+	Draw::DrawCanvas(canvas, Vec2(80.f, 60.f), Vec2(CanvasScale, CanvasScale));
 
 	Draw::EndFrame();
 	return Ok();
