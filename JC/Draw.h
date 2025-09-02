@@ -34,7 +34,7 @@ void        DestroyCanvas(Canvas canvas);
 void        BeginFrame(Gpu::Frame frame);
 void        EndFrame();
 
-void        SetCanvas(Canvas canvas);
+void        SetCanvas(Canvas canvas = Canvas());
 
 void        DrawSprite(Sprite sprite, Vec2 pos);
 void        DrawSprite(Sprite sprite, Vec2 pos, Vec2 scale, F32 rotation, Vec4 color);

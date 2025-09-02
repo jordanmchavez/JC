@@ -61,6 +61,7 @@ enum struct ImageFormat {
 
 enum struct ImageLayout {
 	Undefined = 0,
+	Color,
 	ShaderRead,
 	CopyDst,
 };

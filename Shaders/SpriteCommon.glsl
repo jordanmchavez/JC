@@ -4,7 +4,7 @@
 
 struct DrawCmd {
 	vec2  pos;
-	vec2  scale;
+	vec2  size;
 	vec2  uv1;
 	vec2  uv2;
 	vec4  color;
@@ -20,8 +20,7 @@ layout (buffer_reference, scalar) readonly buffer DrawCmdBuffer {
 };
 
 layout (buffer_reference, scalar) readonly buffer SceneBuffer {
-	mat4          projView;
-	DrawCmdBuffer drawCmdBuffer;
+	mat4 projViews[];
 };
 
 layout (set = 0, binding = 0) uniform texture2D bindlessTextures[];
@@ -31,5 +30,8 @@ layout (set = 0, binding = 1) uniform sampler   bindlessSamplers[];
 #define SamplerId_Linear 1
 
 layout (push_constant) uniform PushConstants {
-	SceneBuffer sceneBuffer;
+	SceneBuffer   sceneBuffer;
+	DrawCmdBuffer drawCmdBuffer;
+	uint          sceneBufferIdx;
+	uint          drawCmdStart;
 } pushConstants;

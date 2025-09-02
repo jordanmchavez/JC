@@ -342,6 +342,7 @@ Bool IsDepthFormat(VkFormat vkFormat) {
 VkImageLayout ImageLayoutToVkImageLayout(ImageLayout imageLayout) {
 	switch (imageLayout) {
 		case ImageLayout::Undefined:  return VK_IMAGE_LAYOUT_UNDEFINED;
+		case ImageLayout::Color:      return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		case ImageLayout::ShaderRead: return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		case ImageLayout::CopyDst:    return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		default:                      JC_PANIC("Unhandled ImageLayout {}", imageLayout);

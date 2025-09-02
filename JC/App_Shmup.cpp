@@ -30,7 +30,7 @@ struct ParticleType {
 	// animated
 	// stretch animation over particle lifetime, or repeat, or runonce
 	// use random subimage
-	Draw::Sprite sprite;
+	Draw::Sprite    sprite;
 	F32             scaleMin;
 	F32             scaleMax;
 	F32             scaleInc;
@@ -84,18 +84,18 @@ struct ParticleEmitter {
 	F32                         emitAccum;
 };
 
-static constexpr Vec2 PlayAreaVirtualSize = { 800.0f, 900.0f };
+static constexpr Vec2 CanvasSize = { 300.0f, 200.0f };
 static constexpr F32 ShipFireCooldown = 0.2f;
 
 struct Ship {
-	Vec2              pos                              = {};
-	Vec2              speed                            = {};
-	Vec2              size                             = {};
-	F32               fireCooldown                     = 0.0f;
-	Draw::Sprite  spriteNotMoving                  = {};
-	Draw::Sprite  spriteMovingLeft                 = {};
-	Draw::Sprite  spriteMovingRight                = {};
-	Draw::Sprite* sprite                           = 0;
+	Vec2          pos               = {};
+	Vec2          speed             = {};
+	Vec2          size              = {};
+	F32           fireCooldown      = 0.0f;
+	Draw::Sprite  spriteNotMoving   = {};
+	Draw::Sprite  spriteMovingLeft  = {};
+	Draw::Sprite  spriteMovingRight = {};
+	Draw::Sprite* sprite            = 0;
 };
 
 struct Bullet {
@@ -104,20 +104,21 @@ struct Bullet {
 };
 
 
-Mem::Allocator*        allocator                     = 0;
-Mem::TempAllocator*    tempAllocator                 = 0;
-Log::Logger*           logger                        = 0;
-F32                    windowWidth                   = 0.0f;
-F32                    windowHeight                  = 0.0f;
-Bool                   keyDown[(U32)Event::Key::Max] = {};
-Ship                   ship                          = {};
-Draw::Sprite       bulletSprite                  = {};
-Vec2                   bulletSize                    = {};
-Array<Bullet>          bullets                       = {};
-Array<ParticleEmitter> particleEmitters              = {};
-Array<ParticleType>    particleTypes                 = {};
-Array<Particle>        particles                     = {};
-U32                    emitterIdx                    = 0;
+static Mem::Allocator*        allocator; 
+static Mem::TempAllocator*    tempAllocator; 
+static Log::Logger*           logger; 
+static F32                    windowWidth;
+static F32                    windowHeight;
+static Bool                   keyDown[(U32)Event::Key::Max];
+static Draw::Canvas           canvas;
+static Ship                   ship;
+static Draw::Sprite           bulletSprite;
+static Vec2                   bulletSize;
+static Array<Bullet>          bullets;
+static Array<ParticleEmitter> particleEmitters;
+static Array<ParticleType>    particleTypes;
+static Array<Particle>        particles;
+static U32                    emitterIdx; 
 
 //---------------------------------------------------------------------------------------------
 
@@ -184,7 +185,7 @@ static void UpdateParticleEmitter(F32 secs, ParticleEmitter* emitter) {
 static void DrawParticleType(const ParticleType* type) {
 	for (U64 i = 0; i < type->particles.len; i++) {
 		const Particle* const p = &type->particles[i];
-		Draw::DrawSprite(type->sprite, p->pos, p->size, p->rotation, p->color);
+		Draw::DrawSprite(type->sprite, p->pos, Vec2(p->size, p->size), p->rotation, p->color);
 	}
 }
 
@@ -220,8 +221,11 @@ static Res<> Init(const Window::State* windowState) {
 	};
 	JC_CHECK_RES(Draw::Init(&initDesc));
 
+	JC_CHECK_RES(Draw::CreateCanvas((U32)CanvasSize.x, (U32)CanvasSize.y).To(canvas));
+
 	JC_CHECK_RES(Draw::LoadSpriteAtlas("Assets/SpaceShooter.png", "Assets/SpaceShooter.atlas"));
-JC_CHECK_RES(Gpu::ImmediateWait());
+	JC_CHECK_RES(Gpu::ImmediateWait());
+
 	JC_CHECK_RES(Draw::GetSprite("Ship1").To(ship.spriteNotMoving));
 	JC_CHECK_RES(Draw::GetSprite("Ship1Left").To(ship.spriteMovingLeft));
 	JC_CHECK_RES(Draw::GetSprite("Ship1Right").To(ship.spriteMovingRight));
@@ -287,6 +291,7 @@ JC_CHECK_RES(Gpu::ImmediateWait());
 //---------------------------------------------------------------------------------------------
 
 static void Shutdown() {
+	Draw::DestroyCanvas(canvas);
 	Draw::Shutdown();
 }
 
@@ -331,16 +336,16 @@ static Res<> Update(double secs) {
 		UpdateParticleEmitter(fsecs, &particleEmitters[i]);
 	}
 
-	ship.pos.x = Clamp(ship.pos.x, 0.0f, PlayAreaVirtualSize.x);
-	ship.pos.y = Clamp(ship.pos.y, 0.0f, PlayAreaVirtualSize.y);
+	ship.pos.x = Clamp(ship.pos.x, 0.0f, CanvasSize.x - ship.size.x);
+	ship.pos.y = Clamp(ship.pos.y, 0.0f, CanvasSize.y - ship.size.y);
 
 	for (U64 i = 0; i < bullets.len; ) {
 		Bullet* b = &bullets[i];
 		if (
 			b->pos.x < 0.0f ||
-			b->pos.x > PlayAreaVirtualSize.x ||
+			b->pos.x > CanvasSize.x ||
 			b->pos.y < 0.0f ||
-			b->pos.y > PlayAreaVirtualSize.y
+			b->pos.y > CanvasSize.y
 		) {
 			bullets.RemoveUnordered(i);
 			continue;
@@ -360,7 +365,7 @@ static Res<> Update(double secs) {
 	if (keyDown[(U32)Event::Key::D]) { dPos.x += fsecs * ship.speed.x; }
 	ship.pos= Math::Add(ship.pos, dPos);
 
-		    if (dPos.x == 0.0f) { ship.sprite = &ship.spriteNotMoving;   }
+		 if (dPos.x == 0.0f) { ship.sprite = &ship.spriteNotMoving;   }
 	else if (dPos.x < 0.0f)  { ship.sprite = &ship.spriteMovingLeft;  }
 	else                     { ship.sprite = &ship.spriteMovingRight; }
 
@@ -368,7 +373,7 @@ static Res<> Update(double secs) {
 		if (ship.fireCooldown <= 0.0f) {
 				
 			bullets.Add(Bullet {
-				.pos   = { ship.pos.x, ship.pos.y + ((ship.size.y + bulletSize.y) / 2.0f) },
+				.pos   = { ship.pos.x, ship.pos.y + (ship.size.y / 2.0f) - (bulletSize.y / 2.0f) },
 				.speed = { 0.0f, -120.0f },
 			});
 			ship.fireCooldown = ShipFireCooldown;
@@ -386,17 +391,11 @@ static Res<> Update(double secs) {
 static Res<> Draw(Gpu::Frame frame) {
 	Draw::BeginFrame(frame);
 
-	const Vec2 origin = { 100.0f, 50.0f };
-	Vec2 pos = origin;
+	Draw::SetCanvas(canvas);
 
-	const Vec2 PlayAreaSize = { windowWidth / 2.0f, windowHeight - 100.0f };
-	Draw::DrawRect(origin, PlayAreaSize, { 0.1f, 0.2f, 0.05f, 1.0f }, Vec4(), 0.0f, 0.0f);
+	Draw::DrawRect(Vec2(0.f, 0.f), CanvasSize, Vec4(0.05f, 0.1f, 0.15f, 1.0f), Vec4(1.f, 1.f, 1.f, 1.f), 0.f, 0.f);
 
-	Vec2 finalPos = {
-		(ship.pos.x * PlayAreaSize.x / PlayAreaVirtualSize.x) + origin.x,
-		(ship.pos.y * PlayAreaSize.y / PlayAreaVirtualSize.y) + origin.y,
-	};
-	Draw::DrawSprite(*ship.sprite, finalPos, SpriteScale, 0.0f, Vec4(1.0f, 1.0f, 1.0f, 1.0f));
+	Draw::DrawSprite(*ship.sprite, ship.pos);
 
 	for (U64 i = 0; i < bullets.len; i++) {
 		Draw::DrawSprite(bulletSprite, bullets[i].pos);
@@ -405,6 +404,9 @@ static Res<> Draw(Gpu::Frame frame) {
 	for (U64 i = 0; i < particleTypes.len; i++) {
 		DrawParticleType(&particleTypes[i]);
 	}
+
+	Draw::SetCanvas();
+	Draw::DrawCanvas(canvas, Vec2(80.f, 60.f), Vec2(3.f, 3.f));
 
 	Draw::EndFrame();
 	return Ok();

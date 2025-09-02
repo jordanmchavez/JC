@@ -38,25 +38,20 @@ struct SpriteObj {
 	Str  name;
 };
 
-struct CanvasObj {
-	Gpu::Image colorImage;
-	Gpu::Image depthImage;
-};
-
-using CanvasPool = HandlePool<CanvasObj, Canvas, MaxCanvases>;
-
 struct Scene {
-	Mat4  projView;
-	U64   drawCmdBufferAddr;
+	Mat4  projViews[MaxCanvases + 1];	// +1 for the
 };
 
 struct PushConstants {
 	U64  sceneBufferAddr;
+	U64  drawCmdBufferAddr;
+	U32  sceneBufferIdx;
+	U32  drawCmdStart;
 };
 
 struct DrawCmd {
 	Vec2 pos;
-	Vec2 scale;
+	Vec2 size;
 	Vec2 uv1;
 	Vec2 uv2;
 	Vec4 color;
@@ -65,6 +60,22 @@ struct DrawCmd {
 	F32  cornerRadius;
 	F32  rotation;
 	U32  textureIdx;
+};
+
+struct CanvasObj {
+	Gpu::Image       colorImage;
+	U32              colorImageIdx;
+	Gpu::ImageLayout colorImageLayout;
+	Gpu::Image       depthImage;
+	Vec2             size;
+};
+
+using CanvasPool = HandlePool<CanvasObj, Canvas, MaxCanvases>;
+
+struct Pass {
+	Canvas canvas;
+	U32    drawCmdStart;
+	U32    drawCmdEnd;
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -77,18 +88,20 @@ static U32                 windowHeight;
 static Gpu::Image          depthImage;
 static Gpu::Shader         vertexShader;
 static Gpu::Shader         fragmentShader;
-static CanvasPool          canvasPool;
 static Gpu::Pipeline       pipeline;
 static Gpu::Buffer         sceneBuffer;
 static U64                 sceneBufferAddr;
+static Scene               scene;
 static Gpu::Buffer         drawCmdBuffer;
 static U64                 drawCmdBufferAddr;
 static DrawCmd*            drawCmds;
 static U32                 drawCmdCount;
+static CanvasPool          canvasObjs;
+static Canvas              swapchainCanvas;
 static Array<Gpu::Image>   spriteImages;
 static Array<SpriteObj>    spriteObjs;
 static Map<Str, U32>       spriteObjsByName;
-static Gpu::Frame          frame;
+static Array<Pass>         passes;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -130,10 +143,28 @@ Res<> Init(const InitDesc* initDesc) {
 	JC_GPU_NAME(drawCmdBuffer);
 	drawCmdBufferAddr = Gpu::GetBufferAddr(drawCmdBuffer);
 
+	const Vec2 windowSize = Vec2((F32)windowWidth, (F32)windowHeight);
+	CanvasPool::Entry* const entry = canvasObjs.Alloc();
+	entry->obj = {
+		.colorImage       = Gpu::Image(),
+		.colorImageIdx    = 0,
+		.colorImageLayout = Gpu::ImageLayout::Color,
+		.depthImage       = depthImage,
+		.size             = windowSize,
+	};
+	swapchainCanvas = entry->Handle();
+	scene.projViews[entry->idx] = Math::Ortho(
+		0.0f, windowSize.x,
+		windowSize.y, 0.0f,
+		-100.0f, 100.0f
+	);
+
+
 	spriteImages.Init(allocator);
 	spriteObjs.Init(allocator);
 	spriteObjs.Add(SpriteObj{});	// reserve 0 for invalid
 	spriteObjsByName.Init(allocator);
+	passes.Init(allocator);
 
 	return Ok();
 }
@@ -162,6 +193,17 @@ Res<> WindowResized(U32 inWindowWidth, U32 inWindowHeight) {
 	Gpu::WaitIdle();
 	Gpu::DestroyImage(depthImage);
 	JC_CHECK_RES(Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(depthImage));
+
+	const Vec2 windowSize = Vec2((F32)windowWidth, (F32)windowHeight);
+	scene.projViews[canvasObjs.GetEntry(swapchainCanvas)->idx] = Math::Ortho(
+		0.0f, windowSize.x,
+		windowSize.y, 0.0f,
+		-100.0f, 100.0f
+	);
+
+	CanvasObj* const canvasObj = canvasObjs.Get(swapchainCanvas);
+	canvasObj->depthImage = depthImage;
+	canvasObj->size = windowSize;
 
 	return Ok();
 }
@@ -284,58 +326,149 @@ Vec2 GetSpriteSize(Sprite sprite) {
 //--------------------------------------------------------------------------------------------------
 
 Res<Canvas> CreateCanvas(U32 width, U32 height) {
-	Gpu::Image image;
-	JC_CHECK_RES(Gpu::CreateImage(width, height, Gpu::ImageFormat::B8G8R8A8_UNorm, Gpu::ImageUsage::Color | Gpu::ImageUsage::Sampled).To(image));
-	CanvasPool::Entry* const entry = canvasPool.Alloc();
-	entry->obj.image = image;
+	Gpu::Image canvasColorImage;
+	JC_CHECK_RES(Gpu::CreateImage(width, height, Gpu::ImageFormat::B8G8R8A8_UNorm, Gpu::ImageUsage::Color | Gpu::ImageUsage::Sampled).To(canvasColorImage));
+
+	Gpu::Image canvasDepthImage;
+	if (Res<> r = Gpu::CreateImage(width, height, Gpu::ImageFormat::D32_Float,      Gpu::ImageUsage::Depth).To(canvasDepthImage); !r) {
+		Gpu::DestroyImage(canvasColorImage);
+		return r.err;
+	}
+
+	const Vec2 size = Vec2((F32)width, (F32)height);
+	CanvasPool::Entry* const entry = canvasObjs.Alloc();
+	entry->obj = {
+		.colorImage       = canvasColorImage,
+		.colorImageIdx    = Gpu::GetImageBindIdx(canvasColorImage),
+		.colorImageLayout = Gpu::ImageLayout::Undefined,
+		.depthImage       = canvasDepthImage,
+		.size             = size,
+	};
+	JC_GPU_NAMEF(canvasColorImage, "canvasColor#{}", entry->idx);
+	JC_GPU_NAMEF(canvasDepthImage, "canvasDepth#{}", entry->idx);
+
+	scene.projViews[entry->idx] = Math::Ortho(
+		0.0f, size.x,
+		size.y, 0.0f,
+		-100.0f, 100.0f
+	);
+
 	return entry->Handle();
 }
 
 //--------------------------------------------------------------------------------------------------
 
 void DestroyCanvas(Canvas canvas) {
+	CanvasObj* const canvasObj = canvasObjs.Get(canvas);
+	Gpu::DestroyImage(canvasObj->colorImage);
+	Gpu::DestroyImage(canvasObj->depthImage);
+	canvasObjs.Free(canvas);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void BeginFrame(Gpu::Frame inFrame) {
-	frame = inFrame;
+void BeginFrame(Gpu::Frame frame) {
+	CanvasObj* const canvasObj = canvasObjs.Get(swapchainCanvas);
+	canvasObj->colorImage = frame.swapchainImage;
+
 	drawCmds = (DrawCmd*)Gpu::AllocStaging(MaxDrawCmds * sizeof(DrawCmd));
 	drawCmdCount = 0;
+
+	passes.len = 0;
+	passes.Add(Pass {
+		.canvas       = swapchainCanvas,
+		.drawCmdStart = 0,
+		.drawCmdEnd   = U32Max,
+	});
+
 }
 
 //--------------------------------------------------------------------------------------------------
 
 void EndFrame() {
-	Scene* const scene = (Scene*)Gpu::AllocStaging(sizeof(Scene));
-	scene->projView = Math::Ortho(
-		0.0f, (F32)windowWidth,
-		(F32)windowHeight, 0.0f,
-		-100.0f, 100.0f
-	);
-	scene->drawCmdBufferAddr = drawCmdBufferAddr;
-
+	void* const sceneStaging = Gpu::AllocStaging(sizeof(Scene));
+	memcpy(sceneStaging, &scene, sizeof(Scene));
 	Gpu::BufferBarrier(sceneBuffer, 0, sizeof(Scene), Gpu::BarrierStage::VertexShader_StorageRead, Gpu::BarrierStage::Copy_Write);
-	Gpu::CopyStagingToBuffer(scene, sizeof(Scene), sceneBuffer, 0);
+	Gpu::CopyStagingToBuffer(sceneStaging, sizeof(Scene), sceneBuffer, 0);
 	Gpu::BufferBarrier(sceneBuffer, 0, sizeof(Scene), Gpu::BarrierStage::Copy_Write, Gpu::BarrierStage::VertexShader_StorageRead);
 
 	Gpu::BufferBarrier(drawCmdBuffer, 0, drawCmdCount * sizeof(DrawCmd), Gpu::BarrierStage::VertexShader_StorageRead, Gpu::BarrierStage::Copy_Write);
 	Gpu::CopyStagingToBuffer(drawCmds, drawCmdCount * sizeof(DrawCmd), drawCmdBuffer, 0);
 	Gpu::BufferBarrier(drawCmdBuffer, 0, drawCmdCount * sizeof(DrawCmd), Gpu::BarrierStage::Copy_Write, Gpu::BarrierStage::VertexShader_StorageRead);
 
-	const Gpu::Pass pass = {
-		.pipeline         = pipeline,
-		.colorAttachments = { frame.swapchainImage },
-		.depthAttachment  = depthImage,
-		.viewport         = { .x = 0.0f, .y = 0.0f, .w = (F32)windowWidth, .h = (F32)windowHeight },
-		.scissor          = { .x = 0,    .y = 0,    .w = windowWidth,      .h = windowHeight },
-		.clear            = true,
-	};
-	Gpu::BeginPass(&pass);
-	PushConstants pushConstants = { .sceneBufferAddr = sceneBufferAddr };
-	Gpu::PushConstants(pipeline, &pushConstants, sizeof(pushConstants));
-	Gpu::Draw(6, (U32)drawCmdCount);
-	Gpu::EndPass();
+	passes[passes.len - 1].drawCmdEnd = drawCmdCount;
+	for (U64 i = 0; i < passes.len; i++) {
+		const Pass* const pass = &passes[i];
+		U32 const passDrawCmdCount = pass->drawCmdEnd - pass->drawCmdStart;
+		if (passDrawCmdCount == 0) {
+			continue;
+		}
+
+		CanvasPool::Entry* const entry = canvasObjs.GetEntry(pass->canvas);
+		CanvasObj* canvasObj = &entry->obj;
+		const Gpu::Pass gpuPass = {
+			.pipeline         = pipeline,
+			.colorAttachments = { canvasObj->colorImage },
+			.depthAttachment  = canvasObj->depthImage,
+			.viewport         = { .x = 0.0f, .y = 0.0f, .w = canvasObj->size.x,      .h = canvasObj->size.y },
+			.scissor          = { .x = 0,    .y = 0,    .w = (U32)canvasObj->size.x, .h = (U32)canvasObj->size.y },
+			.clear            = true,
+		};
+
+		if (pass->canvas.handle != swapchainCanvas.handle) {
+			if (canvasObj->colorImageLayout == Gpu::ImageLayout::Undefined) {
+				Gpu::ImageBarrier(
+					canvasObj->colorImage,
+					Gpu::BarrierStage::None,
+					Gpu::ImageLayout::Undefined,
+					Gpu::BarrierStage::ColorOutput_ColorWrite,
+					Gpu::ImageLayout::Color
+				);
+			} else if (canvasObj->colorImageLayout == Gpu::ImageLayout::ShaderRead) {
+				Gpu::ImageBarrier(
+					canvasObj->colorImage,
+					Gpu::BarrierStage::FragmentShader_SamplerRead,
+					Gpu::ImageLayout::ShaderRead,
+					Gpu::BarrierStage::ColorOutput_ColorWrite,
+					Gpu::ImageLayout::Color
+				);
+			}
+			canvasObj->colorImageLayout = Gpu::ImageLayout::Color;
+		}
+
+		Gpu::BeginPass(&gpuPass);
+		PushConstants pushConstants = {
+			.sceneBufferAddr   = sceneBufferAddr,
+			.drawCmdBufferAddr = drawCmdBufferAddr,
+			.sceneBufferIdx    = entry->idx,
+			.drawCmdStart      = pass->drawCmdStart,
+		};
+		Gpu::PushConstants(pipeline, &pushConstants, sizeof(pushConstants));
+		Gpu::Draw(6, passDrawCmdCount);
+		Gpu::EndPass();
+
+		if (pass->canvas.handle != swapchainCanvas.handle) {
+			Gpu::ImageBarrier(
+				canvasObj->colorImage,
+				Gpu::BarrierStage::ColorOutput_ColorWrite,
+				Gpu::ImageLayout::Color,
+				Gpu::BarrierStage::VertexShader_SamplerRead,
+				Gpu::ImageLayout::ShaderRead
+			);
+			canvasObj->colorImageLayout = Gpu::ImageLayout::ShaderRead;
+		}
+	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void SetCanvas(Canvas canvas) {
+	passes[passes.len - 1].drawCmdEnd = drawCmdCount;
+	passes.Add(Pass {
+		.canvas       = canvas.handle ? canvas : swapchainCanvas,
+		.drawCmdStart = drawCmdCount,
+		.drawCmdEnd   = U32Max,
+	});
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -365,11 +498,11 @@ void DrawSprite(Sprite sprite, Vec2 pos) {
 	};
 }
 
-void DrawSprite(Sprite sprite, Vec2 pos, F32 size, F32 rotation, Vec4 color) {
+void DrawSprite(Sprite sprite, Vec2 pos, Vec2 scale, F32 rotation, Vec4 color) {
 	SpriteObj* const spriteObj = &spriteObjs[sprite.handle];
 	*AllocDrawCmds(1) =  {
 		.pos          = pos,
-		.size         = Math::Mul(spriteObj->size, size),
+		.size         = Math::Mul(spriteObj->size, scale),
 		.uv1          = spriteObj->uv1,
 		.uv2          = spriteObj->uv2,
 		.color        = color,
@@ -401,17 +534,18 @@ void DrawRect(Vec2 pos, Vec2 size, Vec4 color, Vec4 borderColor, F32 border, F32
 //--------------------------------------------------------------------------------------------------
 
 void DrawCanvas(Canvas canvas, Vec2 pos, Vec2 scale) {
+	CanvasObj* const canvasObj = canvasObjs.Get(canvas);
 	*AllocDrawCmds(1) =  {
 		.pos          = pos,
-		.size         = size,
-		.uv1          = Vec2(),
-		.uv2          = Vec2(),
-		.color        = color,
-		.borderColor  = borderColor,
-		.border       = border,
-		.cornerRadius = cornerRadius,
+		.size         = Math::Mul(canvasObj->size, scale),
+		.uv1          = Vec2(0.f, 0.f),
+		.uv2          = Vec2(1.f, 1.f),
+		.color        = Vec4(1.f, 1.f, 1.f, 1.f),
+		.borderColor  = Vec4(1.f, 1.f, 1.f, 1.f),
+		.border       = 0.0f,
+		.cornerRadius = 0.0f,
 		.rotation     = 0.0f,
-		.textureIdx   = 0,
+		.textureIdx   = canvasObj->colorImageIdx
 	};
 }
 
