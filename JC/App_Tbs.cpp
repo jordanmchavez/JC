@@ -64,7 +64,9 @@ static bool                 drawBordered;
 static U32                  terrainHoverCol;
 static U32                  terrainHoverRow;
 static Draw::Sprite         terrainHighlightSprite;
-
+static Draw::Sprite         spearmanSprite;
+static U32                  spearmanCol;
+static U32                  spearmanRow;
 
 //---------------------------------------------------------------------------------------------
 
@@ -119,6 +121,7 @@ static Res<> Init(const Window::State* windowState) {
 	JC_CHECK_RES(Draw::CreateCanvas(CanvasWidth, CanvasHeight).To(canvas));
 
 	JC_CHECK_RES(Draw::LoadSpriteAtlas("Assets/Terrain.png", "Assets/Terrain.atlas"));
+	JC_CHECK_RES(Draw::LoadSpriteAtlas("Assets/Units.png",   "Assets/Units.atlas"));
 	JC_CHECK_RES(Gpu::ImmediateWait());
 
 	terrain[TerrainType::Grass].type    = TerrainType::Grass;
@@ -148,6 +151,7 @@ static Res<> Init(const Window::State* windowState) {
 	}
 
 	JC_CHECK_RES(Draw::GetSprite("Terrain_Highlight").To(terrainHighlightSprite));
+	JC_CHECK_RES(Draw::GetSprite("Unit_Spearman").To(spearmanSprite));
 
 	MakeHexLut();
 
@@ -182,6 +186,11 @@ static Res<> Events(Span<Event::Event> events) {
 				switch (ev->key.key) {
 					case Event::Key::Escape: App::Exit(); break;
 					case Event::Key::B: if (!ev->key.down) { drawBordered = !drawBordered; } break;
+
+					case Event::Key::Left:  if (!ev->key.down && spearmanCol >           0) { spearmanCol -= 1; } break;
+					case Event::Key::Right: if (!ev->key.down && spearmanCol < MapCols - 1) { spearmanCol += 1; } break;
+					case Event::Key::Up:    if (!ev->key.down && spearmanRow >           0) { spearmanRow -= 1; } break;
+					case Event::Key::Down:  if (!ev->key.down && spearmanRow < MapRows - 1) { spearmanRow += 1; } break;
 				}
 				keyDown[(U32)events[i].key.key] = events[i].key.down;
 				break;
@@ -213,7 +222,6 @@ static void UpdateTerrainHover() {
 	I32 ix = (I32)pos.x - parity * 32;
 	I32 col = ix / 64;
 	if (ix < 0 || iy < 0) {
-		JC_LOG("({}, {}) -> ({}, {}) -> out of bounds", ix, iy, col, row);
 		terrainHoverCol = terrainHoverRow = U32Max;
 		return;
 	}
@@ -229,13 +237,11 @@ static void UpdateTerrainHover() {
 		case 2: col += 1 * parity;       row -= 1; break;
 	}
 	if (col >= MapCols || row >= MapRows) {
-		JC_LOG("({}, {}) -> ({}, {}) -> out of bounds", ix, iy, col, row);
 		terrainHoverCol = terrainHoverRow = U32Max;
 		return;
 	}
 	terrainHoverCol = col;
 	terrainHoverRow = row;
-	JC_LOG("({}, {}) -> ({}, {}) -> ({}, {}) = {} -> ({}, {})", ix, iy, col, row, lx, ly, l, terrainHoverCol, terrainHoverRow);
 }
 
 //---------------------------------------------------------------------------------------------
@@ -267,18 +273,18 @@ static Res<> Draw(Gpu::Frame frame) {
 		);
 	}
 
+
+	const U32 unitRowParity = spearmanRow & 1;
+	constexpr Vec2 UnitSize = { 16.f, 16.f };
+	const F32 unitX = (F32)(MapPadding + (spearmanCol * 64) + (unitRowParity * 32) + 32) - (UnitSize.x / 2);
+	const F32 unitY = (F32)(MapPadding + (spearmanRow * 48)                        + 32) - (UnitSize.y / 2);
+	Draw::DrawSprite(spearmanSprite, Vec2(unitX, unitY));
+
 	if (terrainHoverCol != U32Max && terrainHoverRow != U32Max) {
-		const I32 parity = (I32)(terrainHoverRow & 1);
-		I32 px = (I32)MapPadding;
-		px += (parity * 32);
-		px += (terrainHoverCol * 64);
 		const Vec2 pos = Vec2(
 			(F32)((I32)MapPadding + ((terrainHoverRow & 1) * 32) + (terrainHoverCol * 64)),
-			//(F32)px,
 			(F32)((I32)MapPadding + (terrainHoverRow * 48))
 		);
-		//JC_LOG("px={}, {},{} -> parity {} -> pos ({.2}, {.2})", px, terrainHoverCol, terrainHoverRow, parity, pos.x, pos.y);
-
 		Draw::DrawSprite(
 			terrainHighlightSprite, 
 			pos

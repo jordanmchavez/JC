@@ -1961,6 +1961,8 @@ Res<> ImmediateCopyToImage(const void* data, Image image, BarrierStage::Flags fi
 	};
 	vkCmdCopyBufferToImage2(vkImmediateCommandBuffer, &vkCopyBufferToImageInfo2);
 
+	immediateStagingBufferUsed += len;
+
 	ImageMemoryBarrier(
 		vkImmediateCommandBuffer,
 		imageObj->vkImage,
