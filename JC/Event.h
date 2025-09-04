@@ -150,6 +150,8 @@ struct KeyEvent {
 struct MouseMoveEvent {
 	I32 x;
 	I32 y;
+	I32 dx;
+	I32 dy;
 };
 
 struct MouseWheelEvent {

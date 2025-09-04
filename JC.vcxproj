@@ -152,7 +152,7 @@
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
     <ClCompile Include="JC\App.cpp" />
-    <ClCompile Include="JC\App_Shmup.cpp" />
+    <ClCompile Include="JC\App_Tbs.cpp" />
     <ClCompile Include="JC\Array.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
     <ClCompile Include="JC\Camera.cpp" />

@@ -1,15 +1,19 @@
 #pragma once
 
 #include "JC/Core.h"
+#include <math.h>
 
 namespace JC::Math {
 
 //--------------------------------------------------------------------------------------------------
 
-constexpr F32 DegToRad(F32 deg) {
-	constexpr F32 PI = 3.14159265358979323846f;
-	return deg * PI / 180.0f;
-}
+constexpr F32 Pi = 3.14159265358979323846f;
+
+inline    U32 Abs(I32 i) { return (U32)::abs(i); }
+inline    F32 Abs(F32 f) { return ::fabsf(f); }
+constexpr F32 DegToRad(F32 deg) { return deg * Pi / 180.0f; }
+inline    F32 Round(F32 f) { return ::roundf(f); }
+inline    F32 Sqrt(F32 f) { return ::sqrtf(f); }
 
 //--------------------------------------------------------------------------------------------------
 
@@ -45,6 +49,8 @@ Mat3 RotationZMat3(F32 a);
 Mat4 RotationXMat4(F32 a);
 Mat4 RotationYMat4(F32 a);
 Mat4 RotationZMat4(F32 a);
+Vec2 Scale(Vec2 u, F32 s);
+Vec2 Sub(Vec2 u, Vec2 v);
 Vec3 Sub(Vec3 u, Vec3 v);
 Mat4 TranslationMat4(Vec3 v);
 

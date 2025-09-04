@@ -25,6 +25,10 @@ static U64 Next(U64 s[2]) {
 	return res;
 }
 
+U32 NextU32() {
+	return (U32)Next(state);
+}
+
 U64 NextU64() {
 	return Next(state);
 }

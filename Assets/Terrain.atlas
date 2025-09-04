@@ -1,0 +1,13 @@
+[
+	{ x:   0, y:   0, w: 64, h: 64, name: "Terrain_Grass" },
+	{ x:  64, y:   0, w: 64, h: 64, name: "Terrain_Forest" },
+	{ x: 128, y:   0, w: 64, h: 64, name: "Terrain_Mountain" },
+	{ x: 192, y:   0, w: 64, h: 64, name: "Terrain_Hill" },
+	{ x: 256, y:   0, w: 64, h: 64, name: "Terrain_Swamp" },
+	{ x:   0, y:  64, w: 64, h: 64, name: "Terrain_Grass_Bordered" },
+	{ x:  64, y:  64, w: 64, h: 64, name: "Terrain_Forest_Bordered" },
+	{ x: 128, y:  64, w: 64, h: 64, name: "Terrain_Mountain_Bordered" },
+	{ x: 192, y:  64, w: 64, h: 64, name: "Terrain_Hill_Bordered" },
+	{ x: 256, y:  64, w: 64, h: 64, name: "Terrain_Swamp_Bordered" },
+	{ x:   0, y: 128, w: 64, h: 64, name: "Terrain_Highlight" },
+]

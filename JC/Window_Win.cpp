@@ -91,11 +91,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 					});
 				}
 
+				::POINT mousePos;
+				::GetCursorPos(&mousePos);
+				::ScreenToClient(hwnd, &mousePos);
 				Event::Add({
 					.type = Event::Type::MouseMove,
 					.mouseMove = {
-						.x = (I32)m->lLastX,
-						.y = (I32)m->lLastY,
+						.x  = (I32)mousePos.x,
+						.y  = (I32)mousePos.y,
+						.dx = (I32)m->lLastX,
+						.dy = (I32)m->lLastY,
 					},
 				});
 					
@@ -252,7 +257,7 @@ Res<> Init(const InitDesc* initDesc) {
 		.cbWndExtra    = 0,
 		.hInstance     = GetModuleHandle(0),
 		.hIcon         = 0,
-		.hCursor       = 0,
+		.hCursor       = LoadCursor(0, IDC_ARROW),
 		.hbrBackground = 0,
 		.lpszMenuName  = 0,
 		.lpszClassName = L"JC",

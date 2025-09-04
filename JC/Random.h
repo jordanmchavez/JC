@@ -8,6 +8,7 @@ namespace JC::Random {
 
 void Seed(U64 s[2]);
 
+U32  NextU32();
 U64  NextU64();
 F32  NextF32();
 F64  NextF64();
