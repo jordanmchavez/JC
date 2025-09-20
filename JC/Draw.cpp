@@ -80,28 +80,28 @@ struct Pass {
 
 //--------------------------------------------------------------------------------------------------
 
-static Mem::Allocator*     allocator;
-static Mem::TempAllocator* tempAllocator;
-static Log::Logger*        logger;
-static U32                 windowWidth;
-static U32                 windowHeight;
-static Gpu::Image          depthImage;
-static Gpu::Shader         vertexShader;
-static Gpu::Shader         fragmentShader;
-static Gpu::Pipeline       pipeline;
-static Gpu::Buffer         sceneBuffer;
-static U64                 sceneBufferAddr;
-static Scene               scene;
-static Gpu::Buffer         drawCmdBuffer;
-static U64                 drawCmdBufferAddr;
-static DrawCmd*            drawCmds;
-static U32                 drawCmdCount;
-static CanvasPool          canvasObjs;
-static Canvas              swapchainCanvas;
-static Array<Gpu::Image>   spriteImages;
-static Array<SpriteObj>    spriteObjs;
-static Map<Str, U32>       spriteObjsByName;
-static Array<Pass>         passes;
+static Allocator*         allocator;
+static TempAllocator*     tempAllocator;
+static Log::Logger*       logger;
+static U32                windowWidth;
+static U32                windowHeight;
+static Gpu::Image         depthImage;
+static Gpu::Shader        vertexShader;
+static Gpu::Shader        fragmentShader;
+static Gpu::Pipeline      pipeline;
+static Gpu::Buffer        sceneBuffer;
+static U64                sceneBufferAddr;
+static Scene              scene;
+static Gpu::Buffer        drawCmdBuffer;
+static U64                drawCmdBufferAddr;
+static DrawCmd*           drawCmds;
+static U32                drawCmdCount;
+static CanvasPool         canvasObjs;
+static Canvas             swapchainCanvas;
+static Array<Gpu::Image>  spriteImages;
+static Array<SpriteObj>   spriteObjs;
+static Map<Str, U32>      spriteObjsByName;
+static Array<Pass>        passes;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -258,9 +258,9 @@ Res<> LoadSpriteAtlas(Str imagePath, Str atlasPath) {
 	spriteImages.Add(image);
 
 	Span<U8> data;
-	if (Res<> r = FS::ReadAll(Mem::tempAllocator, atlasPath).To(data); !r) { return r.err; }	// TODO: ctx
+	if (Res<> r = FS::ReadAll(tempAllocator, atlasPath).To(data); !r) { return r.err; }	// TODO: ctx
 	Json::Doc* doc = 0;
-	if (Res<> r = Json::Parse(Mem::tempAllocator, Mem::tempAllocator, Str((const char*)data.data, data.len)).To(doc); !r) { return r.err; }	// TODO: ctx
+	if (Res<> r = Json::Parse(tempAllocator, tempAllocator, Str((const char*)data.data, data.len)).To(doc); !r) { return r.err; }	// TODO: ctx
 
 	Json::Elem root = Json::GetRoot(doc);
 	if (root.type != Json::Type::Arr) { return Err_AtlasFmt(); }	// TODO: ctx

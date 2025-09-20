@@ -24,11 +24,11 @@ DefErr(Json, BadKey);
 //--------------------------------------------------------------------------------------------------
 
 struct Doc {
-	Mem::Allocator* allocator;
-	U8*             data;
-	U32             size;
-	U32             cap;
-	Elem            root;
+	Allocator* allocator;
+	U8*        data;
+	U32        size;
+	U32        cap;
+	Elem       root;
 };
 
 static U8* Extend(Doc* doc, U32 size) {
@@ -139,11 +139,11 @@ Obj GetObj(const Doc* doc, Elem elem) {
 //--------------------------------------------------------------------------------------------------
 
 struct ParseCtx {
-	Doc*                doc           = 0;
-	Mem::TempAllocator* tempAllocator = 0;
-	const char*         iter          = 0;
-	const char*         end           = 0;
-	U32                 line          = 0;
+	Doc*           doc           = 0;
+	TempAllocator* tempAllocator = 0;
+	const char*    iter          = 0;
+	const char*    end           = 0;
+	U32            line          = 0;
 };
 
 static constexpr Bool IsSpace(char c) { return c <= 32; }
@@ -470,7 +470,7 @@ static Res<Elem> ParseElem(ParseCtx* ctx) {
 	}
 }
 
-Res<Doc*> Parse(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, Str json) {
+Res<Doc*> Parse(Allocator* allocator, TempAllocator* tempAllocator, Str json) {
 	ParseCtx ctx = {
 		.doc           = allocator->AllocT<Doc>(),
 		.tempAllocator = tempAllocator,

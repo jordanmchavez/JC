@@ -46,10 +46,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>$(SolutionDir)\Build\$(Platform)-$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\Build\$(Platform)-$(Configuration)\</IntDir>
+    <CodeAnalysisRuleSet>Rules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)\Build\$(Platform)-$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\Build\$(Platform)-$(Configuration)\</IntDir>
+    <CodeAnalysisRuleSet>Rules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -115,75 +117,24 @@
     <ClInclude Include="3rd\vulkan\vulkan.h" />
     <ClInclude Include="3rd\vulkan\vulkan_core.h" />
     <ClInclude Include="3rd\vulkan\vulkan_win32.h" />
-    <ClInclude Include="JC\App.h" />
     <ClInclude Include="JC\Array.h" />
-    <ClInclude Include="JC\Bit.h" />
-    <ClInclude Include="JC\Camera.h" />
-    <ClInclude Include="JC\Config.h" />
     <ClInclude Include="JC\Core.h" />
-    <ClInclude Include="JC\Entity.h" />
-    <ClInclude Include="JC\Event.h" />
-    <ClInclude Include="JC\FS.h">
-      <SubType>
-      </SubType>
-    </ClInclude>
+    <ClInclude Include="JC\Err.h" />
     <ClInclude Include="JC\Fmt.h" />
-    <ClInclude Include="JC\Pool.h" />
-    <ClInclude Include="JC\Hash.h" />
-    <ClInclude Include="JC\Json.h" />
-    <ClInclude Include="JC\Log.h" />
-    <ClInclude Include="JC\Map.h" />
-    <ClInclude Include="JC\Math.h" />
-    <ClInclude Include="JC\Random.h" />
-    <ClInclude Include="JC\Gpu.h" />
-    <ClInclude Include="JC\Gpu_Vk.h" />
-    <ClInclude Include="JC\Draw.h" />
-    <ClInclude Include="JC\StrDb.h" />
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Sys_Win.h" />
-    <ClInclude Include="JC\Time.h" />
-    <ClInclude Include="JC\Ui.h" />
-    <ClInclude Include="JC\Unicode.h" />
     <ClInclude Include="JC\UnitTest.h" />
-    <ClInclude Include="JC\Window.h" />
     <ClInclude Include="Notes\Scratch.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
-    <ClCompile Include="JC\App.cpp" />
-    <ClCompile Include="JC\App_Tbs.cpp" />
     <ClCompile Include="JC\Array.cpp" />
-    <ClCompile Include="JC\Bit.cpp" />
-    <ClCompile Include="JC\Camera.cpp" />
-    <ClCompile Include="JC\Config.cpp" />
+    <ClCompile Include="JC\Core.cpp" />
     <ClCompile Include="JC\Err.cpp" />
-    <ClCompile Include="JC\Mem.cpp" />
-    <ClCompile Include="JC\Panic.cpp" />
-    <ClCompile Include="JC\Draw.cpp" />
-    <ClCompile Include="JC\Str.cpp" />
-    <ClCompile Include="JC\Entity.cpp" />
-    <ClCompile Include="JC\Event.cpp" />
-    <ClCompile Include="JC\FS.cpp" />
     <ClCompile Include="JC\Fmt.cpp" />
-    <ClCompile Include="JC\Pool.cpp" />
-    <ClCompile Include="JC\Hash.cpp" />
-    <ClCompile Include="JC\Json.cpp" />
-    <ClCompile Include="JC\Log.cpp" />
-    <ClCompile Include="JC\Main.cpp" />
-    <ClCompile Include="JC\Map.cpp" />
-    <ClCompile Include="JC\Math.cpp" />
-    <ClCompile Include="JC\Random.cpp" />
-    <ClCompile Include="JC\Gpu_Vk.cpp" />
-    <ClCompile Include="JC\Gpu_Vk_Util.cpp" />
-    <ClCompile Include="JC\Gpu_Vk_Win.cpp" />
-    <ClCompile Include="JC\StrDb.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
-    <ClCompile Include="JC\Time_Win.cpp" />
-    <ClCompile Include="JC\Unicode.cpp" />
     <ClCompile Include="JC\UnitTest.cpp" />
-    <ClCompile Include="JC\Window_Win.cpp" />
-    <ClCompile Include="JC\Ui.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="JC.natstepfilter">

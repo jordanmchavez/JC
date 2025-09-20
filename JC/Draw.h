@@ -10,11 +10,11 @@ namespace JC::Draw {
 //--------------------------------------------------------------------------------------------------
 
 struct InitDesc {
-	Mem::Allocator*     allocator     = 0;
-	Mem::TempAllocator* tempAllocator = 0;
-	Log::Logger*        logger        = 0;
-	U32                 windowWidth   = 0;
-	U32                 windowHeight  = 0;
+	Allocator*     allocator     = 0;
+	TempAllocator* tempAllocator = 0;
+	Log::Logger*   logger        = 0;
+	U32            windowWidth   = 0;
+	U32            windowHeight  = 0;
 };
 
 struct Sprite { U64 handle = 0; };

@@ -1,6 +1,7 @@
 ﻿#include "JC/Fmt.h"
 
 #include "JC/Array.h"
+#include "JC/Mem.h"
 #include "JC/UnitTest.h"
 #include "dragonbox/dragonbox.h"
 #include <math.h>
@@ -62,7 +63,7 @@ static constexpr const char* Tens =
 	"80" "81" "82" "83" "84" "85" "86" "87" "88" "89"
 	"90" "91" "92" "93" "94" "95" "96" "97" "98" "99";
 
-Str U64ToDigits(U64 u, char* out, U32 outLen) {
+static Str U64ToDigits(U64 u, char* out, U32 outLen) {
 	// TODO: test and profile splitting into two 32-bit ints to avoid 64-bit divides
 	char* const end = out + outLen;
 	char* iter = end;
@@ -79,10 +80,10 @@ Str U64ToDigits(U64 u, char* out, U32 outLen) {
 	{
 		*--iter = '0' + (char)u;
 	}
-	return Str(iter, end);
+	return Str(iter, end - iter);
 }
 
-Str U64ToHexits(U64 u, char* out, U32 outLen) {
+static Str U64ToHexits(U64 u, char* out, U32 outLen) {
 	char* const end = out + outLen;
 	char* iter = end;
 	constexpr const char* hexits = "0123456789abcdef";
@@ -93,7 +94,7 @@ Str U64ToHexits(U64 u, char* out, U32 outLen) {
 	return Str(iter, (U64)(end - iter));
 }
 
-Str U64ToBits(U64 u, char* out, U32 outLen) {
+static Str U64ToBits(U64 u, char* out, U32 outLen) {
 	char* const end = out + outLen;
 	char* iter = end;
 	constexpr const char* bits = "01";
@@ -107,7 +108,7 @@ Str U64ToBits(U64 u, char* out, U32 outLen) {
 //--------------------------------------------------------------------------------------------------	
 
 // This function assumes there's a space right before ptr to hold the possible rounding character
-Bool Round(char* ptr, U64 len, U64 round) {
+static Bool Round(char* ptr, U64 len, U64 round) {
 	const char rem = ptr[round];
 	if (
 		(rem < '5') ||
@@ -129,7 +130,7 @@ Bool Round(char* ptr, U64 len, U64 round) {
 }
 
 template <class Out>
-void WriteF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
+static void WriteF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
 	char sign;
 	if (signbit(f))              { sign = '-'; f = -f; }
 	else if (flags & Flag_Plus)  { sign = '+'; }
@@ -283,7 +284,7 @@ void WriteF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
 //--------------------------------------------------------------------------------------------------
 
 template <class Out>
-void WriteStr(Out* out, Str str, U32 flags, U32 width, U32 prec) {
+static void WriteStr(Out* out, Str str, U32 flags, U32 width, U32 prec) {
 	if (prec && str.len > prec) {
 		str.len = prec;
 	}
@@ -301,7 +302,7 @@ void WriteStr(Out* out, Str str, U32 flags, U32 width, U32 prec) {
 //--------------------------------------------------------------------------------------------------	
 
 template <class Out>
-void WriteI64(Out* out, I64 i, U32 flags, U32 width) {
+static void WriteI64(Out* out, I64 i, U32 flags, U32 width) {
 	char sign;
 	U32 totalLen = 0;
 	     if (i < 0)              { i = -i; sign = '-'; totalLen = 1; }
@@ -327,7 +328,7 @@ void WriteI64(Out* out, I64 i, U32 flags, U32 width) {
 //--------------------------------------------------------------------------------------------------	
 
 template <class Out>
-void WriteU64(Out* out, U64 u, U32 flags, U32 width) {
+static void WriteU64(Out* out, U64 u, U32 flags, U32 width) {
 	char buf[72];
 	Str str;
 	     if (flags & Flag_Hex) { str = U64ToHexits(u, buf, sizeof(buf)); }
@@ -346,7 +347,7 @@ void WriteU64(Out* out, U64 u, U32 flags, U32 width) {
 //--------------------------------------------------------------------------------------------------	
 
 template <class Out>
-void WritePtr(Out* out, const void* p, U32 flags, U32 width) {
+static void WritePtr(Out* out, const void* p, U32 flags, U32 width) {
 	char buf[16];
 	char* bufIter = buf + sizeof(buf);
 	U64 u = (U64)p;
@@ -371,7 +372,7 @@ void WritePtr(Out* out, const void* p, U32 flags, U32 width) {
 //--------------------------------------------------------------------------------------------------	
 
 template <class Out>
-void VPrintfImpl(Out out, const char* fmt, Span<const Arg> args) {
+static void VPrintfImpl(Out out, const char* fmt, Span<const Arg> args) {
 	const char* i = fmt;
 	U32 nextArg = 0;
 
@@ -468,13 +469,6 @@ Str VPrintf(Mem::Allocator* allocator, const char* fmt, Span<const Arg> args) {
 	Array<char> out(allocator);
 	VPrintfImpl(&out, fmt, args);
 	return Str(out.data, out.len);
-}
-
-char* VPrintfz(Mem::Allocator* allocator,   const char* fmt, Span<const Arg> args) {
-	Array<char> out(allocator);
-	VPrintf(&out, fmt, args);
-	out.Add('\0');
-	return out.data;
 }
 
 //--------------------------------------------------------------------------------------------------

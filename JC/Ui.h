@@ -2,7 +2,7 @@
 
 #include "JC/Core.h"
 
-namespace JC::Event { struct Event; };
+namespace JC::Window { struct Event; };
 
 namespace JC::Ui {
 
@@ -21,7 +21,7 @@ struct Elem {
 void  Init();
 void  Shutdown();
 void  Clear();
-Res<> Events(Span<Event::Event> events);
+Res<> Events(Span<const Window::Event> events);
 void  MakeBox(SizeType sizeTypeX, SizeType sizeTypeY, Vec2 size, F32 parentPct, Vec4 color);
 void  Draw();
 

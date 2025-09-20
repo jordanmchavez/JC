@@ -1,7 +1,6 @@
 #pragma once
 
 #include "JC/Core.h"
-#include "JC/Sys.h"
 
 namespace JC::Log { struct Logger; }
 
@@ -55,7 +54,7 @@ struct Subtest {
 	~Subtest();
 };
 
-#define TestDebuggerBreak ([]() { JC_DEBUGGER_BREAK(); return false; }())
+#define TestDebuggerBreak ([]() { JC_DEBUGGER_BREAK; return false; }())
 
 #define UnitTestImpl(name, fn, registrarVar) \
 	static void fn([[maybe_unused]] JC::Mem::TempAllocator* testAllocator); \

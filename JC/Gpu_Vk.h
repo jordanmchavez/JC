@@ -71,14 +71,14 @@ void                  ImageMemoryBarrier(
 );
 Str                   ColorSpaceStr(VkColorSpaceKHR c);
 Str                   FormatStr(VkFormat f);
-Str                   MemoryHeapFlagsStr(Mem::Allocator* allocator, VkMemoryHeapFlags f);
-Str                   MemoryPropertyFlagsStr(Mem::Allocator* allocator, VkMemoryPropertyFlags f);
-Str                   QueueFlagsStr(Mem::Allocator* allocator, VkQueueFlags f);
+Str                   MemoryHeapFlagsStr(Allocator* allocator, VkMemoryHeapFlags f);
+Str                   MemoryPropertyFlagsStr(Allocator* allocator, VkMemoryPropertyFlags f);
+Str                   QueueFlagsStr(Allocator* allocator, VkQueueFlags f);
 Str                   PresentModeStr(VkPresentModeKHR m);
 Str                   ResultStr(VkResult r);
 Str                   PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
-Str                   VersionStr(Mem::Allocator* allocator, U32 v);
-Str                   SizeStr(Mem::Allocator* allocator, U64 size);
+Str                   VersionStr(Allocator* allocator, U32 v);
+Str                   SizeStr(Allocator* allocator, U64 size);
 
 //--------------------------------------------------------------------------------------------------
 

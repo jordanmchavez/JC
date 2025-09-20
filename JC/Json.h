@@ -27,7 +27,7 @@ struct Obj {
 	Span<Elem> vals;
 };
 
-Res<Doc*>  Parse(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator, Str json);
+Res<Doc*>  Parse(Allocator* allocator, TempAllocator* tempAllocator, Str json);
 void       Free(Doc* doc);
 
 Elem       GetRoot(Doc* doc);

@@ -87,19 +87,19 @@ struct Iter {
 	RowSet       rowSet;
 };
 
-static Mem::Allocator*              allocator;
-static Mem::TempAllocator*          tempAllocator;
-static Array<EntityObj>             entityObjs;
-static U32                          freeEntityObjIdx;
-static ComponentObj                 componentObjs[MaxComponents];
-static U32                          componentObjsLen;
-static Type                         types[MaxTypes];
-static U32                          typesLen;
-static Map<U32, ColumnId>           typeIdComponentIdToColumnId;	// key = typeId | (componentId << TypeIdShift)
-static Map<PreHash, TypeId>         componentMaskHashToTypeId;
-static QueryObj                     queryObjs[MaxQueries];
-static U32                          queryObjsLen;
-static Map<PreHash, QueryId>        componentMaskHashToQueryId;
+static Allocator*            allocator;
+static TempAllocator*        tempAllocator;
+static Array<EntityObj>      entityObjs;
+static U32                   freeEntityObjIdx;
+static ComponentObj          componentObjs[MaxComponents];
+static U32                   componentObjsLen;
+static Type                  types[MaxTypes];
+static U32                   typesLen;
+static Map<U32, ColumnId>    typeIdComponentIdToColumnId;	// key = typeId | (componentId << TypeIdShift)
+static Map<PreHash, TypeId>  componentMaskHashToTypeId;
+static QueryObj              queryObjs[MaxQueries];
+static U32                   queryObjsLen;
+static Map<PreHash, QueryId> componentMaskHashToQueryId;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -171,7 +171,7 @@ static TypeId CreateType(const ComponentMask* mask) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Init(Mem::Allocator* allocatorIn, Mem::TempAllocator* tempAllocatorIn) {
+void Init(Allocator* allocatorIn, TempAllocator* tempAllocatorIn) {
 	allocator     = allocatorIn;
 	tempAllocator = tempAllocatorIn;
 

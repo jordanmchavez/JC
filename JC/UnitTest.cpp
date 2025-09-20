@@ -1,6 +1,7 @@
 #include "JC/UnitTest.h"
 
 #include "JC/Array.h"
+#include "JC/Mem.h"
 #include "JC/Log.h"
 
 namespace JC::UnitTest {

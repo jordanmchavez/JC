@@ -1,69 +1,60 @@
-#include "JC/Core.h"	// not Core/Err.h to preserve core inclusion order
+#include "JC/Err.h"
 
 #include "JC/Array.h"
-#include "JC/Config.h"
 #include "JC/Fmt.h"
+#include "JC/Mem.h"
 #include "JC/Sys.h"
 
-namespace JC {
+namespace JC::Err {
 
 //--------------------------------------------------------------------------------------------------
 
 static Mem::TempAllocator* tempAllocator;
 
-void Err::Init(Mem::TempAllocator* tempAllocatorIn) {
-	tempAllocator = tempAllocatorIn;
-}
-
 //--------------------------------------------------------------------------------------------------
 
-void Err::Init(Str ns, Str code, Span<const NamedArg> namedArgs, SrcLoc sl) {
-	JC_ASSERT(namedArgs.len <= MaxArgs);
+Err* Make(SrcLoc sl, Err* prev, Str ns, Str code, Span<const NamedArg> namedArgs) {
+	JC_ASSERT(namedArgs.len <= Err::MaxNamedArgs);
 
-	data = tempAllocator->AllocT<Data>();
-	data->prev = 0;
-	data->sl   = sl;
-	data->ns   = ns;
-	data->code = code;
+	Err* const err = tempAllocator->AllocT<Err>();
+	err->prev = prev;
+	err->sl   = sl;
+	err->ns   = ns;
+	err->code = code;
 	for (U64 i = 0; i < namedArgs.len; i++) {
-		data->namedArgs[i].name = namedArgs[i].name;
-		data->namedArgs[i].arg  = namedArgs[i].arg;	// TODO: should this be a string copy here?
+		err->namedArgs[i].name = namedArgs[i].name;
+		err->namedArgs[i].arg  = namedArgs[i].arg;	// TODO: should this be a string copy here?
 	}
-	data->namedArgsLen = (U32)namedArgs.len;
+	err->namedArgsLen = (U32)namedArgs.len;
 
 	#if defined JC_DEBUG_BREAK_ON_ERR
 	if (Sys::IsDebuggerPresent()) {
-		JC_DEBUGGER_BREAK();
+		JC_DEBUGGER_BREAK;
 	}
 	#endif	// JC_DEBUG_BREAK_ON_ERR
-}
 
-void Err::Init(Str ns, U64 code, Span<const NamedArg> namedArgs, SrcLoc sl) {
-	Init(ns, Fmt::Printf(tempAllocator, "{}", code), namedArgs, sl);
-}
-
-//--------------------------------------------------------------------------------------------------
-
-Err Err::Push(Err err) {
-	err.data->prev = data;
 	return err;
 }
 
+Err* Make(Err* prev, SrcLoc sl, Str ns, U64 code, Span<const NamedArg> namedArgs) {
+	return Make(sl, prev, ns, Fmt::Printf(tempAllocator, "{}", code), namedArgs);
+}
+
 //--------------------------------------------------------------------------------------------------
 
-Str Err::GetStr() {
-	JC_ASSERT(data);
+Str MakeStr(const Err* err) {
+	JC_ASSERT(err);
 	Array<char> a(tempAllocator);
 	Fmt::Printf(&a, "Error: ");
-	for (Data* d = data; d; d = d->prev) {
-		Fmt::Printf(&a, "{}-{} -> ", d->ns, d->code);
+	for (const Err* e = err; e; e = e->prev) {
+		Fmt::Printf(&a, "{}-{} -> ", e->ns, e->code);
 	}
 	a.len -= 4;
 	a.Add('\n');
-	for (Data* d = data; d; d = d->prev) {
-		Fmt::Printf(&a, "{}-{}:\n", d->ns, d->code);
-		for (U32 i = 0; i < d->namedArgsLen; i++) {
-			Fmt::Printf(&a, "  {}={}\n", d->namedArgs[i].name, d->namedArgs[i].arg);
+	for (const Err* e = err; e; e = e->prev) {
+		Fmt::Printf(&a, "{}-{}:\n", e->ns, e->code);
+		for (U32 i = 0; i < e->namedArgsLen; i++) {
+			Fmt::Printf(&a, "  {}={}\n", e->namedArgs[i].name, e->namedArgs[i].arg);
 		}
 	}
 	a.len--;

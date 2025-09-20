@@ -2,6 +2,8 @@
 
 #include "JC/Core.h"
 
+namespace JC::Mem { struct TempAllocator; }
+
 namespace JC::Sys {
 
 //--------------------------------------------------------------------------------------------------
@@ -11,10 +13,6 @@ void Init(Mem::TempAllocator* tempAllocator);
 void Abort();
 
 void Print(Str msg);
-
-#if defined JC_COMPILER_MSVC
-	#define JC_DEBUGGER_BREAK() __debugbreak()
-#endif	// JC_COMPILER
 
 Bool  IsDebuggerPresent();
 void  DebuggerPrint(const char* msg);

@@ -14,12 +14,12 @@ struct Val {
 	Str s;
 };
 
-static Mem::Allocator* allocator;
-static Map<Str, Val>   vals;
+static Allocator*    allocator;
+static Map<Str, Val> vals;
 
 //--------------------------------------------------------------------------------------------------
 
-void Init(Mem::Allocator* allocatorIn) {
+void Init(Allocator* allocatorIn) {
 	allocator = allocatorIn;
 	vals.Init(allocatorIn);
 }

@@ -9,7 +9,7 @@ namespace JC::Gpu {
 
 //--------------------------------------------------------------------------------------------------
 
-DefErr(Gpu, RecreateSwapchain);
+JC_EC(Gpu, RecreateSwapchain);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -21,8 +21,8 @@ constexpr Str Cfg_EnableDebug        = "Gpu::EnableDebug";
 constexpr U32 MaxFrames = 3;
 
 struct InitDesc {
-	Mem::Allocator*             allocator;
-	Mem::TempAllocator*         tempAllocator;
+	Allocator*                  allocator;
+	TempAllocator*              tempAllocator;
 	Log::Logger*                logger;
 	U32                         windowWidth;
 	U32                         windowHeight;

@@ -9,7 +9,7 @@ namespace JC::Config {
 #define JC_DEBUG_BREAK_ON_ERR
 #define JC_RENDER_DEBUG
 
-void Init(Mem::Allocator* allocator);
+void Init(Allocator* allocator);
 
 U32  GetU32(Str name, U32 def);
 U64  GetU64(Str name, U64 def);

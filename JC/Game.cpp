@@ -1,76 +1,38 @@
-#include "JC/App.h"
 #include "JC/Array.h"
 #include "JC/Config.h"
 #include "JC/Draw.h"
-#include "JC/Event.h"
 #include "JC/Fmt.h"
 #include "JC/Gpu.h"
 #include "JC/Log.h"
 #include "JC/Math.h"
 #include "JC/Random.h"
+#include "JC/Time.h"
 #include "JC/Window.h"
 #include <math.h>
 
-namespace JC::AppShmup {
+namespace JC::Game {
 
 //--------------------------------------------------------------------------------------------------
 
 static constexpr U32  WindowWidth  = 1920;
 static constexpr U32  WindowHeight = 1080;
-static constexpr U32  MapPadding   = 16;
-static constexpr U32  MapRows      = 10;
-static constexpr U32  MapCols      = 10;
-static constexpr U32  CanvasWidth  = (MapPadding * 2) + 32 + (MapCols * 64);
-static constexpr U32  CanvasHeight = (MapPadding * 2) + 16 + (MapRows * 48);
+static constexpr U32  CanvasWidth  = 640;
+static constexpr U32  CanvasHeight = 480;
 static constexpr Vec2 CanvasPos    = Vec2(80.f, 60.f);
-static constexpr F32  CanvasScale  = 2.0f;
-static constexpr U32  MaxTiles     = 32 * 32;
+static constexpr F32  CanvasScale  = 1.5f;
 
-namespace TerrainType {
-	using Enum = U32;
-	constexpr U32 Grass           = 0;
-	constexpr U32 Forest          = 1;
-	constexpr U32 Mountain        = 2;
-	constexpr U32 Hill            = 3;
-	constexpr U32 Swamp           = 4;
-	constexpr U32 Max             = 5;
-};
-
-struct Terrain {
-	TerrainType::Enum type;
-	Draw::Sprite      sprite;
-	Draw::Sprite      spriteBordered;
-};
-
-struct Tile {
-	Terrain* terrain;
-	U32      row;
-	U32      col;
-};
-
-static Mem::Allocator*      allocator; 
-static Mem::TempAllocator*  tempAllocator; 
-static Log::Logger*         logger; 
-static F32                  windowWidth;
-static F32                  windowHeight;
-static Bool                 keyDown[(U32)Event::Key::Max];
-static I32                  mouseX;
-static I32                  mouseY;
-static Draw::Canvas         canvas;
-static Terrain              terrain[TerrainType::Max];
-static Tile                 tiles[MaxTiles];
-static U32                  tilesLen;
-static bool                 drawBordered;
-static U32                  terrainHoverCol;
-static U32                  terrainHoverRow;
-static Draw::Sprite         terrainHighlightSprite;
-static Draw::Sprite         spearmanSprite;
-static U32                  spearmanCol;
-static U32                  spearmanRow;
+static Allocator*     allocator; 
+static TempAllocator* tempAllocator; 
+static Log::Logger*   logger; 
+static F32            windowWidth;
+static F32            windowHeight;
+static I32            mouseX;
+static I32            mouseY;
+static Draw::Canvas   canvas;
 
 //---------------------------------------------------------------------------------------------
 
-static Res<> PreInit(Mem::Allocator* allocatorIn, Mem::TempAllocator* tempAllocatorIn, Log::Logger* loggerIn) {
+static Res<> PreInit(Allocator* allocatorIn, TempAllocator* tempAllocatorIn, Log::Logger* loggerIn) {
 	allocator     = allocatorIn;
 	tempAllocator = tempAllocatorIn;
 	logger        = loggerIn;
@@ -79,27 +41,6 @@ static Res<> PreInit(Mem::Allocator* allocatorIn, Mem::TempAllocator* tempAlloca
 	Config::SetU32(App::Cfg_WindowWidth,  WindowWidth);
 	Config::SetU32(App::Cfg_WindowHeight, WindowHeight);
 	return Ok();
-}
-
-//---------------------------------------------------------------------------------------------
-
-static U8 hexLut[32 * 24];
-
-static void MakeHexLut() {
-	memset(hexLut, 0, sizeof(hexLut));
-	U8 start = 31;
-	U8 end   = 32;
-	for (U8 y = 0; y < 16; y++) {
-		for (U8 x = 0; x < start; x++) {
-			hexLut[((y / 2) * 32) + (x / 2)] |= (1 << ((x & 1) * 4));
-		}
-		for (U8 x = end + 1; x < 64; x++) {
-			hexLut[((y / 2) * 32) + (x / 2)] |= (2 << ((x & 1) * 4));
-		}
-		start -= 2;
-		end   += 2;
-	}
-	return;
 }
 
 //---------------------------------------------------------------------------------------------
@@ -129,7 +70,8 @@ static Res<> Init(const Window::State* windowState) {
 	terrain[TerrainType::Mountain].type = TerrainType::Mountain;
 	terrain[TerrainType::Hill].type     = TerrainType::Hill;
 	terrain[TerrainType::Swamp].type    = TerrainType::Swamp;
-	JC_CHECK_RES(Draw::GetSprite("Terrain_Grass"            ).To(terrain[TerrainType::Grass   ].sprite));
+	auto foo = Draw::GetSprite("Terrain_Grass"            ).To(terrain[TerrainType::Grass   ].sprite);
+	JC_CHECK_RES(foo);
 	JC_CHECK_RES(Draw::GetSprite("Terrain_Grass_Bordered"   ).To(terrain[TerrainType::Grass   ].spriteBordered));
 	JC_CHECK_RES(Draw::GetSprite("Terrain_Forest"           ).To(terrain[TerrainType::Forest  ].sprite));
 	JC_CHECK_RES(Draw::GetSprite("Terrain_Forest_Bordered"  ).To(terrain[TerrainType::Forest  ].spriteBordered));
@@ -151,9 +93,9 @@ static Res<> Init(const Window::State* windowState) {
 	}
 
 	JC_CHECK_RES(Draw::GetSprite("Terrain_Highlight").To(terrainHighlightSprite));
-	JC_CHECK_RES(Draw::GetSprite("Unit_Spearman").To(spearmanSprite));
 
-	MakeHexLut();
+	InitHexLut();
+	JC_CHECK_RES(InitArmies());
 
 	return Ok();
 }
@@ -167,40 +109,40 @@ static void Shutdown() {
 
 //---------------------------------------------------------------------------------------------
 
-static Res<> Events(Span<Event::Event> events) {
+static Res<> Events(Span<const Window::Event> events) {
 	for (U64 i = 0; i < events.len; i++) {
-		Event::Event* ev = &events[i];
+		const Window::Event* ev = &events[i];
 		switch (ev->type) {
-			case Event::Type::Exit: {
+			case Window::EventType::Exit: {
 				App::Exit();
 				break;
 			}
 
-			case Event::Type::WindowResized: {
+			case Window::EventType::WindowResized: {
 				windowWidth  = (F32)ev->windowResized.width;
 				windowHeight = (F32)ev->windowResized.height;
 				break;
 			}
 
-			case Event::Type::Key: {
+			case Window::EventType::Key: {
 				switch (ev->key.key) {
-					case Event::Key::Escape: App::Exit(); break;
-					case Event::Key::B: if (!ev->key.down) { drawBordered = !drawBordered; } break;
-
-					case Event::Key::Left:  if (!ev->key.down && spearmanCol >           0) { spearmanCol -= 1; } break;
-					case Event::Key::Right: if (!ev->key.down && spearmanCol < MapCols - 1) { spearmanCol += 1; } break;
-					case Event::Key::Up:    if (!ev->key.down && spearmanRow >           0) { spearmanRow -= 1; } break;
-					case Event::Key::Down:  if (!ev->key.down && spearmanRow < MapRows - 1) { spearmanRow += 1; } break;
+					case Window::Key::Escape: App::Exit(); break;
+					case Window::Key::B: if (!ev->key.down) { drawBordered = !drawBordered; } break;
+					case Window::Key::Mouse1:
+						JC_LOG("mouse left");
+						break;
+						
 				}
-				keyDown[(U32)events[i].key.key] = events[i].key.down;
 				break;
 			}
 
-			case Event::Type::MouseMove: {
+			case Window::EventType::MouseMove: {
 				mouseX = ev->mouseMove.x;
 				mouseY = ev->mouseMove.y;
 				break;
 			}
+
+			
 		}
 	}
 	return Ok();
@@ -246,11 +188,7 @@ static void UpdateTerrainHover() {
 
 //---------------------------------------------------------------------------------------------
 
-static Res<> Update(double secs) {
-	secs;
-	//const F32 fsecs = (F32)secs;
-	UpdateTerrainHover();
-
+static Res<> Update(U64 ticks) {
 	return Ok();
 }
 
@@ -273,13 +211,13 @@ static Res<> Draw(Gpu::Frame frame) {
 		);
 	}
 
-
+	/*
 	const U32 unitRowParity = spearmanRow & 1;
 	constexpr Vec2 UnitSize = { 16.f, 16.f };
 	const F32 unitX = (F32)(MapPadding + (spearmanCol * 64) + (unitRowParity * 32) + 32) - (UnitSize.x / 2);
 	const F32 unitY = (F32)(MapPadding + (spearmanRow * 48)                        + 32) - (UnitSize.y / 2);
 	Draw::DrawSprite(spearmanSprite, Vec2(unitX, unitY));
-
+	*/
 	if (terrainHoverCol != U32Max && terrainHoverRow != U32Max) {
 		const Vec2 pos = Vec2(
 			(F32)((I32)MapPadding + ((terrainHoverRow & 1) * 32) + (terrainHoverCol * 64)),
@@ -301,15 +239,4 @@ static Res<> Draw(Gpu::Frame frame) {
 
 //--------------------------------------------------------------------------------------------------
 
-App::Fns appFns = {
-	.PreInit  = PreInit,
-	.Init     = Init,
-	.Shutdown = Shutdown,
-	.Events   = Events,
-	.Update   = Update,
-	.Draw     = Draw,
-};
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC::AppShmup
+}	// namespace JC::Game

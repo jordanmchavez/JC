@@ -1,17 +1,15 @@
-#include "JC/Core.h"	// not Core/Mem.h to preserve core inclusion order
+#include "JC/Core.h"
 
 #include "JC/Bit.h"
 #include "JC/Sys.h"
 #include "JC/UnitTest.h"
 
-namespace JC::Mem {
+namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
 static constexpr U32 AlignLog2        = 3;
 static constexpr U32 Align            = 1 << AlignLog2;
-
-//--------------------------------------------------------------------------------------------------
 
 static constexpr U64 FreeBit     = 1 << 0;
 static constexpr U64 PrevFreeBit = 1 << 1;
@@ -47,6 +45,8 @@ struct Index {
 	U32 f = 0;
 	U32 s = 0;
 };
+
+//--------------------------------------------------------------------------------------------------
 
 static Index CalcIndex(U64 size) {
 	if (size < SmallBlockSize) {
@@ -269,12 +269,10 @@ struct AllocatorObj : Allocator {
 
 	//----------------------------------------------------------------------------------------------
 
-	void* Alloc(void* ptr, U64 ptrSize, U64 size, U32 flags, SrcLoc) override {
+	void* Alloc(void* ptr, U64 ptrSize, U64 size, SrcLoc) override {
 		if (!ptr) {
 			ptr = Alloc(size);
-			if (!(flags & Mem::AllocFlag_NoInit)) {
-				memset(ptr, 0, size);
-			}
+			memset(ptr, 0, size);
 
 		} else if (size) {
 			// TODO: is this even worth it? Our uses of Extend() are overwhelmingly to double our size,
@@ -285,12 +283,10 @@ struct AllocatorObj : Allocator {
 				extendSucceeded = false;
 				void* const oldPtr = ptr;
 				ptr = Alloc(size);
-				if (!(flags & Mem::AllocFlag_NoInit)) {
-					memcpy(ptr, oldPtr, size);
-				}
+				memcpy(ptr, oldPtr, size);
 				Free(oldPtr);
 			}
-			if (size > ptrSize && !(flags & Mem::AllocFlag_NoInit)) {
+			if (size > ptrSize) {
 				memset((U8*)ptr + ptrSize, 0, size - ptrSize);
 			}
 
@@ -335,15 +331,6 @@ struct AllocatorObj : Allocator {
 		InsertFreeBlock(block);
 	}
 };
-
-//--------------------------------------------------------------------------------------------------
-
-static AllocatorObj allocatorObj;
-
-Allocator* InitDefaultAllocator(U64 commitSize, U64 reserveSize) {
-	allocatorObj.Init(commitSize, reserveSize);
-	return &allocatorObj;
-}
 
 //--------------------------------------------------------------------------------------------------
 
@@ -413,29 +400,25 @@ struct TempAllocatorObj : TempAllocator {
 		JC_ASSERT(endCommit <= endReserve);
 	}
 
-	void* Alloc(void* ptr, U64 ptrSize, U64 size, U32 flags, SrcLoc) override {
+	void* Alloc(void* ptr, U64 ptrSize, U64 size, SrcLoc) override {
 		if (!ptr) {
 			JC_ASSERT(!ptrSize);
 			ptr = Alloc(size);
-			if (!(flags & AllocFlag_NoInit)) {
-				memset(ptr, 0x0, size);
-			}
+			memset(ptr, 0x0, size);
 			return ptr;
 		} else if (size) {
 			// realloc
 			if (ptr == last) {
 				Extend(ptr, size);
-				if (size > ptrSize && !(flags & AllocFlag_NoInit)) {
+				if (size > ptrSize) {
 					memset((U8*)ptr + ptrSize, 0, size - ptrSize);
 				}
 				return ptr;
 			} else {
 				void* const newPtr = Alloc(size);
-				if (!(flags & AllocFlag_NoInit)) {
-					memcpy(newPtr, ptr, ptrSize);
-					if (size > ptrSize && !(flags & AllocFlag_NoInit)) {
-						memset((U8*)newPtr + ptrSize, 0, size - ptrSize);
-					}
+				memcpy(newPtr, ptr, ptrSize);
+				if (size > ptrSize) {
+					memset((U8*)newPtr + ptrSize, 0, size - ptrSize);
 				}
 				return newPtr;
 			}
@@ -528,20 +511,6 @@ void CheckAllocator(AllocatorObj* allocator, Span<ExpectedBlock> expectedBlocks)
 			CheckTrue(!freeBlockCount[f][s]);
 		}
 	}
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static AllocatorObj     permAllocatorObj;
-static TempAllocatorObj tempAllocatorObj;
-
-Allocator*     permAllocator = &permAllocatorObj;
-TempAllocator* tempAllocator = &tempAllocatorObj;
-
-void Init(U64 permCommitSize, U64 permReserveSize, U64 tempReserveSize)
-{
-	permAllocatorObj.Init(permCommitSize, permReserveSize);
-	tempAllocatorObj.Init(tempReserveSize);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -753,4 +722,4 @@ UnitTest("Mem") {
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Mem
+}	// namespace JC

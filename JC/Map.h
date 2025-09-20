@@ -6,8 +6,6 @@ namespace JC {
 
 //-------------------------------------------------------------------------------------------------
 
-constexpr U64 AlignPow2(U64 u);
-
 template <class K, class V> struct Map {
 	struct Bucket {
 		U32 df  = 0;	// top 3 bytes are distance, bottom byte is fingerprint
@@ -19,22 +17,22 @@ template <class K, class V> struct Map {
 		V val = {};
 	};
 
-	Mem::Allocator* allocator       = 0;
-	Bucket          initBuckets[16] = {};
-	Bucket*         buckets         = initBuckets;
-	U64             bucketsCap      = 16;
-	Elem*           elems           = 0;
-	U64             elemsLen        = 0;
-	U64             elemsCap        = 0;
-	U64             mask            = 16 - 1;
+	Allocator* allocator       = 0;
+	Bucket     initBuckets[16] = {};
+	Bucket*    buckets         = initBuckets;
+	U64        bucketsCap      = 16;
+	Elem*      elems           = 0;
+	U64        elemsLen        = 0;
+	U64        elemsCap        = 0;
+	U64        mask            = 16 - 1;
 
 	Map() = default;
 
-	explicit Map(Mem::Allocator* allocatorIn) {
+	explicit Map(Allocator* allocatorIn) {
 		allocator = allocatorIn;
 	}
 
-	void Init(Mem::Allocator* allocatorIn) {
+	void Init(Allocator* allocatorIn) {
 		allocator = allocatorIn;
 	}
 

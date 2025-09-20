@@ -2,6 +2,7 @@
 
 #include "JC/Array.h"
 #include "JC/Fmt.h"
+#include "JC/Mem.h"
 
 namespace JC::Log {
 
@@ -10,11 +11,11 @@ namespace JC::Log {
 struct LoggerObj : Logger {
 	static constexpr U32 MaxFns = 32;
 
-	Mem::TempAllocator* tempAllocator = 0;
-	Fn*                 fns[MaxFns] = {};
-	U32                 fnsLen         = 0;
+	TempAllocator* tempAllocator = 0;
+	Fn*            fns[MaxFns] = {};
+	U32            fnsLen         = 0;
 
-	void Init(Mem::TempAllocator* tempAllocatorIn) {
+	void Init(TempAllocator* tempAllocatorIn) {
 		tempAllocator = tempAllocatorIn;
 	}
 
@@ -61,7 +62,7 @@ struct LoggerObj : Logger {
 
 static LoggerObj loggerObj;
 
-Logger* InitLogger(Mem::TempAllocator* tempAllocator) {
+Logger* InitLogger(TempAllocator* tempAllocator) {
 	loggerObj.Init(tempAllocator);
 	return &loggerObj;	
 }

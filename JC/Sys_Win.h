@@ -10,21 +10,8 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-template <class... A> struct [[nodiscard]] Err_WinLast : Err {
-	static_assert(sizeof...(A) % 2 == 0);
-	Err_WinLast(Str fn, A... args, SrcLoc sl = SrcLoc::Here()) {
-		NamedArg namedArgs[1 + (sizeof...(A) / 2)];
-		BuildNamedArgs(namedArgs, "fn", fn, args...);
-		Init("Win", (U64)GetLastError(), Span<const NamedArg>(namedArgs, 1 + (sizeof...(A) / 2)), sl);
-	}
-};
-template <typename... A> Err_WinLast(Str, A...) -> Err_WinLast<A...>;
-
-template <class... A> struct [[nodiscard]] Err_Win : JC::Err {
-	static_assert(sizeof...(A) % 2 == 0);
-	Err_Win(U32 code, Str fn, A... args, SrcLoc sl = SrcLoc::Here()) : Err(sl, "win", "", code, "fn", fn, args...) {}
-};
-template <typename... A> Err_Win(U32, Str, A...) -> Err_Win<A...>;
+#define JC_WIN_ERR(fn, ...) \
+	Err::Make(0, SrcLoc::Here(), "Win", (U64)GetLastError(), "fn", fn, ##__VA_ARGS__)
 
 constexpr Bool IsValidHandle(HANDLE h) {
 	return h != (HANDLE)0 && h != INVALID_HANDLE_VALUE;

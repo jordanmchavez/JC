@@ -737,7 +737,7 @@ Str FormatStr(VkFormat f) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str MemoryHeapFlagsStr(Mem::Allocator* allocator, VkMemoryHeapFlags f) {
+Str MemoryHeapFlagsStr(Allocator* allocator, VkMemoryHeapFlags f) {
 	Array<char> a(allocator);
 	if (f & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)   { Add(&a, "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT|"); }
 	if (f & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT) { Add(&a, "VK_MEMORY_HEAP_MULTI_INSTANCE_BIT|"); }       
@@ -749,7 +749,7 @@ Str MemoryHeapFlagsStr(Mem::Allocator* allocator, VkMemoryHeapFlags f) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str MemoryPropertyFlagsStr(Mem::Allocator* allocator, VkMemoryPropertyFlags f) {
+Str MemoryPropertyFlagsStr(Allocator* allocator, VkMemoryPropertyFlags f) {
 	Array<char> a(allocator);
 	if (f & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)        { Add(&a, "VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT|"); }
 	if (f & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)        { Add(&a, "VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|"); }       
@@ -782,7 +782,7 @@ Str PresentModeStr(VkPresentModeKHR m) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str QueueFlagsStr(Mem::Allocator* allocator, VkQueueFlags f) {
+Str QueueFlagsStr(Allocator* allocator, VkQueueFlags f) {
 	Array<char> a(allocator);
 	if (f & VK_QUEUE_GRAPHICS_BIT)         { Add(&a, "VK_QUEUE_GRAPHICS_BIT|"); }
 	if (f & VK_QUEUE_COMPUTE_BIT)          { Add(&a, "VK_QUEUE_COMPUTE_BIT|"); }
@@ -871,13 +871,13 @@ Str PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str VersionStr(Mem::Allocator* allocator, U32 v) {
+Str VersionStr(Allocator* allocator, U32 v) {
 	return Fmt::Printf(allocator, "{}.{}.{}", VK_API_VERSION_MAJOR(v), VK_API_VERSION_MINOR(v), VK_API_VERSION_PATCH(v));
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Str SizeStr(Mem::Allocator* allocator, U64 size) {
+Str SizeStr(Allocator* allocator, U64 size) {
 	if (size > 1024 * 1024 * 1024) {
 		return Fmt::Printf(allocator, "{.1}gb", (F64)size / (1024.0 * 1024.0 * 1024.0));
 	}

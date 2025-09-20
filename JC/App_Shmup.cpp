@@ -105,8 +105,8 @@ struct Bullet {
 	Vec2 speed;
 };
 
-static Mem::Allocator*        allocator; 
-static Mem::TempAllocator*    tempAllocator; 
+static Allocator*             allocator; 
+static TempAllocator*         tempAllocator; 
 static Log::Logger*           logger; 
 static F32                    windowWidth;
 static F32                    windowHeight;
@@ -196,7 +196,7 @@ static void DrawParticleType(const ParticleType* type) {
 static constexpr U32 WindowWidth  = 1920;
 static constexpr U32 WindowHeight = 1080;
 
-static Res<> PreInit(Mem::Allocator* allocatorIn, Mem::TempAllocator* tempAllocatorIn, Log::Logger* loggerIn) {
+static Res<> PreInit(Allocator* allocatorIn, TempAllocator* tempAllocatorIn, Log::Logger* loggerIn) {
 	allocator     = allocatorIn;
 	tempAllocator = tempAllocatorIn;
 	logger        = loggerIn;

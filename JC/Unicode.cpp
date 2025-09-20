@@ -7,7 +7,7 @@ namespace JC::Unicode {
 
 //--------------------------------------------------------------------------------------------------
 
-WStrZ Utf8ToWtf16z(Mem::Allocator* allocator, Str s) {
+WStrZ Utf8ToWtf16z(Allocator* allocator, Str s) {
 	Array<wchar_t> out(allocator);
 
 	const U8* p = (const U8*)s.data;
@@ -159,7 +159,7 @@ UnitTest("Utf8ToWtf16z") {
 
 //--------------------------------------------------------------------------------------------------
 
-Str Wtf16zToUtf8(Mem::Allocator* allocator, WStrZ s) {
+Str Wtf16zToUtf8(Allocator* allocator, WStrZ s) {
 	Array<char> out(allocator);
 
 	const wchar_t* end = s.data + s.len;

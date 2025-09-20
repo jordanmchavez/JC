@@ -20,7 +20,7 @@ struct RowSet {
 	U32     len;
 };
 
-void         Init(Mem::Allocator* allocator, Mem::TempAllocator* tempAllocator);
+void         Init(Allocator* allocator, TempAllocator* tempAllocator);
 
 Component    CreateComponent(Str name, U32 size);
 

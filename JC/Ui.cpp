@@ -16,15 +16,15 @@ struct Box {
 	Vec2    computedSize;
 };
 
-static Mem::Allocator*     allocator;
-static Mem::TempAllocator* tempAllocator;
-static Log::Logger*        logger;
-static Array<Box>          boxes;
-static U16                 freeBoxIdx;
+static Allocator*     allocator;
+static TempAllocator* tempAllocator;
+static Log::Logger*   logger;
+static Array<Box>     boxes;
+static U16            freeBoxIdx;
 
 //--------------------------------------------------------------------------------------------------
 
-void Init(Mem::Allocator* allocatorIn, Mem::TempAllocator* tempAllocatorIn, Log::Logger* loggerIn) {
+void Init(Allocator* allocatorIn, TempAllocator* tempAllocatorIn, Log::Logger* loggerIn) {
 	allocator     = allocatorIn;
 	tempAllocator = tempAllocatorIn;
 	logger        = loggerIn;
@@ -47,7 +47,7 @@ void Clear() {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Events(Span<Event::Event> events) {
+Res<> Events(Span<const Window::Event> events) {
 	events; return Ok();
 }
 

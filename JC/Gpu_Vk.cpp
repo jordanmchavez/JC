@@ -110,8 +110,8 @@ using ImagePool    = HandlePool<ImageObj,    Image,    MaxImages>;
 using ShaderPool   = HandlePool<ShaderObj,   Shader,   MaxShaders>;
 using PipelinePool = HandlePool<PipelineObj, Pipeline, MaxPipelines>;
 
-static JC::Mem::Allocator*      allocator;
-static JC::Mem::TempAllocator*  tempAllocator;
+static Allocator*               allocator;
+static TempAllocator*           tempAllocator;
 static Log::Logger*             logger;
 static Sys::Mutex               mutex;
 static BufferPool               bufferObjs;

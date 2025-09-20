@@ -1,8 +1,18 @@
 #include "JC/Core.h"
+
 #include "JC/Fmt.h"
 #include "JC/Sys.h"
 
 namespace JC {
+
+//--------------------------------------------------------------------------------------------------
+
+Bool operator==(Str         s1, Str         s2) { return s1.len == s2.len && !memcmp(s1.data, s2.data, s1.len); }
+Bool operator==(const char* s1, Str         s2) { JC_ASSERT(s1); return !strcmp(s1, s2.data); }
+Bool operator==(Str         s1, const char* s2) { JC_ASSERT(s2); return !strcmp(s1.data, s2); }
+Bool operator!=(Str         s1, Str         s2) { return s1.len != s2.len || memcmp(s1.data, s2.data, s1.len); }
+Bool operator!=(const char* s1, Str         s2) { JC_ASSERT(s1); return strcmp(s1,s2.data); }
+Bool operator!=(Str         s1, const char* s2) { JC_ASSERT(s2); return strcmp(s1.data, s2); }
 
 //--------------------------------------------------------------------------------------------------
 
@@ -18,7 +28,7 @@ void VPanic(SrcLoc sl, const char* expr, const char* fmt, Span<const Arg> args) 
 	static Bool recursive = false;
 	if (recursive) {
 		if (Sys::IsDebuggerPresent()) {
-			JC_DEBUGGER_BREAK();
+			JC_DEBUGGER_BREAK;
 		}
 		Sys::Abort();
 	}
@@ -32,7 +42,7 @@ void VPanic(SrcLoc sl, const char* expr, const char* fmt, Span<const Arg> args) 
 		panicFn(sl, expr, msg);
 	} else {
 		if (Sys::IsDebuggerPresent()) {
-			JC_DEBUGGER_BREAK();
+			JC_DEBUGGER_BREAK;
 		}
 		Sys::Abort();
 	}
