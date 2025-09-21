@@ -1,7 +1,6 @@
 #include "JC/UnitTest.h"
 
 #include "JC/Array.h"
-#include "JC/Mem.h"
 #include "JC/Log.h"
 
 namespace JC::UnitTest {
@@ -19,18 +18,18 @@ struct TestObj {
 
 enum struct State { Run, Pop, Done };
 
-static Mem::TempAllocator* tempAllocator;
-static Log::Logger*        logger;
-static TestObj             tests[MaxTests];
-static U32                 testsLen;
-static Subtest::Sig        cur[MaxSubtests];
-static U32                 curLen;
-static Subtest::Sig        next[MaxSubtests];
-static U32                 nextLen;
-static Subtest::Sig        last[MaxSubtests];
-static U32                 lastLen;
-static State               state;
-static U32                 checkFails;
+static TempAllocator* tempAllocator;
+static Log::Logger*   logger;
+static TestObj        tests[MaxTests];
+static U32            testsLen;
+static Subtest::Sig   cur[MaxSubtests];
+static U32            curLen;
+static Subtest::Sig   next[MaxSubtests];
+static U32            nextLen;
+static Subtest::Sig   last[MaxSubtests];
+static U32            lastLen;
+static State          state;
+static U32            checkFails;
 
 Bool operator==(Subtest::Sig s1, Subtest::Sig s2) {
 	// order by most likely fast fail
@@ -86,7 +85,7 @@ Subtest::~Subtest() {
 	}
 }
 
-Bool Run(Mem::TempAllocator* tempAllocatorIn, Log::Logger* loggerIn) {
+Bool Run(TempAllocator* tempAllocatorIn, Log::Logger* loggerIn) {
 	tempAllocator = tempAllocatorIn;
 	logger        = loggerIn;
 

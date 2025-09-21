@@ -22,11 +22,9 @@ namespace JC::Gpu {
 //--------------------------------------------------------------------------------------------------
 
 template <class... A> struct [[nodiscard]] Err_Vk : JC::Err {
-	Err_Vk(VkResult vkResult, Str fn, A... args, SrcLoc sl = SrcLoc::Here()) {
-		NamedArg namedArgs[1 + sizeof...(A) / 2];	// includes "fn"
-		BuildNamedArgs(namedArgs, "fn", fn, args...);
-		Init("Vk", (I64)vkResult, Span<const NamedArg>(namedArgs, 1 + sizeof...(A) / 2), sl);
-	}
+	Err_Vk(VkResult vkResult, Str fn, A... args, SrcLoc sl = SrcLoc::Here()) :
+		Err(Err(), sl, "Vk", (U64)vkResult, "fn", fn, args...)
+		{}
 };
 template <typename... A> Err_Vk(VkResult, Str, A...) -> Err_Vk<A...>;
 

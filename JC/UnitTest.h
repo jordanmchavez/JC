@@ -8,7 +8,7 @@ namespace JC::UnitTest {
 
 //--------------------------------------------------------------------------------------------------
 
-Bool Run(Mem::TempAllocator* tempAllocator, Log::Logger* logger);
+Bool Run(TempAllocator* tempAllocator, Log::Logger* logger);
 
 Bool CheckFailImpl(SrcLoc sl);
 Bool CheckExprFail(SrcLoc sl, Str expr);
@@ -36,7 +36,7 @@ template <class X, class Y> Bool CheckSpanEq(SrcLoc sl, Str expr, Span<X> x, Spa
 	return true;
 }
 
-using TestFn = void([[maybe_unused]] Mem::TempAllocator* testAllocator);
+using TestFn = void([[maybe_unused]] TempAllocator* testAllocator);
 
 struct TestRegistrar {
 	TestRegistrar(Str name, SrcLoc sl, TestFn* fn);
@@ -57,9 +57,9 @@ struct Subtest {
 #define TestDebuggerBreak ([]() { JC_DEBUGGER_BREAK; return false; }())
 
 #define UnitTestImpl(name, fn, registrarVar) \
-	static void fn([[maybe_unused]] JC::Mem::TempAllocator* testAllocator); \
+	static void fn([[maybe_unused]] JC::TempAllocator* testAllocator); \
 	static UnitTest::TestRegistrar registrarVar = UnitTest::TestRegistrar(name, SrcLoc::Here(), fn); \
-	static void fn([[maybe_unused]] JC::Mem::TempAllocator* testAllocator)
+	static void fn([[maybe_unused]] JC::TempAllocator* testAllocator)
 
 #define UnitTest(name) \
 	UnitTestImpl(name, JC_MACRO_UNIQUE_NAME(UnitTestFn_), JC_MACRO_UNIQUE_NAME(UnitTestRegistrar_))

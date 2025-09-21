@@ -1,17 +1,15 @@
 #include "JC/Sys.h"
 #include "JC/Sys_Win.h"
 
-#include "JC/Mem.h"
-
 namespace JC::Sys {
 
 //--------------------------------------------------------------------------------------------------
 
-static Mem::TempAllocator* tempAllocator;
+static TempAllocator* tempAllocator;
 
 //--------------------------------------------------------------------------------------------------
 
-void Init(Mem::TempAllocator* tempAllocatorIn) {
+void Init(TempAllocator* tempAllocatorIn) {
 	tempAllocator = tempAllocatorIn;
 }
 

@@ -21,7 +21,7 @@ struct Logger {
 
 using Fn = void (const char* msg, U64 len);
 
-Logger* InitLogger(Mem::TempAllocator* tempAllocator);
+Logger* Init(TempAllocator* tempAllocator);
 void AddFn(Fn fn);
 
 //--------------------------------------------------------------------------------------------------

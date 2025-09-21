@@ -2,7 +2,6 @@
 
 #include "JC/Array.h"
 #include "JC/Fmt.h"
-#include "JC/Mem.h"
 
 namespace JC::Log {
 
@@ -62,7 +61,7 @@ struct LoggerObj : Logger {
 
 static LoggerObj loggerObj;
 
-Logger* InitLogger(TempAllocator* tempAllocator) {
+Logger* Init(TempAllocator* tempAllocator) {
 	loggerObj.Init(tempAllocator);
 	return &loggerObj;	
 }

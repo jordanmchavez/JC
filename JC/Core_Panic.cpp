@@ -7,15 +7,6 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-Bool operator==(Str         s1, Str         s2) { return s1.len == s2.len && !memcmp(s1.data, s2.data, s1.len); }
-Bool operator==(const char* s1, Str         s2) { JC_ASSERT(s1); return !strcmp(s1, s2.data); }
-Bool operator==(Str         s1, const char* s2) { JC_ASSERT(s2); return !strcmp(s1.data, s2); }
-Bool operator!=(Str         s1, Str         s2) { return s1.len != s2.len || memcmp(s1.data, s2.data, s1.len); }
-Bool operator!=(const char* s1, Str         s2) { JC_ASSERT(s1); return strcmp(s1,s2.data); }
-Bool operator!=(Str         s1, const char* s2) { JC_ASSERT(s2); return strcmp(s1.data, s2); }
-
-//--------------------------------------------------------------------------------------------------
-
 static PanicFn* panicFn;
 
 PanicFn* SetPanicFn(PanicFn* newPanicFn) {

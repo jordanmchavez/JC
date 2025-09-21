@@ -2,30 +2,28 @@
 
 #include "JC/Core.h"
 
-namespace JC::Mem { struct Allocator; }
-
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
 template <class T> struct Array {
-	Mem::Allocator* allocator = 0;
-	T*              data      = 0;
-	U64             len       = 0;
-	U64             cap       = 0;
+	Allocator* allocator = 0;
+	T*         data      = 0;
+	U64        len       = 0;
+	U64        cap       = 0;
 
 	Array() = default;
 
-	explicit Array(Mem::Allocator* allocatorIn) {
+	explicit Array(Allocator* allocatorIn) {
 		allocator = allocatorIn;
 	}
 
-	Array(Mem::Allocator* allocatorIn, U64 size) {
+	Array(Allocator* allocatorIn, U64 size) {
 		allocator = allocatorIn;
 		Resize(size);
 	}
 
-	void Init(Mem::Allocator* allocatorIn) {
+	void Init(Allocator* allocatorIn) {
 		allocator = allocatorIn;
 		data      = 0;
 		len       = 0;

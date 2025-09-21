@@ -34,13 +34,12 @@ struct WStrZ {
 	constexpr wchar_t operator[](U64 i) const { JC_ASSERT(i < len); return data[i]; }
 };
 
-inline Bool operator==(WStrZ s1,          WStrZ          s2) { return s1.len == s2.len && !memcmp(s1.data, s2.data, s1.len); }
-inline Bool operator==(WStrZ s1,          const wchar_t* s2) { return !wcscmp(s1.data, s2); }
-inline Bool operator==(const wchar_t* s1, WStrZ          s2) { return !wcscmp(s1,      s2.data);  }
-
-inline Bool operator!=(WStrZ s1,          WStrZ          s2) { return s1.len != s2.len || memcmp(s1.data, s2.data, s1.len); }
-inline Bool operator!=(WStrZ s1,          const wchar_t* s2) { return wcscmp(s1.data, s2); }
-inline Bool operator!=(const wchar_t* s1, WStrZ          s2) { return wcscmp(s1,      s2.data);  }
+Bool operator==(WStrZ s1,          WStrZ          s2);
+Bool operator==(WStrZ s1,          const wchar_t* s2);
+Bool operator==(const wchar_t* s1, WStrZ          s2);
+Bool operator!=(WStrZ s1,          WStrZ          s2);
+Bool operator!=(WStrZ s1,          const wchar_t* s2);
+Bool operator!=(const wchar_t* s1, WStrZ          s2);
 
 //--------------------------------------------------------------------------------------------------
 

@@ -9,17 +9,17 @@ namespace JC::Json {
 
 //--------------------------------------------------------------------------------------------------
 
-DefErr(Json, UnmatchedComment);
-DefErr(Json, Eof);
-DefErr(Json, BadChar);
-DefErr(Json, BadExponent);
-DefErr(Json, BadNumber);
-DefErr(Json, UnmatchedStringQuote);
-DefErr(Json, UnmatchedArrayBracket);
-DefErr(Json, UnmatchedObjectBrace);
-DefErr(Json, BadEscapedChar);
-DefErr(Json, BadObj);
-DefErr(Json, BadKey);
+JC_DEF_ERR(Json, UnmatchedComment);
+JC_DEF_ERR(Json, Eof);
+JC_DEF_ERR(Json, BadChar);
+JC_DEF_ERR(Json, BadExponent);
+JC_DEF_ERR(Json, BadNumber);
+JC_DEF_ERR(Json, UnmatchedStringQuote);
+JC_DEF_ERR(Json, UnmatchedArrayBracket);
+JC_DEF_ERR(Json, UnmatchedObjectBrace);
+JC_DEF_ERR(Json, BadEscapedChar);
+JC_DEF_ERR(Json, BadObj);
+JC_DEF_ERR(Json, BadKey);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -392,7 +392,7 @@ static Res<Elem> ParseKey(ParseCtx* ctx) {
 				break;
 			}
 		}
-		return AddStr(ctx->doc, Str(begin, ctx->iter));
+		return AddStr(ctx->doc, Str(begin, ctx->iter - begin));
 
 	} else {
 		return Err_BadKey("line", ctx->line, "ch", c);

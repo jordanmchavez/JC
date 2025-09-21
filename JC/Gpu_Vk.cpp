@@ -19,14 +19,14 @@ namespace JC::Gpu {
 
 //--------------------------------------------------------------------------------------------------
 
-DefErr(Gpu, Version);
-DefErr(Gpu, NoLayer);
-DefErr(Gpu, NoExt);
-DefErr(Gpu, NoDevice);
-DefErr(Gpu, NoMemType);
-DefErr(Gpu, NoMem);
-DefErr(Gpu, ShaderTooManyPushConstantBlocks);
-DefErr(Gpu, SpvReflect);
+JC_DEF_ERR(Gpu, Version);
+JC_DEF_ERR(Gpu, NoLayer);
+JC_DEF_ERR(Gpu, NoExt);
+JC_DEF_ERR(Gpu, NoDevice);
+JC_DEF_ERR(Gpu, NoMemType);
+JC_DEF_ERR(Gpu, NoMem);
+JC_DEF_ERR(Gpu, ShaderTooManyPushConstantBlocks);
+JC_DEF_ERR(Gpu, SpvReflect);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -178,7 +178,7 @@ static VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT 
 			JC_LOG_ERROR("{}", data->pMessage);
 			#if defined JC_DEBUG_BREAK_ON_ERR
 				if (Sys::IsDebuggerPresent()) {
-					JC_DEBUGGER_BREAK();
+					JC_DEBUGGER_BREAK;
 				}
 			#endif	// JC_DEBUG_BREAK_ON_ERR
 		} else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {

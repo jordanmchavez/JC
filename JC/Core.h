@@ -33,7 +33,7 @@ namespace std {
 	};
 }	// namespace std
 
-//-----------------------1---------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
 
 namespace JC {
 
@@ -88,6 +88,26 @@ struct SrcLoc {
 		return SrcLoc { .file = file, .line = line };
 	}
 };
+
+//--------------------------------------------------------------------------------------------------
+
+struct Allocator {
+	virtual void* Alloc(void* ptr, U64 ptrSize, U64 newSize, SrcLoc sl = SrcLoc::Here()) = 0;
+
+	void* Alloc  (                        U64 newSize, SrcLoc sl = SrcLoc::Here()) { return Alloc(0,   0,       newSize, sl); }
+	void* Realloc(void* ptr, U64 ptrSize, U64 newSize, SrcLoc sl = SrcLoc::Here()) { return Alloc(ptr, ptrSize, newSize, sl); }
+	void  Free   (void* ptr, U64 ptrSize,              SrcLoc sl = SrcLoc::Here()) {        Alloc(ptr, ptrSize, 0,       sl); }
+
+	template <class T> T* AllocT  (                  U64 n = 1, SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(0,   0,                n * sizeof(T), sl); }
+	template <class T> T* ReallocT(T* ptr, U64 oldN, U64 n,     SrcLoc sl = SrcLoc::Here()) { return (T*)Alloc(ptr, oldN * sizeof(T), n * sizeof(T), sl); }
+};
+
+struct TempAllocator : Allocator {
+	virtual void Reset() = 0;
+};
+
+Allocator*     InitAllocator(U64 commitSize, U64 reserveSize);
+TempAllocator* InitTempAllocator(U64 reserveSize);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -331,27 +351,84 @@ struct Str {
 	constexpr char operator[](U64 i) const { JC_ASSERT(i < len); return data[i]; }
 };
 
-Bool operator==(Str         s1, Str         s2);
-Bool operator==(const char* s1, Str         s2);
-Bool operator==(Str         s1, const char* s2);
-Bool operator!=(Str         s1, Str         s2);
-Bool operator!=(const char* s1, Str         s2);
-Bool operator!=(Str         s1, const char* s2);
+inline Bool operator==(Str         s1, Str         s2) { return s1.len == s2.len && !memcmp(s1.data, s2.data, s1.len); }
+inline Bool operator==(const char* s1, Str         s2) { JC_ASSERT(s1); return !strcmp(s1, s2.data); }
+inline Bool operator==(Str         s1, const char* s2) { JC_ASSERT(s2); return !strcmp(s1.data, s2); }
+inline Bool operator!=(Str         s1, Str         s2) { return s1.len != s2.len || memcmp(s1.data, s2.data, s1.len); }
+inline Bool operator!=(const char* s1, Str         s2) { JC_ASSERT(s1); return strcmp(s1,s2.data); }
+inline Bool operator!=(Str         s1, const char* s2) { JC_ASSERT(s2); return strcmp(s1.data, s2); }
 
 //--------------------------------------------------------------------------------------------------
 
-namespace Err {
+struct NamedArg {
+	Str name;
+	Arg arg;
+};
 
-struct Err;
+template <class A1, class... A> void FillNamedArgs(NamedArg* namedArgs, const char* name, A1 arg1, A... args) {
+	namedArgs->name = name;
+	namedArgs->arg = MakeArg(arg1);
+	if constexpr (sizeof...(A) > 0) {
+		FillNamedArgs(namedArgs + 1, args...);
+	}
+}
 
-struct Code {
+inline void FillNamedArgs(NamedArg*) {}
+
+//--------------------------------------------------------------------------------------------------
+
+struct ErrCode {
 	Str ns;
 	Str code;
 };
 
-}	// namespace Err
+struct [[nodiscard]] Err {
+	static constexpr U32 MaxNamedArgs = 32;
 
-#define JC_DEF_EC(Ns, Code) constexpr Err::Code EC_##Code = { .ns = #Ns, .code = #Code };
+	struct Data {
+		Data*    prev                    = {};
+		SrcLoc   sl                      = {};
+		Str      ns                      = {};
+		Str      code                    = {};
+		NamedArg namedArgs[MaxNamedArgs] = {};
+		U32      namedArgsLen            = 0;
+	};
+
+	Data* data = 0;
+
+	Err() = default;
+
+	template <class...A> Err(Err prev, SrcLoc sl, Str ns, Str code, A... args) {
+		NamedArg namedArgs[1 + (sizeof...(A) / 2)];
+		FillNamedArgs(namedArgs, args...);
+		Init(prev, sl, ns, code, Span<const NamedArg>(namedArgs, sizeof...(A) / 2));
+	}
+
+	template <class...A> Err(Err prev, SrcLoc sl, Str ns, U64 code, A... args) {
+		NamedArg namedArgs[1 + (sizeof...(A) / 2)];
+		FillNamedArgs(namedArgs, args...);
+		Init(prev, sl, ns, code, Span<const NamedArg>(namedArgs, sizeof...(A) / 2));
+	}
+
+	void Init(Err prev, SrcLoc sl, Str ns, Str code, Span<const NamedArg> namedArgs);
+	void Init(Err prev, SrcLoc sl, Str ns, U64 code, Span<const NamedArg> namedArgs);
+	
+	Str GetStr() const;
+};
+
+constexpr bool operator==(ErrCode ec, Err err) { return err.data && ec.ns == err.data->ns && ec.code == err.data->code; }
+constexpr bool operator==(Err err, ErrCode ec) { return err.data && ec.ns == err.data->ns && ec.code == err.data->code; }
+
+static_assert(sizeof(Err) == 8);
+
+#define JC_DEF_ERR(InNs, InCode) \
+	constexpr ErrCode EC_##InCode = { .ns = #InNs, .code = #InCode }; \
+	template <class... A> struct Err_##InCode : JC::Err { \
+		Err_##InCode(A... args, SrcLoc sl = SrcLoc::Here()) \
+			: Err(Err(), sl, #InNs, #InCode, args...) \
+			{} \
+	}; \
+	template <class...A> Err_##InCode(A...) -> Err_##InCode<A...>
 
 //--------------------------------------------------------------------------------------------------
 
@@ -359,26 +436,26 @@ struct Code {
 template <class T = void> struct [[nodiscard]] Res;
 
 template <> struct [[nodiscard]] Res<void> {
-	Err::Err* err = 0;
+	Err err;
 
 	constexpr Res() = default;
-	constexpr Res(Err::Err* e) { err = e; }	// implicit
+	constexpr Res(Err e) { err = e; }	// implicit
 	constexpr Res(const Res<>&) = default;
-	constexpr operator Bool() const { return !err; }
+	constexpr operator Bool() const { return !err.data; }
 };
 
 static_assert(sizeof(Res<>) == 8);
 
 template <class T> struct [[nodiscard]] Res {
 	union {
-		T         val;
-		Err::Err* err;
+		T   val;
+		Err err;
 	};
 	Bool hasVal = false;
 
 	constexpr Res() = default;
 	constexpr Res(T v) { val = v; hasVal = true;  }	// implicit
-	constexpr Res(Err::Err* e) { err = e; hasVal = false; }	// implicit
+	constexpr Res(Err e) { err = e; hasVal = false; }	// implicit
 	constexpr Res(const Res<T>&) = default;
 	constexpr operator Bool() const { return hasVal; }
 	constexpr Res<> To(T& out) { if (hasVal) { out = val; return Res<>{}; } return Res<>(err); }
@@ -387,6 +464,11 @@ template <class T> struct [[nodiscard]] Res {
 };
 
 constexpr Res<> Ok() { return Res<>(); }
+
+#define JC_CHECK_RES(Expr) \
+	if (Res<> r = (Expr); !r) { \
+		return Err(r.err, SrcLoc::Here(), "", ""); \
+	} \
 
 //--------------------------------------------------------------------------------------------------
 
@@ -413,7 +495,15 @@ template <class T> constexpr T Clamp(T x, T lo, T hi) { return x < lo ? lo : (x 
 template <class T> struct Array;
 template <class K, class V> struct Map;
 
-namespace Mem { struct Allocator; struct TempAllocator; }
+//--------------------------------------------------------------------------------------------------
+
+void* Copy(Allocator* allocator, const void* p, U64 len);
+
+inline Str Copy(Allocator* allocator, Str s) { return Str((char*)Copy(allocator, s.data, s.len), s.len); }
+
+template <class T> Span<T> Copy(Allocator* allocator, Span<const T> s) {
+	return Span<T>(Copy(s.data, s.len * sizeof(T)), s.len);
+}
 
 //--------------------------------------------------------------------------------------------------
 

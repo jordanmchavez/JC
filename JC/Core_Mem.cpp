@@ -436,6 +436,14 @@ struct TempAllocatorObj : TempAllocator {
 
 //--------------------------------------------------------------------------------------------------
 
+void* Copy(Allocator* allocator, const void* p, U64 len) {
+	void* pCopy = allocator->Alloc(len);
+	memcpy(pCopy, p, len);
+	return pCopy;
+}
+
+//--------------------------------------------------------------------------------------------------
+
 struct ExpectedBlock {
 	U64  size;
 	Bool free;

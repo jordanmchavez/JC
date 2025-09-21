@@ -1,7 +1,6 @@
 ﻿#include "JC/Fmt.h"
 
 #include "JC/Array.h"
-#include "JC/Mem.h"
 #include "JC/UnitTest.h"
 #include "dragonbox/dragonbox.h"
 #include <math.h>
@@ -465,7 +464,7 @@ void VPrintf(Array<char>* out, const char* fmt, Span<const Arg> args) {
 	VPrintfImpl(out, fmt, args);
 }
 	
-Str VPrintf(Mem::Allocator* allocator, const char* fmt, Span<const Arg> args) {
+Str VPrintf(Allocator* allocator, const char* fmt, Span<const Arg> args) {
 	Array<char> out(allocator);
 	VPrintfImpl(&out, fmt, args);
 	return Str(out.data, out.len);

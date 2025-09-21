@@ -2,8 +2,18 @@
 
 #include "JC/Array.h"
 #include "JC/UnitTest.h"
+#include <wchar.h>
 
 namespace JC::Unicode {
+
+//--------------------------------------------------------------------------------------------------
+
+Bool operator==(WStrZ s1,          WStrZ          s2) { return s1.len == s2.len && !memcmp(s1.data, s2.data, s1.len); }
+Bool operator==(WStrZ s1,          const wchar_t* s2) { return !wcscmp(s1.data, s2); }
+Bool operator==(const wchar_t* s1, WStrZ          s2) { return !wcscmp(s1,      s2.data);  }
+Bool operator!=(WStrZ s1,          WStrZ          s2) { return s1.len != s2.len || memcmp(s1.data, s2.data, s1.len); }
+Bool operator!=(WStrZ s1,          const wchar_t* s2) { return wcscmp(s1.data, s2); }
+Bool operator!=(const wchar_t* s1, WStrZ          s2) { return wcscmp(s1,      s2.data);  }
 
 //--------------------------------------------------------------------------------------------------
 
