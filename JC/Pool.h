@@ -1,6 +1,6 @@
 #pragma once
 
-#include "JC/Core.h"
+#include "JC/Common.h"
 
 namespace JC {
 
@@ -49,11 +49,11 @@ template <class T, class H, U32 N> struct HandlePool {
 	Entry* GetEntry(H h) {
 		const U32 i = (U32)(h.handle & 0xffffffff);
 		const U32 g = (U32)(h.handle >> 32);
-		JC_ASSERT(i > 0 && i < len);
-		JC_ASSERT(g);
+		Assert(i > 0 && i < len);
+		Assert(g);
 		Entry* const entry = &entries[i];
-		JC_ASSERT(entry->gen == g);
-		JC_ASSERT(entry->idx == i);
+		Assert(entry->gen == g);
+		Assert(entry->idx == i);
 		return entry;
 	}
 

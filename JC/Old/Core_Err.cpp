@@ -27,9 +27,9 @@ void Err::Init(Err prev, SrcLoc sl, Str ns, Str code, Span<const NamedArg> named
 	data->namedArgsLen = (U32)namedArgs.len;
 
 	#if defined JC_DEBUG_BREAK_ON_ERR
-	if (Sys::IsDebuggerPresent()) {
-		JC_DEBUGGER_BREAK();
-	}
+		if (Sys::IsDebuggerPresent()) {
+			JC_DEBUGGER_BREAK();
+		}
 	#endif	// JC_DEBUG_BREAK_ON_ERR
 }
 

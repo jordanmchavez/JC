@@ -1,13 +1,5 @@
 #pragma once
 
-#include "JC/Core.h"
-
-namespace JC::Game {
-
-//--------------------------------------------------------------------------------------------------
-
-void Run(int argc, const char** argv);
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC::Game
+void Game_Init();
+bool Game_Frame();
+void Game_Shutdown();
