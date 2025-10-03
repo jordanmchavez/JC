@@ -1,9 +1,7 @@
-#include "JC/Core.h"
+#include "JC/Common.h"
 
 #include "JC/Fmt.h"
 #include "JC/Sys.h"
-
-namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -15,30 +13,26 @@ PanicFn* SetPanicFn(PanicFn* newPanicFn) {
 	return oldPanicFn;
 }
 
-void VPanic(SrcLoc sl, const char* expr, const char* fmt, Span<const Arg> args) {
+[[noreturn]] void Panicv(SrcLoc sl, char const* expr, char const* fmt, Arg const* args, U32 argsLen) {
 	static Bool recursive = false;
 	if (recursive) {
-		if (Sys::IsDebuggerPresent()) {
-			JC_DEBUGGER_BREAK;
+		if (Sys_DbgPresent()) {
+			Dbg_Break;
 		}
-		Sys::Abort();
+		Sys_Abort();
 	}
 	recursive = true;
 
 	if (panicFn) {
 		char msg[2048] = {};
 		if (fmt) {
-			*Fmt::VPrintf(msg, msg + JC_LENOF(msg) - 1, fmt, args) = '\0';
+			*Fmt_Printv(msg, msg + LenOf(msg) - 1, fmt, Span<Arg const>(args, argsLen)) = '\0';
 		}
 		panicFn(sl, expr, msg);
 	} else {
-		if (Sys::IsDebuggerPresent()) {
-			JC_DEBUGGER_BREAK;
+		if (Sys_DbgPresent()) {
+			Dbg_Break;
 		}
-		Sys::Abort();
+		Sys_Abort();
 	}
 }
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC

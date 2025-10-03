@@ -1,15 +1,5 @@
 	#define JC_BUILTIN_IS_ENUM(T) __is_enum(T)
 
-constexpr U32 U32Max = 0xffffffff;
-constexpr U64 U64Max = (U64)0xffffffffffffffff;
-
-#define JC_MACRO_CONCAT_2(x, y) x##y
-#define JC_MACRO_CONCAT(x, y)  JC_MACRO_CONCAT_2(x, y)
-#define JC_MACRO_UNIQUE_NAME(x) JC_MACRO_CONCAT(x, __LINE__)
-#define JC_MACRO_STRINGIZE_2(x) #x
-#define JC_MACRO_STRINGIZE(x) JC_MACRO_STRINGIZE_2(x)
-#define JC_MACRO_LINE_STR JC_MACRO_STRINGIZE(__LINE__)
-#define JC_LENOF(a) ((U64)(sizeof(a) / sizeof(a[0])))
 
 constexpr U64 KB = 1024;
 constexpr U64 MB = 1024 * KB;

@@ -2,34 +2,28 @@
 
 #include "JC/Common.h"
 
-namespace JC::Err {
-
 //--------------------------------------------------------------------------------------------------
 
-struct NamedArg {
+struct ErrArg {
 	Str name;
 	Arg arg;
 };
 
-constexpr U32 MaxNamedArgs = 32;
+constexpr U32 Err_MaxArgs = 32;
 
-struct Data {
-	U64         frame;
-	const Data* prev;
-	SrcLoc      sl;
-	Str         ns;
-	Str         code;
-	NamedArg    namedArgs[MaxNamedArgs];
-	U32         namedArgsLen;
+struct ErrData {
+	U64            frame;
+	ErrData const* prev;
+	SrcLoc         sl;
+	Str            ns;
+	Str            code;
+	ErrArg         args[Err_MaxArgs];
+	U32            argsLen;
 };
 
-const Data* GetData(Err err);
+const ErrData* Err_GetData(Err err);
 
-void Frame(U64 frame);
+void Err_Frame(U64 frame);
 
-bool operator==(Code ec, Err err);
-bool operator==(Err err, Code ec);
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC::Err
+bool operator==(ErrCode ec, Err err);
+bool operator==(Err err, ErrCode ec);

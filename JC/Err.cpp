@@ -1,42 +1,52 @@
 #include "JC/Err.h"
 
-#include "JC/Pool.h"
+//--------------------------------------------------------------------------------------------------
 
-namespace JC::Err {
+static constexpr U32 Err_MaxDatas = 256;
+static constexpr U32 Err_MaxStrBuf = 64 * 1024;
+
+static ErrData err_datas[Err_MaxDatas];
+static U32     err_datasHead = 1;	// reserve index 0 for invalid
+static U32     err_datasTail = Err_MaxDatas - 1;
+static U64     err_frame;
+static char    err_strBuf[Err_MaxStrBuf];
+static U32     err_strBufLen;
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr U32 MaxDatas = 256;
-static constexpr U32 MaxStrBuf = 64 * 1024;
-
-static HandlePool<Data, Err, MaxDatas> dataPool;
-static U64                             frame;
-static char                            strBuf[MaxStrBuf];
-static U32                             strBufLen;
+static ErrData* Err_AllocData() {
+	Assert(err_datasHead != err_datasTail);
+	ErrData* data = err_datas + err_datasHead;
+	err_datasHead++;
+	if (err_datasHead >= Err_MaxDatas) {
+		err_datasHead = 1;
+	}
+	return data;
+}
 
 //--------------------------------------------------------------------------------------------------
 
-static char* AllocStr(U64 len) {
-	Assert(strBufLen + len <= MaxStrBuf);
-	char* result = strBuf + strBufLen;
-	strBufLen += len;
+static char* Err_AllocStr(U32 len) {
+	Assert(err_strBufLen + len <= Err_MaxStrBuf);
+	char* result = err_strBuf + err_strBufLen;
+	err_strBufLen += len;
 	return result;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static Arg CloneArg(Arg arg) {
+static Arg Err_CloneArg(Arg arg) {
 	if (arg.type != ArgType::Str) {
 		return arg;
 	}
 
 	if (arg.s.l <= 256) {
-		char* str = AllocStr(arg.s.l);
+		char* str = Err_AllocStr(arg.s.l);
 		memcpy(str, arg.s.s, arg.s.l);
 		return Arg { .s = { .s = str, .l = arg.s.l } };
 	}
 
-	char* str = AllocStr(256);
+	char* str = Err_AllocStr(256);
 	// 127 + "..." + 126
 	memcpy(str, arg.s.s, 127);
 	memcpy(str + 127, "...", 3);
@@ -46,31 +56,39 @@ static Arg CloneArg(Arg arg) {
 
 //--------------------------------------------------------------------------------------------------
 
-Err Err::Make(Err prev, SrcLoc sl, Str ns, Str code, Span<const NamedArg> namedArgs) {
-	JC_ASSERT(namedArgs.len <= ErrData::MaxNamedArgs);
+Err Err_Make(Err prev, SrcLoc sl, Str ns, Str code, Span<Str const> names, Span<Arg const> args) {
+	Assert(names.len == args.len);
+	Assert(names.len <= Err_MaxArgs);
 
-	ErrData* const errData = AllocErrData();
-	errData->frame        = frame;
-	errData->prev         = prev.data;
-	errData->sl           = sl;
-	errData->ns           = ns;
-	errData->code         = code;
-	errData->namedArgsLen = namedArgs.len;
-	for (U64 i = 0; i < namedArgs.len; i++) {
-		errData->namedArgs[i].name = namedArgs[i].name;
-		errData->namedArgs[i].arg  = CloneArg(namedArgs[i].arg);
+	ErrData* prevData = 0;
+	if (prev.handle) {
+		Assert(prev.handle < Err_MaxDatas);
+		prevData = err_datas + prev.handle;
+		Assert(prevData->frame == err_frame);
 	}
 
-	return Err { .data = errData };
+	ErrData* const data = Err_AllocData();
+	data->frame   = err_frame;
+	data->prev    = prevData;
+	data->sl      = sl;
+	data->ns      = ns;
+	data->code    = code;
+	data->argsLen = (U32)args.len;
+	for (U64 i = 0; i < args.len; i++) {
+		data->args[i].name = names[i];
+		data->args[i].arg  = Err_CloneArg(args[i]);
+	}
+
+	return Err { .handle = (U64)(data - err_datas) };
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void Frame(U64 frame_) {
-	frame = frame_;
-	errDatasTail = (errDatasHead > 0) ? (errDatasHead - 1) : (MaxErrDatas - 1);
+void Err_Frame(U64 frame) {
+	err_frame = frame;
+	if (err_datasHead == 1) {
+		err_datasTail = Err_MaxDatas - 1;
+	} else {
+		err_datasTail = err_datasHead - 1;
+	}
 }
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC::Err

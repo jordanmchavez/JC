@@ -1,56 +1,51 @@
 ﻿#include "JC/Fmt.h"
 
 #include "JC/Array.h"
-#include "JC/UnitTest.h"
-#include "dragonbox/dragonbox.h"
+#include "JC/Mem.h"
+#include "JC/Unit.h"
 #include <math.h>
-
-namespace JC::Fmt {
+#include "3rd/dragonbox/dragonbox.h"
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr U32 Flag_Left  = 1 << 0;
-static constexpr U32 Flag_Plus  = 1 << 1;
-static constexpr U32 Flag_Space = 1 << 2;
-static constexpr U32 Flag_Zero  = 1 << 3;
-static constexpr U32 Flag_Bin   = 1 << 4;
-static constexpr U32 Flag_Hex   = 1 << 5;
-static constexpr U32 Flag_Fix   = 1 << 6;
-static constexpr U32 Flag_Sci   = 1 << 7;
+static constexpr U32 Fmt_Left  = 1 << 0;
+static constexpr U32 Fmt_Plus  = 1 << 1;
+static constexpr U32 Fmt_Space = 1 << 2;
+static constexpr U32 Fmt_Zero  = 1 << 3;
+static constexpr U32 Fmt_Hex   = 1 << 4;
+static constexpr U32 Fmt_Bin   = 1 << 5;
+static constexpr U32 Fmt_Fix   = 1 << 6;
+static constexpr U32 Fmt_Sci   = 1 << 7;
+static constexpr U32 Fmt_Upper = 1 << 8;
 
-//--------------------------------------------------------------------------------------------------	
+//--------------------------------------------------------------------------------------------------
 
-struct FixedOut {
+struct Fmt_FixedOut {
 	char* begin;
-	const char* end;
+	char* end;
 
 	void Add(char c) {
-		if (begin < end) {
+		if (end < begin) {
 			*begin++ = c;
 		}
 	}
-	void Add(const char* vals, U64 valsLen) {
-		const U64 len = Min(valsLen, (U64)(end - begin));
-		memcpy(begin, vals, valsLen);
-		begin += len;
+
+	void Add(char const* str, U32 strLen) {
+		strLen = Min((U32)(end - begin), strLen);
+		memcpy(begin, str, strLen);
+		begin += strLen;
 	}
 
-	void Add(const char* valsBegin, const char* valsEnd) {
-		const U64 len = Min((U64)(valsEnd - valsBegin), (U64)(end - begin));
-		memcpy(begin, valsBegin, len);
-		begin += len;
-	}
-
-	void Fill(char c, U64 count) {
-		const U64 len = Min(count, (U64)(end - begin));
-		memset(begin, c, count);
-		begin += len;
+	void Fill(char c, U32 n) {
+		n = Min((U32)(end - begin), n);
+		memset(begin, c, n);
+		begin += n;
 	}
 };
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr const char* Tens = 
+static constexpr char const* Fmt_Tens = 
 	"00" "01" "02" "03" "04" "05" "06" "07" "08" "09"
 	"10" "11" "12" "13" "14" "15" "16" "17" "18" "19"
 	"20" "21" "22" "23" "24" "25" "26" "27" "28" "29"
@@ -62,53 +57,55 @@ static constexpr const char* Tens =
 	"80" "81" "82" "83" "84" "85" "86" "87" "88" "89"
 	"90" "91" "92" "93" "94" "95" "96" "97" "98" "99";
 
-static Str U64ToDigits(U64 u, char* out, U32 outLen) {
+static Str Fmt_U64ToDigits(U64 u, char* out, U32 outLen) {
 	// TODO: test and profile splitting into two 32-bit ints to avoid 64-bit divides
 	char* const end = out + outLen;
 	char* iter = end;
 	while (u >= 100) {
 		iter -= 2;
-		*(U16*)iter = *(U16*)&Tens[(u % 100) * 2];
+		*(U16*)iter = *(U16*)&Fmt_Tens[(u % 100) * 2];
 		u /= 100;
 	}
 	if (u >= 10) {
 		iter -= 2;
-		*(U16*)iter = *(U16*)&Tens[u * 2];
+		*(U16*)iter = *(U16*)&Fmt_Tens[u * 2];
 	}
 	else
 	{
 		*--iter = '0' + (char)u;
 	}
-	return Str(iter, end - iter);
+	return Str(iter, (U32)(end - iter));
 }
 
-static Str U64ToHexits(U64 u, char* out, U32 outLen) {
+static Str Fmt_U64ToHexits(U64 u, char* out, U32 outLen, bool upper) {
 	char* const end = out + outLen;
 	char* iter = end;
-	constexpr const char* hexits = "0123456789abcdef";
+	constexpr char const* hexitsLower = "0123456789abcdef";
+	constexpr char const* hexitsUpper = "0123456789ABCDEF";
+	char const* hexits = upper ? hexitsUpper : hexitsLower;
 	do {
 		*--iter = hexits[u & 0xf];
 		u >>= 4;
 	} while (u > 0);
-	return Str(iter, (U64)(end - iter));
+	return Str(iter, (U32)(end - iter));
 }
 
-static Str U64ToBits(U64 u, char* out, U32 outLen) {
+static Str Fmt_U64ToBits(U64 u, char* out, U32 outLen) {
 	char* const end = out + outLen;
 	char* iter = end;
-	constexpr const char* bits = "01";
+	constexpr char const* bits = "01";
 	do {
 		*--iter = bits[u & 0x1];
 		u >>= 1;
 	} while (u > 0);
-	return Str(iter, (U64)(end - iter));
+	return Str(iter, (U32)(end - iter));
 }
 
 //--------------------------------------------------------------------------------------------------	
 
 // This function assumes there's a space right before ptr to hold the possible rounding character
-static Bool Round(char* ptr, U64 len, U64 round) {
-	const char rem = ptr[round];
+static Bool Fmt_Round(char* ptr, U64 len, U64 round) {
+	char const rem = ptr[round];
 	if (
 		(rem < '5') ||
 		((rem == '5') && (round == len - 1) && !(ptr[round - 1] - '0' & 1))
@@ -128,22 +125,87 @@ static Bool Round(char* ptr, U64 len, U64 round) {
 	return true;
 }
 
+//--------------------------------------------------------------------------------------------------	
+
 template <class Out>
-static void WriteF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
+static void Fmt_PrintStr(Out* out, Str str, U32 flags, U32 width, U32 prec) {
+	if (prec && str.len > prec) {
+		str.len = prec;
+	}
+	const U32 pad = (width > (U32)str.len) ? width - (U32)str.len : 0;
+	Bool left = flags & Fmt_Left;
+	if (!left) {
+		out->Fill(' ', pad);
+	}
+	out->Add(str.data, str.len);
+	if (left) {
+		out->Fill(' ', pad);
+	}
+}
+
+//--------------------------------------------------------------------------------------------------	
+
+template <class Out>
+static void Fmt_PrintI64(Out* out, I64 i, U32 flags, U32 width, U32) {	// prec unused
+	char sign;
+	U32 totalLen = 0;
+	     if (i < 0)              { i = -i; sign = '-'; totalLen = 1; }
+	else if (flags & Fmt_Plus)  {         sign = '+'; totalLen = 1; }
+	else if (flags & Fmt_Space) {         sign = ' '; totalLen = 1; }
+	else                         {         sign = '\0'; }
+
+	char buf[72];
+	const Str str = Fmt_U64ToDigits((U64)i, buf, sizeof(buf));
+	totalLen += (U32)str.len;
+	const U32 pad = (width > totalLen) ? width - totalLen : 0;
+	U32 zeros = 0;
+	if (!(flags & Fmt_Left)) {
+		if (flags & Fmt_Zero) { zeros = pad; }
+		else { out->Fill(' ', pad); }
+	}
+	if (sign) { out->Add(sign); }
+	out->Fill('0', zeros);
+	out->Add(str.data, str.len);
+	if (flags & Fmt_Left) { out->Fill(' ', pad); }
+}
+
+//--------------------------------------------------------------------------------------------------	
+
+template <class Out>
+static void Fmt_PrintU64(Out* out, U64 u, U32 flags, U32 width, U32) {	// prec unused
+	char buf[72];
+	Str str;
+	     if (flags & Fmt_Hex) { str = Fmt_U64ToHexits(u, buf, sizeof(buf), flags & Fmt_Upper); }
+	else if (flags & Fmt_Bin) { str = Fmt_U64ToBits  (u, buf, sizeof(buf)); }
+	else                      { str = Fmt_U64ToDigits(u, buf, sizeof(buf)); }
+	const U32 pad = (width > (U32)str.len) ? width - (U32)str.len : 0;
+	if (!(flags & Fmt_Left)) {
+		out->Fill((flags & Fmt_Zero) ? '0' : ' ', pad);
+	}
+	out->Add(str.data, str.len);
+	if (flags & Fmt_Left) {
+		out->Fill(' ', pad);
+	}
+}
+
+//--------------------------------------------------------------------------------------------------	
+
+template <class Out>
+static void Fmt_PrintF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
 	char sign;
 	if (signbit(f))              { sign = '-'; f = -f; }
-	else if (flags & Flag_Plus)  { sign = '+'; }
-	else if (flags & Flag_Space) { sign = ' '; }
+	else if (flags & Fmt_Plus)  { sign = '+'; }
+	else if (flags & Fmt_Space) { sign = ' '; }
 	else                         { sign = '\0'; }
 
 	if (const int fpc = fpclassify(f); fpc == FP_INFINITE || fpc == FP_NAN) {
 		const Str str = (fpc == FP_INFINITE) ? "inf" : "nan";
 		const U32 len = (sign ? 1 : 0) + 3;
 		const U32 pad = (width > len) ? width - len: 0;
-		if (!(flags & Flag_Left)) { out->Fill(' ', pad); }
+		if (!(flags & Fmt_Left)) { out->Fill(' ', pad); }
 		if (sign) { out->Add(sign); }
 		out->Add(str.data, str.len);
-		if (flags & Flag_Left) { out->Fill(' ', pad); }
+		if (flags & Fmt_Left) { out->Fill(' ', pad); }
 		return;
 	}
 
@@ -172,11 +234,11 @@ static void WriteF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
 			jkj::dragonbox::policy::trailing_zero::remove,
 			jkj::dragonbox::policy::binary_to_decimal_rounding::to_even
 		);
-		sigStr = U64ToDigits(db.significand, sigBuf + 1, sizeof(sigBuf) - 1);
+		sigStr = Fmt_U64ToDigits(db.significand, sigBuf + 1, sizeof(sigBuf) - 1);
 		exp = db.exponent;
 	}
 
-	const Bool sci = (flags & Flag_Sci) || (!(flags & Flag_Fix) && (exp >= 6 || ((I32)sigStr.len + exp) <= -4));
+	const Bool sci = (flags & Fmt_Sci) || (!(flags & Fmt_Fix) && (exp >= 6 || ((I32)sigStr.len + exp) <= -4));
 	if (sci) {
 		intDigs = 1u;
 		fracLeadZeros = (sigStr.len == 1u) ? 1u : 0u;
@@ -213,7 +275,7 @@ static void WriteF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
 			fracLeadZeros = prec;
 		} else if (prec < fracLeadZeros + fracDigs) {
 			fracDigs = prec - fracLeadZeros;
-			if (Round((char*)sigStr.data, sigStr.len, intDigs + fracDigs)) {
+			if (Fmt_Round((char*)sigStr.data, sigStr.len, intDigs + fracDigs)) {
 				*((char*)--sigStr.data) = '1';
 				if (sci) {
 					++exp;
@@ -240,8 +302,8 @@ static void WriteF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
 	const U32 pad = (width > totalLen) ? width - totalLen : 0;
 
 	U32 intLeadZeros = 0;
-	if (!(flags & Flag_Left)) {
-		if (flags & Flag_Zero) {
+	if (!(flags & Fmt_Left)) {
+		if (flags & Fmt_Zero) {
 			intLeadZeros = pad;
 		} else {
 			out->Fill(' ', pad);
@@ -256,26 +318,26 @@ static void WriteF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
 	out->Add(sigStr.data + intDigs, fracDigs);
 	out->Fill('0', fracTrailZeros);
 	if (sci) {
-		out->Add('e');
+		out->Add((flags & Fmt_Upper) ? 'E' : 'e');
 		if (dispExpSign) {
 			out->Add('-');
 		}
 		I32 de = dispExp;	// local copy for mutation
 		if (de >= 100) {
-			const char* const ten = &Tens[(U64)(de / 100) * 2];
+			char const* const ten = &Fmt_Tens[(U64)(de / 100) * 2];
 			if (de >= 10000) {
 				out->Add(ten[0]);
 			}
 			out->Add(ten[1]);
 			de %= 100;
 		}
-		const char* const ten = &Tens[(U64)de * 2];
+		char const* const ten = &Fmt_Tens[(U64)de * 2];
 		if (dispExp >= 10) {
 			out->Add(ten[0]);
 		}
 		out->Add(ten[1]);
 	}
-	if (flags & Flag_Left) {
+	if (flags & Fmt_Left) {
 		out->Fill(' ', pad);
 	}
 }
@@ -283,70 +345,7 @@ static void WriteF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
 //--------------------------------------------------------------------------------------------------
 
 template <class Out>
-static void WriteStr(Out* out, Str str, U32 flags, U32 width, U32 prec) {
-	if (prec && str.len > prec) {
-		str.len = prec;
-	}
-	const U32 pad = (width > (U32)str.len) ? width - (U32)str.len : 0;
-	Bool left = flags & Flag_Left;
-	if (!left) {
-		out->Fill(' ', pad);
-	}
-	out->Add(str.data, str.len);
-	if (left) {
-		out->Fill(' ', pad);
-	}
-}
-
-//--------------------------------------------------------------------------------------------------	
-
-template <class Out>
-static void WriteI64(Out* out, I64 i, U32 flags, U32 width) {
-	char sign;
-	U32 totalLen = 0;
-	     if (i < 0)              { i = -i; sign = '-'; totalLen = 1; }
-	else if (flags & Flag_Plus)  {         sign = '+'; totalLen = 1; }
-	else if (flags & Flag_Space) {         sign = ' '; totalLen = 1; }
-	else                         {         sign = '\0'; }
-
-	char buf[72];
-	const Str str = U64ToDigits((U64)i, buf, sizeof(buf));
-	totalLen += (U32)str.len;
-	const U32 pad = (width > totalLen) ? width - totalLen : 0;
-	U32 zeros = 0;
-	if (!(flags & Flag_Left)) {
-		if (flags & Flag_Zero) { zeros = pad; }
-		else { out->Fill(' ', pad); }
-	}
-	if (sign) { out->Add(sign); }
-	out->Fill('0', zeros);
-	out->Add(str.data, str.len);
-	if (flags & Flag_Left) { out->Fill(' ', pad); }
-}
-
-//--------------------------------------------------------------------------------------------------	
-
-template <class Out>
-static void WriteU64(Out* out, U64 u, U32 flags, U32 width) {
-	char buf[72];
-	Str str;
-	     if (flags & Flag_Hex) { str = U64ToHexits(u, buf, sizeof(buf)); }
-	else if (flags & Flag_Bin) { str = U64ToBits  (u, buf, sizeof(buf)); }
-	else                       { str = U64ToDigits(u, buf, sizeof(buf)); }
-	const U32 pad = (width > (U32)str.len) ? width - (U32)str.len : 0;
-	if (!(flags & Flag_Left)) {
-		out->Fill((flags & Flag_Zero) ? '0' : ' ', pad);
-	}
-	out->Add(str.data, str.len);
-	if (flags & Flag_Left) {
-		out->Fill(' ', pad);
-	}
-}
-
-//--------------------------------------------------------------------------------------------------	
-
-template <class Out>
-static void WritePtr(Out* out, const void* p, U32 flags, U32 width) {
+static void Fmt_PrintPtr(Out* out, const void* p, U32 flags, U32 width, U32) {	// prec unused
 	char buf[16];
 	char* bufIter = buf + sizeof(buf);
 	U64 u = (U64)p;
@@ -358,120 +357,115 @@ static void WritePtr(Out* out, const void* p, U32 flags, U32 width) {
 	constexpr U32 totalLen = 18;
 	const U32 pad = (width > totalLen) ? width - totalLen : 0;
 	U32 zeros = 0;
-	if (!(flags & Flag_Left)) {
-		if (flags & Flag_Zero) { zeros = pad; }
+	if (!(flags & Fmt_Left)) {
+		if (flags & Fmt_Zero) { zeros = pad; }
 		else { out->Fill(' ', pad); }
 	}
 	out->Add("0x", 2);
 	out->Fill('0', zeros);
 	out->Add(buf, 16);
-	if (flags & Flag_Left) { out->Fill(' ', pad); }
+	if (flags & Fmt_Left) { out->Fill(' ', pad); }
 }
 
 //--------------------------------------------------------------------------------------------------	
 
 template <class Out>
-static void VPrintfImpl(Out out, const char* fmt, Span<const Arg> args) {
-	const char* i = fmt;
-	U32 nextArg = 0;
+void Fmt_PrintImpl(Out* out, char const* fmt, Span<const Arg> args) {
+	U32 argIdx = 0;
 
 	for (;;) {
-		U32 flags = 0;
-		U32 width = 0;
-		U32 prec = 0;
-		ScanUntilPlaceholder:
-		const char* text = i;
-		for (;;) {
-			if (!*i) {
-				out->Add(text, i);
-				JC_ASSERT(nextArg == args.len, "Too many args");
+		char const* start = fmt;
+		char const* f = fmt;
+		while (*f != '%') {
+			if (*f == 0) {
+				Assert(argIdx == args.len);
+				out->Add(start, (U32)(f - start));
 				return;
-			} else if (*i == '{') {
-				out->Add(text, i);
-				i++;
-				break;
-			} else if (*i == '}') {
-				i++;
-				out->Add(text, i);
-				JC_ASSERT(*i == '}');
-				i++;
-				text = i;
-			} else {
-				i++;
 			}
+			f++;
 		}
+		out->Add(start, (U32)(f - start));
+		f++;
 
+		U32 flags = 0;
 		for (;;) {
-			switch (*i) {
-				case '}':                      i++; goto DoArg;
-				case '{': out->Add('{');       i++; goto ScanUntilPlaceholder;
-				case '<': flags |= Flag_Left;  i++; break;
-				case '+': flags |= Flag_Plus;  i++; break;
-				case ' ': flags |= Flag_Space; i++; break;
-				case '0': flags |= Flag_Zero;  i++; goto ScanWidthPrec;
-				default:                            goto ScanWidthPrec;
+			switch (*f) {
+				case '-': flags |= Fmt_Left;  f++; continue;
+				case '+': flags |= Fmt_Plus;  f++; continue;
+				case ' ': flags |= Fmt_Space; f++; continue;
+				case '0': flags |= Fmt_Zero;  f++; goto FlagsDone;
+				default: goto FlagsDone;
 			}
 		}
-		ScanWidthPrec:
-		while (*i >= '0' && *i <= '9') {
-			width = width * 10 + (*i - '0');
-			i++;
-		}
-		if (*i == '.') {
-			i++;
-			while (*i >= '0' && *i <= '9') {
-				prec = prec * 10 + (*i - '0');
-				i++;
-			}
-		}
-		switch (*i) {
-			case 'x': flags |= Flag_Hex; i++; break;
-			case 'X': flags |= Flag_Hex; i++; break;
-			case 'b': flags |= Flag_Bin; i++; break;
-			case 'f': flags |= Flag_Fix; i++; break;
-			case 'e': flags |= Flag_Sci; i++; break;
-			default:                          break;
-		}
-		JC_ASSERT(*i == '}');
-		i++;
 
-		DoArg:
-		JC_ASSERT(nextArg < args.len);
-		const Arg* arg = &args[nextArg++];
-		switch (arg->type)
-		{
-			case ArgType::Bool: WriteStr(out, arg->b ? "true" : "false",    flags, width, prec); break;
-			case ArgType::Char: WriteStr(out, Str(&arg->c, 1),              flags, width, prec); break;
-			case ArgType::I64:  WriteI64(out, arg->i,                       flags, width);       break;													   
-			case ArgType::U64:  WriteU64(out, arg->u,                       flags, width);       break;													   
-			case ArgType::F64:  WriteF64(out, arg->f,                       flags, width, prec); break;
-			case ArgType::Str:  WriteStr(out, Str(arg->s.data, arg->s.len), flags, width, prec); break;
-			case ArgType::Ptr:  WritePtr(out, arg->p,                       flags, width);       break;
-			default: JC_PANIC("Unhandled ArgType {}", arg->type);
+		FlagsDone:
+		U32 width = 0;
+		while (*f >= '0' && *f <= '9') {
+			width = (width * 10) + (*f - '0');
+			f++;
 		}
+
+		I32 prec = -1;
+		if (*f == '.') {
+			f++;
+			while (*f >= '0' && *f <= '9') {
+				prec = (prec * 10) + (*f - '0');
+				f++;
+			}
+		}
+
+		Assert(argIdx < args.len);
+		Arg const* arg = &args[argIdx];
+		switch (*f) {
+			#define Fmt_PrintfCase(ch, ExpectedArgType, Fn, val, addlFlags) \
+				case ch: \
+					Assert(arg->type == ExpectedArgType); \
+					Fn(out, val, flags | addlFlags, width, prec); \
+					break;
+			Fmt_PrintfCase('t', ArgType::Bool, Fmt_PrintStr, arg->b ? "true" : "false", 0);
+			Fmt_PrintfCase('c', ArgType::Char, Fmt_PrintStr, Str(&arg->c, 1),           0);
+			Fmt_PrintfCase('s', ArgType::Str,  Fmt_PrintStr, Str(arg->s.s, arg->s.l),   0);
+				// prec unusedFmt_PrintfCase('i', ArgType::I64,  Fmt_PrintI64, arg->i,                    0);
+			Fmt_PrintfCase('u', ArgType::U64,  Fmt_PrintU64, arg->u,                    0);
+			Fmt_PrintfCase('x', ArgType::U64,  Fmt_PrintU64, arg->u,                    Fmt_Hex);
+			Fmt_PrintfCase('X', ArgType::U64,  Fmt_PrintU64, arg->u,                    Fmt_Hex | Fmt_Upper);
+			Fmt_PrintfCase('b', ArgType::U64,  Fmt_PrintU64, arg->u,                    Fmt_Bin);
+			Fmt_PrintfCase('f', ArgType::F64,  Fmt_PrintF64, arg->f,                    Fmt_Fix);
+			Fmt_PrintfCase('e', ArgType::F64,  Fmt_PrintF64, arg->f,                    Fmt_Sci);
+			Fmt_PrintfCase('E', ArgType::F64,  Fmt_PrintF64, arg->f,                    Fmt_Sci | Fmt_Upper);
+			Fmt_PrintfCase('g', ArgType::F64,  Fmt_PrintF64, arg->f,                    0);
+			Fmt_PrintfCase('p', ArgType::Ptr,  Fmt_PrintPtr, arg->p,                    0);
+			#undef Fmt_PrintfCase
+
+			default: Panic("Unhandled format type %c", *f);
+		}
+		f++;
 	}
 }
 
-//--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------	
 
-char* VPrintf(char* outBegin, const char* outEnd, const char* fmt, Span<const Arg> args) {
-	FixedOut out = { .begin = outBegin, .end = outEnd };
-	VPrintfImpl(&out, fmt, args);
-	return out.begin;
+Str Fmt_Printv(Mem* mem, char const* fmt, Span<Arg const> args) {
+	Array<char> arr(mem);
+	Fmt_PrintImpl(&arr, fmt, args);
+	return Str(arr.data, (U32)arr.len);
+
 }
 
-void VPrintf(Array<char>* out, const char* fmt, Span<const Arg> args) {
-	VPrintfImpl(out, fmt, args);
-}
-	
-Str VPrintf(Allocator* allocator, const char* fmt, Span<const Arg> args) {
-	Array<char> out(allocator);
-	VPrintfImpl(&out, fmt, args);
-	return Str(out.data, out.len);
+void Fmt_Printv(Array<char>* arr, char const* fmt, Span<Arg const> args) {
+	Fmt_PrintImpl(arr, fmt, args);
+
 }
 
-//--------------------------------------------------------------------------------------------------
+char* Fmt_Printv(char* outBegin, char* outEnd, char const* fmt, Span<Arg const> args) {
+	Fmt_FixedOut fixedOut = { .begin = outBegin, .end = outEnd };
+	Fmt_PrintImpl(&fixedOut, fmt, args);
+	return fixedOut.begin;
+}
 
+//--------------------------------------------------------------------------------------------------	
+
+/*
 UnitTest("Fmt") {
 	#define CheckPrintf(expect, fmt, ...) { CheckEq(expect, Printf(testAllocator, fmt, ##__VA_ARGS__)); }
 
@@ -717,7 +711,4 @@ UnitTest("Fmt") {
 	CheckPrintf("The answer is 42", "The answer is {}", 42);
 	CheckPrintf("1^2<3>", "{}^{}<{}>", 1, 2, 3);	// ParseSpec not called on empty placeholders
 }
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC::Fmt
+/**/

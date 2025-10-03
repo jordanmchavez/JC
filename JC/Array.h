@@ -1,37 +1,35 @@
 #pragma once
 
-#include "JC/Core.h"
-
-namespace JC {
+#include "JC/Common.h"
 
 //--------------------------------------------------------------------------------------------------
 
 template <class T> struct Array {
-	Allocator* allocator = 0;
-	T*         data      = 0;
-	U64        len       = 0;
-	U64        cap       = 0;
+	Mem* mem;
+	T*   data;
+	U64  len;
+	U64  cap;
 
-	Array() = default;
+	Array() { Init(0); }
 
-	explicit Array(Allocator* allocatorIn) {
-		allocator = allocatorIn;
+	explicit Array(Mem* mem_) {
+		mem = mem_;
 	}
 
-	Array(Allocator* allocatorIn, U64 size) {
-		allocator = allocatorIn;
+	Array(Mem* mem_, U64 size) {
+		mem = mem_;
 		Resize(size);
 	}
 
-	void Init(Allocator* allocatorIn) {
-		allocator = allocatorIn;
-		data      = 0;
-		len       = 0;
-		cap       = 0;
+	void Init(Mem* mem_) {
+		mem = mem_;
+		data = 0;
+		len  = 0;
+		cap  = 0;
 	}
 
-	constexpr       T& operator[](U64 i)       { JC_ASSERT(i < len); return data[i]; }
-	constexpr const T& operator[](U64 i) const { JC_ASSERT(i < len); return data[i]; }
+	constexpr       T& operator[](U64 i)       { Assert(i < len); return data[i]; }
+	constexpr const T& operator[](U64 i) const { Assert(i < len); return data[i]; }
 
 	operator Span<T>() const { return Span(data, len); }
 
@@ -55,7 +53,7 @@ template <class T> struct Array {
 	}
 
 	void Add(const T* vals, U64 valsLen, SrcLoc sl = SrcLoc::Here()) {
-		JC_ASSERT(!valsLen || vals);
+		Assert(!valsLen || vals);
 		if (len + valsLen > cap) {
 			Grow(len + valsLen, sl);
 		}
@@ -64,7 +62,7 @@ template <class T> struct Array {
 	}
 
 	void Add(const T* begin, const T* end, SrcLoc sl = SrcLoc::Here()) {
-		JC_ASSERT(begin <= end);
+		Assert(begin <= end);
 		const U64 valsLen = (U64)(end - begin);
 		if (len + valsLen > cap) {
 			Grow(len + valsLen, sl);
@@ -114,7 +112,7 @@ template <class T> struct Array {
 	}
 
 	void RemoveUnordered(U64 i) {
-		JC_ASSERT(i < len);
+		Assert(i < len);
 		len--;
 		data[i] = data[len];
 	}
@@ -147,24 +145,13 @@ template <class T> struct Array {
 	}
 
 	void Grow(U64 newCap, SrcLoc sl = SrcLoc::Here()) {
-		JC_ASSERT(newCap > cap);
+		Assert(newCap > cap);
 		newCap = Max(Max((U64)16, newCap), cap * 2);
-		data = allocator->ReallocT(data, cap, newCap, sl);
+		if (!Mem_Extend(mem, data, newCap * sizeof(T), sl)) {
+			T* newData = (T*)Mem_Alloc(mem, newCap * sizeof(T), sl);
+			memcpy(data, newData, len * sizeof(T));
+			data = newData;
+		}
 		cap = newCap;
 	}
-
-	void Clear() {
-		len = 0;
-	}
-
-	void Free(SrcLoc sl = SrcLoc::Here()) {
-		allocator->Free(data, cap, sl);
-		data = 0;
-		len  = 0;
-		cap  = 0;
-	}
 };
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC
