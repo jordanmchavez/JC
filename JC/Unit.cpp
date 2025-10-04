@@ -44,9 +44,10 @@ Unit_TestRegistrar::Unit_TestRegistrar(Str name, SrcLoc sl, Unit_TestFn* testFn)
 	};
 };
 
-Unit_Subtest::Unit_Subtest(Str nameIn, SrcLoc slIn) {
-	sig.name = nameIn;
-	sig.sl   = slIn;
+Unit_Subtest::Unit_Subtest(Str name, SrcLoc sl) {
+	sig.name  = name;
+	sig.sl    = sl;
+	shouldRun = false;
 	switch (unit_state) {
 		case Unit_State::Run:
 			if (unit_nextLen <= unit_curLen || unit_next[unit_curLen] == sig) {
@@ -76,6 +77,7 @@ Unit_Subtest::~Unit_Subtest() {
 				unit_state = Unit_State::Pop;
 				[[fallthrough]];
 			case Unit_State::Pop:
+				Assert(unit_curLen > 0);
 				--unit_curLen;
 				break;
 			case Unit_State::Done:
@@ -89,6 +91,9 @@ Bool Unit_Run() {
 
 	auto logFn = [](LogMsg const* msg) {
 		Sys_Print(Str(msg->line, msg->lineLen));
+		if (Sys_DbgPresent()) {
+			Sys_DbgPrint(msg->line);
+		}
 	};
 	Log_AddFn(logFn);
 
@@ -113,17 +118,18 @@ Bool Unit_Run() {
 				Fmt_Printf(&buf, "Passed: ");
 				passedTests++;
 			}
-			for (U32 j = 0; j < unit_lastLen - 1; j++) {
-				Fmt_Printf(&buf, "{}::", unit_last[j].name);
+			for (U32 j = 0; j < unit_lastLen; j++) {
+				Fmt_Printf(&buf, "%s::", unit_last[j].name);
 			}
-			Logf("{}", Str(buf.data, (U32)buf.len));
+			buf.Remove(2);
+			Logf("%s", Str(buf.data, (U32)buf.len));
 
 			Mem_Reset(mem);
 		} while (unit_nextLen > 0);
 	}
 
-	Logf("Total passed: {}", passedTests);
-	Logf("Total failed: {}", failedTests);
+	Logf("Total passed: %u", passedTests);
+	Logf("Total failed: %u", failedTests);
 
 	Log_RemoveFn(logFn);
 	Mem_Destroy(mem);
@@ -133,45 +139,45 @@ Bool Unit_Run() {
 
 Bool Unit_CheckFailImpl(SrcLoc sl) {
 	Logf("***CHECK FAILED***");
-	Logf("{}({})", sl.file, sl.line);
+	Logf("%s(%u)", sl.file, sl.line);
 	unit_checkFails++;
 	return false;
 }
 
 Bool Unit_CheckExprFail(SrcLoc sl, Str expr) {
 	Logf("***CHECK FAILED***");
-	Logf("{}({})", sl.file, sl.line);
-	Logf("  {}\n", expr);
+	Logf("%s(%u)", sl.file, sl.line);
+	Logf("  %s\n", expr);
 	unit_checkFails++;
 	return false;
 }
 
 Bool Unit_CheckRelFail(SrcLoc sl, Str expr, Arg x, Arg y) {
 	Logf("***CHECK FAILED***");
-	Logf("{}({})", sl.file, sl.line);
-	Logf("  {}", expr);
-	Logf("  l: {}", x);
-	Logf("  r: {}\n", y);
+	Logf("%s(%u)", sl.file, sl.line);
+	Logf("  %s", expr);
+	Logf("  l: %a", x);
+	Logf("  r: %a\n", y);
 	unit_checkFails++;
 	return false;
 }
 
 Bool Unit_CheckSpanEqFail_Len(SrcLoc sl, Str expr, U64 xLen, U64 yLen) {
 	Logf("***CHECK FAILED***");
-	Logf("{}({})", sl.file, sl.line);
-	Logf("  {}", expr);
-	Logf("  l len: {}", xLen);
-	Logf("  r len: {}\n", yLen);
+	Logf("%s(%u)", sl.file, sl.line);
+	Logf("  %s", expr);
+	Logf("  l len: %u", xLen);
+	Logf("  r len: %u\n", yLen);
 	unit_checkFails++;
 	return false;
 }
 
 Bool Unit_CheckSpanEqFail_Elem(SrcLoc sl, Str expr, U64 i, Arg x, Arg y) {
 	Logf("***CHECK FAILED***");
-	Logf("{}({})", sl.file, sl.line);
-	Logf("  {}", expr);
-	Logf("  l[{}]: {}", i, x);
-	Logf("  r[{}]: {}\n", i, y);
+	Logf("%s(%u)", sl.file, sl.line);
+	Logf("  %s", expr);
+	Logf("  l[%u]: %a", i, x);
+	Logf("  r[%u]: %a\n", i, y);
 	unit_checkFails++;
 	return false;
 }

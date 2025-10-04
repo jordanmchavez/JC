@@ -22,24 +22,25 @@ static constexpr U32 Fmt_Upper = 1 << 8;
 
 struct Fmt_FixedOut {
 	char* begin;
+	char* cur;
 	char* end;
 
 	void Add(char c) {
 		if (end < begin) {
-			*begin++ = c;
+			*cur++ = c;
 		}
 	}
 
 	void Add(char const* str, U32 strLen) {
-		strLen = Min((U32)(end - begin), strLen);
-		memcpy(begin, str, strLen);
-		begin += strLen;
+		strLen = Min((U32)(end - cur), strLen);
+		memcpy(cur, str, strLen);
+		cur += strLen;
 	}
 
 	void Fill(char c, U32 n) {
-		n = Min((U32)(end - begin), n);
-		memset(begin, c, n);
-		begin += n;
+		n = Min((U32)(end - cur), n);
+		memset(cur, c, n);
+		cur += n;
 	}
 };
 
@@ -149,10 +150,10 @@ template <class Out>
 static void Fmt_PrintI64(Out* out, I64 i, U32 flags, U32 width, U32) {	// prec unused
 	char sign;
 	U32 totalLen = 0;
-	     if (i < 0)              { i = -i; sign = '-'; totalLen = 1; }
+	     if (i < 0)             { i = -i; sign = '-'; totalLen = 1; }
 	else if (flags & Fmt_Plus)  {         sign = '+'; totalLen = 1; }
 	else if (flags & Fmt_Space) {         sign = ' '; totalLen = 1; }
-	else                         {         sign = '\0'; }
+	else                        {         sign = '\0'; }
 
 	char buf[72];
 	const Str str = Fmt_U64ToDigits((U64)i, buf, sizeof(buf));
@@ -173,19 +174,28 @@ static void Fmt_PrintI64(Out* out, I64 i, U32 flags, U32 width, U32) {	// prec u
 
 template <class Out>
 static void Fmt_PrintU64(Out* out, U64 u, U32 flags, U32 width, U32) {	// prec unused
+	char sign;
+	U32 totalLen = 0;
+	     if (flags & Fmt_Plus)  {         sign = '+'; totalLen = 1; }
+	else if (flags & Fmt_Space) {         sign = ' '; totalLen = 1; }
+	else                        {         sign = '\0'; }
+
 	char buf[72];
 	Str str;
 	     if (flags & Fmt_Hex) { str = Fmt_U64ToHexits(u, buf, sizeof(buf), flags & Fmt_Upper); }
 	else if (flags & Fmt_Bin) { str = Fmt_U64ToBits  (u, buf, sizeof(buf)); }
 	else                      { str = Fmt_U64ToDigits(u, buf, sizeof(buf)); }
-	const U32 pad = (width > (U32)str.len) ? width - (U32)str.len : 0;
+	totalLen += (U32)str.len;
+	const U32 pad = (width > totalLen) ? width - totalLen : 0;
+	U32 zeros = 0;
 	if (!(flags & Fmt_Left)) {
-		out->Fill((flags & Fmt_Zero) ? '0' : ' ', pad);
+		if (flags & Fmt_Zero) { zeros = pad; }
+		else { out->Fill(' ', pad); }
 	}
+	if (sign) { out->Add(sign); }
+	out->Fill('0', zeros);
 	out->Add(str.data, str.len);
-	if (flags & Fmt_Left) {
-		out->Fill(' ', pad);
-	}
+	if (flags & Fmt_Left) { out->Fill(' ', pad); }
 }
 
 //--------------------------------------------------------------------------------------------------	
@@ -373,9 +383,9 @@ template <class Out>
 void Fmt_PrintImpl(Out* out, char const* fmt, Span<const Arg> args) {
 	U32 argIdx = 0;
 
+	char const* f = fmt;
 	for (;;) {
-		char const* start = fmt;
-		char const* f = fmt;
+		char const* start = f;
 		while (*f != '%') {
 			if (*f == 0) {
 				Assert(argIdx == args.len);
@@ -386,6 +396,12 @@ void Fmt_PrintImpl(Out* out, char const* fmt, Span<const Arg> args) {
 		}
 		out->Add(start, (U32)(f - start));
 		f++;
+
+		if (*f == '%') {
+			out->Add('%');
+			f++;
+			continue;
+		}
 
 		U32 flags = 0;
 		for (;;) {
@@ -405,7 +421,7 @@ void Fmt_PrintImpl(Out* out, char const* fmt, Span<const Arg> args) {
 			f++;
 		}
 
-		I32 prec = -1;
+		U32 prec = 0;
 		if (*f == '.') {
 			f++;
 			while (*f >= '0' && *f <= '9') {
@@ -416,6 +432,7 @@ void Fmt_PrintImpl(Out* out, char const* fmt, Span<const Arg> args) {
 
 		Assert(argIdx < args.len);
 		Arg const* arg = &args[argIdx];
+		argIdx++;
 		switch (*f) {
 			#define Fmt_PrintfCase(ch, ExpectedArgType, Fn, val, addlFlags) \
 				case ch: \
@@ -425,7 +442,7 @@ void Fmt_PrintImpl(Out* out, char const* fmt, Span<const Arg> args) {
 			Fmt_PrintfCase('t', ArgType::Bool, Fmt_PrintStr, arg->b ? "true" : "false", 0);
 			Fmt_PrintfCase('c', ArgType::Char, Fmt_PrintStr, Str(&arg->c, 1),           0);
 			Fmt_PrintfCase('s', ArgType::Str,  Fmt_PrintStr, Str(arg->s.s, arg->s.l),   0);
-				// prec unusedFmt_PrintfCase('i', ArgType::I64,  Fmt_PrintI64, arg->i,                    0);
+			Fmt_PrintfCase('i', ArgType::I64,  Fmt_PrintI64, arg->i,                    0);
 			Fmt_PrintfCase('u', ArgType::U64,  Fmt_PrintU64, arg->u,                    0);
 			Fmt_PrintfCase('x', ArgType::U64,  Fmt_PrintU64, arg->u,                    Fmt_Hex);
 			Fmt_PrintfCase('X', ArgType::U64,  Fmt_PrintU64, arg->u,                    Fmt_Hex | Fmt_Upper);
@@ -436,6 +453,19 @@ void Fmt_PrintImpl(Out* out, char const* fmt, Span<const Arg> args) {
 			Fmt_PrintfCase('g', ArgType::F64,  Fmt_PrintF64, arg->f,                    0);
 			Fmt_PrintfCase('p', ArgType::Ptr,  Fmt_PrintPtr, arg->p,                    0);
 			#undef Fmt_PrintfCase
+
+			case 'a':
+				switch (arg->type) {
+					case ArgType::Bool: Fmt_PrintStr(out, arg->b ? "true": " false", flags, width, prec); break;
+					case ArgType::Char: Fmt_PrintStr(out, Str(&arg->c, 1),           flags, width, prec); break;
+					case ArgType::I64:  Fmt_PrintI64(out, arg->i,                    flags, width, prec); break;
+					case ArgType::U64:  Fmt_PrintU64(out, arg->u,                    flags, width, prec); break;
+					case ArgType::F64:  Fmt_PrintF64(out, arg->f,                    flags, width, prec); break;
+					case ArgType::Str:  Fmt_PrintStr(out, Str(arg->s.s, arg->s.l),   flags, width, prec); break;
+					case ArgType::Ptr:  Fmt_PrintPtr(out, arg->p,                    flags, width, prec); break;
+					default: Panic("Unhandled ArgType %u", (U32)arg->type);
+				}
+				break;
 
 			default: Panic("Unhandled format type %c", *f);
 		}
@@ -454,261 +484,246 @@ Str Fmt_Printv(Mem* mem, char const* fmt, Span<Arg const> args) {
 
 void Fmt_Printv(Array<char>* arr, char const* fmt, Span<Arg const> args) {
 	Fmt_PrintImpl(arr, fmt, args);
-
 }
 
 char* Fmt_Printv(char* outBegin, char* outEnd, char const* fmt, Span<Arg const> args) {
-	Fmt_FixedOut fixedOut = { .begin = outBegin, .end = outEnd };
+	Fmt_FixedOut fixedOut = { .begin = outBegin, .cur = outBegin, .end = outEnd };
 	Fmt_PrintImpl(&fixedOut, fmt, args);
-	return fixedOut.begin;
+	return fixedOut.cur;
 }
 
 //--------------------------------------------------------------------------------------------------	
 
-/*
-UnitTest("Fmt") {
-	#define CheckPrintf(expect, fmt, ...) { CheckEq(expect, Printf(testAllocator, fmt, ##__VA_ARGS__)); }
+Unit_Test("Fmt") {
+	#define CheckPrintf(expect, fmt, ...) { Unit_CheckEq(expect, Fmt_Printf(testMem, fmt, ##__VA_ARGS__)); }
 
 	// Escape sequences
-	CheckPrintf("{", "{{");
-	CheckPrintf("{", "{{");
-	CheckPrintf("before {", "before {{");
-	CheckPrintf("{ after", "{{ after");
-	CheckPrintf("before { after", "before {{ after");
-	CheckPrintf("}", "}}");
-	CheckPrintf("before }", "before }}");
-	CheckPrintf("} after", "}} after");
-	CheckPrintf("before } after", "before }} after");
-	CheckPrintf("{}", "{{}}");
-	CheckPrintf("{42}", "{{{}}}", 42);
+	CheckPrintf("%", "%%");
+	CheckPrintf("before %", "before %%");
+	CheckPrintf("% after", "%% after");
+	CheckPrintf("before % after", "before %% after");
+	CheckPrintf("%i", "%%i");
+	CheckPrintf("%42", "%%%i", 42);
 
 	// Basic args
-	CheckPrintf("abc", "{}{}{}", 'a', 'b', 'c');
-	CheckPrintf("a 1 b -5 c xyz", "a {} b {} c {}", 1, -5, "xyz");
+	CheckPrintf("abc", "%c%c%c", 'a', 'b', 'c');
+	CheckPrintf("a 1 b -5 c xyz", "a %u b %i c %s", 1u, -5, "xyz");
+
+	// Right align
+	CheckPrintf("   true", "%7t", true);
+	CheckPrintf("      c", "%7c", 'c');
+	CheckPrintf("  12345", "%7s", "12345");
+	CheckPrintf("     42", "%7i", 42);
+	CheckPrintf("    -42", "%7i", -42);
+	CheckPrintf("     42", "%7u", 42u);
+	CheckPrintf("     42", "%7x", 0x42u);
+	CheckPrintf("   1011", "%7b", 0b1011u);
+	CheckPrintf("  -42.0", "%7f", -42.0);
+	CheckPrintf("  0x12345678abcdef12", "%20p", reinterpret_cast<void*>(0x12345678abcdef12));
 
 	// Left align
-	CheckPrintf("42  ", "{<4}", 42);
-	CheckPrintf("42  ", "{<4x}", 0x42u);
-	CheckPrintf("-42  ", "{<5}", -42);
-	CheckPrintf("42   ", "{<5}", 42u);
-	CheckPrintf("-42  ", "{<5}", -42l);
-	CheckPrintf("42   ", "{<5}", 42ul);
-	CheckPrintf("-42  ", "{<5}", -42ll);
-	CheckPrintf("42   ", "{<5}", 42ull);
-	CheckPrintf("-42.0  ", "{<7}", -42.0);
-	CheckPrintf("true   ", "{<7}", true);
-	CheckPrintf("c    ", "{<5}", 'c');
-	CheckPrintf("123456789", "{<5}", "123456789");
-	CheckPrintf("abc  ", "{<5}", "abc");
-	CheckPrintf("0x12345678abcdef12  ", "{<20}", reinterpret_cast<void*>(0x12345678abcdef12));
+	CheckPrintf("true   ", "%-7t", true);
+	CheckPrintf("c      ", "%-7c", 'c');
+	CheckPrintf("12345  ", "%-7s", "12345");
+	CheckPrintf("42     ", "%-7i", 42);
+	CheckPrintf("-42    ", "%-7i", -42);
+	CheckPrintf("42     ", "%-7u", 42u);
+	CheckPrintf("42     ", "%-7x", 0x42u);
+	CheckPrintf("1011   ", "%-7b", 0b1011u);
+	CheckPrintf("-42.0  ", "%-7f", -42.0);
+	CheckPrintf("0x12345678abcdef12  ", "%-20p", reinterpret_cast<void*>(0x12345678abcdef12));
 
 	// Sign '+'
-	CheckPrintf("+42", "{+}", 42);
-	CheckPrintf("-42", "{+}", -42);
-	CheckPrintf("+42", "{+}", 42);
-	CheckPrintf("+42", "{+}", 42l);
-	CheckPrintf("+42", "{+}", 42ll);
-	CheckPrintf("+42.0", "{+}", 42.0);
+	CheckPrintf("+42",   "%+i", 42);
+	CheckPrintf("-42",   "%+i", -42);
+	CheckPrintf("+42",   "%+u", 42u);
+	CheckPrintf("+42",   "%+x", 0x42u);
+	CheckPrintf("+1011", "%+b", 0b1011u);
+	CheckPrintf("+42.0", "%+f", 42.0);
+	CheckPrintf("-42.0", "%+f", -42.0);
 
 	// Sign ' '
-	CheckPrintf(" 42", "{ }", 42);
-	CheckPrintf("-42", "{ }", -42);
-	CheckPrintf(" 42", "{ }", 42);
-	CheckPrintf(" 42", "{ }", 42l);
-	CheckPrintf(" 42", "{ }", 42ll);
-	CheckPrintf(" 42.0", "{ }", 42.0);
-	CheckPrintf("-42.0", "{ }", -42.0);
+	CheckPrintf(" 42",   "% i", 42);
+	CheckPrintf("-42",   "% i", -42);
+	CheckPrintf(" 42",   "% u", 42u);
+	CheckPrintf(" 42",   "% x", 0x42u);
+	CheckPrintf(" 1011", "% b", 0b1011u);
+	CheckPrintf(" 42.0", "% f", 42.0);
+	CheckPrintf("-42.0", "% f", -42.0);
+
 
 	// Zero-padding '0'
-	CheckPrintf("42", "{0}", 42);
-	CheckPrintf("-0042", "{05}", -42);
-	CheckPrintf("00042", "{05}", 42u);
-	CheckPrintf("-0042", "{05}", -42l);
-	CheckPrintf("00042", "{05}", 42ul);
-	CheckPrintf("-0042", "{05}", -42ll);
-	CheckPrintf("00042", "{05}", 42ull);
-	CheckPrintf("0000042.0", "{09}",  42.0);
-	CheckPrintf("-000042.0", "{09}", -42.0);
-
-	// Width
-	CheckPrintf(" -42", "{4}", -42);
-	CheckPrintf("   42", "{5}", 42u);
-	CheckPrintf("   -42", "{6}", -42l);
-	CheckPrintf("     42", "{7}", 42ul);
-	CheckPrintf("   -42", "{6}", -42ll);
-	CheckPrintf("     42", "{7}", 42ull);
-	CheckPrintf("   -1.23", "{8}", -1.23);
-	CheckPrintf("  0x12345678abcdef12", "{20}", reinterpret_cast<void*>(0x12345678abcdef12));
-	CheckPrintf("       true", "{11}", true);
-	CheckPrintf("          x", "{11}", 'x');
-	CheckPrintf("         str", "{12}", "str");
-	CheckPrintf("abcdef", "{5}", "abcdef");
-	CheckPrintf("abcdef", "{4}", "abcdef");
-	CheckPrintf("0000.0", "{06.1}", 0.00884311);
+	CheckPrintf("42",      "%0i", 42);
+	CheckPrintf("0000042", "%07i", 42);
+	CheckPrintf("-000042", "%07i", -42);
+	CheckPrintf("0000042", "%07u", 42u);
+	CheckPrintf("0000042", "%07x", 0x42u);
+	CheckPrintf("0001011", "%07b", 0b1011u);
+	CheckPrintf("00042.0", "%07f", 42.0);
+	CheckPrintf("-0042.0", "%07f", -42.0);
 
 	// Precision
-	CheckPrintf("1.23", "{.2}", 1.2345);
-	CheckPrintf("1.23e56", "{.2}", 1.234e56);
-	CheckPrintf("1.100", "{.3}", 1.1);
-	CheckPrintf("1.00e0", "{.2e}", 1.0);
-	CheckPrintf("000000.000e0", "{012.3e}", 0.0);
-	CheckPrintf("123.5", "{.1}", 123.456);
-	CheckPrintf("123.46", "{.2}", 123.456);
-	CheckPrintf("1.23", "{.000002}", 1.234);
-	CheckPrintf("1019666432.0", "{}", 1019666432.0f);
-	CheckPrintf("9.6e0", "{.1e}", 9.57);
-	CheckPrintf("1.00e-34", "{.2e}", 1e-34);
+	CheckPrintf("1.23",         "%.2g", 1.2345);
+	CheckPrintf("1.23e56",      "%.2g", 1.234e56);
+	CheckPrintf("1.100",        "%.3g", 1.1);
+	CheckPrintf("1.00e0",       "%.2e", 1.0);
+	CheckPrintf("000000.000e0", "%012.3e", 0.0);
+	CheckPrintf("123.5",        "%.1g", 123.456);
+	CheckPrintf("123.46",       "%.2g", 123.456);
+	CheckPrintf("1.23",         "%.000002g", 1.234);
+	CheckPrintf("1019666432.0", "%g", 1019666432.0f);
+	CheckPrintf("9.6e0",        "%.1e", 9.57);
+	CheckPrintf("1.00e-34",     "%.2e", 1e-34);
 
 	// Bool
-	CheckPrintf("true", "{}", true);
-	CheckPrintf("false", "{}", false);
-	CheckPrintf("true ", "{<5}", true);
-	CheckPrintf(" false", "{6}", false);
-
-	// Short
-	CheckPrintf("42", "{}", (short)42);
-	CheckPrintf("42", "{}", (unsigned short)42);
+	CheckPrintf("true",   "%t", true);
+	CheckPrintf("false",  "%t", false);
+	CheckPrintf("true ",  "%-5t", true);
+	CheckPrintf(" false", "%6t", false);
 
 	// Binary
-	CheckPrintf("0", "{b}", 0u);
-	CheckPrintf("101010", "{b}", 42u);
-	CheckPrintf("11000000111001", "{b}", 12345u);
-	CheckPrintf("10010001101000101011001111000", "{b}", 0x12345678u);
-	CheckPrintf("10010000101010111100110111101111", "{b}", 0x90abcdefu);
-	CheckPrintf("11111111111111111111111111111111", "{b}", 0xffffffffu);
+	CheckPrintf("0",                                "%b", 0u);
+	CheckPrintf("101010",                           "%b", 42u);
+	CheckPrintf("11000000111001",                   "%b", 12345u);
+	CheckPrintf("10010001101000101011001111000",    "%b", 0x12345678u);
+	CheckPrintf("10010000101010111100110111101111", "%b", 0x90abcdefu);
+	CheckPrintf("11111111111111111111111111111111", "%b", 0xffffffffu);
 
-	// Decimal
-	CheckPrintf("0", "{}", 0);
-	CheckPrintf("42", "{}", 42);
-	CheckPrintf("42", "{}", 42u);
-	CheckPrintf("-42", "{}", -42);
-	CheckPrintf("12345", "{}", 12345);
-	CheckPrintf("67890", "{}", 67890);
+	// Ints
+	CheckPrintf("42",    "%i", (signed char)42);
+	CheckPrintf("42",    "%u", (unsigned char)42);
+	CheckPrintf("42",    "%i", (short)42);
+	CheckPrintf("42",    "%u", (unsigned short)42);
+	CheckPrintf("0",     "%i", 0);
+	CheckPrintf("42",    "%i", 42);
+	CheckPrintf("42",    "%u", 42u);
+	CheckPrintf("-42",   "%i", -42);
+	CheckPrintf("12345", "%i", 12345);
+	CheckPrintf("67890", "%i", 67890);
 
 	// TODO: INT_MIN, ULONG_MAX, etc for hex/bin/dec
 	// TODO: check unknown types
 	// TODO: test with maxint as the precision literal
 
 	// Hex
-	CheckPrintf("0", "{x}", 0u);
-	CheckPrintf("42", "{x}", 0x42u);
-	CheckPrintf("12345678", "{x}", 0x12345678u);
-	CheckPrintf("90abcdef", "{x}", 0x90abcdefu);
+	CheckPrintf("0",        "%x", 0u);
+	CheckPrintf("42",       "%x", 0x42u);
+	CheckPrintf("12345678", "%x", 0x12345678u);
+	CheckPrintf("90abcdef", "%x", 0x90abcdefu);
+	CheckPrintf("0",        "%X", 0u);
+	CheckPrintf("42",       "%X", 0x42u);
+	CheckPrintf("12345678", "%X", 0x12345678u);
+	CheckPrintf("90ABCDEF", "%X", 0x90abcdefu);
 	
 	// Float
-	CheckPrintf("0.0", "{}", 0.0f);
-	CheckPrintf("392.5", "{}", 392.5f);
+	CheckPrintf("0.0",   "%g", 0.0f);
+	CheckPrintf("392.5", "%g", 392.5f);
 
 	// Double
-	CheckPrintf("0.0", "{}", 0.0);
-	CheckPrintf("392.65", "{}", 392.65);
-	CheckPrintf("3.9265e2", "{e}", 392.65);
-	CheckPrintf("4901400.0", "{}", 4.9014e6);
-	CheckPrintf("+00392.6500", "{+011.4}", 392.65);
-	CheckPrintf("9223372036854776000.0", "{}", 9223372036854775807.0);
+	CheckPrintf("0.0",                   "%g", 0.0);
+	CheckPrintf("392.65",                "%g", 392.65);
+	CheckPrintf("3.9265e2",              "%e", 392.65);
+	CheckPrintf("4901400.0",             "%g", 4.9014e6);
+	CheckPrintf("+00392.6500",           "%+011.4g", 392.65);
+	CheckPrintf("9223372036854776000.0", "%g", 9223372036854775807.0);
 
 	// Precision rounding
-	CheckPrintf("0.000", "{.3f}", 0.00049);
-	CheckPrintf("0.000", "{.3f}", 0.0005);
-	CheckPrintf("0.002", "{.3f}", 0.0015);
-	CheckPrintf("0.001", "{.3f}", 0.00149);
-	CheckPrintf("0.002", "{.3f}", 0.0015);
-	CheckPrintf("1.000", "{.3f}", 0.9999);
-	CheckPrintf("0.001", "{.3}", 0.00123);
-	CheckPrintf("0.1000000000000000", "{.16}", 0.1);
-	CheckPrintf("225.51575035152064000", "{.17f}", 225.51575035152064);
-	CheckPrintf("-761519619559038.2", "{.1f}", -761519619559038.2);
-	CheckPrintf("1.9156918820264798e-56", "{}", 1.9156918820264798e-56);
-	CheckPrintf("0.0000", "{.4f}", 7.2809479766055470e-15);
-	CheckPrintf("3788512123356.9854", "{f}", 3788512123356.985352);
+	CheckPrintf("0.000",                  "%.3f", 0.00049);
+	CheckPrintf("0.000",                  "%.3f", 0.0005);
+	CheckPrintf("0.002",                  "%.3f", 0.0015);
+	CheckPrintf("0.001",                  "%.3f", 0.00149);
+	CheckPrintf("0.002",                  "%.3f", 0.0015);
+	CheckPrintf("1.000",                  "%.3f", 0.9999);
+	CheckPrintf("0.001",                  "%.3g", 0.00123);
+	CheckPrintf("0.1000000000000000",     "%.16g", 0.1);
+	CheckPrintf("225.51575035152064000",  "%.17f", 225.51575035152064);
+	CheckPrintf("-761519619559038.2",     "%.1f", -761519619559038.2);
+	CheckPrintf("1.9156918820264798e-56", "%g", 1.9156918820264798e-56);
+	CheckPrintf("0.0000",                 "%.4f", 7.2809479766055470e-15);
+	CheckPrintf("3788512123356.9854",     "%f", 3788512123356.985352);
 
 	// Float formatting
-	CheckPrintf("0.001", "{}", 1e-3);
-	CheckPrintf("0.0001", "{}", 1e-4);
-	CheckPrintf("1.0e-5", "{}", 1e-5);
-	CheckPrintf("1.0e-6", "{}", 1e-6);
-	CheckPrintf("1.0e-7", "{}", 1e-7);
-	CheckPrintf("1.0e-8", "{}", 1e-8);
-	CheckPrintf("1.0e15", "{}", 1e15);
-	CheckPrintf("1.0e16", "{}", 1e16);
-	CheckPrintf("9.999e-5", "{}", 9.999e-5);
-	CheckPrintf("1.234e10", "{}", 1234e7);
-	CheckPrintf("12.34", "{}", 1234e-2);
-	CheckPrintf("0.001234", "{}", 1234e-6);
-	CheckPrintf("0.10000000149011612", "{}", 0.1f);
-	CheckPrintf("0.10000000149011612", "{}", (F64)0.1f);
-	CheckPrintf("1.3563156426940112e-19", "{}", 1.35631564e-19f);
+	CheckPrintf("0.001",                  "%g", 1e-3);
+	CheckPrintf("0.0001",                 "%g", 1e-4);
+	CheckPrintf("1.0e-5",                 "%g", 1e-5);
+	CheckPrintf("1.0e-6",                 "%g", 1e-6);
+	CheckPrintf("1.0e-7",                 "%g", 1e-7);
+	CheckPrintf("1.0e-8",                 "%g", 1e-8);
+	CheckPrintf("1.0e15",                 "%g", 1e15);
+	CheckPrintf("1.0e16",                 "%g", 1e16);
+	CheckPrintf("9.999e-5",               "%g", 9.999e-5);
+	CheckPrintf("1.234e10",               "%g", 1234e7);
+	CheckPrintf("12.34",                  "%g", 1234e-2);
+	CheckPrintf("0.001234",               "%g", 1234e-6);
+	CheckPrintf("0.10000000149011612",    "%g", 0.1f);
+	CheckPrintf("0.10000000149011612",    "%g", (F64)0.1f);
+	CheckPrintf("1.3563156426940112e-19", "%g", 1.35631564e-19f);
 
 	// NaN
 	// The standard allows implementation-specific suffixes following nan, for example as -nan formats as nan(ind) in MSVC.
 	// These tests may need to be changed when porting to different platforms.
 	constexpr F64 nan = std::numeric_limits<F64>::quiet_NaN();
-	CheckPrintf("nan", "{}", nan);
-	CheckPrintf("+nan", "{+}", nan);
-	CheckPrintf("  +nan", "{+6}", nan);
-	CheckPrintf("  +nan", "{+06}", nan);
-	CheckPrintf("+nan  ", "{<+6}", nan);
-	CheckPrintf("-nan", "{}", -nan);
-	CheckPrintf("       -nan", "{+011}", -nan);
-	CheckPrintf(" nan", "{ }", nan);
-	CheckPrintf("nan    ", "{<7}", nan);
-	CheckPrintf("    nan", "{7}", nan);
+	CheckPrintf("nan",     "%f", nan);
+	CheckPrintf("+nan",    "%+f", nan);
+	CheckPrintf("  +nan",  "%+6f", nan);
+	CheckPrintf("  +nan",  "%+06f", nan);
+	CheckPrintf("+nan  ",  "%-+6f", nan);
+	CheckPrintf("-nan",    "%f", -nan);
+	CheckPrintf("  -nan",  "%+06f", -nan);
+	CheckPrintf(" nan",    "% f", nan);
+	CheckPrintf("nan    ", "%-7f", nan);
+	CheckPrintf("    nan", "%7f", nan);
 
 	// Inf
 	constexpr F64 inf = std::numeric_limits<F64>::infinity();
-	CheckPrintf("inf", "{}", inf);
-	CheckPrintf("+inf", "{+}", inf);
-	CheckPrintf("-inf", "{}", -inf);
-	CheckPrintf("  +inf", "{+06}", inf);
-	CheckPrintf("  -inf", "{+06}", -inf);
-	CheckPrintf("+inf  ", "{<+6}", inf);
-	CheckPrintf("  +inf", "{+6}", inf);
-	CheckPrintf(" inf", "{ }", inf);
-	CheckPrintf("inf    ", "{<7}", inf);
-	CheckPrintf("    inf", "{7}", inf);
+	CheckPrintf("inf",    "%f", inf);
+	CheckPrintf("+inf",   "%+f", inf);
+	CheckPrintf("-inf",   "%f", -inf);
+	CheckPrintf("  +inf", "%+06f", inf);
+	CheckPrintf("  -inf", "%+06f", -inf);
+	CheckPrintf("+inf  ", "%-+6f", inf);
+	CheckPrintf("  +inf", "%+6f", inf);
+	CheckPrintf(" inf",   "% f", inf);
+	CheckPrintf("inf   ", "%-6f", inf);
+	CheckPrintf("   inf", "%6f", inf);
 
 	// Char
-	CheckPrintf("a", "{}", 'a');
-	CheckPrintf("x", "{1}", 'x');
-	CheckPrintf("  x", "{3}", 'x');
-	CheckPrintf("\n", "{}", '\n');
 	volatile char x = 'x';
-	CheckPrintf("x", "{}", x);
-
-	// Unsigned char
-	CheckPrintf("42", "{}", static_cast<unsigned char>(42));
-	CheckPrintf("42", "{}", static_cast<uint8_t>(42));
+	CheckPrintf("a",   "%c", 'a');
+	CheckPrintf("x",   "%1c", 'x');
+	CheckPrintf("  x", "%3c", 'x');
+	CheckPrintf("\n",  "%c", '\n');
+	CheckPrintf("x",   "%c", x);
 
 	// C string
-	CheckPrintf("test", "{}", "test");
+	CheckPrintf("test", "%s", "test");
 	char nonconst[] = "nonconst";
-	CheckPrintf("nonconst", "{}", nonconst);
+	CheckPrintf("nonconst", "%s", nonconst);
 
 	// Pointer
-	CheckPrintf("0x0000000000000000", "{}", static_cast<void*>(nullptr));
-	CheckPrintf("0x0000000000001234", "{}", reinterpret_cast<void*>(0x1234));
-	CheckPrintf("0xffffffffffffffff", "{}", reinterpret_cast<void*>(~uintptr_t()));
-	CheckPrintf("0x0000000000000000", "{}", nullptr);
+	CheckPrintf("0x0000000000000000", "%p", static_cast<void*>(nullptr));
+	CheckPrintf("0x0000000000001234", "%p", reinterpret_cast<void*>(0x1234));
+	CheckPrintf("0xffffffffffffffff", "%p", reinterpret_cast<void*>(~uintptr_t()));
+	CheckPrintf("0x0000000000000000", "%p", nullptr);
 	
-	CheckPrintf("1.234000:0042:+3.13:str:0x00000000000003e8:X%", "{0.6}:{04}:{+}:{}:{}:{}%", 1.234, 42, 3.13, "str", reinterpret_cast<void*>(1000), 'X');
 
 	// Multibyte codepoint params
 	// Note we support multibyte UTF-8 in the args, not in the actual format string
-	CheckPrintf("hello abcʦϧ턖릇块𒃶𒅋🀅🚉🤸, nice to meet you", "hello {}, nice to meet you", "abcʦϧ턖릇块𒃶𒅋🀅🚉🤸");
+	CheckPrintf("hello abcʦϧ턖릇块𒃶𒅋🀅🚉🤸, nice to meet you", "hello %s, nice to meet you", "abcʦϧ턖릇块𒃶𒅋🀅🚉🤸");
 
-	// Misc tests from examples and such
-	CheckPrintf("First, thou shalt count to three", "First, thou shalt count to {}", "three");
-	CheckPrintf("Bring me a shrubbery", "Bring me a {}", "shrubbery");
-	CheckPrintf("From 1 to 3", "From {} to {}", 1, 3);
-	CheckPrintf("-1.20", "{03.2f}", -1.2);
-	CheckPrintf("a, b, c", "{}, {}, {}", 'a', 'b', 'c');
-	CheckPrintf("abracadabra", "{}{}", "abra", "cadabra");
-	CheckPrintf("left aligned                  ", "{<30}", "left aligned");
-	CheckPrintf("                 right aligned", "{30}", "right aligned");
-	CheckPrintf("+3.14; -3.14", "{+f}; {+f}", 3.14, -3.14);
-	CheckPrintf(" 3.14; -3.14", "{ f}; { f}", 3.14, -3.14);
-	CheckPrintf("bin: 101010; dec: 42; hex: 2a", "bin: {b}; dec: {}; hex: {x}", 42u, 42, 42u);
-	CheckPrintf("The answer is 42", "The answer is {}", 42);
-	CheckPrintf("1^2<3>", "{}^{}<{}>", 1, 2, 3);	// ParseSpec not called on empty placeholders
+	// Misc tests 
+	CheckPrintf("1.234000:0042:+3.13:str:0x00000000000003e8:X%", "%0.6g:%04u:%+f:%s:%p:%c%%", 1.234, 42u, 3.13, "str", reinterpret_cast<void*>(1000), 'X');
+	CheckPrintf("First, thou shalt count to three", "First, thou shalt count to %s", "three");
+	CheckPrintf("Bring me a shrubbery", "Bring me a %s", "shrubbery");
+	CheckPrintf("From 1 to 3", "From %i to %i", 1, 3);
+	CheckPrintf("-1.20", "%03.2f", -1.2);
+	CheckPrintf("a, b, c", "%c, %c, %c", 'a', 'b', 'c');
+	CheckPrintf("abracadabra", "%s%s", "abra", "cadabra");
+	CheckPrintf("left aligned                  ", "%-30s", "left aligned");
+	CheckPrintf("                 right aligned", "%30s", "right aligned");
+	CheckPrintf("+3.14; -3.14", "%+f; %+f", 3.14, -3.14);
+	CheckPrintf(" 3.14; -3.14", "% f; % f", 3.14, -3.14);
+	CheckPrintf("bin: 101010; dec: 42; hex: 2a", "bin: %b; dec: %i; hex: %x", 42u, 42, 42u);
+	CheckPrintf("The answer is 42", "The answer is %i", 42);
+	CheckPrintf("1^2<3>", "%i^%i<%i>", 1, 2, 3);	// ParseSpec not called on empty placeholders
 }
-/**/

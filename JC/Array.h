@@ -13,11 +13,11 @@ template <class T> struct Array {
 	Array() { Init(0); }
 
 	explicit Array(Mem* mem_) {
-		mem = mem_;
+		Init(mem_);
 	}
 
 	Array(Mem* mem_, U64 size) {
-		mem = mem_;
+		Init(mem_);
 		Resize(size);
 	}
 
@@ -108,7 +108,7 @@ template <class T> struct Array {
 	}
 
 	void Remove(U64 n) {
-		--len -= n;
+		len -= n;
 	}
 
 	void RemoveUnordered(U64 i) {

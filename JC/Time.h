@@ -1,27 +1,21 @@
 #pragma once
 
-#include "JC/Core.h"
-
-namespace JC::Time {
+#include "JC/Common.h"
 
 //--------------------------------------------------------------------------------------------------
 
-void Init();
+void Time_Init();
 
-U64  Now();
+U64 Time_Now();
 
-double Days (U64 ticks);
-double Hours(U64 ticks);
-double Mins (U64 ticks);
-double Secs (U64 ticks);
-double Mils (U64 ticks);
+F64 Time_Days (U64 ticks);
+F64 Time_Hours(U64 ticks);
+F64 Time_Mins (U64 ticks);
+F64 Time_Secs (U64 ticks);
+F64 Time_Mils (U64 ticks);
 
-U64 FromDays (double days);
-U64 FromHours(double hours);
-U64 FromMins (double mins);
-U64 FromSecs (double secs);
-U64 FromMils (double mils);
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC::Time
+U64 Time_FromDays (F64 days);
+U64 Time_FromHours(F64 hours);
+U64 Time_FromMins (F64 mins);
+U64 Time_FromSecs (F64 secs);
+U64 Time_FromMils (F64 mils);

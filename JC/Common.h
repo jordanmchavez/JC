@@ -128,6 +128,7 @@ constexpr Arg Arg_Make(double             val) { return Arg { .type = ArgType::F
 constexpr Arg Arg_Make(char*              val) { return Arg { .type = ArgType::Str,  .s  = { .s = val, .l = val ? ConstExprStrLen(val) : 0 } }; }
 constexpr Arg Arg_Make(char const*        val) { return Arg { .type = ArgType::Str,  .s  = { .s = val, .l = val ? ConstExprStrLen(val) : 0 } }; }
 constexpr Arg Arg_Make(const void*        val) { return Arg { .type = ArgType::Ptr,  .p  = val }; }
+constexpr Arg Arg_Make(decltype(nullptr)  val) { return Arg { .type = ArgType::Ptr,  .p  = val }; }
 constexpr Arg Arg_Make(Arg                val) { return val; }
 										      
 constexpr void Arg_Fill(Arg*) {}
@@ -140,81 +141,98 @@ constexpr void Arg_Fill(Arg* out, A1 arg1, A... args) {
 
 //--------------------------------------------------------------------------------------------------
 
-inline void FmtStr_BadPlaceholderSpecOrUnmatchedOpenBrace() {}
-inline void FmtStr_NotEnoughArgs() {}
-inline void FmtStr_CloseBraceNotEscaped() {}
 inline void FmtStr_TooManyArgs() {}
+inline void FmtStr_NotEnoughArgs() {}
+inline void FmtStr_t_Arg_NotBool() {}
+inline void FmtStr_c_Arg_NotChar() {}
+inline void FmtStr_s_Arg_NotStr() {}
+inline void FmtStr_i_Arg_NotI64() {}
+inline void FmtStr_u_Arg_NotU64() {}
+inline void FmtStr_x_Arg_NotU64() {}
+inline void FmtStr_X_Arg_NotU64() {}
+inline void FmtStr_b_Arg_NotU64() {}
+inline void FmtStr_f_Arg_NotF64() {}
+inline void FmtStr_e_Arg_NotF64() {}
+inline void FmtStr_E_Arg_NotF64() {}
+inline void FmtStr_g_Arg_NotF64() {}
+inline void FmtStr_P_Arg_NotPtr() {}
+inline void FmtStr_UnknownArgType() {}
 
-consteval char const* FmtStr_CheckSpec(char const* i) {
-	for (Bool flagsDone = false; !flagsDone; ) {
-		switch (*i) {
-			case '}': i++; return i;
-			case '<': i++; break;
-			case '+': i++; break;
-			case ' ': i++; break;
-			case '0': i++; flagsDone = true; break;
-			default:       flagsDone = true; break;
-		}
-	}
-	while (*i >= '0' && *i <= '9') {
-		i++;
-	}
-	if (*i == '.') {
-		i++;
-		while (*i >= '0' && *i <= '9') {
-			i++;
-		}
-	}
-	if (!*i) { FmtStr_BadPlaceholderSpecOrUnmatchedOpenBrace(); }
+template <class... A> consteval void FmtStr_Check(char const* fmt) {
+	constexpr ArgType argTypes[sizeof...(A) + 1] = { Arg_Make(A()).type... };
 
-	switch (*i) {
-		case 'x': i++; break;
-		case 'X': i++; break;
-		case 'b': i++; break;
-		case 'f': i++; break;
-		case 'e': i++; break;
-		default:       break;
-	}
-	if (*i != '}') { FmtStr_BadPlaceholderSpecOrUnmatchedOpenBrace(); }
-	i++;
-	return i;
-}
+	U32 argIdx = 0;
 
-consteval void FmtStr_Check(char const* fmt, size_t argsLen) {
-/*
-	char const* i = fmt;
-	U32 nextArg = 0;
-
+	char const* f = fmt;
 	for (;;) {
-		if (!*i) {
-			if (nextArg != argsLen) { FmtStr_TooManyArgs(); }
-			return;
+		while (*f != '%') {
+			if (*f == 0) {
+				if (argIdx < sizeof...(A)) { FmtStr_TooManyArgs(); }
+				return;
+			}
+			f++;
+		}
+		f++;
+
+		if (*f == '%') {
+			f++;
+			continue;
 		}
 
-		if (*i == '{') {
-			i++;
-			if (*i == '{') {
-				i++;
-			} else {
-				i = FmtStr_CheckSpec(i);
-				if (nextArg >= argsLen) { FmtStr_NotEnoughArgs(); }
-				nextArg++;
+		for (;;) {
+			switch (*f) {
+				case '-': f++; continue;
+				case '+': f++; continue;
+				case ' ': f++; continue;
+				case '0': f++; continue;
 			}
-		} else if (*i != '}') {
-			i++;
-		} else {
-			i++;
-			if (*i != '}') { FmtStr_CloseBraceNotEscaped(); }
-			i++;
+			break;
 		}
-	}*/
+
+		while (*f >= '0' && *f <= '9') {
+			f++;
+		}
+
+		if (*f == '.') {
+			f++;
+			while (*f >= '0' && *f <= '9') {
+				f++;
+			}
+		}
+
+		if (argIdx >= sizeof...(A)) { FmtStr_NotEnoughArgs(); }
+		switch (*f) {
+			case 't': if (argTypes[argIdx] != ArgType::Bool) { FmtStr_t_Arg_NotBool(); } break;
+			case 'c': if (argTypes[argIdx] != ArgType::Char) { FmtStr_c_Arg_NotChar(); } break;
+			case 's': if (argTypes[argIdx] != ArgType::Str ) { FmtStr_s_Arg_NotStr(); } break;
+			case 'i': if (argTypes[argIdx] != ArgType::I64 ) { FmtStr_i_Arg_NotI64(); } break;
+			case 'u': if (argTypes[argIdx] != ArgType::U64 ) { FmtStr_u_Arg_NotU64(); } break;
+			case 'x': if (argTypes[argIdx] != ArgType::U64 ) { FmtStr_x_Arg_NotU64(); } break;
+			case 'X': if (argTypes[argIdx] != ArgType::U64 ) { FmtStr_X_Arg_NotU64(); } break;
+			case 'b': if (argTypes[argIdx] != ArgType::U64 ) { FmtStr_b_Arg_NotU64(); } break;
+			case 'f': if (argTypes[argIdx] != ArgType::F64 ) { FmtStr_f_Arg_NotF64(); } break;
+			case 'e': if (argTypes[argIdx] != ArgType::F64 ) { FmtStr_e_Arg_NotF64(); } break;
+			case 'E': if (argTypes[argIdx] != ArgType::F64 ) { FmtStr_E_Arg_NotF64(); } break;
+			case 'g': if (argTypes[argIdx] != ArgType::F64 ) { FmtStr_g_Arg_NotF64(); } break;
+			case 'p': if (argTypes[argIdx] != ArgType::Ptr ) { FmtStr_P_Arg_NotPtr(); } break;
+			case 'a': break;
+			default: FmtStr_UnknownArgType(); break;
+		}
+		argIdx++;
+		f++;
+	}
 }
 
 template <class T> struct TypeIdentity { using Type = T; };
 
 template <class... A> struct _FmtStr {
 	char const* fmt;
-	consteval _FmtStr(char const* fmtIn) { FmtStr_Check(fmtIn, sizeof...(A)); fmt = fmtIn; }
+
+	consteval _FmtStr(char const* fmt_) {
+		FmtStr_Check<A...>(fmt_);
+		fmt = fmt_;
+	}
+
 	operator char const*() const { return fmt; }
 };
 template <class... A> using FmtStr = _FmtStr<typename TypeIdentity<A>::Type...>;
@@ -291,25 +309,46 @@ template <class T> struct Span {
 
 struct [[nodiscard]] Err { U64 handle = 0; };
 
-Err Err_Make(Err prev, SrcLoc sl, Str ns, Str code, Span<Str const> names, Span<Arg const> args);
+Err  Err_Make(Err prev, SrcLoc sl, Str ns, Str code);
+Err  Err_Make(Err prev, SrcLoc sl, Str ns, U64 code);
 
-struct ErrCode {
+void Err_AddArg(Err err, Str name, Arg arg);
+
+template <class A1, class... A> void Err_AddArgs(Err err, Str name1, A1 arg1, A... args) {
+	Err_AddArg(err, name1, Arg_Make(arg1));
+	if constexpr (sizeof...(A) > 0) {
+		Err_AddArgs(err, args...);
+	}
+}
+
+template <class... A> Err Err_Make(Err prev, SrcLoc sl, Str ns, Str code, A... args) {
+	Err err = Err_Make(prev, sl, ns, code);
+	Err_AddArgs(err, args...);
+	return err;
+}
+
+template <class... A> Err Err_Make(Err prev, SrcLoc sl, Str ns, U64 code, A... args) {
+	Err err = Err_Make(prev, sl, ns, code);
+	Err_AddArgs(err, args...);
+	return err;
+}
+
+struct Err_Code {
 	Str const ns;
 	Str const code;
 
-                                                                                              Err operator()(                                                                                                                        SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, {},                                 {}); }
-	template <class A1                                                                      > Err operator()(Str n1, A1 a1,                                                                                                          SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, { n1 },                             { MakeArg(a1) }); }
-	template <class A1, class A2                                                            > Err operator()(Str n1, A1 a1, Str n2, A2 a2,                                                                                           SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, { n1, n2 },                         { MakeArg(a1), MakeArg(a2) }); }
-	template <class A1, class A2, class A3                                                  > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3,                                                                            SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, { n1, n2, n3 },                     { MakeArg(a1), MakeArg(a2), MakeArg(a3) }); }
-	template <class A1, class A2, class A3, class A4                                        > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4,                                                             SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, { n1, n2, n3, n4 },                 { MakeArg(a1), MakeArg(a2), MakeArg(a3), MakeArg(a4) }); }
-	template <class A1, class A2, class A3, class A4, class A5                              > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4, Str n5, A5 a5,                                              SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, { n1, n2, n3, n4, n5 },             { MakeArg(a1), MakeArg(a2), MakeArg(a3), MakeArg(a4), MakeArg(a5) }); }
-	template <class A1, class A2, class A3, class A4, class A5, class A6                    > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4, Str n5, A5 a5, Str n6, A6 a6,                               SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, { n1, n2, n3, n4, n5, n6 },         { MakeArg(a1), MakeArg(a2), MakeArg(a3), MakeArg(a4), MakeArg(a5), MakeArg(a6) }); }
-	template <class A1, class A2, class A3, class A4, class A5, class A6, class A7          > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4, Str n5, A5 a5, Str n6, A6 a6, Str n7, A7 a7,                SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, { n1, n2, n3, n4, n5, n6, n7},      { MakeArg(a1), MakeArg(a2), MakeArg(a3), MakeArg(a4), MakeArg(a5), MakeArg(a6), MakeArg(a7) }); }
-	template <class A1, class A2, class A3, class A4, class A5, class A6, class A7, class A8> Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4, Str n5, A5 a5, Str n6, A6 a6, Str n7, A7 a7, Str n8, A8 a8, SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, { n1, n2, n3, n4, n5, n6, n7, n8 }, { MakeArg(a1), MakeArg(a2), MakeArg(a3), MakeArg(a4), MakeArg(a5), MakeArg(a6), MakeArg(a7), MakeArg(a8) }); }
+                                                                                              Err operator()(                                                                                                                        SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code); }
+	template <class A1                                                                      > Err operator()(Str n1, A1 a1,                                                                                                          SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1); }
+	template <class A1, class A2                                                            > Err operator()(Str n1, A1 a1, Str n2, A2 a2,                                                                                           SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2); }
+	template <class A1, class A2, class A3                                                  > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3,                                                                            SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3); }
+	template <class A1, class A2, class A3, class A4                                        > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4,                                                             SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3, n4); }
+	template <class A1, class A2, class A3, class A4, class A5                              > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4, Str n5, A5 a5,                                              SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3, n4, a4, n5, a5); }
+	template <class A1, class A2, class A3, class A4, class A5, class A6                    > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4, Str n5, A5 a5, Str n6, A6 a6,                               SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3, n4, a4, n5, a5, n6, a6); }
+	template <class A1, class A2, class A3, class A4, class A5, class A6, class A7          > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4, Str n5, A5 a5, Str n6, A6 a6, Str n7, A7 a7,                SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3, n4, a4, n5, a5, n6, n7, a7); }
+	template <class A1, class A2, class A3, class A4, class A5, class A6, class A7, class A8> Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4, Str n5, A5 a5, Str n6, A6 a6, Str n7, A7 a7, Str n8, A8 a8, SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3, n4, a4, n5, a5, n6, n7, a7, n8, a8); }
 };
 
-
-#define Err_Def(InNs, InCode) constexpr Err::Code EC_##InCode = { .ns = #InNs, .code = #InCode }
+#define Err_Def(Ns_, Code_) constexpr Err_Code EC_##Code_ = { .ns = #Ns_, .code = #Code_ }
 
 //--------------------------------------------------------------------------------------------------
 
@@ -353,3 +392,10 @@ constexpr Res<> Ok() { return Res<>(); }
 	do { if (Res<> r = (Expr).To(Out); !r) { \
 		return r.err; \
 	} } while (false)
+
+//--------------------------------------------------------------------------------------------------
+
+struct IRect {
+	I32 x, y;
+	U32 width, height;
+};

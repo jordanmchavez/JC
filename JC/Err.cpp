@@ -5,18 +5,18 @@
 static constexpr U32 Err_MaxDatas = 256;
 static constexpr U32 Err_MaxStrBuf = 64 * 1024;
 
-static ErrData err_datas[Err_MaxDatas];
-static U32     err_datasHead = 1;	// reserve index 0 for invalid
-static U32     err_datasTail = Err_MaxDatas - 1;
-static U64     err_frame;
-static char    err_strBuf[Err_MaxStrBuf];
-static U32     err_strBufLen;
+static Err_Data err_datas[Err_MaxDatas];
+static U32      err_datasHead = 1;	// reserve index 0 for invalid
+static U32      err_datasTail = Err_MaxDatas - 1;
+static U64      err_frame;
+static char     err_strBuf[Err_MaxStrBuf];
+static U32      err_strBufLen;
 
 //--------------------------------------------------------------------------------------------------
 
-static ErrData* Err_AllocData() {
+static Err_Data* Err_AllocData() {
 	Assert(err_datasHead != err_datasTail);
-	ErrData* data = err_datas + err_datasHead;
+	Err_Data* data = err_datas + err_datasHead;
 	err_datasHead++;
 	if (err_datasHead >= Err_MaxDatas) {
 		err_datasHead = 1;
@@ -60,14 +60,14 @@ Err Err_Make(Err prev, SrcLoc sl, Str ns, Str code, Span<Str const> names, Span<
 	Assert(names.len == args.len);
 	Assert(names.len <= Err_MaxArgs);
 
-	ErrData* prevData = 0;
+	Err_Data* prevData = 0;
 	if (prev.handle) {
 		Assert(prev.handle < Err_MaxDatas);
 		prevData = err_datas + prev.handle;
 		Assert(prevData->frame == err_frame);
 	}
 
-	ErrData* const data = Err_AllocData();
+	Err_Data* const data = Err_AllocData();
 	data->frame   = err_frame;
 	data->prev    = prevData;
 	data->sl      = sl;

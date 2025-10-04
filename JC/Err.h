@@ -4,26 +4,26 @@
 
 //--------------------------------------------------------------------------------------------------
 
-struct ErrArg {
+struct Err_Arg {
 	Str name;
 	Arg arg;
 };
 
 constexpr U32 Err_MaxArgs = 32;
 
-struct ErrData {
-	U64            frame;
-	ErrData const* prev;
-	SrcLoc         sl;
-	Str            ns;
-	Str            code;
-	ErrArg         args[Err_MaxArgs];
-	U32            argsLen;
+struct Err_Data {
+	U64             frame;
+	Err_Data const* prev;
+	SrcLoc          sl;
+	Str             ns;
+	Str             code;
+	Err_Arg         args[Err_MaxArgs];
+	U32             argsLen;
 };
 
-const ErrData* Err_GetData(Err err);
+const Err_Data* Err_GetData(Err err);
 
 void Err_Frame(U64 frame);
 
-bool operator==(ErrCode ec, Err err);
-bool operator==(Err err, ErrCode ec);
+bool operator==(Err_Code ec, Err err);
+bool operator==(Err err, Err_Code ec);

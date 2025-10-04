@@ -2,37 +2,42 @@
 
 #include "JC/Common.h"
 
+//----------------------------------------------------------------------------------------------
+
 enum struct Ev_Type {
 	Key,
-	Mouse,
-	WindowResize,
+	MouseMove,
+	MouseWheel,
+	WindowResized,
+	WindowMinimized,
+	WindowRestored,
+	WindowFocused,
+	WindowUnfocused,
 	ExitRequest,
 };
 
+enum struct Ev_Key {
+	Mouse1,
+	Mouse2,
+	Mouse3,
+	Mouse4,
+	Mouse5,
+};
+
+struct Ev_KeyEvent           { Bool down; Ev_Key key; };
+struct Ev_MouseMoveEvent     { I32 x, y, dx, dy; };
+struct Ev_MouseWheelEvent    { F32 delta; };
+struct Ev_WindowResizedEvent { U32 width, height; };
+
 struct Ev_Event {
 	Ev_Type type;
+	union {
+		Ev_KeyEvent           key;
+		Ev_MouseMoveEvent     mouseMove;
+		Ev_MouseWheelEvent    mouseWheel;
+		Ev_WindowResizedEvent windowResized;
+	};
 };
 
-enum struct Ev_Key {
-};
-
-
-static constexpr U32 Ev_MaxEvents = 1024;
-static Ev_Event ev_events[Ev_MaxEvents];
-static U32      ev_head;
-static U32      ev_tail;
-
-void Ev_Init() {
-	
-}
-
-Span<const Ev_Event> Ev_Get() {
-}
-
-void Ev_Clear() {
-	
-}
-
-void Ev_Add(const Event* e) {
-	
-}
+void            Ev_Add(Ev_Event e);
+Ev_Event const* Ev_Get();

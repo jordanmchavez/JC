@@ -31,7 +31,7 @@ Mem* Mem_Create(U64 reserveSize) {
 			break;
 		}
 	}
-	Assert(mem, "Exceeded Mem_MaxMems={}", Mem_MaxMems);
+	Assert(mem, "Exceeded Mem_MaxMems=%u", Mem_MaxMems);
 
 	mem->begin      = (U8*)Sys_VirtualReserve(reserveSize);
 	mem->end        = mem->begin;
@@ -63,14 +63,14 @@ void* Mem_Alloc(Mem* mem, U64 size, SrcLoc) {
 
 	const U64 avail = (U64)(mem->endCommit - mem->end);
 	if (size > avail) {
-		const U64 committed = (U64)(mem->endCommit - mem->begin);
-		U64 extend = Max((U64)4096, committed);
-		while (avail + extend < size) {
-			extend *= 2;
+		U64 const curCommit = (U64)(mem->endCommit - mem->begin);
+		U64 nextCommit = Max((U64)4096, curCommit);
+		while (avail + (nextCommit - curCommit) < size) {
+			nextCommit *= 2;
 		}
-		Assert(mem->endCommit + extend <= mem->endReserve);
-		Sys_VirtualCommit(mem->endCommit, extend);
-		mem->endCommit += extend;
+		Assert(mem->begin + nextCommit <= mem->endReserve);
+		Sys_VirtualCommit(mem->endCommit, nextCommit - curCommit);
+		mem->endCommit  = mem->begin + nextCommit;
 	}
 	U8* const oldEnd = mem->end;
 	mem->end += size;
@@ -88,7 +88,7 @@ void* Mem_Alloc(Mem* mem, U64 size, SrcLoc) {
 bool Mem_Extend(Mem* mem, void* ptr, U64 size, SrcLoc) {
 	Assert(mem);
 
-	if (mem->lastAlloc != ptr) {
+	if (!ptr || mem->lastAlloc != ptr) {
 		return false;
 	}
 
@@ -97,14 +97,14 @@ bool Mem_Extend(Mem* mem, void* ptr, U64 size, SrcLoc) {
 	Assert(mem->endCommit >= mem->end);
 	const U64 avail = (U64)(mem->endCommit - mem->end);
 	if (size > avail) {
-		const U64 commit = (U64)(mem->endCommit - mem->begin);
-		U64 extend = Max((U64)4096, commit);
-		while (avail + extend < size) {
-			extend *= 2;
+		U64 const curCommit = (U64)(mem->endCommit - mem->begin);
+		U64 nextCommit = Max((U64)4096, curCommit);
+		while (avail + (nextCommit - curCommit) < size) {
+			nextCommit *= 2;
 		}
-		Assert(mem->endCommit + extend < mem->endReserve);
-		Sys_VirtualCommit(mem->endCommit, extend);
-		mem->endCommit += extend;
+		Assert(mem->begin + nextCommit <= mem->endReserve);
+		Sys_VirtualCommit(mem->endCommit, nextCommit - curCommit);
+		mem->endCommit  = mem->begin + nextCommit;
 	}
 	mem->end += size;
 	Assert(mem->end <= mem->endCommit);

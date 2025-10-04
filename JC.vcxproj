@@ -121,12 +121,16 @@
     <ClInclude Include="JC\Bit.h" />
     <ClInclude Include="JC\Common.h" />
     <ClInclude Include="JC\Err.h" />
+    <ClInclude Include="JC\Event.h" />
     <ClInclude Include="JC\Fmt.h" />
     <ClInclude Include="JC\Log.h" />
     <ClInclude Include="JC\Mem.h" />
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Sys_Win.h" />
+    <ClInclude Include="JC\Time.h" />
+    <ClInclude Include="JC\Unicode.h" />
     <ClInclude Include="JC\Unit.h" />
+    <ClInclude Include="JC\Window.h" />
     <ClInclude Include="Notes\Scratch.h" />
   </ItemGroup>
   <ItemGroup>
@@ -136,12 +140,16 @@
     <ClCompile Include="JC\Bit.cpp" />
     <ClCompile Include="JC\Common_Panic.cpp" />
     <ClCompile Include="JC\Err.cpp" />
+    <ClCompile Include="JC\Event.cpp" />
     <ClCompile Include="JC\Fmt.cpp" />
     <ClCompile Include="JC\Log.cpp" />
     <ClCompile Include="JC\Main.cpp" />
     <ClCompile Include="JC\Mem.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
+    <ClCompile Include="JC\Time_Win.cpp" />
+    <ClCompile Include="JC\Unicode.cpp" />
     <ClCompile Include="JC\Unit.cpp" />
+    <ClCompile Include="JC\Window_Win.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="JC.natstepfilter">

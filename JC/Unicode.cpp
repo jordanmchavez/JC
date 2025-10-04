@@ -1,27 +1,33 @@
 ﻿#include "JC/Unicode.h"
 
 #include "JC/Array.h"
-#include "JC/UnitTest.h"
+#include "JC/Mem.h"
+#include "JC/Unit.h"
 #include <wchar.h>
 
-namespace JC::Unicode {
+//--------------------------------------------------------------------------------------------------
+
+constexpr U32 ConstExprWStrLen(wchar_t const* s) {
+	if (s == nullptr) {
+		return 0;
+	}
+	wchar_t const* p = s;
+	while (*p) {
+		++p;
+	}
+	return (U32)(p - s);
+}
+
+Bool operator==(Span<wchar_t>  s1, wchar_t const* s2) { return !wcscmp(s1.data, s2); }
+Bool operator==(wchar_t const* s1, Span<wchar_t>  s2) { return !wcscmp(s1, s2.data);  }
 
 //--------------------------------------------------------------------------------------------------
 
-Bool operator==(WStrZ s1,          WStrZ          s2) { return s1.len == s2.len && !memcmp(s1.data, s2.data, s1.len); }
-Bool operator==(WStrZ s1,          const wchar_t* s2) { return !wcscmp(s1.data, s2); }
-Bool operator==(const wchar_t* s1, WStrZ          s2) { return !wcscmp(s1,      s2.data);  }
-Bool operator!=(WStrZ s1,          WStrZ          s2) { return s1.len != s2.len || memcmp(s1.data, s2.data, s1.len); }
-Bool operator!=(WStrZ s1,          const wchar_t* s2) { return wcscmp(s1.data, s2); }
-Bool operator!=(const wchar_t* s1, WStrZ          s2) { return wcscmp(s1,      s2.data);  }
+Span<wchar_t> Utf8ToWtf16z(Mem* mem, Str s) {
+	Array<wchar_t> out(mem);
 
-//--------------------------------------------------------------------------------------------------
-
-WStrZ Utf8ToWtf16z(Allocator* allocator, Str s) {
-	Array<wchar_t> out(allocator);
-
-	const U8* p = (const U8*)s.data;
-	const U8* end = p + s.len;
+	U8 const* p = (U8 const*)s.data;
+	U8 const* end = p + s.len;
 	while (p < end) {
 		// U+ 0000 - U+ 007f | 0xxxyyyy                            | 0x00 - 0x7f
 		// U+ 0080 - U+ 07ff | 110xxxyy 10yyzzzz                   | 0xc2 - 0xdf
@@ -39,20 +45,20 @@ WStrZ Utf8ToWtf16z(Allocator* allocator, Str s) {
 		// 0xf8 - 0xff
 
 		U32 cp = (U32)L'?';
-		const U32 c1 = (U32)*p++;
+		U32 const c1 = (U32)*p++;
 		if (c1 <= 0x7f) {
 			cp = (U32)c1;
 
 		} else if (c1 >= 0xc2 && c1 <= 0xdf) {
 			if (p > end) { out.Add(L'?'); break; }
-			const U32 c2 = (U32)*p++;
+			U32 const c2 = (U32)*p++;
 			if (c2 < 0x80 || c2 > 0xbf) { out.Add(L'?'); continue; }
 			cp = ((c1 & 0x1f) << 6) + (c2 & 0x3f);
 
 		} else if (c1 <= 0xef) {
 			if (p + 1 > end) { out.Add(L'?'); break; }
-			const U32 c2 = (U32)*p++;
-			const U32 c3 = (U32)*p++;
+			U32 const c2 = (U32)*p++;
+			U32 const c3 = (U32)*p++;
 			if (c1 == 0xe0) {
 				if (c2 < 0xa0 || c2 > 0xbf) { out.Add(L'?'); continue; }
 			} else {
@@ -66,9 +72,9 @@ WStrZ Utf8ToWtf16z(Allocator* allocator, Str s) {
 				out.Add(L'?');
 				break;
 			}
-			const U32 c2 = (U32)*p++;
-			const U32 c3 = (U32)*p++;
-			const U32 c4 = (U32)*p++;
+			U32 const c2 = (U32)*p++;
+			U32 const c3 = (U32)*p++;
+			U32 const c4 = (U32)*p++;
 			if (c1 == 0xf0) {
 				if (c2 < 0x90 || c2 > 0xbf) { out.Add(L'?'); continue; }
 			} else if (c1 >= 0xf1 && c1 <= 0xf3) {
@@ -93,17 +99,15 @@ WStrZ Utf8ToWtf16z(Allocator* allocator, Str s) {
 	}
 
 	out.Add(u'\0');
-	return WStrZ(out.data, out.len - 1);
+	return Span<wchar_t>(out.data, out.len - 1);
 }
 
 //--------------------------------------------------------------------------------------------------
 
 #define CheckUtf8ToWtf16z(from8, to16z) \
-	{ \
-		CheckTrue(Utf8ToWtf16z(testAllocator, from8) == to16z); \
-	}
+		Unit_CheckTrue(Utf8ToWtf16z(testMem, from8) == to16z)
 
-UnitTest("Utf8ToWtf16z") {
+Unit_Test("Utf8ToWtf16z") {
 	CheckUtf8ToWtf16z("\x00", L"\x0000");
 	CheckUtf8ToWtf16z("\x7f", L"\x007f");
 
@@ -164,22 +168,21 @@ UnitTest("Utf8ToWtf16z") {
 	CheckUtf8ToWtf16z("\xf4\x8f\xbf\x80", L"\xdbff\xdfc0");
 	CheckUtf8ToWtf16z("\xf4\x8f\xbf\xbf", L"\xdbff\xdfff");
 
-	CheckUtf8ToWtf16z((const char*)u8"hello, nice to meet you abcʦϧ턖릇块𒃶𒅋🀅🚉🤸", L"hello, nice to meet you abcʦϧ턖릇块𒃶𒅋🀅🚉🤸");
+	CheckUtf8ToWtf16z((char const*)u8"hello, nice to meet you abcʦϧ턖릇块𒃶𒅋🀅🚉🤸", L"hello, nice to meet you abcʦϧ턖릇块𒃶𒅋🀅🚉🤸");
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Str Wtf16zToUtf8(Allocator* allocator, WStrZ s) {
-	Array<char> out(allocator);
+Str Wtf16zToUtf8(Mem* mem, wchar_t const* s) {
+	Array<char> out(mem);
 
-	const wchar_t* end = s.data + s.len;
-	const wchar_t* p = s.data;
-	while (p < end) {
+	wchar_t const* p = s;
+	while (*p) {
 		U32 cp;
-		const U32 c = (U32)*p++;
+		U32 const c = (U32)*p++;
 		if (c <= 0xd7ff || c >= 0xe000) {
 			cp = c;
-		} else if (c <= 0xdbff && p < end && *p >= 0xdc00 && *p <= 0xdfff) {
+		} else if (c <= 0xdbff && *p && *p >= 0xdc00 && *p <= 0xdfff) {
 			cp = 0x10000 + ((c - 0xd800) << 10) + (*p - 0xdc00);
 			++p;
 		} else {
@@ -203,7 +206,7 @@ Str Wtf16zToUtf8(Allocator* allocator, WStrZ s) {
 		}
 	}
 
-	return Str(out.data, out.len);
+	return Str(out.data, (U32)out.len);
 }
 
 // High surrogate range
@@ -213,8 +216,9 @@ Str Wtf16zToUtf8(Allocator* allocator, WStrZ s) {
 	// 1101110000000000 dc00
 	// 1101111111111111 dfff
 
-UnitTest("Unicode::Wtf16zToUtf8") {
-	#define CheckWtf16zToUtf8(from16z, to8) { CheckEq(Wtf16zToUtf8(testAllocator, from16z), to8);  }
+Unit_Test("Unicode::Wtf16zToUtf8") {
+	#define CheckWtf16zToUtf8(from16z, to8) \
+		Unit_CheckEq(Wtf16zToUtf8(testMem, from16z), to8)
 
 	// General 
 	CheckWtf16zToUtf8(L"", "");
@@ -258,7 +262,3 @@ UnitTest("Unicode::Wtf16zToUtf8") {
 	CheckWtf16zToUtf8(L"\xdc00\xdc00", "\xed\xb0\x80\xed\xb0\x80");
 	CheckWtf16zToUtf8(L"\xdfff\xdc00", "\xed\xbf\xbf\xed\xb0\x80");
 }
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC::Unicode

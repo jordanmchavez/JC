@@ -7,22 +7,10 @@
 #include <Windows.h>
 
 //--------------------------------------------------------------------------------------------------
-/*
-template <class... A> struct [[nodiscard]] Err_WinLast : Err {
-	Err_WinLast(Str fn, A... args, SrcLoc sl = SrcLoc::Here())
-		: Err(Err(), sl, "Win", (U64)GetLastError(), "fn", fn, args...)
-		{}
-};
-template <typename... A> Err_WinLast(Str, A...) -> Err_WinLast<A...>;
 
-template <class... A> struct [[nodiscard]] Err_Win : JC::Err {
-	Err_Win(U32 code, Str fn, A... args, SrcLoc sl = SrcLoc::Here())
-		: Err(Err(), sl, "Win", code, "fn", fn, args...)
-		{}
-};
-template <typename... A> Err_Win(U32, Str, A...) -> Err_Win<A...>;
+#define Win_LastErr(fn, ...) \
+	Err_Make(Err(), SrcLoc::Here(), "Win", (U64)GetLastError(), "fn", fn, ##__VA_ARGS__)
 
-constexpr Bool IsValidHandle(HANDLE h) {
+constexpr Bool Win_IsValidHandle(HANDLE h) {
 	return h != (HANDLE)0 && h != INVALID_HANDLE_VALUE;
 }
-*/

@@ -23,7 +23,7 @@ void* Sys_VirtualAlloc(U64 size) {
 	Assert(size % 4096 == 0);
 	void* p = ::VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	if (!p) {
-		Panic("VirtualAlloc failed with MEM_RESERVE: lasterror={}, size={}", GetLastError(), size);
+		Panic("VirtualAlloc failed with MEM_RESERVE: lasterror=%u, size=%u", GetLastError(), size);
 	}
 	return p;
 }
@@ -32,7 +32,7 @@ void* Sys_VirtualReserve(U64 size) {
 	Assert(size % 65536 == 0);
 	void* p = ::VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
 	if (!p) {
-		Panic("VirtualAlloc failed with MEM_RESERVE: lasterror={}, size={}", GetLastError(), size);
+		Panic("VirtualAlloc failed with MEM_RESERVE: lasterror=%u, size=%u", GetLastError(), size);
 	}
 	return p;
 }
@@ -42,7 +42,7 @@ void* Sys_VirtualCommit(void* p, U64 size) {
 	Assert((U64)p % 4096 == 0);
 	Assert(size % 4096 == 0);
 	if (::VirtualAlloc(p, size, MEM_COMMIT, PAGE_READWRITE) == nullptr) {
-		Panic("VirtualAlloc failed with MEM_COMMIT: lasterror={}, size={}, ptr={}", GetLastError(), size, p);
+		Panic("VirtualAlloc failed with MEM_COMMIT: lasterror=%u, size=%u, ptr=%p", GetLastError(), size, p);
 	}
 	return (U8*)p + size;
 }

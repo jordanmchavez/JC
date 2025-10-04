@@ -15,9 +15,10 @@ static U32    log_fnsLen;
 
 void Log_Printv(SrcLoc sl, LogLevel level, const char* fmt, Span<Arg const> args) {
 	char line[Log_MaxLine];
-	char* const lineEnd = line + LenOf(line) - 1;
-	char* lineIt = Fmt_Printf(line, lineEnd, "{}{}({}): ", level == LogLevel::Error ? "!!! " : "", sl.file, sl.line);
+	char* const lineEnd = line + LenOf(line) - 2;
+	char* lineIt = Fmt_Printf(line, lineEnd, "%s%s(%u): ", level == LogLevel::Error ? "!!! " : "", sl.file, sl.line);
 	lineIt = Fmt_Printv(lineIt, lineEnd, fmt, args);
+	*lineIt++ = '\n';
 	*lineIt = 0;
 	LogMsg msg = {
 		.line    = line,

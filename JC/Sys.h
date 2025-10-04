@@ -5,7 +5,6 @@
 //--------------------------------------------------------------------------------------------------
 
 void  Sys_Abort();
-
 Bool  Sys_DbgPresent();
 void  Sys_DbgPrint(const char* msg);
 void  Sys_Print(Str msg);
