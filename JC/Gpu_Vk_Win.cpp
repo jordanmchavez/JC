@@ -1,6 +1,6 @@
 #include "JC/Gpu_Vk.h"
 
-#if defined JC_PLATFORM_WINDOWS
+#if defined Platform_Windows
 	typedef __int64 (__stdcall *FARPROC)();
 
 	extern "C" __declspec(dllimport) void*   __stdcall LoadLibraryW(const wchar_t*);
@@ -8,27 +8,25 @@
 	extern "C" __declspec(dllimport) int     __stdcall FreeLibrary(void*);
 
 	static void* vulkanDll = nullptr;
-#endif	// JC_PLATFORM
-
-namespace JC::Gpu {
+#endif	// Platform
 
 //--------------------------------------------------------------------------------------------------
 
-void LoadRootFns() {
-	#if defined JC_PLATFORM_WINDOWS
+void Gpu_LoadRootFns() {
+	#if defined Platform_Windows
 		vulkanDll = LoadLibraryW(L"vulkan-1.dll");
-		JC_ASSERT(vulkanDll);
+		Assert(vulkanDll);
 		vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)GetProcAddress(vulkanDll, "vkGetInstanceProcAddr");
 		vkCreateInstance = (PFN_vkCreateInstance)vkGetInstanceProcAddr(nullptr, "vkCreateInstance");
 		vkEnumerateInstanceExtensionProperties = (PFN_vkEnumerateInstanceExtensionProperties)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceExtensionProperties");
 		vkEnumerateInstanceLayerProperties = (PFN_vkEnumerateInstanceLayerProperties)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceLayerProperties");
 		vkEnumerateInstanceVersion = (PFN_vkEnumerateInstanceVersion)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion");
-	#endif	// JC_PLATFORM
+	#endif	// Platform
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void LoadInstanceFns(VkInstance vkInstance) {
+void Gpu_LoadInstanceFns(VkInstance vkInstance) {
 	vkCreateDevice = (PFN_vkCreateDevice)vkGetInstanceProcAddr(vkInstance, "vkCreateDevice");
 	vkDestroyInstance = (PFN_vkDestroyInstance)vkGetInstanceProcAddr(vkInstance, "vkDestroyInstance");
 	vkEnumerateDeviceExtensionProperties = (PFN_vkEnumerateDeviceExtensionProperties)vkGetInstanceProcAddr(vkInstance, "vkEnumerateDeviceExtensionProperties");
@@ -82,7 +80,7 @@ void LoadInstanceFns(VkInstance vkInstance) {
 
 //--------------------------------------------------------------------------------------------------
 
-void LoadDeviceFns(VkDevice vkDevice) {
+void Gpu_LoadDeviceFns(VkDevice vkDevice) {
 	vkAllocateCommandBuffers = (PFN_vkAllocateCommandBuffers)vkGetDeviceProcAddr(vkDevice, "vkAllocateCommandBuffers");
 	vkAllocateDescriptorSets = (PFN_vkAllocateDescriptorSets)vkGetDeviceProcAddr(vkDevice, "vkAllocateDescriptorSets");
 	vkAllocateMemory = (PFN_vkAllocateMemory)vkGetDeviceProcAddr(vkDevice, "vkAllocateMemory");
@@ -279,10 +277,10 @@ void LoadDeviceFns(VkDevice vkDevice) {
 
 //--------------------------------------------------------------------------------------------------
 
-void FreeFns() {
-	#if defined JC_PLATFORM_WINDOWS
-		FreeLibrary(vulkanDll);
-	#endif	// JC_PLATFORM
+void Gpu_FreeFns() {
+	#if defined Platform_Windows
+		::FreeLibrary(vulkanDll);
+	#endif	// Platform
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -533,7 +531,3 @@ PFN_vkQueuePresentKHR vkQueuePresentKHR;
 PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR;
 PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR vkGetPhysicalDeviceWin32PresentationSupportKHR;
 #endif // VK_KHR_win32_surface
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC::Gpu

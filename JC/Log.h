@@ -15,8 +15,8 @@ template <class... A> void Log_Printf(SrcLoc sl, LogLevel level, FmtStr<A...> fm
 	Log_Printv(sl, level, fmt, { Arg_Make(args)..., });
 }
 
-#define Logf(fmt, ...)   Log_Printf(SrcLoc::Here(), LogLevel::Log,   fmt, ##__VA_ARGS__)
-#define Errorf(fmt, ...) Log_Printf(SrcLoc::Here(), LogLevel::Error, fmt, ##__VA_ARGS__)
+#define Logf(fmt, ...)   Log_Printf(SrcLoc_Here(), LogLevel::Log,   fmt, ##__VA_ARGS__)
+#define Errorf(fmt, ...) Log_Printf(SrcLoc_Here(), LogLevel::Error, fmt, ##__VA_ARGS__)
 
 struct LogMsg {
 	char const*     line;

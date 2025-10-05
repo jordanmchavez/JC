@@ -16,12 +16,13 @@ struct Err_Data {
 	Err_Data const* prev;
 	SrcLoc          sl;
 	Str             ns;
-	Str             code;
+	Str             sCode;
+	U64             uCode;
 	Err_Arg         args[Err_MaxArgs];
 	U32             argsLen;
 };
 
-const Err_Data* Err_GetData(Err err);
+Err_Data const* Err_GetData(Err err);
 
 void Err_Frame(U64 frame);
 

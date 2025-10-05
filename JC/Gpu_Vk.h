@@ -1,12 +1,12 @@
 #pragma once
 
-#include "JC/Core.h"
+#include "JC/Common.h"
 #include "JC/Gpu.h"
 
 #define VK_NO_PROTOTYPES
 #include "vulkan/vulkan_core.h"
 
-#if defined JC_PLATFORM_WINDOWS
+#if defined Platform_Windows
 	typedef unsigned long DWORD;
 	typedef _Null_terminated_ const wchar_t* LPCWSTR;
 	typedef void* HANDLE;
@@ -15,20 +15,14 @@
 	typedef struct HMONITOR__* HMONITOR;
 	typedef struct _SECURITY_ATTRIBUTES SECURITY_ATTRIBUTES;
 	#include "vulkan/vulkan_win32.h"
-#endif	// JC_PLATFORM
-
-namespace JC::Gpu {
+#endif	// Platform
 
 //--------------------------------------------------------------------------------------------------
 
-template <class... A> struct [[nodiscard]] Err_Vk : JC::Err {
-	Err_Vk(VkResult vkResult, Str fn, A... args, SrcLoc sl = SrcLoc::Here()) :
-		Err(Err(), sl, "Vk", (U64)vkResult, "fn", fn, args...)
-		{}
-};
-template <typename... A> Err_Vk(VkResult, Str, A...) -> Err_Vk<A...>;
+#define Err_Vk(vkResult, fn, ...) \
+	Err_Make(Err(), SrcLoc_Here(), "Vk", (U64)vkResult, "fn", fn, ##__VA_ARGS__)
 
-#define JC_CHECK_VK(expr) { \
+#define Gpu_CheckVk(expr) { \
 	if (const VkResult r = expr; r != VK_SUCCESS) { \
 		return Err_Vk(r, #expr); \
 	} \
@@ -36,27 +30,19 @@ template <typename... A> Err_Vk(VkResult, Str, A...) -> Err_Vk<A...>;
 
 //--------------------------------------------------------------------------------------------------
 
-struct SemaphoreSubmit {
-	VkSemaphore           vkSemaphore;
-	VkPipelineStageFlags2 vkPipelineStageFlags2;
-	U64                   val;
-};
+void                  Gpu_LoadRootFns();
+void                  Gpu_LoadInstanceFns(VkInstance vkInstance);
+void                  Gpu_LoadDeviceFns(VkDevice vkDevice);
+void                  Gpu_FreeFns();
 
-//--------------------------------------------------------------------------------------------------
-
-void                  LoadRootFns();
-void                  LoadInstanceFns(VkInstance vkInstance);
-void                  LoadDeviceFns(VkDevice vkDevice);
-void                  FreeFns();
-
-ImageFormat           VkFormatToImageFormat(VkFormat vkFormat);
-VkFormat              ImageFormatToVkFormat(ImageFormat imageFormat);
-U32                   FormatSize(VkFormat vkFormat);
-Bool                  IsDepthFormat(VkFormat vkFormat);
-VkImageLayout         ImageLayoutToVkImageLayout(ImageLayout imageLayout);
-VkPipelineStageFlags2 BarrierStageFlagsToVkPipelineStageFlags2(BarrierStage::Flags barrierStageFlags);
-VkAccessFlags2        BarrierStageFlagsToVkAccessFlags2(BarrierStage::Flags barrierStageFlags);
-void                  ImageMemoryBarrier(
+Gpu_ImageFormat       Gpu_VkFormatToImageFormat(VkFormat vkFormat);
+VkFormat              Gpu_ImageFormatToVkFormat(Gpu_ImageFormat imageFormat);
+U32                   Gpu_FormatSize(VkFormat vkFormat);
+Bool                  Gpu_IsDepthFormat(VkFormat vkFormat);
+VkImageLayout         Gpu_ImageLayoutToVkImageLayout(Gpu_ImageLayout imageLayout);
+VkPipelineStageFlags2 Gpu_BarrierStageFlagsToVkPipelineStageFlags2(Gpu_BarrierStage::Flags barrierStageFlags);
+VkAccessFlags2        Gpu_BarrierStageFlagsToVkAccessFlags2(Gpu_BarrierStage::Flags barrierStageFlags);
+void                  Gpu_ImageMemoryBarrier(
 	VkCommandBuffer          vkCommandBuffer,
 	VkImage                  vkImage,
 	VkPipelineStageFlags2    vkSrcPipelineStageFlags2,
@@ -67,16 +53,16 @@ void                  ImageMemoryBarrier(
 	VkImageLayout            vkDstImageLayout,
 	VkImageAspectFlags       vkImageAspectFlagBits
 );
-Str                   ColorSpaceStr(VkColorSpaceKHR c);
-Str                   FormatStr(VkFormat f);
-Str                   MemoryHeapFlagsStr(Allocator* allocator, VkMemoryHeapFlags f);
-Str                   MemoryPropertyFlagsStr(Allocator* allocator, VkMemoryPropertyFlags f);
-Str                   QueueFlagsStr(Allocator* allocator, VkQueueFlags f);
-Str                   PresentModeStr(VkPresentModeKHR m);
-Str                   ResultStr(VkResult r);
-Str                   PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
-Str                   VersionStr(Allocator* allocator, U32 v);
-Str                   SizeStr(Allocator* allocator, U64 size);
+Str                   Gpu_ColorSpaceStr(VkColorSpaceKHR c);
+Str                   Gpu_FormatStr(VkFormat f);
+Str                   Gpu_MemoryHeapFlagsStr(Mem* mem, VkMemoryHeapFlags f);
+Str                   Gpu_MemoryPropertyFlagsStr(Mem* mem, VkMemoryPropertyFlags f);
+Str                   Gpu_QueueFlagsStr(Mem* mem, VkQueueFlags f);
+Str                   Gpu_PresentModeStr(VkPresentModeKHR m);
+Str                   Gpu_ResultStr(VkResult r);
+Str                   Gpu_PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
+Str                   Gpu_VersionStr(Mem* mem, U32 v);
+Str                   Gpu_SizeStr(Mem* mem, U64 size);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -322,13 +308,9 @@ extern PFN_vkDestroySwapchainKHR vkDestroySwapchainKHR;
 extern PFN_vkGetSwapchainImagesKHR vkGetSwapchainImagesKHR;
 extern PFN_vkQueuePresentKHR vkQueuePresentKHR;
 #endif // VK_KHR_swapchain
-#if defined JC_PLATFORM_WINDOWS
+#if defined Platform_Windows
 	#if defined VK_KHR_win32_surface
 	extern PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR;
 	extern PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR vkGetPhysicalDeviceWin32PresentationSupportKHR;
 	#endif // VK_KHR_win32_surface
-#endif	// JC_PLATFORM
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC::Gpu
+#endif	// Platform

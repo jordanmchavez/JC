@@ -75,7 +75,7 @@ template <class K, class V> struct Map {
 		return v;
 	}
 
-	V* Put(K k, V v, SrcLoc sl = SrcLoc::Here()) {
+	V* Put(K k, V v, SrcLoc sl = SrcLoc_Here()) {
 		U64 h = Hash(k);
 		U32 df = 0x100 | (h & 0xff);
 		U64 i = h & mask;
@@ -184,7 +184,7 @@ template <class K, class V> struct Map {
 		elemsLen = 0;
 	}
 
-	void Free(SrcLoc* sl = SrcLoc::Here()) {
+	void Free(SrcLoc* sl = SrcLoc_Here()) {
 		if (buckets != initBuckets) {
 			allocator->Alloc(buckets, bucketsCap * sizeof(Bucket), 0, sl);
 		}

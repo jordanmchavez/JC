@@ -2,6 +2,8 @@
 
 //--------------------------------------------------------------------------------------------------
 
+#define BreakOnError
+
 #if defined _MSC_VER
 	#define Platform_Windows
 	#define Compiler_Msvc
@@ -64,6 +66,11 @@ constexpr U64 U64Max = (U64)0xffffffffffffffff;
 #define MacroLineStr MacroStringize(__LINE__)
 #define LenOf(a) (sizeof(a) / sizeof(a[0]))
 
+constexpr U64 KB = 1024;
+constexpr U64 MB = 1024 * KB;
+constexpr U64 GB = 1024 * MB;
+constexpr U64 TB = 1024 * GB;
+
 constexpr U32 ConstExprStrLen(char const* s) {
 	IfConstEval {
 		char const* i = s; 
@@ -88,12 +95,11 @@ template <class T> constexpr T Clamp(T x, T lo, T hi) { return x < lo ? lo : (x 
 struct SrcLoc {
 	char const* file;
 	U32         line;
-
-	static consteval SrcLoc Here(char const* file = SrcLoc_File, U32 line = (U32)SrcLoc_Line) {
-		return SrcLoc { .file = file, .line = line };
-	}
 };
 
+consteval SrcLoc SrcLoc_Here(char const* file = SrcLoc_File, U32 line = (U32)SrcLoc_Line) {
+	return SrcLoc { .file = file, .line = line };
+}
 //--------------------------------------------------------------------------------------------------
 
 enum struct ArgType { Bool, Char, I64, U64, F64, Str, Ptr };
@@ -246,7 +252,7 @@ template <class... A> [[noreturn]] void Panicf(SrcLoc sl, FmtStr<A...> fmt, A...
 	Panicv(sl, 0, fmt, argsArr, sizeof...(A));
 }
 
-#define Panic(fmt, ...) Panicf(SrcLoc::Here(), fmt, ##__VA_ARGS__)
+#define Panic(fmt, ...) Panicf(SrcLoc_Here(), fmt, ##__VA_ARGS__)
 
 [[noreturn]] inline void AssertFail(SrcLoc sl, char const* expr) {
 	Panicv(sl, expr, 0, 0, 0);
@@ -259,7 +265,7 @@ template <class... A> [[noreturn]] void AssertFail(SrcLoc sl, char const* expr, 
 
 #define Assert(expr, ...) \
 	do { if (!(expr)) { \
-		AssertFail(SrcLoc::Here(), #expr, ##__VA_ARGS__); \
+		AssertFail(SrcLoc_Here(), #expr, ##__VA_ARGS__); \
 	} } while (false)
 
 using PanicFn = void (SrcLoc sl, char const* expr, char const* msg);
@@ -280,12 +286,8 @@ struct Str {
 	constexpr char operator[](U32 i) const { Assert(i < len); return data[i]; }
 };
 
-inline Bool operator==(Str         s1, Str         s2) { return s1.len == s2.len && !memcmp(s1.data, s2.data, s1.len); }
-inline Bool operator==(char const* s1, Str         s2) { Assert(s1); return !strcmp(s1, s2.data); }
-inline Bool operator==(Str         s1, char const* s2) { Assert(s2); return !strcmp(s1.data, s2); }
-inline Bool operator!=(Str         s1, Str         s2) { return s1.len != s2.len || memcmp(s1.data, s2.data, s1.len); }
-inline Bool operator!=(char const* s1, Str         s2) { Assert(s1); return strcmp(s1,s2.data); }
-inline Bool operator!=(Str         s1, char const* s2) { Assert(s2); return strcmp(s1.data, s2); }
+inline Bool operator==(Str s1, Str s2) { return s1.len == s2.len && !memcmp(s1.data, s2.data, s1.len); }
+inline Bool operator!=(Str s1, Str s2) { return s1.len != s2.len ||  memcmp(s1.data, s2.data, s1.len); }
 
 constexpr Arg Arg_Make(Str val) { return Arg { .type = ArgType::Str, .s = { .s = val.data, .l = val.len } }; }
 
@@ -309,9 +311,6 @@ template <class T> struct Span {
 
 struct [[nodiscard]] Err { U64 handle = 0; };
 
-Err  Err_Make(Err prev, SrcLoc sl, Str ns, Str code);
-Err  Err_Make(Err prev, SrcLoc sl, Str ns, U64 code);
-
 void Err_AddArg(Err err, Str name, Arg arg);
 
 template <class A1, class... A> void Err_AddArgs(Err err, Str name1, A1 arg1, A... args) {
@@ -320,6 +319,9 @@ template <class A1, class... A> void Err_AddArgs(Err err, Str name1, A1 arg1, A.
 		Err_AddArgs(err, args...);
 	}
 }
+
+Err Err_Make(Err prev, SrcLoc sl, Str ns, Str code);
+Err Err_Make(Err prev, SrcLoc sl, Str ns, U64 code);
 
 template <class... A> Err Err_Make(Err prev, SrcLoc sl, Str ns, Str code, A... args) {
 	Err err = Err_Make(prev, sl, ns, code);
@@ -337,18 +339,18 @@ struct Err_Code {
 	Str const ns;
 	Str const code;
 
-                                                                                              Err operator()(                                                                                                                        SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code); }
-	template <class A1                                                                      > Err operator()(Str n1, A1 a1,                                                                                                          SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1); }
-	template <class A1, class A2                                                            > Err operator()(Str n1, A1 a1, Str n2, A2 a2,                                                                                           SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2); }
-	template <class A1, class A2, class A3                                                  > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3,                                                                            SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3); }
-	template <class A1, class A2, class A3, class A4                                        > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4,                                                             SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3, n4); }
-	template <class A1, class A2, class A3, class A4, class A5                              > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4, Str n5, A5 a5,                                              SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3, n4, a4, n5, a5); }
-	template <class A1, class A2, class A3, class A4, class A5, class A6                    > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4, Str n5, A5 a5, Str n6, A6 a6,                               SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3, n4, a4, n5, a5, n6, a6); }
-	template <class A1, class A2, class A3, class A4, class A5, class A6, class A7          > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4, Str n5, A5 a5, Str n6, A6 a6, Str n7, A7 a7,                SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3, n4, a4, n5, a5, n6, n7, a7); }
-	template <class A1, class A2, class A3, class A4, class A5, class A6, class A7, class A8> Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4, Str n5, A5 a5, Str n6, A6 a6, Str n7, A7 a7, Str n8, A8 a8, SrcLoc sl = SrcLoc::Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3, n4, a4, n5, a5, n6, n7, a7, n8, a8); }
+                                                                                              Err operator()(                                                                                                                        SrcLoc sl = SrcLoc_Here()) const { return Err_Make(Err(), sl, ns, code); }
+	template <class A1                                                                      > Err operator()(Str n1, A1 a1,                                                                                                          SrcLoc sl = SrcLoc_Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1); }
+	template <class A1, class A2                                                            > Err operator()(Str n1, A1 a1, Str n2, A2 a2,                                                                                           SrcLoc sl = SrcLoc_Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2); }
+	template <class A1, class A2, class A3                                                  > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3,                                                                            SrcLoc sl = SrcLoc_Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3); }
+	template <class A1, class A2, class A3, class A4                                        > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4,                                                             SrcLoc sl = SrcLoc_Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3, n4); }
+	template <class A1, class A2, class A3, class A4, class A5                              > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4, Str n5, A5 a5,                                              SrcLoc sl = SrcLoc_Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3, n4, a4, n5, a5); }
+	template <class A1, class A2, class A3, class A4, class A5, class A6                    > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4, Str n5, A5 a5, Str n6, A6 a6,                               SrcLoc sl = SrcLoc_Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3, n4, a4, n5, a5, n6, a6); }
+	template <class A1, class A2, class A3, class A4, class A5, class A6, class A7          > Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4, Str n5, A5 a5, Str n6, A6 a6, Str n7, A7 a7,                SrcLoc sl = SrcLoc_Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3, n4, a4, n5, a5, n6, n7, a7); }
+	template <class A1, class A2, class A3, class A4, class A5, class A6, class A7, class A8> Err operator()(Str n1, A1 a1, Str n2, A2 a2, Str n3, A3 a3, Str n4, A4 a4, Str n5, A5 a5, Str n6, A6 a6, Str n7, A7 a7, Str n8, A8 a8, SrcLoc sl = SrcLoc_Here()) const { return Err_Make(Err(), sl, ns, code, n1, a1, n2, a2, n3, a3, n4, a4, n5, a5, n6, n7, a7, n8, a8); }
 };
 
-#define Err_Def(Ns_, Code_) constexpr Err_Code EC_##Code_ = { .ns = #Ns_, .code = #Code_ }
+#define Err_Def(Ns_, Code_) constexpr Err_Code Err_##Code_ = { .ns = #Ns_, .code = #Code_ }
 
 //--------------------------------------------------------------------------------------------------
 
@@ -395,7 +397,10 @@ constexpr Res<> Ok() { return Res<>(); }
 
 //--------------------------------------------------------------------------------------------------
 
-struct IRect {
-	I32 x, y;
-	U32 width, height;
-};
+struct IRect { I32 x, y; U32 width, height; };
+struct Vec2 { F32 x, y; };
+struct Vec3 { F32 x, y, z; };
+struct Vec4 { F32 x, y, z, w; };
+struct Mat2 { F32 m[2][2]; };
+struct Mat3 { F32 m[3][3]; };
+struct Mat4 { F32 m[4][4]; };

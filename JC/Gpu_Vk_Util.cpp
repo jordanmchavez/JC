@@ -6,8 +6,6 @@
 #include "JC/Array.h"
 #include "JC/Fmt.h"
 
-namespace JC::Gpu {
-
 //--------------------------------------------------------------------------------------------------
 
 extern VkDevice               vkDevice;
@@ -17,31 +15,31 @@ static void Add(Array<char>* a, Str s) { a->Add(s.data, s.len); }
 
 //--------------------------------------------------------------------------------------------------
 
-ImageFormat VkFormatToImageFormat(VkFormat vkFormat) {
+Gpu_ImageFormat Gpu_VkFormatToImageFormat(VkFormat vkFormat) {
 	switch (vkFormat) {
-		case VK_FORMAT_UNDEFINED:      return ImageFormat::Undefined;
-		case VK_FORMAT_B8G8R8A8_UNORM: return ImageFormat::B8G8R8A8_UNorm;
-		case VK_FORMAT_R8G8B8A8_UNORM: return ImageFormat::R8G8B8A8_UNorm;
-		case VK_FORMAT_D32_SFLOAT:     return ImageFormat::D32_Float;
-		default:                       JC_PANIC("Unhandled VkFormat {}", vkFormat);
+		case VK_FORMAT_UNDEFINED:      return Gpu_ImageFormat::Undefined;
+		case VK_FORMAT_B8G8R8A8_UNORM: return Gpu_ImageFormat::B8G8R8A8_UNorm;
+		case VK_FORMAT_R8G8B8A8_UNORM: return Gpu_ImageFormat::R8G8B8A8_UNorm;
+		case VK_FORMAT_D32_SFLOAT:     return Gpu_ImageFormat::D32_Float;
+		default:                       Panic("Unhandled VkFormat {}", vkFormat);
 	}
 }
 
 //--------------------------------------------------------------------------------------------------
 
-VkFormat ImageFormatToVkFormat(ImageFormat imageFormat) {
+VkFormat Gpu_ImageFormatToVkFormat(Gpu_ImageFormat imageFormat) {
 	switch (imageFormat) {
-		case ImageFormat::Undefined:      return VK_FORMAT_UNDEFINED;
-		case ImageFormat::B8G8R8A8_UNorm: return VK_FORMAT_B8G8R8A8_UNORM;
-		case ImageFormat::R8G8B8A8_UNorm: return VK_FORMAT_R8G8B8A8_UNORM;
-		case ImageFormat::D32_Float:      return VK_FORMAT_D32_SFLOAT;
-		default:                          JC_PANIC("Unhandled ImageFormat {}", imageFormat);
+		case Gpu_ImageFormat::Undefined:      return VK_FORMAT_UNDEFINED;
+		case Gpu_ImageFormat::B8G8R8A8_UNorm: return VK_FORMAT_B8G8R8A8_UNORM;
+		case Gpu_ImageFormat::R8G8B8A8_UNorm: return VK_FORMAT_R8G8B8A8_UNORM;
+		case Gpu_ImageFormat::D32_Float:      return VK_FORMAT_D32_SFLOAT;
+		default:                              Panic("Unhandled Gpu_ImageFormat {}", imageFormat);
 	}
 }
 
 //--------------------------------------------------------------------------------------------------
 
-U32 FormatSize(VkFormat vkFormat) {
+U32 Gpu_FormatSize(VkFormat vkFormat) {
 	switch (vkFormat) {
 		case VK_FORMAT_UNDEFINED:
 			return 0;
@@ -316,14 +314,14 @@ U32 FormatSize(VkFormat vkFormat) {
 		case VK_FORMAT_A1B5G5R5_UNORM_PACK16_KHR:
 		case VK_FORMAT_A8_UNORM_KHR:
 		default:
-			JC_PANIC("Unhandled VkFormat {}", vkFormat);
+			Panic("Unhandled VkFormat {}", vkFormat);
 
 	}
 }
 
 //-------------------------------------------------------------------------------------------------
 
-Bool IsDepthFormat(VkFormat vkFormat) {
+Bool Gpu_IsDepthFormat(VkFormat vkFormat) {
 	switch (vkFormat) {
 		case VK_FORMAT_D16_UNORM:
 		case VK_FORMAT_D16_UNORM_S8_UINT:
@@ -339,77 +337,77 @@ Bool IsDepthFormat(VkFormat vkFormat) {
 
 //-------------------------------------------------------------------------------------------------
 
-VkImageLayout ImageLayoutToVkImageLayout(ImageLayout imageLayout) {
+VkImageLayout Gpu_ImageLayoutToVkImageLayout(Gpu_ImageLayout imageLayout) {
 	switch (imageLayout) {
-		case ImageLayout::Undefined:  return VK_IMAGE_LAYOUT_UNDEFINED;
-		case ImageLayout::Color:      return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		case ImageLayout::ShaderRead: return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		case ImageLayout::CopyDst:    return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		default:                      JC_PANIC("Unhandled ImageLayout {}", imageLayout);
+		case Gpu_ImageLayout::Undefined:  return VK_IMAGE_LAYOUT_UNDEFINED;
+		case Gpu_ImageLayout::Color:      return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		case Gpu_ImageLayout::ShaderRead: return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		case Gpu_ImageLayout::CopyDst:    return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		default:                      Panic("Unhandled Gpu_ImageLayout {}", imageLayout);
 	}
 }
 
 //-------------------------------------------------------------------------------------------------
 
-VkPipelineStageFlags2 BarrierStageFlagsToVkPipelineStageFlags2(BarrierStage::Flags barrierStageFlags) {
+VkPipelineStageFlags2 Gpu_BarrierStageFlagsToVkPipelineStageFlags2(Gpu_BarrierStage::Flags barrierStageFlags) {
 	VkPipelineStageFlags2 vkPipelineStageFlags2 = 0;
-	if (barrierStageFlags & BarrierStage::DrawIndirect_Read              ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT; }
-	if (barrierStageFlags & BarrierStage::IndexInput_Read                ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT; }
-	if (barrierStageFlags & BarrierStage::VertexShader_UniformRead       ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT; }
-	if (barrierStageFlags & BarrierStage::VertexShader_SamplerRead       ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT; }
-	if (barrierStageFlags & BarrierStage::VertexShader_StorageRead       ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT; }
-	if (barrierStageFlags & BarrierStage::VertexShader_StorageWrite      ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT; }
-	if (barrierStageFlags & BarrierStage::FragmentShader_UniformRead     ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; }
-	if (barrierStageFlags & BarrierStage::FragmentShader_SamplerRead     ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; }
-	if (barrierStageFlags & BarrierStage::FragmentShader_StorageRead     ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; }
-	if (barrierStageFlags & BarrierStage::FragmentShader_StorageWrite    ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; }
-	if (barrierStageFlags & BarrierStage::FragmentShader_ColorRead       ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; }
-	if (barrierStageFlags & BarrierStage::FragmentShader_DepthStencilRead) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; }
-	if (barrierStageFlags & BarrierStage::ComputeShader_UniformRead      ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; }
-	if (barrierStageFlags & BarrierStage::ComputeShader_SamplerRead      ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; }
-	if (barrierStageFlags & BarrierStage::ComputeShader_StorageRead      ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; }
-	if (barrierStageFlags & BarrierStage::ComputeShader_StorageWrite     ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; }
-	if (barrierStageFlags & BarrierStage::DepthStencilTest_Read          ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT; }
-	if (barrierStageFlags & BarrierStage::DepthStencilTest_Write         ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT; }
-	if (barrierStageFlags & BarrierStage::ColorOutput_ColorRead          ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT; }
-	if (barrierStageFlags & BarrierStage::ColorOutput_ColorWrite         ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT; }
-	if (barrierStageFlags & BarrierStage::Copy_Read                      ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_COPY_BIT; }
-	if (barrierStageFlags & BarrierStage::Copy_Write                     ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_COPY_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::DrawIndirect_Read              ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::IndexInput_Read                ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::VertexShader_UniformRead       ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::VertexShader_SamplerRead       ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::VertexShader_StorageRead       ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::VertexShader_StorageWrite      ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::FragmentShader_UniformRead     ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::FragmentShader_SamplerRead     ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::FragmentShader_StorageRead     ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::FragmentShader_StorageWrite    ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::FragmentShader_ColorRead       ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::FragmentShader_DepthStencilRead) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::ComputeShader_UniformRead      ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::ComputeShader_SamplerRead      ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::ComputeShader_StorageRead      ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::ComputeShader_StorageWrite     ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::DepthStencilTest_Read          ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::DepthStencilTest_Write         ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::ColorOutput_ColorRead          ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::ColorOutput_ColorWrite         ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::Copy_Read                      ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_COPY_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::Copy_Write                     ) { vkPipelineStageFlags2 |= VK_PIPELINE_STAGE_2_COPY_BIT; }
 	return vkPipelineStageFlags2;
 }
 
 //-------------------------------------------------------------------------------------------------
 
-VkAccessFlags2 BarrierStageFlagsToVkAccessFlags2(BarrierStage::Flags barrierStageFlags) {
+VkAccessFlags2 BarrierStageFlagsToVkAccessFlags2(Gpu_BarrierStage::Flags barrierStageFlags) {
 	VkAccessFlags2 vkAccessFlags2 = 0;
-	if (barrierStageFlags & BarrierStage::DrawIndirect_Read              ) { vkAccessFlags2 |= VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT; }
-	if (barrierStageFlags & BarrierStage::IndexInput_Read                ) { vkAccessFlags2 |= VK_ACCESS_2_INDEX_READ_BIT; }
-	if (barrierStageFlags & BarrierStage::VertexShader_UniformRead       ) { vkAccessFlags2 |= VK_ACCESS_2_UNIFORM_READ_BIT; }
-	if (barrierStageFlags & BarrierStage::VertexShader_SamplerRead       ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_SAMPLED_READ_BIT; }
-	if (barrierStageFlags & BarrierStage::VertexShader_StorageRead       ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_STORAGE_READ_BIT; }
-	if (barrierStageFlags & BarrierStage::VertexShader_StorageWrite      ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT; }
-	if (barrierStageFlags & BarrierStage::FragmentShader_UniformRead     ) { vkAccessFlags2 |= VK_ACCESS_2_UNIFORM_READ_BIT; }
-	if (barrierStageFlags & BarrierStage::FragmentShader_SamplerRead     ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_SAMPLED_READ_BIT; }
-	if (barrierStageFlags & BarrierStage::FragmentShader_StorageRead     ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_STORAGE_READ_BIT; }
-	if (barrierStageFlags & BarrierStage::FragmentShader_StorageWrite    ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT; }
-	if (barrierStageFlags & BarrierStage::FragmentShader_ColorRead       ) { vkAccessFlags2 |= VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT; }
-	if (barrierStageFlags & BarrierStage::FragmentShader_DepthStencilRead) { vkAccessFlags2 |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT; }
-	if (barrierStageFlags & BarrierStage::ComputeShader_UniformRead      ) { vkAccessFlags2 |= VK_ACCESS_2_UNIFORM_READ_BIT; }
-	if (barrierStageFlags & BarrierStage::ComputeShader_SamplerRead      ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_SAMPLED_READ_BIT; }
-	if (barrierStageFlags & BarrierStage::ComputeShader_StorageRead      ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_STORAGE_READ_BIT; }
-	if (barrierStageFlags & BarrierStage::ComputeShader_StorageWrite     ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT; }
-	if (barrierStageFlags & BarrierStage::DepthStencilTest_Read          ) { vkAccessFlags2 |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT; }
-	if (barrierStageFlags & BarrierStage::DepthStencilTest_Write         ) { vkAccessFlags2 |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT; }
-	if (barrierStageFlags & BarrierStage::ColorOutput_ColorRead          ) { vkAccessFlags2 |= VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT; }
-	if (barrierStageFlags & BarrierStage::ColorOutput_ColorWrite         ) { vkAccessFlags2 |= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT; }
-	if (barrierStageFlags & BarrierStage::Copy_Read                      ) { vkAccessFlags2 |= VK_ACCESS_2_TRANSFER_READ_BIT; }
-	if (barrierStageFlags & BarrierStage::Copy_Write                     ) { vkAccessFlags2 |= VK_ACCESS_2_TRANSFER_WRITE_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::DrawIndirect_Read              ) { vkAccessFlags2 |= VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::IndexInput_Read                ) { vkAccessFlags2 |= VK_ACCESS_2_INDEX_READ_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::VertexShader_UniformRead       ) { vkAccessFlags2 |= VK_ACCESS_2_UNIFORM_READ_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::VertexShader_SamplerRead       ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_SAMPLED_READ_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::VertexShader_StorageRead       ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_STORAGE_READ_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::VertexShader_StorageWrite      ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::FragmentShader_UniformRead     ) { vkAccessFlags2 |= VK_ACCESS_2_UNIFORM_READ_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::FragmentShader_SamplerRead     ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_SAMPLED_READ_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::FragmentShader_StorageRead     ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_STORAGE_READ_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::FragmentShader_StorageWrite    ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::FragmentShader_ColorRead       ) { vkAccessFlags2 |= VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::FragmentShader_DepthStencilRead) { vkAccessFlags2 |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::ComputeShader_UniformRead      ) { vkAccessFlags2 |= VK_ACCESS_2_UNIFORM_READ_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::ComputeShader_SamplerRead      ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_SAMPLED_READ_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::ComputeShader_StorageRead      ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_STORAGE_READ_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::ComputeShader_StorageWrite     ) { vkAccessFlags2 |= VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::DepthStencilTest_Read          ) { vkAccessFlags2 |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::DepthStencilTest_Write         ) { vkAccessFlags2 |= VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::ColorOutput_ColorRead          ) { vkAccessFlags2 |= VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::ColorOutput_ColorWrite         ) { vkAccessFlags2 |= VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::Copy_Read                      ) { vkAccessFlags2 |= VK_ACCESS_2_TRANSFER_READ_BIT; }
+	if (barrierStageFlags & Gpu_BarrierStage::Copy_Write                     ) { vkAccessFlags2 |= VK_ACCESS_2_TRANSFER_WRITE_BIT; }
 	return vkAccessFlags2;
 }
 
 //-------------------------------------------------------------------------------------------------
 
-void ImageMemoryBarrier(
+void Gpu_ImageMemoryBarrier(
 	VkCommandBuffer          vkCommandBuffer,
 	VkImage                  vkImage,
 	VkPipelineStageFlags2    vkSrcPipelineStageFlags2,
@@ -456,7 +454,7 @@ void ImageMemoryBarrier(
 
 //-------------------------------------------------------------------------------------------------
 
-Str ColorSpaceStr(VkColorSpaceKHR c) {
+Str Gpu_ColorSpaceStr(VkColorSpaceKHR c) {
 	switch (c) {
 		case VK_COLOR_SPACE_SRGB_NONLINEAR_KHR: return "VK_COLOR_SPACE_SRGB_NONLINEAR_KHR";
 		case VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT: return "VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT";
@@ -479,7 +477,7 @@ Str ColorSpaceStr(VkColorSpaceKHR c) {
 }
 //--------------------------------------------------------------------------------------------------
 
-Str FormatStr(VkFormat f) {
+Str Gpu_FormatStr(VkFormat f) {
 	switch (f) {
 		case VK_FORMAT_UNDEFINED: return "VK_FORMAT_UNDEFINED";
 		case VK_FORMAT_R4G4_UNORM_PACK8: return "VK_FORMAT_R4G4_UNORM_PACK8";
@@ -737,8 +735,8 @@ Str FormatStr(VkFormat f) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str MemoryHeapFlagsStr(Allocator* allocator, VkMemoryHeapFlags f) {
-	Array<char> a(allocator);
+Str Gpu_MemoryHeapFlagsStr(Mem* mem, VkMemoryHeapFlags f) {
+	Array<char> a(mem);
 	if (f & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)   { Add(&a, "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT|"); }
 	if (f & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT) { Add(&a, "VK_MEMORY_HEAP_MULTI_INSTANCE_BIT|"); }       
 	if (a.len > 0) {
@@ -749,8 +747,8 @@ Str MemoryHeapFlagsStr(Allocator* allocator, VkMemoryHeapFlags f) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str MemoryPropertyFlagsStr(Allocator* allocator, VkMemoryPropertyFlags f) {
-	Array<char> a(allocator);
+Str Gpu_MemoryPropertyFlagsStr(Mem* mem, VkMemoryPropertyFlags f) {
+	Array<char> a(mem);
 	if (f & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)        { Add(&a, "VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT|"); }
 	if (f & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)        { Add(&a, "VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|"); }       
 	if (f & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)       { Add(&a, "VK_MEMORY_PROPERTY_HOST_COHERENT_BIT|"); }
@@ -768,7 +766,7 @@ Str MemoryPropertyFlagsStr(Allocator* allocator, VkMemoryPropertyFlags f) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str PresentModeStr(VkPresentModeKHR m) {
+Str Gpu_PresentModeStr(VkPresentModeKHR m) {
 	switch (m) {
 		case VK_PRESENT_MODE_IMMEDIATE_KHR: return "VK_PRESENT_MODE_IMMEDIATE_KHR";
 		case VK_PRESENT_MODE_MAILBOX_KHR: return "VK_PRESENT_MODE_MAILBOX_KHR";
@@ -782,8 +780,8 @@ Str PresentModeStr(VkPresentModeKHR m) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str QueueFlagsStr(Allocator* allocator, VkQueueFlags f) {
-	Array<char> a(allocator);
+Str Gpu_QueueFlagsStr(Mem* mem, VkQueueFlags f) {
+	Array<char> a(mem);
 	if (f & VK_QUEUE_GRAPHICS_BIT)         { Add(&a, "VK_QUEUE_GRAPHICS_BIT|"); }
 	if (f & VK_QUEUE_COMPUTE_BIT)          { Add(&a, "VK_QUEUE_COMPUTE_BIT|"); }
 	if (f & VK_QUEUE_TRANSFER_BIT)         { Add(&a, "VK_QUEUE_TRANSFER_BIT|"); }
@@ -800,7 +798,7 @@ Str QueueFlagsStr(Allocator* allocator, VkQueueFlags f) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str ResultStr(VkResult vkResult) {
+Str Gpu_ResultStr(VkResult vkResult) {
 	switch (vkResult) {
 		case VK_SUCCESS: return "VK_SUCCESS";
 		case VK_NOT_READY: return "VK_NOT_READY";
@@ -871,25 +869,21 @@ Str PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str VersionStr(Allocator* allocator, U32 v) {
-	return Fmt::Printf(allocator, "{}.{}.{}", VK_API_VERSION_MAJOR(v), VK_API_VERSION_MINOR(v), VK_API_VERSION_PATCH(v));
+Str Gpu_VersionStr(Mem* mem, U32 v) {
+	return Fmt_Printf(mem, "%u.%u.%u", VK_API_VERSION_MAJOR(v), VK_API_VERSION_MINOR(v), VK_API_VERSION_PATCH(v));
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Str SizeStr(Allocator* allocator, U64 size) {
+Str Gpu_SizeStr(Mem* mem, U64 size) {
 	if (size > 1024 * 1024 * 1024) {
-		return Fmt::Printf(allocator, "{.1}gb", (F64)size / (1024.0 * 1024.0 * 1024.0));
+		return Fmt_Printf(mem, "%.1fgb", (F64)size / (1024.0 * 1024.0 * 1024.0));
 	}
 	if (size > 1024 * 1024) {
-		return Fmt::Printf(allocator, "{.1}mb", (F64)size / (1024.0 * 1024.0));
+		return Fmt_Printf(mem, "%.1fmb", (F64)size / (1024.0 * 1024.0));
 	}
 	if (size > 1024) {
-		return Fmt::Printf(allocator, "{.1}kb", (F64)size / 1024.0);
+		return Fmt_Printf(mem, "%.1fkb", (F64)size / 1024.0);
 	}
-	return Fmt::Printf(allocator, "{}", size);
+	return Fmt_Printf(mem, "%u", size);
 }
-
-//-------------------------------------------------------------------------------------------------
-
-}	// namespace JC::Gpu

@@ -53,9 +53,18 @@ void Sys_VirtualFree(void* p) {
 	}
 }
 
-void VirtualDecommit(void* p, U64 size) {
-	# pragma warning(push )
-	# pragma warning(disable: 6250)
-	::VirtualFree(p, size, MEM_DECOMMIT);
-	# pragma warning(pop)
+void Sys_InitMutex(Sys_Mutex* mutex) {
+	*(SRWLOCK*)mutex = SRWLOCK_INIT;
+}
+
+void Sys_LockMutex(Sys_Mutex* mutex) {
+	AcquireSRWLockExclusive((SRWLOCK*)mutex);
+}
+
+void Sys_UnlockMutex(Sys_Mutex* mutex) {
+	ReleaseSRWLockExclusive((SRWLOCK*)mutex);
+}
+
+void Sys_ShutdownMutex(Sys_Mutex*) {
+	// no-op on windows
 }

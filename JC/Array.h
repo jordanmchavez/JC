@@ -36,7 +36,7 @@ template <class T> struct Array {
 	constexpr const T* Begin() const { return data; }
 	constexpr const T* End()   const { return data + len; }
 
-	T* Add(SrcLoc sl = SrcLoc::Here()) {
+	T* Add(SrcLoc sl = SrcLoc_Here()) {
 		if (len + 1 > cap) {
 			Grow(len + 1, sl);
 		}
@@ -44,7 +44,7 @@ template <class T> struct Array {
 		return &data[len++];
 	}
 
-	T* Add(T val, SrcLoc sl = SrcLoc::Here()) {
+	T* Add(T val, SrcLoc sl = SrcLoc_Here()) {
 		if (len + 1 > cap) {
 			Grow(len + 1, sl);
 		}
@@ -52,7 +52,7 @@ template <class T> struct Array {
 		return &data[len++];
 	}
 
-	void Add(const T* vals, U64 valsLen, SrcLoc sl = SrcLoc::Here()) {
+	void Add(const T* vals, U64 valsLen, SrcLoc sl = SrcLoc_Here()) {
 		Assert(!valsLen || vals);
 		if (len + valsLen > cap) {
 			Grow(len + valsLen, sl);
@@ -61,7 +61,7 @@ template <class T> struct Array {
 		len += valsLen;
 	}
 
-	void Add(const T* begin, const T* end, SrcLoc sl = SrcLoc::Here()) {
+	void Add(const T* begin, const T* end, SrcLoc sl = SrcLoc_Here()) {
 		Assert(begin <= end);
 		const U64 valsLen = (U64)(end - begin);
 		if (len + valsLen > cap) {
@@ -71,7 +71,7 @@ template <class T> struct Array {
 		len += valsLen;
 	}
 
-	void Add(Span<T> vals, SrcLoc sl = SrcLoc::Here()) {
+	void Add(Span<T> vals, SrcLoc sl = SrcLoc_Here()) {
 		if (len + vals.len > cap) {
 			Grow(len + vals.len, sl);
 		}
@@ -79,7 +79,7 @@ template <class T> struct Array {
 		len += vals.len;
 	}
 
-	void Fill(T val, U64 n, SrcLoc sl = SrcLoc::Here()) {
+	void Fill(T val, U64 n, SrcLoc sl = SrcLoc_Here()) {
 		if (len + n > cap) {
 			Grow(len + n, sl);
 		}
@@ -94,7 +94,7 @@ template <class T> struct Array {
 		len += n;
 	}
 
-	void Insert(U64 i, T val, SrcLoc sl = SrcLoc::Here()) {
+	void Insert(U64 i, T val, SrcLoc sl = SrcLoc_Here()) {
 		if (len + 1 > cap) {
 			Grow(len + 1, sl);
 		}
@@ -117,7 +117,7 @@ template <class T> struct Array {
 		data[i] = data[len];
 	}
 
-	T* Extend(U64 n, SrcLoc sl = SrcLoc::Here()) {
+	T* Extend(U64 n, SrcLoc sl = SrcLoc_Here()) {
 		if (len + n > cap) {
 			Grow(len + n, sl);
 		}
@@ -127,7 +127,7 @@ template <class T> struct Array {
 		return res;
 	}
 
-	T* Resize(U64 newLen, SrcLoc sl = SrcLoc::Here()) {
+	T* Resize(U64 newLen, SrcLoc sl = SrcLoc_Here()) {
 		if (newLen > cap) {
 			Grow(newLen, sl);
 		}
@@ -137,14 +137,14 @@ template <class T> struct Array {
 		return res;
 	}
 
-	T* Reserve(U64 newCap, SrcLoc sl = SrcLoc::Here()) {
+	T* Reserve(U64 newCap, SrcLoc sl = SrcLoc_Here()) {
 		if (newCap > cap) {
 			Grow(newCap, sl);
 		}
 		return data + len;
 	}
 
-	void Grow(U64 newCap, SrcLoc sl = SrcLoc::Here()) {
+	void Grow(U64 newCap, SrcLoc sl = SrcLoc_Here()) {
 		Assert(newCap > cap);
 		newCap = Max(Max((U64)16, newCap), cap * 2);
 		if (!Mem_Extend(mem, data, newCap * sizeof(T), sl)) {

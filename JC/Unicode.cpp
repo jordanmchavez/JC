@@ -23,7 +23,7 @@ Bool operator==(wchar_t const* s1, Span<wchar_t>  s2) { return !wcscmp(s1, s2.da
 
 //--------------------------------------------------------------------------------------------------
 
-Span<wchar_t> Utf8ToWtf16z(Mem* mem, Str s) {
+Span<wchar_t> Unicode_Utf8ToWtf16z(Mem* mem, Str s) {
 	Array<wchar_t> out(mem);
 
 	U8 const* p = (U8 const*)s.data;
@@ -105,7 +105,7 @@ Span<wchar_t> Utf8ToWtf16z(Mem* mem, Str s) {
 //--------------------------------------------------------------------------------------------------
 
 #define CheckUtf8ToWtf16z(from8, to16z) \
-		Unit_CheckTrue(Utf8ToWtf16z(testMem, from8) == to16z)
+		Unit_CheckTrue(Unicode_Utf8ToWtf16z(testMem, from8) == to16z)
 
 Unit_Test("Utf8ToWtf16z") {
 	CheckUtf8ToWtf16z("\x00", L"\x0000");
@@ -173,7 +173,7 @@ Unit_Test("Utf8ToWtf16z") {
 
 //--------------------------------------------------------------------------------------------------
 
-Str Wtf16zToUtf8(Mem* mem, wchar_t const* s) {
+Str Unicode_Wtf16zToUtf8(Mem* mem, wchar_t const* s) {
 	Array<char> out(mem);
 
 	wchar_t const* p = s;
@@ -218,7 +218,7 @@ Str Wtf16zToUtf8(Mem* mem, wchar_t const* s) {
 
 Unit_Test("Unicode::Wtf16zToUtf8") {
 	#define CheckWtf16zToUtf8(from16z, to8) \
-		Unit_CheckEq(Wtf16zToUtf8(testMem, from16z), to8)
+		Unit_CheckEq(Unicode_Wtf16zToUtf8(testMem, from16z), to8)
 
 	// General 
 	CheckWtf16zToUtf8(L"", "");

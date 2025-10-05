@@ -2,8 +2,6 @@
 
 #include "JC/Common.h"
 
-namespace JC {
-
 //--------------------------------------------------------------------------------------------------
 
 // Intrusive, assumes T.free is a T*
@@ -18,7 +16,7 @@ template <class T, U32 N> struct ObjPool {
 			free = free->next;
 			return obj;
 		}
-		JC_ASSERT(len < N);
+		Assert(len < N);
 		return &objs[len++];
 	}
 
@@ -67,7 +65,7 @@ template <class T, class H, U32 N> struct HandlePool {
 			i = free;
 			free = (U32)entries[free].idx;	// next
 		} else {
-			JC_ASSERT(len < N);
+			Assert(len < N);
 			i = len;
 			len++;
 		}
@@ -92,7 +90,3 @@ template <class T, class H, U32 N> struct HandlePool {
 		free = (U32)(entry - entries);
 	}
 };
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC

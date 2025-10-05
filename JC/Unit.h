@@ -55,26 +55,26 @@ struct Unit_Subtest {
 
 #define Unit_TestImpl(name, fn, registrarVar) \
 	static void fn([[maybe_unused]] Mem* testMem); \
-	static Unit_TestRegistrar registrarVar = Unit_TestRegistrar(name, SrcLoc::Here(), fn); \
+	static Unit_TestRegistrar registrarVar = Unit_TestRegistrar(name, SrcLoc_Here(), fn); \
 	static void fn([[maybe_unused]] Mem* testMem)
 
 #define Unit_Test(name) \
 	Unit_TestImpl(name, MacroUniqueName(Unit_TestFn_), MacroUniqueName(Unit_TestRegistrar_))
 
 #define Unit_SubTestImpl(name, subtestVar) \
-	if (Unit_Subtest subtestVar = Unit_Subtest(name, SrcLoc::Here()); subtestVar.shouldRun)
+	if (Unit_Subtest subtestVar = Unit_Subtest(name, SrcLoc_Here()); subtestVar.shouldRun)
 
 #define Unit_SubTest(name) Unit_SubTestImpl(name, MacroUniqueName(UnitSubUnit_))
 
 #define Unit_CheckFailAt(sl)         (Unit_CheckFailImpl(sl) || Unit_DbgBreak)
 #define Unit_CheckFail()             (Unit_CheckFailImpl(SrcHere) || Unit_DbgBreak)
 #define Unit_CheckTrueAt(sl, x)      ((x) || Unit_CheckExprFail(sl, #x) || Unit_DbgBreak)
-#define Unit_CheckTrue(x)            Unit_CheckTrueAt(SrcLoc::Here(), x)
+#define Unit_CheckTrue(x)            Unit_CheckTrueAt(SrcLoc_Here(), x)
 #define Unit_CheckFalseAt(sl, x)     (!(x) || Unit_CheckExprFail(sl, "NOT " #x) || Unit_DbgBreak)
-#define Unit_CheckFalse(x)           Unit_CheckFalseAt(SrcLoc::Here(), x)
+#define Unit_CheckFalse(x)           Unit_CheckFalseAt(SrcLoc_Here(), x)
 #define Unit_CheckEqAt(sl, x, y)     (Unit_CheckEq(sl, #x " == " #y, (x), (y)) || Unit_DbgBreak)
-#define Unit_CheckEq(x, y)           Unit_CheckEqAt(SrcLoc::Here(), x, y)
+#define Unit_CheckEq(x, y)           Unit_CheckEqAt(SrcLoc_Here(), x, y)
 #define Unit_CheckNeqAt(sl, x, y)    (Unit_CheckNeq(sl, #x " != " #y, (x), (y)) || Unit_DbgBreak)
-#define Unit_CheckNeq(x, y)          Unit_CheckNeqAt(SrcLoc::Here(), x, y)
+#define Unit_CheckNeq(x, y)          Unit_CheckNeqAt(SrcLoc_Here(), x, y)
 #define Unit_CheckSpanEqAt(sl, x, y) (Unit_CheckSpanEq(sl, #x " == " #y, (x), (y)) || Unit_DbgBreak)
-#define Unit_CheckSpanEq(x, y)       Unit_CheckSpanEqAt(SrcLoc::Here(), x, y)
+#define Unit_CheckSpanEq(x, y)       Unit_CheckSpanEqAt(SrcLoc_Here(), x, y)

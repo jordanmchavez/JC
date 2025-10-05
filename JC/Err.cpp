@@ -1,4 +1,5 @@
 #include "JC/Err.h"
+#include "JC/Sys.h"
 
 //--------------------------------------------------------------------------------------------------
 
@@ -6,23 +7,10 @@ static constexpr U32 Err_MaxDatas = 256;
 static constexpr U32 Err_MaxStrBuf = 64 * 1024;
 
 static Err_Data err_datas[Err_MaxDatas];
-static U32      err_datasHead = 1;	// reserve index 0 for invalid
-static U32      err_datasTail = Err_MaxDatas - 1;
+static U32      err_datasLen = 1;	// reserve index 0 for invalid
 static U64      err_frame;
 static char     err_strBuf[Err_MaxStrBuf];
 static U32      err_strBufLen;
-
-//--------------------------------------------------------------------------------------------------
-
-static Err_Data* Err_AllocData() {
-	Assert(err_datasHead != err_datasTail);
-	Err_Data* data = err_datas + err_datasHead;
-	err_datasHead++;
-	if (err_datasHead >= Err_MaxDatas) {
-		err_datasHead = 1;
-	}
-	return data;
-}
 
 //--------------------------------------------------------------------------------------------------
 
@@ -56,39 +44,84 @@ static Arg Err_CloneArg(Arg arg) {
 
 //--------------------------------------------------------------------------------------------------
 
-Err Err_Make(Err prev, SrcLoc sl, Str ns, Str code, Span<Str const> names, Span<Arg const> args) {
-	Assert(names.len == args.len);
-	Assert(names.len <= Err_MaxArgs);
+void Err_AddArg(Err err, Str name, Arg arg) {
+	Assert(err.handle > 0 && err.handle < err_datasLen);
+	Err_Data* const data = &err_datas[err.handle];
+	Assert(data->argsLen < Err_MaxArgs);
+	data->args[data->argsLen] = {
+		.name = name,
+		.arg  = Err_CloneArg(arg),
+	};
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Err Err_Make(Err prev, SrcLoc sl, Str ns, U64 code) {
+	Assert(err_datasLen < Err_MaxDatas);
+	Err_Data* const data = &err_datas[err_datasLen++];
 
 	Err_Data* prevData = 0;
 	if (prev.handle) {
-		Assert(prev.handle < Err_MaxDatas);
-		prevData = err_datas + prev.handle;
+		Assert(prev.handle < err_datasLen);
+		prevData = &err_datas[prev.handle];
 		Assert(prevData->frame == err_frame);
 	}
 
-	Err_Data* const data = Err_AllocData();
 	data->frame   = err_frame;
 	data->prev    = prevData;
 	data->sl      = sl;
 	data->ns      = ns;
-	data->code    = code;
-	data->argsLen = (U32)args.len;
-	for (U64 i = 0; i < args.len; i++) {
-		data->args[i].name = names[i];
-		data->args[i].arg  = Err_CloneArg(args[i]);
+	data->uCode   = code;
+	data->argsLen = 0;
+
+	#if defined BreakOnError
+		if (Sys_DbgPresent()) {
+			Dbg_Break;
+		}
+	#endif	// BreakOnError
+
+	return Err { .handle = (U64)(data - err_datas) };
+}
+
+Err Err_Make(Err prev, SrcLoc sl, Str ns, Str code) {
+	Assert(err_datasLen < Err_MaxDatas);
+	Err_Data* const data = &err_datas[err_datasLen++];
+
+	Err_Data* prevData = 0;
+	if (prev.handle) {
+		Assert(prev.handle < err_datasLen);
+		prevData = &err_datas[prev.handle];
+		Assert(prevData->frame == err_frame);
 	}
+
+	data->frame   = err_frame;
+	data->prev    = prevData;
+	data->sl      = sl;
+	data->ns      = ns;
+	data->sCode   = code;
+	data->argsLen = 0;
+
+	#if defined BreakOnError
+		if (Sys_DbgPresent()) {
+			Dbg_Break;
+		}
+	#endif	// BreakOnError
 
 	return Err { .handle = (U64)(data - err_datas) };
 }
 
 //--------------------------------------------------------------------------------------------------
 
+Err_Data const* Err_GetData(Err err) {
+	Assert(err.handle > 0 && err.handle < err_datasLen);
+	return &err_datas[err.handle];
+	
+}
+
+//--------------------------------------------------------------------------------------------------
+
 void Err_Frame(U64 frame) {
 	err_frame = frame;
-	if (err_datasHead == 1) {
-		err_datasTail = Err_MaxDatas - 1;
-	} else {
-		err_datasTail = err_datasHead - 1;
-	}
+	memset(err_datas, 0, err_datasLen * sizeof(Err_Data));
+	err_datasLen = 0;
 }

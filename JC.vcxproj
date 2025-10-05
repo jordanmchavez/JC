@@ -123,8 +123,12 @@
     <ClInclude Include="JC\Err.h" />
     <ClInclude Include="JC\Event.h" />
     <ClInclude Include="JC\Fmt.h" />
+    <ClInclude Include="JC\Gpu.h" />
+    <ClInclude Include="JC\Gpu_Vk.h" />
     <ClInclude Include="JC\Log.h" />
     <ClInclude Include="JC\Mem.h" />
+    <ClInclude Include="JC\Pool.h" />
+    <ClInclude Include="JC\Rng.h" />
     <ClInclude Include="JC\Sys.h" />
     <ClInclude Include="JC\Sys_Win.h" />
     <ClInclude Include="JC\Time.h" />
@@ -142,9 +146,14 @@
     <ClCompile Include="JC\Err.cpp" />
     <ClCompile Include="JC\Event.cpp" />
     <ClCompile Include="JC\Fmt.cpp" />
+    <ClCompile Include="JC\Gpu_Vk.cpp" />
+    <ClCompile Include="JC\Gpu_Vk_Util.cpp" />
+    <ClCompile Include="JC\Gpu_Vk_Win.cpp" />
     <ClCompile Include="JC\Log.cpp" />
     <ClCompile Include="JC\Main.cpp" />
     <ClCompile Include="JC\Mem.cpp" />
+    <ClCompile Include="JC\Pool.cpp" />
+    <ClCompile Include="JC\Rng.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
     <ClCompile Include="JC\Time_Win.cpp" />
     <ClCompile Include="JC\Unicode.cpp" />
