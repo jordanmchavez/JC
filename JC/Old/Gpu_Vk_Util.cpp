@@ -4,6 +4,7 @@
 #include "JC/Gpu_Vk.h"
 
 #include "JC/Array.h"
+#include "JC/Mem.h"
 #include "JC/Fmt.h"
 
 //--------------------------------------------------------------------------------------------------
@@ -21,7 +22,7 @@ Gpu_ImageFormat Gpu_VkFormatToImageFormat(VkFormat vkFormat) {
 		case VK_FORMAT_B8G8R8A8_UNORM: return Gpu_ImageFormat::B8G8R8A8_UNorm;
 		case VK_FORMAT_R8G8B8A8_UNORM: return Gpu_ImageFormat::R8G8B8A8_UNorm;
 		case VK_FORMAT_D32_SFLOAT:     return Gpu_ImageFormat::D32_Float;
-		default:                       Panic("Unhandled VkFormat {}", vkFormat);
+		default:                       Panic("Unhandled VkFormat %u", (U32)vkFormat);
 	}
 }
 
@@ -33,7 +34,7 @@ VkFormat Gpu_ImageFormatToVkFormat(Gpu_ImageFormat imageFormat) {
 		case Gpu_ImageFormat::B8G8R8A8_UNorm: return VK_FORMAT_B8G8R8A8_UNORM;
 		case Gpu_ImageFormat::R8G8B8A8_UNorm: return VK_FORMAT_R8G8B8A8_UNORM;
 		case Gpu_ImageFormat::D32_Float:      return VK_FORMAT_D32_SFLOAT;
-		default:                              Panic("Unhandled Gpu_ImageFormat {}", imageFormat);
+		default:                              Panic("Unhandled Gpu_ImageFormat %u", (U32)imageFormat);
 	}
 }
 
@@ -314,7 +315,7 @@ U32 Gpu_FormatSize(VkFormat vkFormat) {
 		case VK_FORMAT_A1B5G5R5_UNORM_PACK16_KHR:
 		case VK_FORMAT_A8_UNORM_KHR:
 		default:
-			Panic("Unhandled VkFormat {}", vkFormat);
+			Panic("Unhandled VkFormat %u", (U32)vkFormat);
 
 	}
 }
@@ -343,7 +344,7 @@ VkImageLayout Gpu_ImageLayoutToVkImageLayout(Gpu_ImageLayout imageLayout) {
 		case Gpu_ImageLayout::Color:      return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		case Gpu_ImageLayout::ShaderRead: return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		case Gpu_ImageLayout::CopyDst:    return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		default:                      Panic("Unhandled Gpu_ImageLayout {}", imageLayout);
+		default:                          Panic("Unhandled Gpu_ImageLayout %u", (U32)imageLayout);
 	}
 }
 
@@ -378,7 +379,7 @@ VkPipelineStageFlags2 Gpu_BarrierStageFlagsToVkPipelineStageFlags2(Gpu_BarrierSt
 
 //-------------------------------------------------------------------------------------------------
 
-VkAccessFlags2 BarrierStageFlagsToVkAccessFlags2(Gpu_BarrierStage::Flags barrierStageFlags) {
+VkAccessFlags2 Gpu_BarrierStageFlagsToVkAccessFlags2(Gpu_BarrierStage::Flags barrierStageFlags) {
 	VkAccessFlags2 vkAccessFlags2 = 0;
 	if (barrierStageFlags & Gpu_BarrierStage::DrawIndirect_Read              ) { vkAccessFlags2 |= VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT; }
 	if (barrierStageFlags & Gpu_BarrierStage::IndexInput_Read                ) { vkAccessFlags2 |= VK_ACCESS_2_INDEX_READ_BIT; }
@@ -742,7 +743,7 @@ Str Gpu_MemoryHeapFlagsStr(Mem* mem, VkMemoryHeapFlags f) {
 	if (a.len > 0) {
 		a.len--;
 	}
-	return Str(a.data, a.len);
+	return Str(a.data, (U32)a.len);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -761,7 +762,7 @@ Str Gpu_MemoryPropertyFlagsStr(Mem* mem, VkMemoryPropertyFlags f) {
 	if (a.len > 0) {
 		a.len--;
 	}
-	return Str(a.data, a.len);
+	return Str(a.data, (U32)a.len);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -793,7 +794,7 @@ Str Gpu_QueueFlagsStr(Mem* mem, VkQueueFlags f) {
 	if (a.len > 0) {
 		a.len--;
 	}
-	return Str(a.data, a.len);
+	return Str(a.data, (U32)a.len);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -856,7 +857,7 @@ Str Gpu_ResultStr(VkResult vkResult) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
+Str Gpu_PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
 	switch (v) {
 		case VK_PHYSICAL_DEVICE_TYPE_OTHER: return "VK_PHYSICAL_DEVICE_TYPE_OTHER";
 		case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: return "VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU";

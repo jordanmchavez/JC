@@ -1,26 +1,27 @@
 #include "JC/Log.h"
 
 #include "JC/Array.h"
-#include "JC/Fmt.h"
+
+namespace JC::Log {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr U32 Log_MaxFns  = 32;
-static constexpr U32 Log_MaxLine = 4096;
+static constexpr U32 MaxFns  = 32;
+static constexpr U32 MaxLine = 4096;
 
-static LogFn* log_fns[Log_MaxFns];
-static U32    log_fnsLen;
+static Fn* fns[MaxFns];
+static U32 fnsLen;
 
 //--------------------------------------------------------------------------------------------------
 
-void Log_Printv(SrcLoc sl, LogLevel level, const char* fmt, Span<Arg const> args) {
-	char line[Log_MaxLine];
+void Printv(SrcLoc sl, Level level, char const* fmt, Span<Arg::Arg const> args) {
+	char line[MaxLine];
 	char* const lineEnd = line + LenOf(line) - 2;
-	char* lineIt = Fmt_Printf(line, lineEnd, "%s%s(%u): ", level == LogLevel::Error ? "!!! " : "", sl.file, sl.line);
-	lineIt = Fmt_Printv(lineIt, lineEnd, fmt, args);
+	char* lineIt = Fmt::Printf(line, lineEnd, "%s%s(%u): ", level == Level::Error ? "!!! " : "", sl.file, sl.line);
+	lineIt = Fmt::Printv(lineIt, lineEnd, fmt, args);
 	*lineIt++ = '\n';
 	*lineIt = 0;
-	LogMsg msg = {
+	Msg msg = {
 		.line    = line,
 		.lineLen = (U32)(lineIt - line),
 		.sl      = sl,
@@ -28,24 +29,28 @@ void Log_Printv(SrcLoc sl, LogLevel level, const char* fmt, Span<Arg const> args
 		.fmt     = fmt,
 		.args    = args,
 	};
-	for (U32 i = 0; i < log_fnsLen; i++) {
-		(*log_fns[i])(&msg);
+	for (U32 i = 0; i < fnsLen; i++) {
+		(*fns[i])(&msg);
 	}
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void Log_AddFn(LogFn* fn) {
-	Assert(log_fnsLen < Log_MaxFns);
-	log_fns[log_fnsLen++] = fn;
+void AddFn(Fn* fn) {
+	Assert(fnsLen < MaxFns);
+	fns[fnsLen++] = fn;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void Log_RemoveFn(LogFn* fn) {
-	for (U32 i = 0; i < log_fnsLen; i++) {
-		if (log_fns[i] == fn) {
-			log_fns[i] = log_fns[--log_fnsLen];
+void RemoveFn(Fn* fn) {
+	for (U32 i = 0; i < fnsLen; i++) {
+		if (fns[i] == fn) {
+			fns[i] = fns[--fnsLen];
 		}
 	}
 }
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Log

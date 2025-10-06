@@ -1,25 +1,28 @@
 #include "JC/Sys.h"
 #include "JC/Sys_Win.h"
+#include "JC/Common_Assert.h"
+
+namespace JC::Sys {
 
 //--------------------------------------------------------------------------------------------------
 
-void Sys_Abort() {
+void Abort() {
 	TerminateProcess(GetCurrentProcess(), 3);
 }
 
-void Sys_Print(Str msg) {
+void Print(Str msg) {
 	WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), msg.data, (DWORD)msg.len, 0, 0);
 }
 
-Bool Sys_DbgPresent() {
+bool DbgPresent() {
 	return ::IsDebuggerPresent();
 }
 
-void Sys_DbgPrint(const char* msg) {
+void DbgPrint(const char* msg) {
 	OutputDebugStringA(msg);
 }
 
-void* Sys_VirtualAlloc(U64 size) {
+void* VirtualAlloc(U64 size) {
 	Assert(size % 4096 == 0);
 	void* p = ::VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	if (!p) {
@@ -28,7 +31,7 @@ void* Sys_VirtualAlloc(U64 size) {
 	return p;
 }
 
-void* Sys_VirtualReserve(U64 size) {
+void* VirtualReserve(U64 size) {
 	Assert(size % 65536 == 0);
 	void* p = ::VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
 	if (!p) {
@@ -37,7 +40,7 @@ void* Sys_VirtualReserve(U64 size) {
 	return p;
 }
 
-void* Sys_VirtualCommit(void* p, U64 size) {
+void* VirtualCommit(void* p, U64 size) {
 	Assert(p);
 	Assert((U64)p % 4096 == 0);
 	Assert(size % 4096 == 0);
@@ -47,24 +50,28 @@ void* Sys_VirtualCommit(void* p, U64 size) {
 	return (U8*)p + size;
 }
 
-void Sys_VirtualFree(void* p) {
+void VirtualFree(void* p) {
 	if (p) {
 		::VirtualFree(p, 0, MEM_RELEASE);
 	}
 }
 
-void Sys_InitMutex(Sys_Mutex* mutex) {
+void InitMutex(Mutex* mutex) {
 	*(SRWLOCK*)mutex = SRWLOCK_INIT;
 }
 
-void Sys_LockMutex(Sys_Mutex* mutex) {
+void LockMutex(Mutex* mutex) {
 	AcquireSRWLockExclusive((SRWLOCK*)mutex);
 }
 
-void Sys_UnlockMutex(Sys_Mutex* mutex) {
+void UnlockMutex(Mutex* mutex) {
 	ReleaseSRWLockExclusive((SRWLOCK*)mutex);
 }
 
-void Sys_ShutdownMutex(Sys_Mutex*) {
+void ShutdownMutex(Mutex*) {
 	// no-op on windows
 }
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Sys

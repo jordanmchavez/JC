@@ -144,15 +144,15 @@ void              Gpu_PushConstants(Gpu_Pipeline pipeline, void const* data, U32
 void              Gpu_Draw(U32 vertexCount, U32 instanceCount);
 void              Gpu_DrawIndexed(U32 indexCount);
 void              Gpu_DrawIndexedIndirect(Gpu_Buffer indirectBuffer, U32 drawCount);
-void              Gpu_Name(SrcLoc sl, Gpu_Buffer   buffer,   char const* fmt, Span<Arg const> args);
-void              Gpu_Name(SrcLoc sl, Gpu_Image    image,    char const* fmt, Span<Arg const> args);
-void              Gpu_Name(SrcLoc sl, Gpu_Shader   shader,   char const* fmt, Span<Arg const> args);
-void              Gpu_Name(SrcLoc sl, Gpu_Pipeline pipeline, char const* fmt, Span<Arg const> args);
+void              Gpu_Namev(SrcLoc sl, Gpu_Buffer   buffer,   char const* fmt, Span<Arg const> args);
+void              Gpu_Namev(SrcLoc sl, Gpu_Image    image,    char const* fmt, Span<Arg const> args);
+void              Gpu_Namev(SrcLoc sl, Gpu_Shader   shader,   char const* fmt, Span<Arg const> args);
+void              Gpu_Namev(SrcLoc sl, Gpu_Pipeline pipeline, char const* fmt, Span<Arg const> args);
 
-template <class T, class... Args>
-void Gpu_NameFImpl(SrcLoc sl, T obj, FmtStr<Args...> fmt, Args... args) {
-	Gpu_Name(sl, obj, fmt, { Arg_Make(args)..., });
+template <class T, class... A>
+void Gpu_NamefImpl(SrcLoc sl, T obj, FmtStr<A...> fmt, A... args) {
+	Gpu_Namev(sl, obj, fmt, { Arg_Make(args)..., });
 }
 
-#define Gpu_Name(obj)            Gpu_NameFImpl(SrcLoc_Here(), obj, #obj)
-#define Gpu_NameF(obj, fmt, ...) Gpu_NameFImpl(SrcLoc_Here(), obj, fmt, ##__VA_ARGS__)
+#define Gpu_Name(obj)            Gpu_NamefImpl(SrcLoc_Here(), obj, #obj)
+#define Gpu_Namef(obj, fmt, ...) Gpu_NamefImpl(SrcLoc_Here(), obj, fmt, ##__VA_ARGS__)

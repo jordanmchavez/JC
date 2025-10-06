@@ -102,7 +102,7 @@ struct Gpu_PipelineObj {
 
 template <class T>
 Span<T> Span_Make(Mem* mem, U64 n) {
-	return Span<T>(Mem_Alloc(mem, n * sizeof(T), n));
+	return Span<T>((T*)Mem_Alloc(mem, n * sizeof(T)), n);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -190,7 +190,7 @@ static VkBool32 VKAPI_CALL Gpu_DebugCallback(VkDebugUtilsMessageSeverityFlagBits
 	
 //-------------------------------------------------------------------------------------------------
 
-static void Gpu_VkNameImpl(SrcLoc sl, U64 handle, VkObjectType vkObjectType, char const* fmt, Span<Arg const> args) {
+static void Gpu_NameImpl(SrcLoc sl, U64 handle, VkObjectType vkObjectType, char const* fmt, Span<Arg const> args) {
 	Array<char> name(gpu_tempMem);
 	Fmt_Printv(&name, fmt, args);
 	Fmt_Printf(&name, " (%s:%u)", sl.file, sl.line);
@@ -208,7 +208,7 @@ static void Gpu_VkNameImpl(SrcLoc sl, U64 handle, VkObjectType vkObjectType, cha
 }
 
 #define Gpu_DefVkName(VkType, vkObjectType) \
-	void Gpu_VkName(SrcLoc sl, VkType obj, char const* fmt, Span<Arg const> args) { Gpu_VkNameImpl(sl, (U64)obj, vkObjectType, fmt, args); }
+	void Gpu_Namev(SrcLoc sl, VkType obj, char const* fmt, Span<Arg const> args) { Gpu_NameImpl(sl, (U64)obj, vkObjectType, fmt, args); }
 
 Gpu_DefVkName(VkInstance,            VK_OBJECT_TYPE_INSTANCE)
 Gpu_DefVkName(VkPhysicalDevice,      VK_OBJECT_TYPE_PHYSICAL_DEVICE)
@@ -234,21 +234,11 @@ Gpu_DefVkName(VkDescriptorPool,      VK_OBJECT_TYPE_DESCRIPTOR_POOL)
 Gpu_DefVkName(VkDescriptorSet,       VK_OBJECT_TYPE_DESCRIPTOR_SET)
 Gpu_DefVkName(VkCommandPool,         VK_OBJECT_TYPE_COMMAND_POOL)
 
-template <class T, class... A>
-void Gpu_VkNameF(SrcLoc sl, T obj, FmtStr<A...> fmt, A... args) {
-	Gpu_VkName(sl, obj, fmt, { Arg_Make(args)..., });
-}
-
-#define Gpu_VkName(obj)            Gpu_VkNameF(SrcLoc_Here(), obj, #obj)
-#define Gpu_VkNamef(obj, fmt, ...) Gpu_VkNameF(SrcLoc_Here(), obj, fmt, ##__VA_ARGS__)
-
-//----------------------------------------------------------------------------------------------
-
-void Gpu_Name(SrcLoc sl, Gpu_Buffer   buffer,   char const* fmt, Span<Arg const> args) { Gpu_VkNameImpl(sl, (U64)gpu_bufferObjs.Get(buffer)->vkBuffer,             VK_OBJECT_TYPE_BUFFER,          fmt, args); }
-void Gpu_Name(SrcLoc sl, Gpu_Image    image,    char const* fmt, Span<Arg const> args) { Gpu_VkNameImpl(sl, (U64)gpu_imageObjs.Get(image)->vkImage,                VK_OBJECT_TYPE_IMAGE,           fmt, args); }
-void Gpu_Name(SrcLoc sl, Gpu_Shader   shader,   char const* fmt, Span<Arg const> args) { Gpu_VkNameImpl(sl, (U64)gpu_shaderObjs.Get(shader)->vkShaderModule,       VK_OBJECT_TYPE_SHADER_MODULE,   fmt, args); }
-void Gpu_Name(SrcLoc sl, Gpu_Pipeline pipeline, char const* fmt, Span<Arg const> args) { Gpu_VkNameImpl(sl, (U64)gpu_pipelineObjs.Get(pipeline)->vkPipeline,       VK_OBJECT_TYPE_PIPELINE,        fmt, args);
-                                                                                         Gpu_VkNameImpl(sl, (U64)gpu_pipelineObjs.Get(pipeline)->vkPipelineLayout, VK_OBJECT_TYPE_PIPELINE_LAYOUT, fmt, args); }
+void Gpu_Namev(SrcLoc sl, Gpu_Buffer   buffer,   char const* fmt, Span<Arg const> args) { Gpu_NameImpl(sl, (U64)gpu_bufferObjs.Get(buffer)->vkBuffer,             VK_OBJECT_TYPE_BUFFER,          fmt, args); }
+void Gpu_Namev(SrcLoc sl, Gpu_Image    image,    char const* fmt, Span<Arg const> args) { Gpu_NameImpl(sl, (U64)gpu_imageObjs.Get(image)->vkImage,                VK_OBJECT_TYPE_IMAGE,           fmt, args); }
+void Gpu_Namev(SrcLoc sl, Gpu_Shader   shader,   char const* fmt, Span<Arg const> args) { Gpu_NameImpl(sl, (U64)gpu_shaderObjs.Get(shader)->vkShaderModule,       VK_OBJECT_TYPE_SHADER_MODULE,   fmt, args); }
+void Gpu_Namev(SrcLoc sl, Gpu_Pipeline pipeline, char const* fmt, Span<Arg const> args) { Gpu_NameImpl(sl, (U64)gpu_pipelineObjs.Get(pipeline)->vkPipeline,       VK_OBJECT_TYPE_PIPELINE,        fmt, args);
+                                                                                          Gpu_NameImpl(sl, (U64)gpu_pipelineObjs.Get(pipeline)->vkPipelineLayout, VK_OBJECT_TYPE_PIPELINE_LAYOUT, fmt, args); }
 //----------------------------------------------------------------------------------------------
 
 static Res<> Gpu_InitInstance() {
@@ -282,7 +272,7 @@ static Res<> Gpu_InitInstance() {
 		Bool found = false;
 		for (U64 j = 0; j < layers.len; j++) {
 			if (!strcmp(RequiredLayers[i], layers[j].layerName)) {
-				Logf("Found required layer '{}'", RequiredLayers[i]);
+				Logf("Found required layer '%s'", RequiredLayers[i]);
 				found = true;
 				break;
 			}
@@ -311,7 +301,7 @@ static Res<> Gpu_InitInstance() {
 		Bool found = false;
 		for (U64 j = 0; j < instExts.len; j++) {
 			if (!strcmp(RequiredInstExts[i], instExts[j].extensionName)) {
-				Logf("Found required instance extension '{}'", RequiredInstExts[i]);
+				Logf("Found required instance extension '%s'", RequiredInstExts[i]);
 				found = true;
 				break;
 			}
@@ -439,7 +429,7 @@ static Res<> Gpu_InitDevice() {
 		pd->vkPhysicalDeviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
 		vkGetPhysicalDeviceProperties2(vkPhysicalDevices[i], &pd->vkPhysicalDeviceProperties2);
 		Logf(
-			"%s: apiVersion=%s, driverVersion=%s, vendorID=%s, deviceId=%s, deviceType=%s",
+			"%s: apiVersion=%s, driverVersion=%s, vendorID=%u, deviceId=%u, deviceType=%s",
 			pd->vkPhysicalDeviceProperties2.properties.deviceName,
 			Gpu_VersionStr(gpu_tempMem, pd->vkPhysicalDeviceProperties2.properties.apiVersion),
 			Gpu_VersionStr(gpu_tempMem, pd->vkPhysicalDeviceProperties2.properties.driverVersion),
@@ -491,7 +481,7 @@ static Res<> Gpu_InitDevice() {
 		Logf("  %u memory types:", pd->vkPhysicalDeviceMemoryProperties.memoryTypeCount);
 		for (U64 j = 0; j < pd->vkPhysicalDeviceMemoryProperties.memoryTypeCount; j++) {
 			VkMemoryType const mt = pd->vkPhysicalDeviceMemoryProperties.memoryTypes[j];
-			Logf("    [%u] heapIndex=%s, flags=%s", j, mt.heapIndex, Gpu_MemoryPropertyFlagsStr(gpu_tempMem, mt.propertyFlags));
+			Logf("    [%u] heapIndex=%u, flags=%s", j, mt.heapIndex, Gpu_MemoryPropertyFlagsStr(gpu_tempMem, mt.propertyFlags));
 		}
 		Logf("  %u memory heaps:", pd->vkPhysicalDeviceMemoryProperties.memoryHeapCount);
 		for (U64 j = 0; j < pd->vkPhysicalDeviceMemoryProperties.memoryHeapCount; j++) {
@@ -514,7 +504,7 @@ static Res<> Gpu_InitDevice() {
 		if (extensionsStr.len >= 2) {
 			extensionsStr.len -= 2;
 		}
-		Logf("  %u device extensions: %s",  pd->vkExtensionProperties.len, Str(extensionsStr.data, extensionsStr.len));
+		Logf("  %u device extensions: %s",  pd->vkExtensionProperties.len, Str(extensionsStr.data, (U32)extensionsStr.len));
 		for (U64 j = 0; j < LenOf(RequiredDeviceExts); j++) {
 			Bool found = false;
 			for (U64 k = 0; k < pd->vkExtensionProperties.len; k++) {
@@ -584,7 +574,7 @@ static Res<> Gpu_InitDevice() {
 			score = 0;
 		}
 
-		Logf("  score: {}", score);
+		Logf("  score: %u", score);
 		if (score > bestScore) {
 			gpu_physicalDevice = pd;
 			bestScore = score;
@@ -621,7 +611,7 @@ static Res<> Gpu_InitDevice() {
 	};
 
 	Gpu_CheckVk(vkCreateDevice(gpu_physicalDevice->vkPhysicalDevice, &vkDeviceCreateInfo, gpu_vkAllocationCallbacks, &gpu_vkDevice));
-	Gpu_VkName(gpu_vkDevice);
+	Gpu_Name(gpu_vkDevice);
 
 	Gpu_LoadDeviceFns(gpu_vkDevice);
 
@@ -689,7 +679,7 @@ static Res<> Gpu_InitSwapchain(U32 width, U32 height) {
 
 	gpu_swapchainImages = Span_Make<Gpu_Image>(gpu_permMem, n);
 	for (U64 i = 0; i < n; i++) {
-		Gpu_VkNamef(vkSwapchainImages[i], "vkSwapchainImages[{}]", i);
+		Gpu_Namef(vkSwapchainImages[i], "vkSwapchainImages[%u]", i);
 
 		VkImageViewCreateInfo const vkImageViewCreateInfo = {
 			.sType              = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -714,7 +704,7 @@ static Res<> Gpu_InitSwapchain(U32 width, U32 height) {
 		};
 		VkImageView vkSwapchainImageView = VK_NULL_HANDLE;
 		Gpu_CheckVk(vkCreateImageView(gpu_vkDevice, &vkImageViewCreateInfo, gpu_vkAllocationCallbacks, &vkSwapchainImageView));
-		Gpu_VkNamef(vkSwapchainImageView, "vkSwapchainImageView#{}", i);
+		Gpu_Namef(vkSwapchainImageView, "vkSwapchainImageView#%u", i);
 
 		auto* const entry = gpu_imageObjs.Alloc();
 		gpu_swapchainImages[i] = entry->Handle();
@@ -741,7 +731,7 @@ static Res<> Gpu_InitFrame() {
 		.queueFamilyIndex = gpu_physicalDevice->queueFamily,
 	};
 	Gpu_CheckVk(vkCreateCommandPool(gpu_vkDevice, &vkCommandPoolCreateInfo, gpu_vkAllocationCallbacks, &gpu_vkFrameCommandPool));
-	Gpu_VkName(gpu_vkFrameCommandPool);
+	Gpu_Name(gpu_vkFrameCommandPool);
 
 	VkCommandBufferAllocateInfo const vkCommandBufferAllocateInfo = {
 		.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -752,7 +742,7 @@ static Res<> Gpu_InitFrame() {
 	};
 	Gpu_CheckVk(vkAllocateCommandBuffers(gpu_vkDevice, &vkCommandBufferAllocateInfo, gpu_vkFrameCommandBuffers));
 	for (U64 i = 0; i < Gpu_MaxFrames; i++) {
-		Gpu_VkNamef(gpu_vkFrameCommandBuffers[i], "gpu_vkFrameCommandBuffers[%u]", i);
+		Gpu_Namef(gpu_vkFrameCommandBuffers[i], "gpu_vkFrameCommandBuffers[%u]", i);
 	}
 
 	VkSemaphoreTypeCreateInfo const vkSemaphoreTypeCreateInfo = {
@@ -768,7 +758,7 @@ static Res<> Gpu_InitFrame() {
 			.flags = 0,
 		};
 		Gpu_CheckVk(vkCreateSemaphore(gpu_vkDevice, &vkSemaphoreCreateInfo, gpu_vkAllocationCallbacks, &gpu_vkFrameTimelineSemaphore));
-		Gpu_VkName(gpu_vkFrameTimelineSemaphore);
+		Gpu_Name(gpu_vkFrameTimelineSemaphore);
 	}
 
 	for (U64 i = 0; i < Gpu_MaxFrames; i++) {
@@ -779,8 +769,8 @@ static Res<> Gpu_InitFrame() {
 		};
 		Gpu_CheckVk(vkCreateSemaphore(gpu_vkDevice, &vkSemaphoreCreateInfo, gpu_vkAllocationCallbacks, &gpu_vkFrameImageAcquiredSemaphores[i]));
 		Gpu_CheckVk(vkCreateSemaphore(gpu_vkDevice, &vkSemaphoreCreateInfo, gpu_vkAllocationCallbacks, &gpu_vkFrameSubmitCompleteSemaphores[i]));
-		Gpu_VkNamef(gpu_vkFrameImageAcquiredSemaphores[i],  "gpu_vkFrameImageAcquiredSemaphores[%u]",  i);
-		Gpu_VkNamef(gpu_vkFrameSubmitCompleteSemaphores[i], "gpu_vkFrameSubmitCompleteSemaphores[%u]", i);
+		Gpu_Namef(gpu_vkFrameImageAcquiredSemaphores[i],  "gpu_vkFrameImageAcquiredSemaphores[%u]",  i);
+		Gpu_Namef(gpu_vkFrameSubmitCompleteSemaphores[i], "gpu_vkFrameSubmitCompleteSemaphores[%u]", i);
 	}
 
 	if (Res<> r = Gpu_CreateBufferImpl(
@@ -793,7 +783,7 @@ static Res<> Gpu_InitFrame() {
 	).To(gpu_frameStagingBuffer); !r) {
 		return r.err;
 	}
-	Gpu_VkName(gpu_frameStagingBuffer.vkBuffer);
+	Gpu_Name(gpu_frameStagingBuffer.vkBuffer);
 
 	U8* ptr = 0;
 	Gpu_CheckVk(vkMapMemory(gpu_vkDevice, gpu_frameStagingBuffer.allocation.vkDeviceMemory, 0, Gpu_PerFrameStagingBufferSize * Gpu_MaxFrames, 0, (void**)&ptr));
@@ -819,7 +809,7 @@ static Res<> Gpu_InitImmediate() {
 		.queueFamilyIndex = gpu_physicalDevice->queueFamily,
 	};
 	Gpu_CheckVk(vkCreateCommandPool(gpu_vkDevice, &vkCommandPoolCreateInfo, gpu_vkAllocationCallbacks, &gpu_vkImmediateCommandPool));
-	Gpu_VkName(gpu_vkImmediateCommandPool);
+	Gpu_Name(gpu_vkImmediateCommandPool);
 
 	VkCommandBufferAllocateInfo const vkCommandBufferAllocateInfo = {
 		.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -829,7 +819,7 @@ static Res<> Gpu_InitImmediate() {
 		.commandBufferCount = 1,
 	};
 	Gpu_CheckVk(vkAllocateCommandBuffers(gpu_vkDevice, &vkCommandBufferAllocateInfo, &gpu_vkImmediateCommandBuffer));
-	Gpu_VkName(gpu_vkImmediateCommandBuffer);
+	Gpu_Name(gpu_vkImmediateCommandBuffer);
 	gpu_vkImmediateCommandBufferBegun = false;
 
 	VkSemaphoreTypeCreateInfo const vkSemaphoreTypeCreateInfo = {
@@ -844,7 +834,7 @@ static Res<> Gpu_InitImmediate() {
 		.flags = 0,
 	};
 	Gpu_CheckVk(vkCreateSemaphore(gpu_vkDevice, &vkSemaphoreCreateInfo, gpu_vkAllocationCallbacks, &gpu_vkImmediateTimelineSemaphore));
-	Gpu_VkName(gpu_vkImmediateTimelineSemaphore);
+	Gpu_Name(gpu_vkImmediateTimelineSemaphore);
 	gpu_immediateTimeline = 0;
 
 	if (Res<> r = Gpu_CreateBufferImpl(
@@ -857,7 +847,7 @@ static Res<> Gpu_InitImmediate() {
 	).To(gpu_immediateStagingBuffer); !r) {
 		return r.err;
 	}
-	Gpu_VkName(gpu_immediateStagingBuffer.vkBuffer);
+	Gpu_Name(gpu_immediateStagingBuffer.vkBuffer);
 
 	Gpu_CheckVk(vkMapMemory(gpu_vkDevice, gpu_immediateStagingBuffer.allocation.vkDeviceMemory, 0, Gpu_ImmediateStagingBufferSize, 0, (void**)&gpu_immediateStagingBufferPtr));
 
@@ -906,7 +896,7 @@ static Res<> Gpu_InitBindless() {
 		.pPoolSizes    = vkDescriptorPoolSizes,
 	};
 	Gpu_CheckVk(vkCreateDescriptorPool(gpu_vkDevice, &vkDescriptorPoolCreateInfo, gpu_vkAllocationCallbacks, &gpu_vkDescriptorPool));
-	Gpu_VkName(gpu_vkDescriptorPool);
+	Gpu_Name(gpu_vkDescriptorPool);
 
 	constexpr VkDescriptorBindingFlags vkDescriptorBindingFlags[] = {
 		VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT,
@@ -942,7 +932,7 @@ static Res<> Gpu_InitBindless() {
 		.pBindings    = vkMeshDescriptorSetLayoutBindings,
 	};
 	Gpu_CheckVk(vkCreateDescriptorSetLayout(gpu_vkDevice, &vkDescriptorSetLayoutCreateInfo, gpu_vkAllocationCallbacks, &gpu_vkBindlessDescriptorSetLayout));
-	Gpu_VkName(gpu_vkBindlessDescriptorSetLayout);
+	Gpu_Name(gpu_vkBindlessDescriptorSetLayout);
 
 	VkDescriptorSetAllocateInfo const vkDescriptorSetAllocateInfo = {
 		.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -952,7 +942,7 @@ static Res<> Gpu_InitBindless() {
 		.pSetLayouts        = &gpu_vkBindlessDescriptorSetLayout,
 	};
 	Gpu_CheckVk(vkAllocateDescriptorSets(gpu_vkDevice, &vkDescriptorSetAllocateInfo, &gpu_vkBindlessDescriptorSet));
-	Gpu_VkName(gpu_vkBindlessDescriptorSet);
+	Gpu_Name(gpu_vkBindlessDescriptorSet);
 
 	gpu_nextBindlessDescriptorIdx = 1;	// reserve index 0 for invalid
 
@@ -978,7 +968,7 @@ static Res<> Gpu_InitBindless() {
 	};
 	VkSampler vkNearestSampler = VK_NULL_HANDLE;
 	Gpu_CheckVk(vkCreateSampler(gpu_vkDevice, &vkSamplerCreateInfo, gpu_vkAllocationCallbacks, &vkNearestSampler));
-	Gpu_VkName(vkNearestSampler);
+	Gpu_Name(vkNearestSampler);
 	Gpu_AddBindlessSampler(vkNearestSampler);
 
 	vkSamplerCreateInfo.magFilter        = VK_FILTER_LINEAR;
@@ -988,7 +978,7 @@ static Res<> Gpu_InitBindless() {
 	vkSamplerCreateInfo.maxAnisotropy    = Gpu_MaxAnisotropy;
 	VkSampler vkLinearSampler = VK_NULL_HANDLE;
 	Gpu_CheckVk(vkCreateSampler(gpu_vkDevice, &vkSamplerCreateInfo, gpu_vkAllocationCallbacks, &vkLinearSampler));
-	Gpu_VkName(vkLinearSampler);
+	Gpu_Name(vkLinearSampler);
 	Gpu_AddBindlessSampler(vkLinearSampler);
 
 	return Ok();
@@ -1032,7 +1022,7 @@ Res<> Gpu_Init(Gpu_InitDesc const* initDesc) {
 		);
 	}
 
-	Try(ImmediateWait());
+	Try(Gpu_ImmediateWait());
 
 	return Ok();
 }
@@ -1062,7 +1052,7 @@ Res<> Gpu_Init(Gpu_InitDesc const* initDesc) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Shutdown() {
+void Gpu_Shutdown() {
 
 	for (U64 i = 0; i < gpu_swapchainImages.len; i++) {
 		Gpu_ImageObj* const imageObj = gpu_imageObjs.Get(gpu_swapchainImages[i]);
@@ -1097,7 +1087,7 @@ void Shutdown() {
 
 	if (gpu_vkDevice != VK_NULL_HANDLE) { vkDestroyDevice(gpu_vkDevice, gpu_vkAllocationCallbacks); gpu_vkDevice = VK_NULL_HANDLE; }
 	if (gpu_vkSurface != VK_NULL_HANDLE) { vkDestroySurfaceKHR(gpu_vkInstance, gpu_vkSurface, gpu_vkAllocationCallbacks); gpu_vkSurface = VK_NULL_HANDLE; }
-	if (gpu_vkDebugUtilsMessenger != VK_NULL_HANDLE) { vkDestroyDebugUtilsMessengerEXT(gpu_vkInstance, gpu_vkDebugUtilsMessenger, gpu_vkAllocationCallbacks); vkDebugUtilsMessenger = VK_NULL_HANDLE; }
+	if (gpu_vkDebugUtilsMessenger != VK_NULL_HANDLE) { vkDestroyDebugUtilsMessengerEXT(gpu_vkInstance, gpu_vkDebugUtilsMessenger, gpu_vkAllocationCallbacks); gpu_vkDebugUtilsMessenger = VK_NULL_HANDLE; }
 	if (gpu_vkInstance != VK_NULL_HANDLE) { vkDestroyInstance(gpu_vkInstance, gpu_vkAllocationCallbacks); gpu_vkInstance = VK_NULL_HANDLE; }
 	Sys_ShutdownMutex(&gpu_mutex);
 }
@@ -2103,7 +2093,7 @@ Res<> Gpu_EndFrame() {
 	}
 
 	gpu_frame++;
-	gpu_frameIdx = frame % Gpu_MaxFrames;
+	gpu_frameIdx = gpu_frame % Gpu_MaxFrames;
 
 	return Ok();
 }
@@ -2332,8 +2322,8 @@ void Gpu_BeginPass(Gpu_Pass const* pass) {
 			.y      = pass->scissor.y,
 		},
 		.extent     = {
-			.width  = (U32)pass->scissor.w,
-			.height = (U32)pass->scissor.h
+			.width  = pass->scissor.width,
+			.height = pass->scissor.height
 		},
 	};
 	vkCmdSetScissor(gpu_vkFrameCommandBuffers[gpu_frameIdx], 0, 1, &vkScissorRect2D);

@@ -1,20 +1,30 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Common_Std.h"
+
+namespace JC::Sys {
 
 //--------------------------------------------------------------------------------------------------
 
-struct Sys_Mutex;
+struct Mutex {
+	#if defined Platform_Windows
+		U64 opaque = 0;
+	#endif	// Platform
+};
 
-void  Sys_Abort();
-Bool  Sys_DbgPresent();
-void  Sys_DbgPrint(const char* msg);
-void  Sys_Print(Str msg);
-void* Sys_VirtualAlloc(U64 size);
-void* Sys_VirtualReserve(U64 size);
-void* Sys_VirtualCommit(void* p, U64 size);
-void  Sys_VirtualFree(void* p);
-void  Sys_InitMutex(Sys_Mutex* mutex);
-void  Sys_LockMutex(Sys_Mutex* mutex);
-void  Sys_UnlockMutex(Sys_Mutex* mutex);
-void  Sys_ShutdownMutex(Sys_Mutex* mutex);
+void  Abort();
+bool  DbgPresent();
+void  DbgPrint(const char* msg);
+void  Print(Str msg);
+void* VirtualAlloc(U64 size);
+void* VirtualReserve(U64 size);
+void* VirtualCommit(void* p, U64 size);
+void  VirtualFree(void* p);
+void  InitMutex(Mutex* mutex);
+void  LockMutex(Mutex* mutex);
+void  UnlockMutex(Mutex* mutex);
+void  ShutdownMutex(Mutex* mutex);
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Sys

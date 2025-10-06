@@ -1,6 +1,8 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Common_Std.h"
+
+namespace JC::Bit {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -26,4 +28,8 @@ constexpr U64 AlignPow2(U64 u) {
 	return u + 1;
 }
 
-constexpr Bool IsPow2(U64 u) { return (u & (u - 1)) == 0; }
+constexpr bool IsPow2(U64 u) { return (u & (u - 1)) == 0; }
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Bit

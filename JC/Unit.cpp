@@ -1,184 +1,186 @@
 #include "JC/Unit.h"
 
 #include "JC/Array.h"
-#include "JC/Fmt.h"
+#include "JC/Common_Fmt.h"
+#include "JC/Common_Mem.h"
 #include "JC/Log.h"
-#include "JC/Mem.h"
 #include "JC/Sys.h"
+
+namespace JC::Unit {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr U32 Unit_MaxTests    = 1024;
-static constexpr U32 Unit_MaxSubtests = 1024;
+static constexpr U32 MaxTests    = 1024;
+static constexpr U32 MaxSubtests = 1024;
 
-struct Unit_TestObj {
-	Str          name;
-	SrcLoc       sl;
-	Unit_TestFn* testFn;
+struct TestObj {
+	Str     name;
+	SrcLoc  sl;
+	TestFn* testFn;
 };
 
-enum struct Unit_State { Run, Pop, Done };
+enum struct State { Run, Pop, Done };
 
-static Unit_TestObj unit_tests[Unit_MaxTests];
-static U32          unit_testsLen;
-static Unit_Sig     unit_cur[Unit_MaxSubtests];
-static U32          unit_curLen;
-static Unit_Sig     unit_next[Unit_MaxSubtests];
-static U32          unit_nextLen;
-static Unit_Sig     unit_last[Unit_MaxSubtests];
-static U32          unit_lastLen;
-static Unit_State   unit_state;
-static U32          unit_checkFails;
+static TestObj tests[MaxTests];
+static U32     testsLen;
+static Sig     cur[MaxSubtests];
+static U32     curLen;
+static Sig     next[MaxSubtests];
+static U32     nextLen;
+static Sig     last[MaxSubtests];
+static U32     lastLen;
+static State   state;
+static U32     checkFails;
 
-static Bool operator==(Unit_Sig s1, Unit_Sig s2) {
+static bool operator==(Sig s1, Sig s2) {
 	// order by most likely fast fail
 	return s1.sl.line == s2.sl.line && s1.name == s2.name && s1.sl.file == s2.sl.file;
 }
 
-Unit_TestRegistrar::Unit_TestRegistrar(Str name, SrcLoc sl, Unit_TestFn* testFn) {
-	Assert(unit_testsLen < Unit_MaxTests);
-	unit_tests[unit_testsLen++] = {
+TestRegistrar::TestRegistrar(Str name, SrcLoc sl, TestFn* testFn) {
+	Assert(testsLen < MaxTests);
+	tests[testsLen++] = {
 		.name   = name,
 		.sl     = sl,
 		.testFn = testFn,
 	};
 };
 
-Unit_Subtest::Unit_Subtest(Str name, SrcLoc sl) {
+Subtest::Subtest(Str name, SrcLoc sl) {
 	sig.name  = name;
 	sig.sl    = sl;
 	shouldRun = false;
-	switch (unit_state) {
-		case Unit_State::Run:
-			if (unit_nextLen <= unit_curLen || unit_next[unit_curLen] == sig) {
-				Assert(unit_curLen < Unit_MaxSubtests);
-				unit_cur[unit_curLen++] = sig;
+	switch (state) {
+		case State::Run:
+			if (nextLen <= curLen || next[curLen] == sig) {
+				Assert(curLen < MaxSubtests);
+				cur[curLen++] = sig;
 				shouldRun = true;
 			}
 			break;
-		case Unit_State::Pop:
-			memcpy(unit_next, unit_cur, sizeof(unit_cur[0]) * unit_curLen);
-			unit_nextLen = unit_curLen;
-			unit_next[unit_nextLen++] = sig;
-			unit_state = Unit_State::Done;
+		case State::Pop:
+			memcpy(next, cur, sizeof(cur[0]) * curLen);
+			nextLen = curLen;
+			next[nextLen++] = sig;
+			state = State::Done;
 			break;
-		case Unit_State::Done:
+		case State::Done:
 			break;
 	}
 }
 
-Unit_Subtest::~Unit_Subtest() {
+Subtest::~Subtest() {
 	if (shouldRun) {
-		Assert(unit_lastLen < Unit_MaxSubtests);
-		unit_last[unit_lastLen++] = sig;
-		switch (unit_state) {
-			case Unit_State::Run:
-				unit_nextLen = 0;
-				unit_state = Unit_State::Pop;
+		Assert(lastLen < MaxSubtests);
+		last[lastLen++] = sig;
+		switch (state) {
+			case State::Run:
+				nextLen = 0;
+				state = State::Pop;
 				[[fallthrough]];
-			case Unit_State::Pop:
-				Assert(unit_curLen > 0);
-				--unit_curLen;
+			case State::Pop:
+				Assert(curLen > 0);
+				--curLen;
 				break;
-			case Unit_State::Done:
+			case State::Done:
 				break;
 		}
 	}
 }
 
-Bool Unit_Run() {
-	Mem* mem = Mem_Create((U64)8 * 1024 * 1024 * 1024);
+bool Run() {
+	Mem::Mem* mem = Mem::Create((U64)8 * 1024 * 1024 * 1024);
 
-	auto logFn = [](LogMsg const* msg) {
-		Sys_Print(Str(msg->line, msg->lineLen));
-		if (Sys_DbgPresent()) {
-			Sys_DbgPrint(msg->line);
+	auto logFn = [](Log::Msg const* msg) {
+		Sys::Print(Str(msg->line, msg->lineLen));
+		if (Sys::DbgPresent()) {
+			Sys::DbgPrint(msg->line);
 		}
 	};
-	Log_AddFn(logFn);
+	Log::AddFn(logFn);
 
 	U32 passedTests = 0;
 	U32 failedTests = 0;
-	for (U32 i = 0; i < unit_testsLen; i++)  {
-		unit_nextLen = 0;
+	for (U32 i = 0; i < testsLen; i++)  {
+		nextLen = 0;
 		do {
-			unit_state      = Unit_State::Run;
-			unit_curLen     = 0;
-			unit_last[0]    = Unit_Sig { .name = unit_tests[i].name, .sl = unit_tests[i].sl };
-			unit_lastLen    = 1;
-			unit_checkFails = 0;
+			state      = State::Run;
+			curLen     = 0;
+			last[0]    = Sig { .name = tests[i].name, .sl = tests[i].sl };
+			lastLen    = 1;
+			checkFails = 0;
 
-			unit_tests[i].testFn(mem);
+			tests[i].testFn(mem);
 
 			Array<char> buf(mem);
-			if (unit_checkFails > 0) {
-				Fmt_Printf(&buf, "Failed: ");
+			if (checkFails > 0) {
+				Fmt::Printf(&buf, "Failed: ");
 				failedTests++;
 			} else {
-				Fmt_Printf(&buf, "Passed: ");
+				Fmt::Printf(&buf, "Passed: ");
 				passedTests++;
 			}
-			for (U32 j = 0; j < unit_lastLen; j++) {
-				Fmt_Printf(&buf, "%s::", unit_last[j].name);
+			for (U32 j = 0; j < lastLen; j++) {
+				Fmt::Printf(&buf, "%s::", last[j].name);
 			}
 			buf.Remove(2);
 			Logf("%s", Str(buf.data, (U32)buf.len));
 
-			Mem_Reset(mem);
-		} while (unit_nextLen > 0);
+			Mem::Reset(mem);
+		} while (nextLen > 0);
 	}
 
 	Logf("Total passed: %u", passedTests);
 	Logf("Total failed: %u", failedTests);
 
-	Log_RemoveFn(logFn);
-	Mem_Destroy(mem);
+	Log::RemoveFn(logFn);
+	Mem::Destroy(mem);
 
 	return failedTests == 0;
 }
 
-Bool Unit_CheckFailImpl(SrcLoc sl) {
+bool CheckFailImpl(SrcLoc sl) {
 	Logf("***CHECK FAILED***");
 	Logf("%s(%u)", sl.file, sl.line);
-	unit_checkFails++;
+	checkFails++;
 	return false;
 }
 
-Bool Unit_CheckExprFail(SrcLoc sl, Str expr) {
+bool CheckExprFail(SrcLoc sl, Str expr) {
 	Logf("***CHECK FAILED***");
 	Logf("%s(%u)", sl.file, sl.line);
 	Logf("  %s\n", expr);
-	unit_checkFails++;
+	checkFails++;
 	return false;
 }
 
-Bool Unit_CheckRelFail(SrcLoc sl, Str expr, Arg x, Arg y) {
+bool CheckRelFail(SrcLoc sl, Str expr, Arg::Arg x, Arg::Arg y) {
 	Logf("***CHECK FAILED***");
 	Logf("%s(%u)", sl.file, sl.line);
 	Logf("  %s", expr);
 	Logf("  l: %a", x);
 	Logf("  r: %a\n", y);
-	unit_checkFails++;
+	checkFails++;
 	return false;
 }
 
-Bool Unit_CheckSpanEqFail_Len(SrcLoc sl, Str expr, U64 xLen, U64 yLen) {
+bool CheckSpanEqFail_Len(SrcLoc sl, Str expr, U64 xLen, U64 yLen) {
 	Logf("***CHECK FAILED***");
 	Logf("%s(%u)", sl.file, sl.line);
 	Logf("  %s", expr);
 	Logf("  l len: %u", xLen);
 	Logf("  r len: %u\n", yLen);
-	unit_checkFails++;
+	checkFails++;
 	return false;
 }
 
-Bool Unit_CheckSpanEqFail_Elem(SrcLoc sl, Str expr, U64 i, Arg x, Arg y) {
+bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, U64 i, Arg::Arg x, Arg::Arg y) {
 	Logf("***CHECK FAILED***");
 	Logf("%s(%u)", sl.file, sl.line);
 	Logf("  %s", expr);
 	Logf("  l[%u]: %a", i, x);
 	Logf("  r[%u]: %a\n", i, y);
-	unit_checkFails++;
+	checkFails++;
 	return false;
 }
 
@@ -225,3 +227,7 @@ Unit_Test("Test.Verify subtest recording")
 	}));
 
 }
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Unit

@@ -13,15 +13,13 @@
 
 #include "stb/stb_image.h"
 
-namespace JC::Draw {
-
 //--------------------------------------------------------------------------------------------------
 
-DefErr(Render, AtlasFmt);
-DefErr(Render, DuplicateSpriteName);
-DefErr(Render, ImageFmt);
-DefErr(Render, LoadImage);
-DefErr(Render, SpriteNotFound);
+Err_Def(Draw, AtlasFmt);
+Err_Def(Draw, DuplicateSpriteName);
+Err_Def(Draw, ImageFmt);
+Err_Def(Draw, LoadImage);
+Err_Def(Draw, SpriteNotFound);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -80,9 +78,6 @@ struct Pass {
 
 //--------------------------------------------------------------------------------------------------
 
-static Allocator*         allocator;
-static TempAllocator*     tempAllocator;
-static Log::Logger*       logger;
 static U32                windowWidth;
 static U32                windowHeight;
 static Gpu::Image         depthImage;
@@ -548,7 +543,3 @@ void DrawCanvas(Canvas canvas, Vec2 pos, Vec2 scale) {
 		.textureIdx   = canvasObj->colorImageIdx
 	};
 }
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC::Draw

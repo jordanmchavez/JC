@@ -1,32 +1,41 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Common_Arg.h"
+#include "JC/Common_Fmt.h"
+#include "JC/Common_SrcLoc.h"
+#include "JC/Common_Std.h"
+
+namespace JC::Log {
 
 //--------------------------------------------------------------------------------------------------
 
-enum struct LogLevel {
+enum struct Level {
 	Log,
 	Error,
 };
 
-void Log_Printv(SrcLoc sl, LogLevel level, char const*  fmt, Span<Arg const> args);
+void Printv(SrcLoc sl, Level level, char const*  fmt, Span<Arg::Arg const> args);
 
-template <class... A> void Log_Printf(SrcLoc sl, LogLevel level, FmtStr<A...> fmt, A... args) {
-	Log_Printv(sl, level, fmt, { Arg_Make(args)..., });
+template <class... A> void Printf(SrcLoc sl, Level level, Fmt::CheckStr<A...> fmt, A... args) {
+	Printv(sl, level, fmt, { Arg::Make(args)..., });
 }
 
-#define Logf(fmt, ...)   Log_Printf(SrcLoc_Here(), LogLevel::Log,   fmt, ##__VA_ARGS__)
-#define Errorf(fmt, ...) Log_Printf(SrcLoc_Here(), LogLevel::Error, fmt, ##__VA_ARGS__)
+#define Logf(fmt, ...)   Log::Printf(SrcLoc::Here(), Log::Level::Log,   fmt, ##__VA_ARGS__)
+#define Errorf(fmt, ...) Log::Printf(SrcLoc::Here(), Log::Level::Error, fmt, ##__VA_ARGS__)
 
-struct LogMsg {
-	char const*     line;
-	U32             lineLen;
-	SrcLoc          sl;
-	LogLevel        level;
-	const char*     fmt;
-	Span<Arg const> args;
+struct Msg {
+	char const*          line;
+	U32                  lineLen;
+	SrcLoc               sl;
+	Level                level;
+	char const*          fmt;
+	Span<Arg::Arg const> args;
 };
-using LogFn = void (LogMsg const* msg);
+using Fn = void (Msg const* msg);
 
-void Log_AddFn(LogFn fn);
-void Log_RemoveFn(LogFn fn);
+void AddFn(Fn fn);
+void RemoveFn(Fn fn);
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Log
