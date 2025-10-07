@@ -1,6 +1,7 @@
 #pragma once
 
-#include "JC/Core.h"
+#include "JC/Common_Std.h"
+#include "JC/Common_Mem.h"
 
 namespace JC {
 
@@ -75,7 +76,7 @@ template <class K, class V> struct Map {
 		return v;
 	}
 
-	V* Put(K k, V v, SrcLoc sl = SrcLoc_Here()) {
+	V* Put(K k, V v, SrcLoc sl = SrcLoc::Here()) {
 		U64 h = Hash(k);
 		U32 df = 0x100 | (h & 0xff);
 		U64 i = h & mask;
@@ -184,18 +185,18 @@ template <class K, class V> struct Map {
 		elemsLen = 0;
 	}
 
-	void Free(SrcLoc* sl = SrcLoc_Here()) {
+	void Free(SrcLoc* sl = SrcLoc::Here()) {
 		if (buckets != initBuckets) {
 			allocator->Alloc(buckets, bucketsCap * sizeof(Bucket), 0, sl);
 		}
 		memset(initBuckets, 0, sizeof(initBuckets));
 		allocator->Free(elems, elemsCap * sizeof(Elem), sl);
-		buckets         = initBuckets;
-		bucketsCap      = 16;
-		elems           = 0;
-		elemsLen        = 0;
-		elemsCap        = 0;
-		mask            = 16 - 1;
+		buckets    = initBuckets;
+		bucketsCap = 16;
+		elems      = 0;
+		elemsLen   = 0;
+		elemsCap   = 0;
+		mask       = 16 - 1;
 	}
 };
 

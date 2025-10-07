@@ -117,7 +117,6 @@
     <ClInclude Include="3rd\vulkan\vulkan.h" />
     <ClInclude Include="3rd\vulkan\vulkan_core.h" />
     <ClInclude Include="3rd\vulkan\vulkan_win32.h" />
-    <ClInclude Include="Common_Res.h" />
     <ClInclude Include="JC\Common_Err.h" />
     <ClInclude Include="JC\Array.h" />
     <ClInclude Include="JC\Bit.h" />

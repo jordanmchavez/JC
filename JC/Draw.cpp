@@ -4,14 +4,14 @@
 #include "JC/Bit.h"
 #include "JC/FS.h"
 #include "JC/Gpu.h"
-#include "JC/Hash.h"
-#include "JC/Json.h"
 #include "JC/Log.h"
 #include "JC/Map.h"
 #include "JC/Math.h"
 #include "JC/Pool.h"
 
 #include "stb/stb_image.h"
+
+namespace JC::Draw {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -93,10 +93,10 @@ static DrawCmd*           drawCmds;
 static U32                drawCmdCount;
 static CanvasPool         canvasObjs;
 static Canvas             swapchainCanvas;
-static Array<Gpu::Image>  spriteImages;
-static Array<SpriteObj>   spriteObjs;
+static Gpu::Image  spriteImages;
+static SpriteObj   spriteObjs;
 static Map<Str, U32>      spriteObjsByName;
-static Array<Pass>        passes;
+static Pass        passes;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -109,33 +109,30 @@ static Res<Gpu::Shader> LoadShader(Str path) {
 //--------------------------------------------------------------------------------------------------
 
 Res<> Init(const InitDesc* initDesc) {
-	allocator     = initDesc->allocator;
-	tempAllocator = initDesc->tempAllocator;
-	logger        = initDesc->logger;
 	windowWidth   = initDesc->windowWidth;
 	windowHeight  = initDesc->windowHeight;
 
-	JC_CHECK_RES(Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(depthImage));
-	JC_GPU_NAME(depthImage);
+	Try(Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(depthImage));
+	Gpu_Name(depthImage);
 
-	JC_CHECK_RES(LoadShader("Shaders/SpriteVert.spv").To(vertexShader));
-	JC_GPU_NAME(vertexShader);
-	JC_CHECK_RES(LoadShader("Shaders/SpriteFrag.spv").To(fragmentShader));
-	JC_GPU_NAME(fragmentShader);
+	Try(LoadShader("Shaders/SpriteVert.spv").To(vertexShader));
+	Gpu_Name(vertexShader);
+	Try(LoadShader("Shaders/SpriteFrag.spv").To(fragmentShader));
+	Gpu_Name(fragmentShader);
 
-	JC_CHECK_RES(Gpu::CreateGraphicsPipeline(
+	Try(Gpu::CreateGraphicsPipeline(
 		{ vertexShader, fragmentShader },
 		{ Gpu::GetSwapchainImageFormat() },
 		Gpu::ImageFormat::D32_Float
 	).To(pipeline));
-	JC_GPU_NAME(pipeline);
+	Gpu_Name(pipeline);
 
-	JC_CHECK_RES(Gpu::CreateBuffer(sizeof(Scene), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Addr | Gpu::BufferUsage::Copy).To(sceneBuffer));
-	JC_GPU_NAME(sceneBuffer);
+	Try(Gpu::CreateBuffer(sizeof(Scene), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Addr | Gpu::BufferUsage::Copy).To(sceneBuffer));
+	Gpu_Name(sceneBuffer);
 	sceneBufferAddr = Gpu::GetBufferAddr(sceneBuffer);
 
-	JC_CHECK_RES(Gpu::CreateBuffer(MaxDrawCmds * sizeof(DrawCmd), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Addr | Gpu::BufferUsage::Copy).To(drawCmdBuffer));
-	JC_GPU_NAME(drawCmdBuffer);
+	Try(Gpu::CreateBuffer(MaxDrawCmds * sizeof(DrawCmd), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Addr | Gpu::BufferUsage::Copy).To(drawCmdBuffer));
+	Gpu_Name(drawCmdBuffer);
 	drawCmdBufferAddr = Gpu::GetBufferAddr(drawCmdBuffer);
 
 	const Vec2 windowSize = Vec2((F32)windowWidth, (F32)windowHeight);
@@ -184,10 +181,10 @@ Res<> WindowResized(U32 inWindowWidth, U32 inWindowHeight) {
 	windowWidth  = inWindowWidth;
 	windowHeight = inWindowHeight;
 
-	JC_CHECK_RES(Gpu::RecreateSwapchain(windowWidth, windowHeight));
+	Try(Gpu::RecreateSwapchain(windowWidth, windowHeight));
 	Gpu::WaitIdle();
 	Gpu::DestroyImage(depthImage);
-	JC_CHECK_RES(Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(depthImage));
+	Try(Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(depthImage));
 
 	const Vec2 windowSize = Vec2((F32)windowWidth, (F32)windowHeight);
 	scene.projViews[canvasObjs.GetEntry(swapchainCanvas)->idx] = Math::Ortho(
@@ -238,8 +235,8 @@ static Res<Gpu::Image> LoadImage(Str path) {
 	}
 
 	Gpu::Image image;
-	JC_CHECK_RES(Gpu::CreateImage(width, height, Gpu::ImageFormat::R8G8B8A8_UNorm, Gpu::ImageUsage::Sampled | Gpu::ImageUsage::Copy).To(image));
-	JC_CHECK_RES(Gpu::ImmediateCopyToImage(copySrc, image, Gpu::BarrierStage::VertexShader_SamplerRead, Gpu::ImageLayout::ShaderRead));
+	Try(Gpu::CreateImage(width, height, Gpu::ImageFormat::R8G8B8A8_UNorm, Gpu::ImageUsage::Sampled | Gpu::ImageUsage::Copy).To(image));
+	Try(Gpu::ImmediateCopyToImage(copySrc, image, Gpu::BarrierStage::VertexShader_SamplerRead, Gpu::ImageLayout::ShaderRead));
 
 	return image;
 }
@@ -322,7 +319,7 @@ Vec2 GetSpriteSize(Sprite sprite) {
 
 Res<Canvas> CreateCanvas(U32 width, U32 height) {
 	Gpu::Image canvasColorImage;
-	JC_CHECK_RES(Gpu::CreateImage(width, height, Gpu::ImageFormat::B8G8R8A8_UNorm, Gpu::ImageUsage::Color | Gpu::ImageUsage::Sampled).To(canvasColorImage));
+	Try(Gpu::CreateImage(width, height, Gpu::ImageFormat::B8G8R8A8_UNorm, Gpu::ImageUsage::Color | Gpu::ImageUsage::Sampled).To(canvasColorImage));
 
 	Gpu::Image canvasDepthImage;
 	if (Res<> r = Gpu::CreateImage(width, height, Gpu::ImageFormat::D32_Float,      Gpu::ImageUsage::Depth).To(canvasDepthImage); !r) {
@@ -339,8 +336,8 @@ Res<Canvas> CreateCanvas(U32 width, U32 height) {
 		.depthImage       = canvasDepthImage,
 		.size             = size,
 	};
-	JC_GPU_NAMEF(canvasColorImage, "canvasColor#{}", entry->idx);
-	JC_GPU_NAMEF(canvasDepthImage, "canvasDepth#{}", entry->idx);
+	Gpu_NameF(canvasColorImage, "canvasColor#{}", entry->idx);
+	Gpu_NameF(canvasDepthImage, "canvasDepth#{}", entry->idx);
 
 	scene.projViews[entry->idx] = Math::Ortho(
 		0.0f, size.x,
@@ -543,3 +540,7 @@ void DrawCanvas(Canvas canvas, Vec2 pos, Vec2 scale) {
 		.textureIdx   = canvasObj->colorImageIdx
 	};
 }
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Draw

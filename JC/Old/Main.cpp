@@ -187,27 +187,3 @@ void Shutdown() {
 	Gpu::Shutdown();
 	Window::Shutdown();
 }
-
-//--------------------------------------------------------------------------------------------------
-
-void Main(int argc, const char** argv) {
-	if (Res<> r = RunAppInternal(argc, argv); !r) {
-		if (logger) {
-			JC_LOG_ERROR("{}", r.err.GetStr());
-		}
-	}
-
-	Shutdown();
-}
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC
-
-//--------------------------------------------------------------------------------------------------
-
-int main(int argc, const char* argv[])
-{
-	JC::Main(argc, argv);
-	return 0;
-}

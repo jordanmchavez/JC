@@ -8,8 +8,8 @@ namespace JC::FS {
 
 Res<File> Open(Str path) {
 	HANDLE h = CreateFileW(Unicode::Utf8ToWtf16z(tempAllocator, path).data, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
-	if (!IsValidHandle(h)) {
-		return Err_WinLast("CreateFileW", "path", path);
+	if (!Sys::IsValidHandle(h)) {
+		return Win_LastErr("CreateFileW", "path", path);
 	}
 	return File { .handle = (U64)h };
 }
@@ -19,7 +19,7 @@ Res<File> Open(Str path) {
 Res<U64> Len(File file) {
 	LARGE_INTEGER fileSize;
 	if (GetFileSizeEx((HANDLE)file.handle, &fileSize) == 0) {
-		return Err_WinLast("GetFileSizeEx");
+		return Win_LastErr("GetFileSizeEx");
 	}
 	return fileSize.QuadPart;
 }
@@ -33,7 +33,7 @@ Res<> Read(File file, void* out, U64 outLen) {
 		const U32 bytesToRead = rem > U32Max ? U32Max : (U32)rem;
 		DWORD bytesRead = 0;
 		if (ReadFile((HANDLE)file.handle, (U8*)out + offset, bytesToRead, &bytesRead, 0) == FALSE) {
-			return Err_WinLast("ReadFile");
+			return Win_LastErr("ReadFile");
 		}
 		offset += bytesRead;
 	}
@@ -42,23 +42,25 @@ Res<> Read(File file, void* out, U64 outLen) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Span<U8>> ReadAll(Allocator* allocator, Str path) {
+Res<Span<U8>> ReadAll(Mem::Mem* mem, Str path) {
 	File file;
 	if (Res<> r = Open(path).To(file); !r) {
 		return r.err;
 	}
-	JC_DEFER { Close(file); };
 
 	U64 len = 0;
 	if (Res<> r = Len(file).To(len); !r) {
+		Close(file);
 		return r.err;
 	}
 
-	U8* buf = (U8*)allocator->Alloc(len);
+	U8* buf = (U8*)Mem::Alloc(mem, len);
 	if (Res<> r = Read(file, buf, len); !r) {
+		Close(file);
 		return r.err;
 	}
 
+	Close(file);
 	return Span<U8>(buf, len);
 }
 
