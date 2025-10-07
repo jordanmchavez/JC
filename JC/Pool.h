@@ -1,6 +1,9 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Common_Assert.h"
+#include "JC/Common_Std.h"
+
+namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -90,3 +93,7 @@ template <class T, class H, U32 N> struct HandlePool {
 		free = (U32)(entry - entries);
 	}
 };
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC

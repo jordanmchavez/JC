@@ -1,9 +1,10 @@
 ﻿#include "JC/Unicode.h"
 
 #include "JC/Array.h"
-#include "JC/Mem.h"
 #include "JC/Unit.h"
 #include <wchar.h>
+
+namespace JC::Unicode {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -18,12 +19,12 @@ constexpr U32 ConstExprWStrLen(wchar_t const* s) {
 	return (U32)(p - s);
 }
 
-Bool operator==(Span<wchar_t>  s1, wchar_t const* s2) { return !wcscmp(s1.data, s2); }
-Bool operator==(wchar_t const* s1, Span<wchar_t>  s2) { return !wcscmp(s1, s2.data);  }
+bool operator==(Span<wchar_t>  s1, wchar_t const* s2) { return !wcscmp(s1.data, s2); }
+bool operator==(wchar_t const* s1, Span<wchar_t>  s2) { return !wcscmp(s1, s2.data);  }
 
 //--------------------------------------------------------------------------------------------------
 
-Span<wchar_t> Unicode_Utf8ToWtf16z(Mem* mem, Str s) {
+Span<wchar_t> Utf8ToWtf16z(Mem::Mem* mem, Str s) {
 	Array<wchar_t> out(mem);
 
 	U8 const* p = (U8 const*)s.data;
@@ -105,7 +106,7 @@ Span<wchar_t> Unicode_Utf8ToWtf16z(Mem* mem, Str s) {
 //--------------------------------------------------------------------------------------------------
 
 #define CheckUtf8ToWtf16z(from8, to16z) \
-		Unit_CheckTrue(Unicode_Utf8ToWtf16z(testMem, from8) == to16z)
+		Unit_CheckTrue(Utf8ToWtf16z(testMem, from8) == to16z)
 
 Unit_Test("Utf8ToWtf16z") {
 	CheckUtf8ToWtf16z("\x00", L"\x0000");
@@ -173,7 +174,7 @@ Unit_Test("Utf8ToWtf16z") {
 
 //--------------------------------------------------------------------------------------------------
 
-Str Unicode_Wtf16zToUtf8(Mem* mem, wchar_t const* s) {
+Str Wtf16zToUtf8(Mem::Mem* mem, wchar_t const* s) {
 	Array<char> out(mem);
 
 	wchar_t const* p = s;
@@ -218,7 +219,7 @@ Str Unicode_Wtf16zToUtf8(Mem* mem, wchar_t const* s) {
 
 Unit_Test("Unicode::Wtf16zToUtf8") {
 	#define CheckWtf16zToUtf8(from16z, to8) \
-		Unit_CheckEq(Unicode_Wtf16zToUtf8(testMem, from16z), to8)
+		Unit_CheckEq(Wtf16zToUtf8(testMem, from16z), to8)
 
 	// General 
 	CheckWtf16zToUtf8(L"", "");
@@ -262,3 +263,7 @@ Unit_Test("Unicode::Wtf16zToUtf8") {
 	CheckWtf16zToUtf8(L"\xdc00\xdc00", "\xed\xb0\x80\xed\xb0\x80");
 	CheckWtf16zToUtf8(L"\xdfff\xdc00", "\xed\xbf\xbf\xed\xb0\x80");
 }
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Unicode

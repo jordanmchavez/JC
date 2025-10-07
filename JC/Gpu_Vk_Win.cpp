@@ -1,4 +1,5 @@
 #include "JC/Gpu_Vk.h"
+#include "JC/Common_Assert.h"
 
 #if defined Platform_Windows
 	typedef __int64 (__stdcall *FARPROC)();
@@ -10,9 +11,11 @@
 	static void* vulkanDll = nullptr;
 #endif	// Platform
 
+namespace JC::Gpu {
+
 //--------------------------------------------------------------------------------------------------
 
-void Gpu_LoadRootFns() {
+void LoadRootFns() {
 	#if defined Platform_Windows
 		vulkanDll = LoadLibraryW(L"vulkan-1.dll");
 		Assert(vulkanDll);
@@ -26,7 +29,7 @@ void Gpu_LoadRootFns() {
 
 //--------------------------------------------------------------------------------------------------
 
-void Gpu_LoadInstanceFns(VkInstance vkInstance) {
+void LoadInstanceFns(VkInstance vkInstance) {
 	vkCreateDevice = (PFN_vkCreateDevice)vkGetInstanceProcAddr(vkInstance, "vkCreateDevice");
 	vkDestroyInstance = (PFN_vkDestroyInstance)vkGetInstanceProcAddr(vkInstance, "vkDestroyInstance");
 	vkEnumerateDeviceExtensionProperties = (PFN_vkEnumerateDeviceExtensionProperties)vkGetInstanceProcAddr(vkInstance, "vkEnumerateDeviceExtensionProperties");
@@ -80,7 +83,7 @@ void Gpu_LoadInstanceFns(VkInstance vkInstance) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Gpu_LoadDeviceFns(VkDevice vkDevice) {
+void LoadDeviceFns(VkDevice vkDevice) {
 	vkAllocateCommandBuffers = (PFN_vkAllocateCommandBuffers)vkGetDeviceProcAddr(vkDevice, "vkAllocateCommandBuffers");
 	vkAllocateDescriptorSets = (PFN_vkAllocateDescriptorSets)vkGetDeviceProcAddr(vkDevice, "vkAllocateDescriptorSets");
 	vkAllocateMemory = (PFN_vkAllocateMemory)vkGetDeviceProcAddr(vkDevice, "vkAllocateMemory");
@@ -277,7 +280,7 @@ void Gpu_LoadDeviceFns(VkDevice vkDevice) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Gpu_FreeFns() {
+void FreeFns() {
 	#if defined Platform_Windows
 		::FreeLibrary(vulkanDll);
 	#endif	// Platform
@@ -531,3 +534,7 @@ PFN_vkQueuePresentKHR vkQueuePresentKHR;
 PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR;
 PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR vkGetPhysicalDeviceWin32PresentationSupportKHR;
 #endif // VK_KHR_win32_surface
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Gpu

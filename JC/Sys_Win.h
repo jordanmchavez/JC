@@ -11,7 +11,7 @@ namespace JC::Sys {
 //--------------------------------------------------------------------------------------------------
 
 #define Win_LastErr(fn, ...) \
-	Err::Make(Err::Err(), SrcLoc::Here(), "Win", (U64)GetLastError(), "fn", fn, ##__VA_ARGS__)
+	Err::Make(nullptr, SrcLoc::Here(), "Win", "", (U64)GetLastError(), "fn", fn, ##__VA_ARGS__)
 
 constexpr bool IsValidHandle(HANDLE h) {
 	return h != (HANDLE)0 && h != INVALID_HANDLE_VALUE;

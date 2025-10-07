@@ -1,10 +1,14 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Common_Mem.h"
+#include "JC/Common_Res.h"
+#include "JC/Common_Std.h"
+
+namespace JC::Window {
 
 //--------------------------------------------------------------------------------------------------
 
-struct Wnd_Display {
+struct Display {
 	I32 x        = 0;
 	I32 y        = 0;
 	U32 width    = 0;
@@ -13,39 +17,41 @@ struct Wnd_Display {
 	F32 dpiScale = 0.0f;
 };
 
-enum struct Wnd_Style {
+enum struct Style {
 	Bordered,
 	BorderedResizable,
 	Borderless,
 	Fullscreen,
 };
 
-enum Wnd_CursorMode {
+enum CursorMode {
 	VisibleFree,
 	VisibleConstrained,
 	HiddenLocked,	// ->visible: reappear at position hidden, same with alt+tabbing
 };
 
-struct Wnd_InitDesc {
-	Mem*      tempMem;
+struct InitDesc {
+	Mem::Mem* tempMem;
 	Str       title;
-	Wnd_Style style;
+	Style     style;
 	U32       width;
 	U32       height;
 	U32       displayIdx;
 };
 
-struct Wnd_PlatformDesc {
+struct PlatformDesc {
 	#if defined Platform_Windows
 		void* hinstance = 0;
 		void* hwnd      = 0;
 	#endif	// Platform
 };
 
+Res<>               Init(const InitDesc* initDesc);
+void                Shutdown();
+Span<const Display> GetDisplays();
+void                Frame();
+PlatformDesc        GetPlatformDesc();
+
 //--------------------------------------------------------------------------------------------------
 
-Res<>                   Wnd_Init(const Wnd_InitDesc* initDesc);
-void                    Wnd_Shutdown();
-Span<const Wnd_Display> Wnd_GetDisplays();
-void                    Wnd_Frame();
-Wnd_PlatformDesc        Wnd_GetPlatformDesc();
+}	// namespace JC::Window

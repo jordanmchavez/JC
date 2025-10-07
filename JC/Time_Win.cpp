@@ -4,28 +4,32 @@
 #define VC_EXTRALEAN
 #include <Windows.h>
 
-static F64 time_ticksPerDay;
-static F64 time_ticksPerHour;
-static F64 time_ticksPerMin;
-static F64 time_ticksPerSec;
-static F64 time_ticksPerMil;
+namespace JC::Time {
 
 //--------------------------------------------------------------------------------------------------
 
-void Time_Init() {
+static F64 ticksPerDay;
+static F64 ticksPerHour;
+static F64 ticksPerMin;
+static F64 ticksPerSec;
+static F64 ticksPerMil;
+
+//--------------------------------------------------------------------------------------------------
+
+void Init() {
 	LARGE_INTEGER freq = {};
 	QueryPerformanceFrequency(&freq);
 
-	time_ticksPerDay  = (F64)freq.QuadPart * 60.0 * 60.0 * 24.0;
-	time_ticksPerHour = (F64)freq.QuadPart * 60.0 * 60.0;
-	time_ticksPerMin  = (F64)freq.QuadPart * 60.0;
-	time_ticksPerSec  = (F64)freq.QuadPart;
-	time_ticksPerMil  = (F64)freq.QuadPart / 1000.0;
+	ticksPerDay  = (F64)freq.QuadPart * 60.0 * 60.0 * 24.0;
+	ticksPerHour = (F64)freq.QuadPart * 60.0 * 60.0;
+	ticksPerMin  = (F64)freq.QuadPart * 60.0;
+	ticksPerSec  = (F64)freq.QuadPart;
+	ticksPerMil  = (F64)freq.QuadPart / 1000.0;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-U64 Time_Now() {
+U64 Now() {
 	LARGE_INTEGER count;
 	QueryPerformanceCounter(&count);
 	return (U64)count.QuadPart;
@@ -33,17 +37,17 @@ U64 Time_Now() {
 
 //--------------------------------------------------------------------------------------------------
 
-F64 Time_Days (U64 ticks) { return (F64)ticks / time_ticksPerDay;  }
-F64 Time_Hours(U64 ticks) { return (F64)ticks / time_ticksPerHour; }
-F64 Time_Mins (U64 ticks) { return (F64)ticks / time_ticksPerMin;  }
-F64 Time_Secs (U64 ticks) { return (F64)ticks / time_ticksPerSec;  }
-F64 Time_Mils (U64 ticks) { return (F64)ticks / time_ticksPerMil;  }
+F64 Days (U64 ticks) { return (F64)ticks / ticksPerDay;  }
+F64 Hours(U64 ticks) { return (F64)ticks / ticksPerHour; }
+F64 Mins (U64 ticks) { return (F64)ticks / ticksPerMin;  }
+F64 Secs (U64 ticks) { return (F64)ticks / ticksPerSec;  }
+F64 Mils (U64 ticks) { return (F64)ticks / ticksPerMil;  }
 
-U64 Time_FromDays (F64 days)  { return (U64)(days  * time_ticksPerDay ); }
-U64 Time_FromHours(F64 hours) { return (U64)(hours * time_ticksPerHour); }
-U64 Time_FromMins (F64 mins)  { return (U64)(mins  * time_ticksPerMin ); }
-U64 Time_FromSecs (F64 secs)  { return (U64)(secs  * time_ticksPerSec ); }
-U64 Time_FromMils (F64 mils)  { return (U64)(mils  * time_ticksPerMil ); }
+U64 FromDays (F64 days)  { return (U64)(days  * ticksPerDay ); }
+U64 FromHours(F64 hours) { return (U64)(hours * ticksPerHour); }
+U64 FromMins (F64 mins)  { return (U64)(mins  * ticksPerMin ); }
+U64 FromSecs (F64 secs)  { return (U64)(secs  * ticksPerSec ); }
+U64 FromMils (F64 mils)  { return (U64)(mils  * ticksPerMil ); }
 
 //--------------------------------------------------------------------------------------------------
 
@@ -86,3 +90,7 @@ Date()
 	return Date;
 }
 */
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Time

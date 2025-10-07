@@ -50,6 +50,24 @@ namespace JC {
 	#define Sys_DbgBreak __debugbreak()
 #endif	// Compiler
 
+constexpr U32 U32Max = 0xffffffff;
+constexpr U64 U64Max = (U64)0xffffffffffffffff;
+
+constexpr U64 KB = 1024;
+constexpr U64 MB = 1024 * KB;
+constexpr U64 GB = 1024 * MB;
+constexpr U64 TB = 1024 * GB;
+
+//--------------------------------------------------------------------------------------------------
+
+struct IRect { I32 x, y; U32 width, height; };
+struct Vec2 { F32 x, y; };
+struct Vec3 { F32 x, y, z; };
+struct Vec4 { F32 x, y, z, w; };
+struct Mat2 { F32 m[2][2]; };
+struct Mat3 { F32 m[3][3]; };
+struct Mat4 { F32 m[4][4]; };
+
 //--------------------------------------------------------------------------------------------------
 
 #define MacroConcat2(x, y) x##y
@@ -112,5 +130,8 @@ template <class T> struct Array;
 
 template <class T> constexpr T Min(T x, T y) { return x < y ? x : y; }
 template <class T> constexpr T Max(T x, T y) { return x > y ? x : y; }
+template <class T> constexpr T Clamp(T x, T lo, T hi) { return x < lo ? lo : (x > hi ? hi : x); }
+
+//--------------------------------------------------------------------------------------------------
 
 }	// namespace JC

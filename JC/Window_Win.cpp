@@ -2,55 +2,57 @@
 
 #include "JC/Array.h"
 #include "JC/Event.h"
-#include "JC/Fmt.h"
+#include "JC/Common_Fmt.h"
+#include "JC/Common_Mem.h"
 #include "JC/Log.h"
-#include "JC/Mem.h"
 #include "JC/Sys_Win.h"
 #include "JC/Unicode.h"
 
 #include <ShellScalingApi.h>
 
-static constexpr U32 HID_USAGE_PAGE_GENERIC     = 0x01;
-static constexpr U32 HID_USAGE_GENERIC_MOUSE    = 0x02;
-static constexpr U32 HID_USAGE_GENERIC_KEYBOARD = 0x06;
+static constexpr JC::U32 HID_USAGE_PAGE_GENERIC     = 0x01;
+static constexpr JC::U32 HID_USAGE_GENERIC_MOUSE    = 0x02;
+static constexpr JC::U32 HID_USAGE_GENERIC_KEYBOARD = 0x06;
 
 #pragma comment(lib, "shcore.lib")
 
+namespace JC::Window {
+
 //--------------------------------------------------------------------------------------------------
 
-static constexpr U32 Wnd_MaxDisplays = 32;
+static constexpr U32 MaxDisplays = 32;
 
-struct Wnd_Window {
-	HWND            hwnd;
-	DWORD           winStyle;
-	Wnd_Style       style;
-	Wnd_CursorMode  cursorMode;
-	IRect           windowRect;
-	IRect           clientRect;
-	U32             dpi;
-	F32             dpiScale;
-	Bool            minimized;
-	Bool            focused;
+struct Window {
+	HWND        hwnd;
+	DWORD       winStyle;
+	Style       style;
+	CursorMode  cursorMode;
+	IRect       windowRect;
+	IRect       clientRect;
+	U32         dpi;
+	F32         dpiScale;
+	bool        minimized;
+	bool        focused;
 };
 
-static Mem*           wnd_tempMem;
-static Wnd_Display    wnd_displays[Wnd_MaxDisplays];
-static U32            wnd_displaysLen;
-static Wnd_Window     wnd_window;
+static Mem::Mem* tempMem;
+static Display   displays[MaxDisplays];
+static U32       displaysLen;
+static Window    window;
 
 //----------------------------------------------------------------------------------------------
 
-static LRESULT CALLBACK Wnd_Proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	switch (msg) {
 		case WM_ACTIVATE:
 			if (wparam == WA_INACTIVE) {
-				wnd_window.focused = false;
-				if (wnd_window.cursorMode != Wnd_CursorMode::VisibleFree) {
+				window.focused = false;
+				if (window.cursorMode != CursorMode::VisibleFree) {
 					ClipCursor(0);
 				}
 			} else {
-				wnd_window.focused = true;
-				if (wnd_window.cursorMode != Wnd_CursorMode::VisibleFree) {
+				window.focused = true;
+				if (window.cursorMode != CursorMode::VisibleFree) {
 					RECT r;
 					GetWindowRect(hwnd, &r);
 					ClipCursor(&r);
@@ -59,16 +61,16 @@ static LRESULT CALLBACK Wnd_Proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpar
 			break;
 
 		case WM_CLOSE:
-			Ev_Add({ .type = Ev_Type::ExitRequest });
+			Event::Add({ .type = Event::Type::ExitRequest });
 			break;
 
 		case WM_DPICHANGED:
-			wnd_window.dpi      = LOWORD(wparam);
-			wnd_window.dpiScale = (F32)LOWORD(wparam) / (F32)USER_DEFAULT_SCREEN_DPI;
+			window.dpi      = LOWORD(wparam);
+			window.dpiScale = (F32)LOWORD(wparam) / (F32)USER_DEFAULT_SCREEN_DPI;
 			break;
 
 		case WM_EXITSIZEMOVE:
-			if (wnd_window.cursorMode != Wnd_CursorMode::VisibleFree && hwnd == GetActiveWindow()) {
+			if (window.cursorMode != CursorMode::VisibleFree && hwnd == GetActiveWindow()) {
 				RECT r;
 				GetWindowRect(hwnd, &r);
 				ClipCursor(&r);
@@ -79,32 +81,32 @@ static LRESULT CALLBACK Wnd_Proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpar
 			const HRAWINPUT hrawInput = (HRAWINPUT)lparam;
 			UINT size = 0;
 			GetRawInputData(hrawInput, RID_INPUT, 0, &size, sizeof(RAWINPUTHEADER));
-			RAWINPUT* rawInput = (RAWINPUT*)Mem_Alloc(wnd_tempMem, size);
+			RAWINPUT* rawInput = (RAWINPUT*)Mem::Alloc(tempMem, size);
 			GetRawInputData(hrawInput, RID_INPUT, rawInput, &size, sizeof(RAWINPUTHEADER));
 			if (rawInput->header.dwType == RIM_TYPEMOUSE) {
 				const RAWMOUSE* const m = &rawInput->data.mouse;
 				if (m->usButtonFlags & RI_MOUSE_WHEEL) {
-					Ev_Add({
-						.type = Ev_Type::MouseWheel,
+					Event::Add({
+						.type = Event::Type::MouseWheel,
 						.mouseWheel = { .delta = (float)((signed short)m->usButtonData) / 120.0f },
 					});
 				}
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) { Ev_Add({ .type = Ev_Type::Key, .key = { .down = true,  .key  = Ev_Key::Mouse1 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_1_UP  ) { Ev_Add({ .type = Ev_Type::Key, .key = { .down = false, .key  = Ev_Key::Mouse1 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) { Ev_Add({ .type = Ev_Type::Key, .key = { .down = true,  .key  = Ev_Key::Mouse2 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_2_UP  ) { Ev_Add({ .type = Ev_Type::Key, .key = { .down = false, .key  = Ev_Key::Mouse2 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) { Ev_Add({ .type = Ev_Type::Key, .key = { .down = true,  .key  = Ev_Key::Mouse3 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_3_UP  ) { Ev_Add({ .type = Ev_Type::Key, .key = { .down = false, .key  = Ev_Key::Mouse3 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) { Ev_Add({ .type = Ev_Type::Key, .key = { .down = true,  .key  = Ev_Key::Mouse4 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_4_UP  ) { Ev_Add({ .type = Ev_Type::Key, .key = { .down = false, .key  = Ev_Key::Mouse4 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) { Ev_Add({ .type = Ev_Type::Key, .key = { .down = true,  .key  = Ev_Key::Mouse5 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_5_UP  ) { Ev_Add({ .type = Ev_Type::Key, .key = { .down = false, .key  = Ev_Key::Mouse5 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) { Event::Add({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::Mouse1 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_1_UP  ) { Event::Add({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::Mouse1 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) { Event::Add({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::Mouse2 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_2_UP  ) { Event::Add({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::Mouse2 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) { Event::Add({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::Mouse3 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_3_UP  ) { Event::Add({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::Mouse3 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) { Event::Add({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::Mouse4 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_4_UP  ) { Event::Add({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::Mouse4 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) { Event::Add({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::Mouse5 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_5_UP  ) { Event::Add({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::Mouse5 } }); }
 
 				::POINT mousePos;
 				::GetCursorPos(&mousePos);
 				::ScreenToClient(hwnd, &mousePos);
-				Ev_Add({
-					.type = Ev_Type::MouseMove,
+				Event::Add({
+					.type = Event::Type::MouseMove,
 					.mouseMove = {
 						.x  = (I32)mousePos.x,
 						.y  = (I32)mousePos.y,
@@ -117,8 +119,8 @@ static LRESULT CALLBACK Wnd_Proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpar
 				const RAWKEYBOARD* const k = &rawInput->data.keyboard;
 				U32 scanCode   = k->MakeCode;
 				U32 virtualKey = k->VKey;
-				const Bool e0  = k->Flags & RI_KEY_E0;
-				const Bool e1  = k->Flags & RI_KEY_E1;
+				const bool e0  = k->Flags & RI_KEY_E0;
+				const bool e1  = k->Flags & RI_KEY_E1;
 				if (virtualKey == 255) {
 					break;
 				} else if (virtualKey == VK_SHIFT) {
@@ -146,7 +148,7 @@ static LRESULT CALLBACK Wnd_Proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpar
 					case VK_CLEAR:   virtualKey = e0 ? VK_CLEAR     : VK_NUMPAD5;  break;
 				}
 				const bool down = !(k->Flags & RI_KEY_BREAK);
-				Ev_Add({ .type = Ev_Type::Key, .key = { .down = down, .key  = (Ev_Key)virtualKey } });
+				Event::Add({ .type = Event::Type::Key, .key = { .down = down, .key  = (Event::Key)virtualKey } });
 			}
 			break;
 		}
@@ -159,35 +161,35 @@ static LRESULT CALLBACK Wnd_Proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpar
 
 		case WM_SIZE:
 			if (wparam == SIZE_MAXIMIZED) {
-				wnd_window.minimized = false;
+				window.minimized = false;
 			} else if (wparam == SIZE_MINIMIZED) {
-				wnd_window.minimized = true;
+				window.minimized = true;
 			} else if (wparam == SIZE_RESTORED) {
-				wnd_window.minimized = false;
+				window.minimized = false;
 			}
 			break;
 
 		case WM_SYSCOMMAND:
 			if (wparam == SC_CLOSE) {
-				Ev_Add({ .type = Ev_Type::ExitRequest });
+				Event::Add({ .type = Event::Type::ExitRequest });
 				return 0;
 			}
 			break;
 
 		case WM_WINDOWPOSCHANGED: {
 			const WINDOWPOS* wp = (WINDOWPOS*)lparam;
-			wnd_window.windowRect.x      = wp->x;
-			wnd_window.windowRect.y      = wp->y;
-			wnd_window.windowRect.width  = wp->cx;
-			wnd_window.windowRect.height = wp->cy;
+			window.windowRect.x      = wp->x;
+			window.windowRect.y      = wp->y;
+			window.windowRect.width  = wp->cx;
+			window.windowRect.height = wp->cy;
 			RECT cr = {};
 			GetClientRect(hwnd, &cr);
-			wnd_window.clientRect.x      = cr.left;
-			wnd_window.clientRect.y      = cr.top;
-			wnd_window.clientRect.width  = cr.right - cr.left;
-			wnd_window.clientRect.height = cr.bottom - cr.top;
+			window.clientRect.x      = cr.left;
+			window.clientRect.y      = cr.top;
+			window.clientRect.width  = cr.right - cr.left;
+			window.clientRect.height = cr.bottom - cr.top;
 
-			//if (windowApi->cursorMode != WindowWnd_CursorMode::VisibleFree && GetActiveWindow() == windowApi->hwnd) {
+			//if (windowApi->cursorMode != WindowCursorMode::VisibleFree && GetActiveWindow() == windowApi->hwnd) {
 			//	RECT r;
 			//	GetWindowRect(windowApi->hwnd, &r);
 			//	ClipCursor(&r);
@@ -209,7 +211,7 @@ static LRESULT CALLBACK Wnd_Proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpar
 
 //----------------------------------------------------------------------------------------------
 
-static BOOL Wnd_MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
+static BOOL MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
 	MONITORINFOEX monitorInfoEx = {};
 	monitorInfoEx.cbSize = sizeof(monitorInfoEx);
 	GetMonitorInfoW(hmonitor, &monitorInfoEx);
@@ -218,8 +220,8 @@ static BOOL Wnd_MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
 	UINT unused = 0;
 	GetDpiForMonitor(hmonitor, MDT_EFFECTIVE_DPI, &dpi, &unused);
 
-	Assert(wnd_displaysLen < Wnd_MaxDisplays);
-	wnd_displays[wnd_displaysLen] = {
+	Assert(displaysLen < MaxDisplays);
+	displays[displaysLen] = {
 		.x      = (I32)rect->left,
 		.y      = (I32)rect->top,
 		.width  = (U32)(rect->right - rect->left),
@@ -227,12 +229,12 @@ static BOOL Wnd_MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
 		.dpi       = dpi,
 		.dpiScale  = (F32)dpi / (F32)USER_DEFAULT_SCREEN_DPI,
 	};
-	wnd_displaysLen++;
+	displaysLen++;
 
 	if (monitorInfoEx.dwFlags & MONITORINFOF_PRIMARY) {
-		Wnd_Display t = wnd_displays[0];
-		wnd_displays[0] = wnd_displays[wnd_displaysLen];
-		wnd_displays[wnd_displaysLen] = t;
+		Display t = displays[0];
+		displays[0] = displays[displaysLen];
+		displays[displaysLen] = t;
 	}
 
 	return TRUE;
@@ -240,13 +242,13 @@ static BOOL Wnd_MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
 
 //----------------------------------------------------------------------------------------------
 
-Res<> Wnd_Init(const Wnd_InitDesc* initDesc) {
-	wnd_tempMem = initDesc->tempMem;;
+Res<> Init(const InitDesc* initDesc) {
+	tempMem = initDesc->tempMem;;
 
-	if (EnumDisplayMonitors(0, 0, Wnd_MonitorEnumFn, 0) == FALSE) {
+	if (EnumDisplayMonitors(0, 0, MonitorEnumFn, 0) == FALSE) {
 		return Win_LastErr("EnumDisplayMonitors");
 	}
-	Assert(wnd_displaysLen > 0);
+	Assert(displaysLen > 0);
 
 	if (SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) == FALSE) {
 		return Win_LastErr("SetProcessDpiAwarenessContext");
@@ -255,7 +257,7 @@ Res<> Wnd_Init(const Wnd_InitDesc* initDesc) {
 	const WNDCLASSEXW wndClassExW = {
 		.cbSize        = sizeof(wndClassExW),
 		.style         = CS_OWNDC | CS_DBLCLKS,
-		.lpfnWndProc   = Wnd_Proc,
+		.lpfnWndProc   = WndProc,
 		.cbClsExtra    = 0,
 		.cbWndExtra    = 0,
 		.hInstance     = GetModuleHandle(0),
@@ -270,28 +272,28 @@ Res<> Wnd_Init(const Wnd_InitDesc* initDesc) {
 		return Win_LastErr("RegisterClassExW");
 	}
 
-	Span<wchar_t> titlew = Unicode_Utf8ToWtf16z(wnd_tempMem, initDesc->title);
+	Span<wchar_t> titlew = Unicode::Utf8ToWtf16z(tempMem, initDesc->title);
 
-	wnd_window.style = initDesc->style;
-	wnd_window.winStyle = 0;
-	switch (wnd_window.style) {
-		case Wnd_Style::Bordered:
-			wnd_window.winStyle = WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU;
+	window.style = initDesc->style;
+	window.winStyle = 0;
+	switch (window.style) {
+		case Style::Bordered:
+			window.winStyle = WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU;
 			break;
-		case Wnd_Style::BorderedResizable:
-			wnd_window.winStyle = WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU | WS_THICKFRAME;
+		case Style::BorderedResizable:
+			window.winStyle = WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU | WS_THICKFRAME;
 			break;
-		case Wnd_Style::Borderless:
-			wnd_window.winStyle = WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_POPUP | WS_SYSMENU;
+		case Style::Borderless:
+			window.winStyle = WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_POPUP | WS_SYSMENU;
 			break;
-		case Wnd_Style::Fullscreen:
-			wnd_window.winStyle = WS_POPUP;
+		case Style::Fullscreen:
+			window.winStyle = WS_POPUP;
 			break;
 	}
 
-	Wnd_Display const* const display = &wnd_displays[(initDesc->displayIdx >= wnd_displaysLen) ? 0 : initDesc->displayIdx];
+	Display const* const display = &displays[(initDesc->displayIdx >= displaysLen) ? 0 : initDesc->displayIdx];
 	RECT r = {};
-	if (initDesc->style == Wnd_Style::Fullscreen) {
+	if (initDesc->style == Style::Fullscreen) {
 		r.left =   display->x;
 		r.top    = display->y;
 		r.right  = display->x + display->width;
@@ -309,14 +311,14 @@ Res<> Wnd_Init(const Wnd_InitDesc* initDesc) {
 
 	HMONITOR hmonitor = MonitorFromRect(&r, MONITOR_DEFAULTTONEAREST);
 	UINT unused = 0;
-	GetDpiForMonitor(hmonitor, MDT_EFFECTIVE_DPI, &wnd_window.dpi, &unused);
-	AdjustWindowRectExForDpi(&r, wnd_window.winStyle, FALSE, 0, wnd_window.dpi);
+	GetDpiForMonitor(hmonitor, MDT_EFFECTIVE_DPI, &window.dpi, &unused);
+	AdjustWindowRectExForDpi(&r, window.winStyle, FALSE, 0, window.dpi);
 
-	wnd_window.hwnd = CreateWindowExW(
+	window.hwnd = CreateWindowExW(
 		0,
 		L"JC",
 		titlew.data,
-		wnd_window.winStyle,
+		window.winStyle,
 		r.left,
 		r.top,
 		r.right - r.left,
@@ -326,25 +328,25 @@ Res<> Wnd_Init(const Wnd_InitDesc* initDesc) {
 		GetModuleHandleW(0),
 		0
 	);
-	if (!wnd_window.hwnd) {
+	if (!window.hwnd) {
 		return Win_LastErr("CreateWindowExW");
 	}
 
-	wnd_window.windowRect.x      = r.left;
-	wnd_window.windowRect.y      = r.bottom;
-	wnd_window.windowRect.width  = r.right - r.left;
-	wnd_window.windowRect.height = r.bottom - r.top;
-	wnd_window.dpiScale     = (F32)wnd_window.dpi / (F32)USER_DEFAULT_SCREEN_DPI;
+	window.windowRect.x      = r.left;
+	window.windowRect.y      = r.bottom;
+	window.windowRect.width  = r.right - r.left;
+	window.windowRect.height = r.bottom - r.top;
+	window.dpiScale     = (F32)window.dpi / (F32)USER_DEFAULT_SCREEN_DPI;
 
-	SetFocus(wnd_window.hwnd);
-	ShowWindow(wnd_window.hwnd, SW_SHOW);
-	UpdateWindow(wnd_window.hwnd);
+	SetFocus(window.hwnd);
+	ShowWindow(window.hwnd, SW_SHOW);
+	UpdateWindow(window.hwnd);
 	RAWINPUTDEVICE rawInputDevices[2] = {
 		{
 			.usUsagePage = (USHORT)HID_USAGE_PAGE_GENERIC,
 			.usUsage     = (USHORT)HID_USAGE_GENERIC_KEYBOARD,
 			.dwFlags     = RIDEV_INPUTSINK,
-			.hwndTarget  = wnd_window.hwnd,
+			.hwndTarget  = window.hwnd,
 		},
 		{
 			.usUsagePage = (USHORT)HID_USAGE_PAGE_GENERIC,
@@ -361,7 +363,7 @@ Res<> Wnd_Init(const Wnd_InitDesc* initDesc) {
 //----------------------------------------------------------------------------------------------
 
 void Shutdown() {
-	if (wnd_window.hwnd) {
+	if (window.hwnd) {
 		RAWINPUTDEVICE rawInputDevices[2] = {
 			{
 				.usUsagePage = (USHORT)HID_USAGE_PAGE_GENERIC,
@@ -377,24 +379,24 @@ void Shutdown() {
 			},
 		};
 		RegisterRawInputDevices(rawInputDevices, 2, sizeof(rawInputDevices[0]));
-		DestroyWindow(wnd_window.hwnd);
-		wnd_window.hwnd = 0;
+		DestroyWindow(window.hwnd);
+		window.hwnd = 0;
 	}
 }
 
 //----------------------------------------------------------------------------------------------
 
-Span<Wnd_Display const> GetDisplays() {
-	return Span<Wnd_Display const>(wnd_displays, wnd_displaysLen);
+Span<Display const> GetDisplays() {
+	return Span<Display const>(displays, displaysLen);
 }
 
 //----------------------------------------------------------------------------------------------
 
-void Wnd_Frame() {
-	const Bool prevMinimized = wnd_window.minimized;
-	const Bool prevFocused   = wnd_window.focused;
-	const U32  prevWidth     = wnd_window.windowRect.width;
-	const U32  prevHeight    = wnd_window.windowRect.height;
+void Frame() {
+	const bool prevMinimized = window.minimized;
+	const bool prevFocused   = window.focused;
+	const U32  prevWidth     = window.windowRect.width;
+	const U32  prevHeight    = window.windowRect.height;
 
 
 	MSG msg;
@@ -403,22 +405,22 @@ void Wnd_Frame() {
 		DispatchMessageW(&msg);
 	}
 
-	if (!prevMinimized && wnd_window.minimized) {
-		Ev_Add({ .type = Ev_Type::WindowMinimized });
-	} else if (prevMinimized && !wnd_window.minimized) {
-		Ev_Add({ .type = Ev_Type::WindowRestored });
+	if (!prevMinimized && window.minimized) {
+		Event::Add({ .type = Event::Type::WindowMinimized });
+	} else if (prevMinimized && !window.minimized) {
+		Event::Add({ .type = Event::Type::WindowRestored });
 	}
-	if (!prevFocused && wnd_window.focused) {
-		Ev_Add({ .type = Ev_Type::WindowFocused });
-	} else if (prevFocused && !wnd_window.focused) {
-		Ev_Add({ .type = Ev_Type::WindowUnfocused });
+	if (!prevFocused && window.focused) {
+		Event::Add({ .type = Event::Type::WindowFocused });
+	} else if (prevFocused && !window.focused) {
+		Event::Add({ .type = Event::Type::WindowUnfocused });
 	}
-	if (prevWidth != wnd_window.windowRect.width || prevHeight != wnd_window.windowRect.height) {
-		Ev_Add({
-			.type = Ev_Type::WindowResized,
+	if (prevWidth != window.windowRect.width || prevHeight != window.windowRect.height) {
+		Event::Add({
+			.type = Event::Type::WindowResized,
 			.windowResized = {
-				.width  = wnd_window.windowRect.width,
-				.height = wnd_window.windowRect.height
+				.width  = window.windowRect.width,
+				.height = window.windowRect.height
 			},
 		});
 	}
@@ -429,29 +431,33 @@ void Wnd_Frame() {
 void SetRect(IRect newRect) {
 	RECT r;
 	::SetRect(&r, newRect.x, newRect.y, newRect.x + newRect.width, newRect.y + newRect.height);
-	AdjustWindowRectExForDpi(&r, wnd_window.winStyle, FALSE, 0, wnd_window.dpi);
-	SetWindowPos(wnd_window.hwnd, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOZORDER | SWP_NOACTIVATE);
+	AdjustWindowRectExForDpi(&r, window.winStyle, FALSE, 0, window.dpi);
+	SetWindowPos(window.hwnd, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
 //----------------------------------------------------------------------------------------------
 
-void Wnd_SetCursorMode(Wnd_CursorMode newCursorMode) {
-	if (wnd_window.cursorMode != Wnd_CursorMode::VisibleFree) {
+void SetCursorMode(CursorMode newCursorMode) {
+	if (window.cursorMode != CursorMode::VisibleFree) {
 		ClipCursor(0);
 	}
-	if (newCursorMode != Wnd_CursorMode::VisibleFree) {
+	if (newCursorMode != CursorMode::VisibleFree) {
 		RECT r;
-		GetWindowRect(wnd_window.hwnd, &r);
+		GetWindowRect(window.hwnd, &r);
 		ClipCursor(&r);
 	}
-	wnd_window.cursorMode = newCursorMode;
+	window.cursorMode = newCursorMode;
 }
 
 //----------------------------------------------------------------------------------------------
 
-Wnd_PlatformDesc Wnd_GetPlatformDesc() {
-	return Wnd_PlatformDesc {
+PlatformDesc GetPlatformDesc() {
+	return PlatformDesc {
 		.hinstance = GetModuleHandleW(0),
-		.hwnd      = wnd_window.hwnd,
+		.hwnd      = window.hwnd,
 	};
 }
+
+//----------------------------------------------------------------------------------------------
+
+}	// namespace JC::Window
