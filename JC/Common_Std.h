@@ -80,6 +80,18 @@ template <class T> struct Array;
 #define MacroLineStr MacroStringize(__LINE__)
 #define LenOf(a) (sizeof(a) / sizeof(a[0]))
 
+template <class F> struct DeferInvoker {
+	F fn;
+	DeferInvoker(F&& fn_) : fn(fn_) {}
+	~DeferInvoker() { fn(); }
+};
+
+enum struct DeferHelper {};
+template <class F> DeferInvoker<F> operator+(DeferHelper, F&& fn) { return DeferInvoker<F>((F&&)fn); }
+
+#define Defer \
+	auto MacroUniqueName(Defer_) = DeferHelper() + [&]()
+
 //--------------------------------------------------------------------------------------------------
 
 constexpr U32 ConstExprStrLen(char const* s) {
@@ -129,6 +141,14 @@ template <class T> struct Span {
 template <class T> constexpr T Min(T x, T y) { return x < y ? x : y; }
 template <class T> constexpr T Max(T x, T y) { return x > y ? x : y; }
 template <class T> constexpr T Clamp(T x, T lo, T hi) { return x < lo ? lo : (x > hi ? hi : x); }
+
+//--------------------------------------------------------------------------------------------------
+
+#define DefHandle(Type) \
+	struct Type { \
+		U64 handle = 0; \
+		operator bool() const { return handle != 0; } \
+	}
 
 //--------------------------------------------------------------------------------------------------
 

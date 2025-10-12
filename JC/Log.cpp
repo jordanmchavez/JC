@@ -1,6 +1,5 @@
 #include "JC/Log.h"
-
-#include "JC/Array.h"
+#include "JC/Common_Assert.h"
 
 namespace JC::Log {
 
@@ -9,21 +8,30 @@ namespace JC::Log {
 static constexpr U32 MaxFns  = 32;
 static constexpr U32 MaxLine = 4096;
 
-static Fn* fns[MaxFns];
-static U32 fnsLen;
+static Mem::Mem permMem;
+static Mem::Mem tempMem;
+static Fn**     fns;
+static U32      fnsLen;
+
+//--------------------------------------------------------------------------------------------------
+
+void Init(Mem::Mem permMem_, Mem::Mem tempMem_) {
+	permMem = permMem_;
+	tempMem = tempMem_;
+	fns = Mem::AllocT<Fn*>(permMem, MaxFns);
+}
 
 //--------------------------------------------------------------------------------------------------
 
 void Printv(SrcLoc sl, Level level, char const* fmt, Span<Arg::Arg const> args) {
-	char line[MaxLine];
-	char* const lineEnd = line + LenOf(line) - 2;
-	char* lineIt = Fmt::Printf(line, lineEnd, "%s%s(%u): ", level == Level::Error ? "!!! " : "", sl.file, sl.line);
-	lineIt = Fmt::Printv(lineIt, lineEnd, fmt, args);
-	*lineIt++ = '\n';
-	*lineIt = 0;
+	Fmt::PrintBuf pb(tempMem);
+	pb.Printf("%s%s(%u): ", level == Level::Error ? "!!! " : "", sl.file, sl.line);
+	pb.Printv(fmt, args);
+	pb.Add('\n');
+	pb.Add('\0');
 	Msg msg = {
-		.line    = line,
-		.lineLen = (U32)(lineIt - line),
+		.line    = pb.data,
+		.lineLen = pb.len - 1,
 		.sl      = sl,
 		.level   = level,
 		.fmt     = fmt,

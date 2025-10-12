@@ -36,7 +36,7 @@ template <class X, class Y> bool CheckSpanEq(SrcLoc sl, Str expr, Span<X> x, Spa
 	return true;
 }
 
-using TestFn = void([[maybe_unused]] Mem::Mem* testMem);
+using TestFn = void([[maybe_unused]] Mem::Mem testMem);
 
 struct TestRegistrar {
 	TestRegistrar(Str name, SrcLoc sl, TestFn* fn);
@@ -58,9 +58,9 @@ struct Subtest {
 #define Unit_DbgBreak ([]() { Sys_DbgBreak; return false; }())
 
 #define Unit_TestImpl(name, fn, registrarVar) \
-	static void fn([[maybe_unused]] Mem::Mem* testMem); \
+	static void fn([[maybe_unused]] Mem::Mem testMem); \
 	static Unit::TestRegistrar registrarVar = Unit::TestRegistrar(name, SrcLoc::Here(), fn); \
-	static void fn([[maybe_unused]] Mem::Mem* testMem)
+	static void fn([[maybe_unused]] Mem::Mem testMem)
 
 #define Unit_Test(name) \
 	Unit_TestImpl(name, MacroUniqueName(Unit_TestFn_), MacroUniqueName(Unit_TestRegistrar_))

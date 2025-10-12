@@ -9,12 +9,13 @@ namespace JC::FS {
 
 //--------------------------------------------------------------------------------------------------
 
-struct File { U64 handle = 0; };
+DefHandle(File);
 
+void          Init(Mem::Mem permMem, Mem::Mem tempMem);
 Res<File>     Open(Str path);
 Res<U64>      Len(File file);
 Res<>         Read(File file, void* out, U64 outLen);
-Res<Span<U8>> ReadAll(Mem::Mem* mem, Str path);
+Res<Span<U8>> ReadAll(Mem::Mem mem, Str path);
 void          Close(File file);
 
 //--------------------------------------------------------------------------------------------------

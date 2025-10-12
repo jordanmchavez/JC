@@ -3,13 +3,11 @@
 #include "JC/Gpu.h"
 #include "JC/Gpu_Vk.h"
 
-#include "JC/Array.h"
 #include "JC/Bit.h"
 #include "JC/Common_Err.h"
 #include "JC/Common_Fmt.h"
-#include "JC/Common_Mem.h"
+#include "JC/Handle.h"
 #include "JC/Log.h"
-#include "JC/Pool.h"
 #include "JC/Sys.h"
 #include "JC/Window.h"
 
@@ -102,22 +100,16 @@ struct PipelineObj {
 	VkPushConstantRange vkPushConstantRange;
 };
 
-template <class T>
-Span<T> MakeSpan(Mem::Mem* mem, U64 n) {
-	return Span<T>(Mem::AllocT<T>(mem, n), n);
-}
-
 //--------------------------------------------------------------------------------------------------
-//	discreteGpu = physicalDevice->vkPhysicalDeviceProperties2.properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
 
-using BufferPool   = HandlePool<BufferObj,   Buffer,   MaxBuffers>;
-using ImagePool    = HandlePool<ImageObj,    Image,    MaxImages>;
-using ShaderPool   = HandlePool<ShaderObj,   Shader,   MaxShaders>;
-using PipelinePool = HandlePool<PipelineObj, Pipeline, MaxPipelines>;
+using BufferPool   = HandleArray<BufferObj,   Buffer>;
+using ImagePool    = HandleArray<ImageObj,    Image>;
+using ShaderPool   = HandleArray<ShaderObj,   Shader>;
+using PipelinePool = HandleArray<PipelineObj, Pipeline>;
 
-static Mem::Mem*                permMem;
-static Mem::Mem*                tempMem;
-static bool                     enableDebug;
+static Mem::Mem                 permMem;
+static Mem::Mem                 tempMem;
+static bool                     enableDebug = true;	// TODO: expose via cfg
 static Sys::Mutex               mutex;
 static BufferPool               bufferObjs;
 static ImagePool                imageObjs;
@@ -193,17 +185,21 @@ static VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT 
 //-------------------------------------------------------------------------------------------------
 
 static void VkNameImpl(SrcLoc sl, U64 handle, VkObjectType vkObjectType, char const* fmt, Span<Arg::Arg const> args) {
-	Array<char> name(tempMem);
-	Fmt::Printv(&name, fmt, args);
-	Fmt::Printf(&name, " (%s:%u)", sl.file, sl.line);
-	name.Add('\0');
+	if (!enableDebug) {
+		return;
+	}
+
+	Fmt::PrintBuf pb(tempMem);
+	pb.Printv(fmt, args);
+	pb.Printf(" (%s:%u)", sl.file, sl.line);
+	pb.Add('\0');
 
 	VkDebugUtilsObjectNameInfoEXT const vkDebugUtilsObjectNameInfoEXT = {
 		.sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 		.pNext        = 0,
 		.objectType   = vkObjectType,
 		.objectHandle = handle,
-		.pObjectName  = name.data,
+		.pObjectName  = pb.data,
 	};
 	VkResult vkResult = vkSetDebugUtilsObjectNameEXT(vkDevice, &vkDebugUtilsObjectNameInfoEXT);
 	Assert(vkResult == VK_SUCCESS);
@@ -260,12 +256,12 @@ static Res<> InitInstance() {
 		return Err_Version("version", instanceVersion);
 	}
 
-	U32 n = 0;
-	Array<VkLayerProperties> layers(tempMem);
-	Gpu_CheckVk(vkEnumerateInstanceLayerProperties(&n, 0));
-	Gpu_CheckVk(vkEnumerateInstanceLayerProperties(&n, layers.Resize(n)));
-	Logf("%u layers:", layers.len);
-	for (U64 i = 0; i < layers.len; i++) {
+	U32 layersLen = 0;
+	Gpu_CheckVk(vkEnumerateInstanceLayerProperties(&layersLen, 0));
+	VkLayerProperties* const layers = Mem::AllocT<VkLayerProperties>(tempMem, layersLen);
+	Gpu_CheckVk(vkEnumerateInstanceLayerProperties(&layersLen, layers));
+	Logf("%u layers:", layersLen);
+	for (U64 i = 0; i < layersLen; i++) {
 		Logf(
 			"  %s: implementationVersion=%s, specVersion=%s, description=%s",
 			layers[i].layerName,
@@ -274,50 +270,53 @@ static Res<> InitInstance() {
 			layers[i].description
 		);
 	}
-	Array<char const*> RequiredLayers(tempMem);
+	char const* requiredLayers[1];
+	U32 requiredLayersLen = 0;
 	if (enableDebug) {
-		RequiredLayers.Add("VK_LAYER_KHRONOS_validation");
+		requiredLayers[requiredLayersLen++] = "VK_LAYER_KHRONOS_validation";
 	}
-	for (U32 i = 0; i < RequiredLayers.len; i++) {
+	for (U32 i = 0; i < requiredLayersLen; i++) {
 		bool found = false;
-		for (U64 j = 0; j < layers.len; j++) {
-			if (!strcmp(RequiredLayers[i], layers[j].layerName)) {
-				Logf("Found required layer '%s'", RequiredLayers[i]);
+		for (U64 j = 0; j < layersLen; j++) {
+			if (!strcmp(requiredLayers[i], layers[j].layerName)) {
+				Logf("Found required layer '%s'", requiredLayers[i]);
 				found = true;
 				break;
 			}
 		}
 		if (!found) {
-			return Err_NoLayer("name", RequiredLayers[i]);
+			return Err_NoLayer("name", requiredLayers[i]);
 		}
 	}
 
-	Array<VkExtensionProperties> instExts(tempMem);
-	Gpu_CheckVk(vkEnumerateInstanceExtensionProperties(0, &n, 0));
-	Gpu_CheckVk(vkEnumerateInstanceExtensionProperties(0, &n, instExts.Resize(n)));
-	Logf("%u instance extensions:", instExts.len);
-	for (U64 i = 0; i < instExts.len; i++) {
+	U32 instExtsLen = 0;
+	Gpu_CheckVk(vkEnumerateInstanceExtensionProperties(0, &instExtsLen, 0));
+	VkExtensionProperties* const instExts = Mem::AllocT<VkExtensionProperties>(tempMem, instExtsLen);
+	Gpu_CheckVk(vkEnumerateInstanceExtensionProperties(0, &instExtsLen, instExts));
+	Logf("%u instance extensions:", instExtsLen);
+	for (U64 i = 0; i < instExtsLen; i++) {
 		Logf("  %s specVersion=%s", instExts[i].extensionName, VersionStr(tempMem, instExts[i].specVersion));
 	}
-	Array<char const*> RequiredInstExts(tempMem);
-	RequiredInstExts.Add("VK_KHR_surface");
-	#if defined JC_PLATFORM_WINDOWS
-		RequiredInstExts.Add("VK_KHR_win32_surface");
+	char const* requiredInstExts[3];
+	U32 requiredInstExtsLen = 0;
+	requiredInstExts[requiredInstExtsLen++] = "VK_KHR_surface";
+	#if defined Platform_Windows
+		requiredInstExts[requiredInstExtsLen++] = "VK_KHR_win32_surface";
 	#endif	//	Platform_
 	if (enableDebug) {
-		RequiredInstExts.Add("VK_EXT_debug_utils");
+		requiredInstExts[requiredInstExtsLen++] = "VK_EXT_debug_utils";
 	}
-	for (U32 i = 0; i < RequiredInstExts.len; i++) {
+	for (U32 i = 0; i < requiredInstExtsLen; i++) {
 		bool found = false;
-		for (U64 j = 0; j < instExts.len; j++) {
-			if (!strcmp(RequiredInstExts[i], instExts[j].extensionName)) {
-				Logf("Found required instance extension '%s'", RequiredInstExts[i]);
+		for (U64 j = 0; j < instExtsLen; j++) {
+			if (!strcmp(requiredInstExts[i], instExts[j].extensionName)) {
+				Logf("Found required instance extension '%s'", requiredInstExts[i]);
 				found = true;
 				break;
 			}
 		}
 		if (!found) {
-			return Err_NoExt("ext", RequiredInstExts[i]);
+			return Err_NoExt("ext", requiredInstExts[i]);
 		}
 	}
 
@@ -335,10 +334,10 @@ static Res<> InitInstance() {
 		.pNext                   = 0,
 		.flags                   = 0,
 		.pApplicationInfo        = &vkApplicationInfo,
-		.enabledLayerCount       = (U32)RequiredLayers.len,
-		.ppEnabledLayerNames     = RequiredLayers.data,
-		.enabledExtensionCount   = (U32)RequiredInstExts.len,
-		.ppEnabledExtensionNames = RequiredInstExts.data,
+		.enabledLayerCount       = (U32)requiredLayersLen,
+		.ppEnabledLayerNames     = requiredLayers,
+		.enabledExtensionCount   = (U32)requiredInstExtsLen,
+		.ppEnabledExtensionNames = requiredInstExts,
 	};
 
 	VkDebugUtilsMessengerCreateInfoEXT vkDebugUtilsMessengerCreateInfo;
@@ -422,15 +421,15 @@ static Res<> InitDevice() {
 		"VK_KHR_swapchain",
 	};
 
-	U32 n = 0;
-	Array<VkPhysicalDevice> vkPhysicalDevices(tempMem);
-	Gpu_CheckVk(vkEnumeratePhysicalDevices(vkInstance, &n, nullptr));
-	Gpu_CheckVk(vkEnumeratePhysicalDevices(vkInstance, &n, vkPhysicalDevices.Resize(n)));
+	U32 vkPhysicalDevicesLen = 0;
+	Gpu_CheckVk(vkEnumeratePhysicalDevices(vkInstance, &vkPhysicalDevicesLen, nullptr));
+	VkPhysicalDevice* const vkPhysicalDevices = Mem::AllocT<VkPhysicalDevice>(tempMem, vkPhysicalDevicesLen);
+	Gpu_CheckVk(vkEnumeratePhysicalDevices(vkInstance, &vkPhysicalDevicesLen, vkPhysicalDevices));
 
 	// TODO: support cvar for selecting explicit device
 
-	Logf("%u physical devices:", vkPhysicalDevices.len);
-	physicalDevices = MakeSpan<PhysicalDevice>(permMem, vkPhysicalDevices.len);
+	Logf("%u physical devices:", vkPhysicalDevicesLen);
+	physicalDevices = Mem::AllocSpan<PhysicalDevice>(permMem, vkPhysicalDevicesLen);
 
 	U32 bestScore = 0;
 	for (U64 i = 0; i < physicalDevices.len; i++) {
@@ -499,22 +498,24 @@ static Res<> InitDevice() {
 			Logf("    [%u] size=%s, flags=%s", j, SizeStr(tempMem, mh.size), MemoryHeapFlagsStr(tempMem, mh.flags));
 		}
 
-		Array<VkQueueFamilyProperties> vkQueueFamilyProperties(tempMem);
-		vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, &n, nullptr);
-		vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, &n, vkQueueFamilyProperties.Resize(n));
+		U32 vkQueueFamilyPropertiesLen = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, &vkQueueFamilyPropertiesLen, nullptr);
+		VkQueueFamilyProperties* const vkQueueFamilyProperties = Mem::AllocT<VkQueueFamilyProperties>(tempMem, vkQueueFamilyPropertiesLen);
+		vkGetPhysicalDeviceQueueFamilyProperties(pd->vkPhysicalDevice, &vkQueueFamilyPropertiesLen, vkQueueFamilyProperties);
 
-		Gpu_CheckVk(vkEnumerateDeviceExtensionProperties(pd->vkPhysicalDevice, 0, &n, 0));
-		pd->vkExtensionProperties = MakeSpan<VkExtensionProperties>(permMem, n);
-		Gpu_CheckVk(vkEnumerateDeviceExtensionProperties(pd->vkPhysicalDevice, 0, &n, pd->vkExtensionProperties.data));
+		U32 vkExtensionPropertiesLen = 0;
+		Gpu_CheckVk(vkEnumerateDeviceExtensionProperties(pd->vkPhysicalDevice, 0, &vkExtensionPropertiesLen, 0));
+		pd->vkExtensionProperties = Mem::AllocSpan<VkExtensionProperties>(permMem, vkExtensionPropertiesLen);
+		Gpu_CheckVk(vkEnumerateDeviceExtensionProperties(pd->vkPhysicalDevice, 0, &vkExtensionPropertiesLen, pd->vkExtensionProperties.data));
 
-		Array<char> extensionsStr(tempMem);
+		Fmt::PrintBuf extensionsPb(tempMem);
 		for (U64 j = 0; j < pd->vkExtensionProperties.len; j++) {
-			Fmt::Printf(&extensionsStr, "%s(specVersion=%s), ", pd->vkExtensionProperties[j].extensionName, VersionStr(tempMem, pd->vkExtensionProperties[j].specVersion));
+			extensionsPb.Printf("%s(specVersion=%s), ", pd->vkExtensionProperties[j].extensionName, VersionStr(tempMem, pd->vkExtensionProperties[j].specVersion));
 		}
-		if (extensionsStr.len >= 2) {
-			extensionsStr.len -= 2;
+		if (extensionsPb.len >= 2) {
+			extensionsPb.len -= 2;
 		}
-		Logf("  %u device extensions: %s",  pd->vkExtensionProperties.len, Str(extensionsStr.data, (U32)extensionsStr.len));
+		Logf("  %u device extensions: %s",  pd->vkExtensionProperties.len, extensionsPb.ToStr());
 		for (U64 j = 0; j < LenOf(RequiredDeviceExts); j++) {
 			bool found = false;
 			for (U64 k = 0; k < pd->vkExtensionProperties.len; k++) {
@@ -529,9 +530,10 @@ static Res<> InitDevice() {
 			}
 		}
 
-		Gpu_CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(pd->vkPhysicalDevice, vkSurface, &n, 0));
-		pd->vkSurfaceFormats = MakeSpan<VkSurfaceFormatKHR>(permMem, n);
-		Gpu_CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(pd->vkPhysicalDevice, vkSurface, &n, pd->vkSurfaceFormats.data));
+		U32 vkSurfaceFormatsLen = 0;
+		Gpu_CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(pd->vkPhysicalDevice, vkSurface, &vkSurfaceFormatsLen, 0));
+		pd->vkSurfaceFormats = Mem::AllocSpan<VkSurfaceFormatKHR>(permMem, vkSurfaceFormatsLen);
+		Gpu_CheckVk(vkGetPhysicalDeviceSurfaceFormatsKHR(pd->vkPhysicalDevice, vkSurface, &vkSurfaceFormatsLen, pd->vkSurfaceFormats.data));
 		pd->vkSwapchainFormat = VK_FORMAT_UNDEFINED;
 		for (U64 j = 0; j < pd->vkSurfaceFormats.len; j++) {
 			if (
@@ -553,9 +555,10 @@ static Res<> InitDevice() {
 		}
 		Logf("  Selected surface format: %s/%s", FormatStr(pd->vkSwapchainFormat), ColorSpaceStr(pd->vkSwapchainColorSpace));
 
-		Gpu_CheckVk(vkGetPhysicalDeviceSurfacePresentModesKHR(pd->vkPhysicalDevice, vkSurface, &n, 0));
-		pd->vkPresentModes = MakeSpan<VkPresentModeKHR>(permMem, n);
-		Gpu_CheckVk(vkGetPhysicalDeviceSurfacePresentModesKHR(pd->vkPhysicalDevice, vkSurface, &n, pd->vkPresentModes.data));
+		U32 vkPresentModesLen = 0;
+		Gpu_CheckVk(vkGetPhysicalDeviceSurfacePresentModesKHR(pd->vkPhysicalDevice, vkSurface, &vkPresentModesLen, 0));
+		pd->vkPresentModes = Mem::AllocSpan<VkPresentModeKHR>(permMem, vkPresentModesLen);
+		Gpu_CheckVk(vkGetPhysicalDeviceSurfacePresentModesKHR(pd->vkPhysicalDevice, vkSurface, &vkPresentModesLen, pd->vkPresentModes.data));
 		Logf("  %u present modes:", pd->vkPresentModes.len);
 		for (U64 j = 0; j < pd->vkPresentModes.len; j++) {
 			Logf("    %s", PresentModeStr(pd->vkPresentModes[j]));
@@ -565,7 +568,7 @@ static Res<> InitDevice() {
 			score = 0;
 		}
 
-		pd->queueFamilies = MakeSpan<QueueFamily>(permMem, vkQueueFamilyProperties.len);
+		pd->queueFamilies = Mem::AllocSpan<QueueFamily>(permMem, vkQueueFamilyPropertiesLen);
 		Logf("  %u queue families:", pd->queueFamilies.len);
 		for (U32 j = 0; j < (U32)pd->queueFamilies.len; j++) {
 			VkQueueFamilyProperties const* props = &pd->queueFamilies[j].vkQueueFamilyProperties;
@@ -682,13 +685,12 @@ static Res<> InitSwapchain(U32 width, U32 height) {
 	};
 	Gpu_CheckVk(vkCreateSwapchainKHR(vkDevice, &vkSwapchainCreateInfoKHR, vkAllocationCallbacks, &vkSwapchain));
 
-	U32 n = 0;
-	Gpu_CheckVk(vkGetSwapchainImagesKHR(vkDevice, vkSwapchain, &n, 0));
-	VkImage* const vkSwapchainImages = (VkImage*)Mem::Alloc(tempMem, n * sizeof(VkImage));
-	Gpu_CheckVk(vkGetSwapchainImagesKHR(vkDevice, vkSwapchain, &n, vkSwapchainImages));
-
-	swapchainImages = MakeSpan<Image>(permMem, n);
-	for (U64 i = 0; i < n; i++) {
+	U32 vkSwapchainImagesLen = 0;
+	Gpu_CheckVk(vkGetSwapchainImagesKHR(vkDevice, vkSwapchain, &vkSwapchainImagesLen, 0));
+	VkImage* const vkSwapchainImages = Mem::AllocT<VkImage>(tempMem, vkSwapchainImagesLen);
+	Gpu_CheckVk(vkGetSwapchainImagesKHR(vkDevice, vkSwapchain, &vkSwapchainImagesLen, vkSwapchainImages));
+	swapchainImages = Mem::AllocSpan<Image>(permMem, vkSwapchainImagesLen);
+	for (U64 i = 0; i < vkSwapchainImagesLen; i++) {
 		VkNamef(vkSwapchainImages[i], "vkSwapchainImages[%u]", i);
 
 		VkImageViewCreateInfo const vkImageViewCreateInfo = {
@@ -999,7 +1001,13 @@ static Res<> InitBindless() {
 Res<> Init(InitDesc const* initDesc) {
 	permMem = initDesc->permMem;
 	tempMem = initDesc->tempMem;
+
 	Sys::InitMutex(&mutex);
+
+	bufferObjs.Init(permMem, MaxBuffers);
+	imageObjs.Init(permMem, MaxImages);
+	shaderObjs.Init(permMem, MaxShaders);
+	pipelineObjs.Init(permMem, MaxPipelines);
 
 	Try(InitInstance());
 	Try(InitSurface(initDesc->windowPlatformDesc));
@@ -1310,7 +1318,7 @@ Res<Buffer> CreateBuffer(U64 size, BufferUsage::Flags bufferUsageFlags) {
 //----------------------------------------------------------------------------------------------
 
 void DestroyBuffer(Buffer buffer) {
-	if (buffer.handle) {
+	if (buffer) {
 		BufferObj* const bufferObj = bufferObjs.Get(buffer);
 		DestroyVk(bufferObj->vkBuffer, vkDestroyBuffer);
 		DestroyVk(bufferObj->allocation.vkDeviceMemory, vkFreeMemory);
@@ -1472,7 +1480,7 @@ Res<Image> CreateImage(U32 width, U32 height, ImageFormat format, ImageUsage::Fl
 //-------------------------------------------------------------------------------------------------
 
 void DestroyImage(Image image) {
-	if (image.handle) {
+	if (image) {
 		ImageObj* const imageObj = imageObjs.Get(image);
 		DestroyVk(imageObj->vkImageView, vkDestroyImageView);
 		DestroyVk(imageObj->vkImage, vkDestroyImage);
@@ -1534,7 +1542,7 @@ Res<Shader> CreateShader(void const* data, U64 len) {
 //-------------------------------------------------------------------------------------------------
 
 void DestroyShader(Shader shader) {
-	if (shader.handle) {
+	if (shader) {
 		ShaderObj* const shaderObj = shaderObjs.Get(shader);
 		DestroyVk(shaderObj->vkShaderModule, vkDestroyShaderModule);
 		shaderObjs.Free(shader);
@@ -1772,7 +1780,7 @@ Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> col
 //-------------------------------------------------------------------------------------------------
 
 void DestroyPipeline(Pipeline pipeline) {
-	if (pipeline.handle) {
+	if (pipeline) {
 		PipelineObj* const pipelineObj = pipelineObjs.Get(pipeline);
 		DestroyVk(pipelineObj->vkPipeline, vkDestroyPipeline);
 		DestroyVk(pipelineObj->vkPipelineLayout, vkDestroyPipelineLayout);
@@ -2286,7 +2294,7 @@ void BeginPass(Pass const* pass) {
 
 	ImageObj* depthImageObj = 0;
 	VkRenderingAttachmentInfo vkDepthRenderingAttachmentInfo;
-	if (pass->depthAttachment.handle) {
+	if (pass->depthAttachment) {
 		depthImageObj = imageObjs.Get(pass->depthAttachment);
 		vkDepthRenderingAttachmentInfo = {
 			.sType              = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -2306,7 +2314,7 @@ void BeginPass(Pass const* pass) {
 		.sType                = VK_STRUCTURE_TYPE_RENDERING_INFO,
 		.pNext                = 0,
 		.flags                = 0,
-		.renderArea           = { .offset = { 0, 0 }, .extent = { .width = (U32)pass->viewport.w, .height = (U32)pass->viewport.h} },
+		.renderArea           = { .offset = { 0, 0 }, .extent = { .width = (U32)pass->viewport.width, .height = (U32)pass->viewport.height } },
 		.layerCount           = 1,
 		.viewMask             = 0,
 		.colorAttachmentCount = (U32)pass->colorAttachments.len,
@@ -2319,8 +2327,8 @@ void BeginPass(Pass const* pass) {
 	VkViewport const vkViewport = {
 		.x        = pass->viewport.x,
 		.y        = pass->viewport.y,
-		.width    = pass->viewport.w,
-		.height   = pass->viewport.h,
+		.width    = pass->viewport.width,
+		.height   = pass->viewport.height,
 		.minDepth = 0.0f,
 		.maxDepth = 1.0f,
 	};

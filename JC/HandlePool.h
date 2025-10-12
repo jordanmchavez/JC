@@ -7,51 +7,43 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-// Intrusive, assumes T.free is a T*
-template <class T, U32 N> struct ObjPool {
-	T   objs[N];
-	U32 len;
-	T*  free;
-
-	T* Alloc() {
-		if (free) {
-			T* obj = free;
-			free = free->next;
-			return obj;
-		}
-		Assert(len < N);
-		return &objs[len++];
-	}
-
-	void Free(T* obj) {
-		obj->next = free;
-		free = obj;
-	}
-};
-
-//--------------------------------------------------------------------------------------------------
-
-// H must be of the form 
-// struct { U64 handle = 0; };
-template <class T, class H, U32 N> struct HandlePool {
+// H must be declared using DefHandle(H)
+template <class T, class H> struct HandlePool {
 	struct Entry {
 		T   obj = {};
 		U32 gen = 0;
 		U32 idx = 0;
 
-		H Handle() const { return H { .handle = ((U64)gen << 32) | idx }; }
+		H Handle() const { return H { .idx = idx, .gen = gen }; }
 	};
 
-	Entry entries[N];
-	U32   len  = 1;
-	U32   gen  = 1;
-	U32   free = 0;
+	Entry* entries;
+	U32    len;
+	U32    cap;
+	U32    gen;
+	U32    free;
+
+	void Init(Mem::Mem mem, U32 cap_) {
+		entries = Mem::AllocT<Entry>(mem, cap_);
+		len     = 0;
+		cap     = cap_;
+		gen     = 1;
+		free    = 0;
+	}
+
+	void Init(Entry* entries_, U32 cap_) {
+		entries = entries_;
+		len     = 0;
+		cap     = cap_;
+		gen     = 1;
+		free    = 0;
+	}
 
 	Entry* GetEntry(H h) {
-		const U32 i = (U32)(h.handle & 0xffffffff);
-		const U32 g = (U32)(h.handle >> 32);
-		Assert(i > 0 && i < len);
-		Assert(g);
+		const U32 i = h.idx;
+		const U32 g = h.gen;
+		Assert(i < len);
+		Assert(g > 0);
 		Entry* const entry = &entries[i];
 		Assert(entry->gen == g);
 		Assert(entry->idx == i);
@@ -66,9 +58,9 @@ template <class T, class H, U32 N> struct HandlePool {
 		U32 i = 0;
 		if (free) {
 			i = free;
-			free = (U32)entries[free].idx;	// next
+			free = entries[free].idx;	// next
 		} else {
-			Assert(len < N);
+			Assert(len < cap);
 			i = len;
 			len++;
 		}

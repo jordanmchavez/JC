@@ -247,3 +247,5 @@ Report vulkan linear block internal fragmentation (amt we lose at the end of the
 Test vk mem alloc paths: reducing chunk size when out of memory, dedicated/arena boundary conditions, etc
 
 Redo Fmt_WriteF64 to make it more efficient, compare to stb_printf
+Move all static bounds to config
+cvar/config

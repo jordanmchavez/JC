@@ -1,6 +1,6 @@
 ﻿#include "JC/Common_Fmt.h"
 
-#include "JC/Array.h"
+#include "JC/Common_Assert.h"
 #include "JC/Unit.h"
 #include <math.h>
 #include "3rd/dragonbox/dragonbox.h"
@@ -21,8 +21,8 @@ static constexpr U32 Flag_Upper = 1 << 8;
 
 //--------------------------------------------------------------------------------------------------
 
-struct FixedOut {
-	char* begin;
+struct FixedBuf {
+	char* begin;	// only needed for debugging
 	char* cur;
 	char* end;
 
@@ -32,16 +32,16 @@ struct FixedOut {
 		}
 	}
 
+	void Add(char c, U64 n) {
+		n = Min((U64)(end - cur), n);
+		memset(cur, c, n);
+		cur += n;
+	}
+
 	void Add(char const* str, U64 strLen) {
 		strLen = Min((U64)(end - cur), strLen);
 		memcpy(cur, str, strLen);
 		cur += strLen;
-	}
-
-	void Fill(char c, U64 n) {
-		n = Min((U64)(end - cur), n);
-		memset(cur, c, n);
-		cur += n;
 	}
 };
 
@@ -137,11 +137,11 @@ static void PrintStr(Out* out, Str str, U32 flags, U32 width, U32 prec) {
 	U32 const pad = (width > (U32)str.len) ? width - (U32)str.len : 0;
 	bool left = flags & Flag_Left;
 	if (!left) {
-		out->Fill(' ', pad);
+		out->Add(' ', pad);
 	}
 	out->Add(str.data, str.len);
 	if (left) {
-		out->Fill(' ', pad);
+		out->Add(' ', pad);
 	}
 }
 
@@ -163,12 +163,12 @@ static void PrintI64(Out* out, I64 i, U32 flags, U32 width, U32) {	// prec unuse
 	U32 zeros = 0;
 	if (!(flags & Flag_Left)) {
 		if (flags & Flag_Zero) { zeros = pad; }
-		else { out->Fill(' ', pad); }
+		else { out->Add(' ', pad); }
 	}
 	if (sign) { out->Add(sign); }
-	out->Fill('0', zeros);
+	out->Add('0', zeros);
 	out->Add(str.data, str.len);
-	if (flags & Flag_Left) { out->Fill(' ', pad); }
+	if (flags & Flag_Left) { out->Add(' ', pad); }
 }
 
 //--------------------------------------------------------------------------------------------------	
@@ -191,12 +191,12 @@ static void PrintU64(Out* out, U64 u, U32 flags, U32 width, U32) {	// prec unuse
 	U32 zeros = 0;
 	if (!(flags & Flag_Left)) {
 		if (flags & Flag_Zero) { zeros = pad; }
-		else { out->Fill(' ', pad); }
+		else { out->Add(' ', pad); }
 	}
 	if (sign) { out->Add(sign); }
-	out->Fill('0', zeros);
+	out->Add('0', zeros);
 	out->Add(str.data, str.len);
-	if (flags & Flag_Left) { out->Fill(' ', pad); }
+	if (flags & Flag_Left) { out->Add(' ', pad); }
 }
 
 //--------------------------------------------------------------------------------------------------	
@@ -213,10 +213,10 @@ static void PrintF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
 		Str const str = (fpc == FP_INFINITE) ? "inf" : "nan";
 		U32 const len = (sign ? 1 : 0) + 3;
 		U32 const pad = (width > len) ? width - len: 0;
-		if (!(flags & Flag_Left)) { out->Fill(' ', pad); }
+		if (!(flags & Flag_Left)) { out->Add(' ', pad); }
 		if (sign) { out->Add(sign); }
 		out->Add(str.data, str.len);
-		if (flags & Flag_Left) { out->Fill(' ', pad); }
+		if (flags & Flag_Left) { out->Add(' ', pad); }
 		return;
 	}
 
@@ -317,17 +317,17 @@ static void PrintF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
 		if (flags & Flag_Zero) {
 			intLeadZeros = pad;
 		} else {
-			out->Fill(' ', pad);
+			out->Add(' ', pad);
 		}
 	}
 	if (sign) { out->Add(sign); }
-	out->Fill('0', intLeadZeros);
+	out->Add('0', intLeadZeros);
 	out->Add(sigStr.data, intDigs);
-	out->Fill('0', intTrailZeros);
+	out->Add('0', intTrailZeros);
 	out->Add('.');
-	out->Fill('0', fracLeadZeros);
+	out->Add('0', fracLeadZeros);
 	out->Add(sigStr.data + intDigs, fracDigs);
-	out->Fill('0', fracTrailZeros);
+	out->Add('0', fracTrailZeros);
 	if (sci) {
 		out->Add((flags & Flag_Upper) ? 'E' : 'e');
 		if (dispExpSign) {
@@ -349,7 +349,7 @@ static void PrintF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
 		out->Add(ten[1]);
 	}
 	if (flags & Flag_Left) {
-		out->Fill(' ', pad);
+		out->Add(' ', pad);
 	}
 }
 
@@ -370,12 +370,12 @@ static void PrintPtr(Out* out, void const* p, U32 flags, U32 width, U32) {	// pr
 	U32 zeros = 0;
 	if (!(flags & Flag_Left)) {
 		if (flags & Flag_Zero) { zeros = pad; }
-		else { out->Fill(' ', pad); }
+		else { out->Add(' ', pad); }
 	}
 	out->Add("0x", 2);
-	out->Fill('0', zeros);
+	out->Add('0', zeros);
 	out->Add(buf, 16);
-	if (flags & Flag_Left) { out->Fill(' ', pad); }
+	if (flags & Flag_Left) { out->Add(' ', pad); }
 }
 
 //--------------------------------------------------------------------------------------------------	
@@ -390,12 +390,12 @@ void PrintImpl(Out* out, char const* fmt, Span<Arg::Arg const> args) {
 		while (*f != '%') {
 			if (*f == 0) {
 				Assert(argIdx == args.len);
-				out->Add(start, (U32)(f - start));
+				out->Add(start, (U64)(f - start));
 				return;
 			}
 			f++;
 		}
-		out->Add(start, (U32)(f - start));
+		out->Add(start, (U64)(f - start));
 		f++;
 
 		if (*f == '%') {
@@ -476,27 +476,108 @@ void PrintImpl(Out* out, char const* fmt, Span<Arg::Arg const> args) {
 
 //--------------------------------------------------------------------------------------------------	
 
-Str Printv(Mem::Mem* mem, char const* fmt, Span<Arg::Arg const> args) {
-	Array<char> arr(mem);
-	PrintImpl(&arr, fmt, args);
-	return Str(arr.data, (U32)arr.len);
-
-}
-
-void Printv(Array<char>* arr, char const* fmt, Span<Arg::Arg const> args) {
-	PrintImpl(arr, fmt, args);
+Str Printv(Mem::Mem mem, char const* fmt, Span<Arg::Arg const> args) {
+	PrintBuf pb(mem);
+	PrintImpl(&pb, fmt, args);
+	return pb.ToStr();
 }
 
 char* Printv(char* outBegin, char* outEnd, char const* fmt, Span<Arg::Arg const> args) {
-	FixedOut fixedOut = { .begin = outBegin, .cur = outBegin, .end = outEnd };
-	PrintImpl(&fixedOut, fmt, args);
-	return fixedOut.cur;
+	FixedBuf fb = { .begin = outBegin, .cur = outBegin, .end = outEnd };
+	PrintImpl(&fb, fmt, args);
+	return fb.cur;
+}
+
+//--------------------------------------------------------------------------------------------------	
+
+PrintBuf::PrintBuf(Mem::Mem mem_) {
+	mem  = mem_;
+	data = nullptr;
+	len  = 0;
+	cap  = 0;
+}
+
+//--------------------------------------------------------------------------------------------------	
+
+void GrowPrintBuf(PrintBuf* pb, U64 n, SrcLoc sl) {
+	U64 const newCap = Max(pb->cap * 2, pb->len + n);
+	if (!Mem::ExtendT<char>(pb->mem, pb->data, newCap, sl)) {
+		char* const newData = Mem::AllocT<char>(pb->mem, newCap, sl);
+		memcpy(newData, pb->data, pb->len);
+		pb->data = newData;
+	}
+	pb->cap = newCap;
+}
+
+//--------------------------------------------------------------------------------------------------	
+
+void PrintBuf::Add(char c, SrcLoc sl) {
+	if (len >= cap) {
+		GrowPrintBuf(this, 1, sl);
+	}
+	data[len++] = c;
+}
+
+//--------------------------------------------------------------------------------------------------	
+
+void PrintBuf::Add(char c, U64 n, SrcLoc sl) {
+	if (len + n >= cap) {
+		GrowPrintBuf(this, n, sl);
+	}
+	memset(data + len, c, n);
+	len += n;
+}
+
+//--------------------------------------------------------------------------------------------------	
+
+void PrintBuf::Add(char const* s, U64 sLen, SrcLoc sl) {
+	if (len + sLen >= cap) {
+		GrowPrintBuf(this, sLen, sl);
+	}
+	memcpy(data + len, s, sLen);
+	len += sLen;
+}
+
+//--------------------------------------------------------------------------------------------------	
+
+void PrintBuf::Add(Str s, SrcLoc sl) {
+	if (len + s.len >= cap) {
+		GrowPrintBuf(this, s.len, sl);
+	}
+	memcpy(data + len, s.data, s.len);
+	len += s.len;
+}
+
+//--------------------------------------------------------------------------------------------------	
+
+void PrintBuf::Remove() {
+	Assert(len > 0);
+	len--;
+}
+
+//--------------------------------------------------------------------------------------------------	
+
+void PrintBuf::Remove(U64 n) {
+	Assert(len >= n);
+	len -= n;
+}
+
+//--------------------------------------------------------------------------------------------------	
+
+void PrintBuf::Printv(char const* fmt, Span<Arg::Arg const> args) {
+	PrintImpl(this, fmt, args);
 }
 
 //--------------------------------------------------------------------------------------------------	
 
 Unit_Test("Fmt") {
-	#define CheckPrintf(expect, fmt, ...) { Unit_CheckEq(expect, Printf(testMem, fmt, ##__VA_ARGS__)); }
+	#define CheckPrintf(expect, fmt, ...) \
+		{ \
+			Mem::Scope sope(testMem); \
+			PrintBuf pb(testMem); \
+			pb.Printf(fmt, ##__VA_ARGS__); \
+			Unit_CheckEq(expect, Str(pb.data, pb.len)); \
+		}
 
 	// Escape sequences
 	CheckPrintf("%", "%%");

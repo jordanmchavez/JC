@@ -2,6 +2,7 @@
 
 #include "JC/Common_Arg.h"
 #include "JC/Common_Mem.h"
+#include "JC/Common_SrcLoc.h"
 
 namespace JC::Fmt {
 
@@ -105,21 +106,39 @@ template <class... A> using CheckStr = _CheckStr<typename TypeIdentity<A>::Type.
 
 //--------------------------------------------------------------------------------------------------
 
-Str   Printv(Mem::Mem* mem,                 char const* fmt, Span<Arg::Arg const> args);
-void  Printv(Array<char>* arr,              char const* fmt, Span<Arg::Arg const> args);
+Str Printv(Mem::Mem mem, char const* fmt, Span<Arg::Arg const> args);
 char* Printv(char* outBegin,  char* outEnd, char const* fmt, Span<Arg::Arg const> args);
 
-template <class... A> Str Printf(Mem::Mem* mem, CheckStr<A...> fmt, A... args) {
+template <class... A> Str Printf(Mem::Mem mem, CheckStr<A...> fmt, A... args) {
 	return Printv(mem, fmt.fmt, { Arg::Make(args)... });
-}
-
-template <class... A> void Printf(Array<char>* arr, CheckStr<A...> fmt, A... args) {
-	Printv(arr, fmt.fmt, { Arg::Make(args)... });
 }
 
 template <class... A> char* Printf(char* outBegin, char* outEnd, CheckStr<A...> fmt, A... args) {
 	return Printv(outBegin, outEnd, fmt.fmt, { Arg::Make(args)... });
 }
+
+//--------------------------------------------------------------------------------------------------
+
+struct PrintBuf {
+	Mem::Mem mem;
+	char*    data;
+	U64      len;
+	U64      cap;
+
+	PrintBuf(Mem::Mem mem);
+
+	void Add(char c, SrcLoc sl = SrcLoc::Here());
+	void Add(char c, U64 n, SrcLoc sl = SrcLoc::Here());
+	void Add(char const* str, U64 strLen, SrcLoc sl = SrcLoc::Here());
+	void Add(Str s, SrcLoc sl = SrcLoc::Here());
+	void Remove();
+	void Remove(U64 n);
+
+	void Printv(char const* fmt, Span<Arg::Arg const> args);
+	template <class... A> void Printf(Fmt::CheckStr<A...> fmt, A... args) { Printv(fmt, { Arg::Make(args)... }); }
+
+	inline Str ToStr() const { return Str(data, len); }
+};
 
 //--------------------------------------------------------------------------------------------------
 

@@ -2,8 +2,7 @@
 
 #include "JC/Gpu.h"
 #include "JC/Gpu_Vk.h"
-
-#include "JC/Array.h"
+#include "JC/Common_Assert.h"
 
 namespace JC::Gpu {
 
@@ -11,8 +10,6 @@ namespace JC::Gpu {
 
 extern VkDevice               vkDevice;
 extern VkAllocationCallbacks* vkAllocationCallbacks;
-
-static void Add(Array<char>* a, Str s) { a->Add(s.data, s.len); }
 
 //--------------------------------------------------------------------------------------------------
 
@@ -736,33 +733,33 @@ Str FormatStr(VkFormat f) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str MemoryHeapFlagsStr(Mem::Mem* mem, VkMemoryHeapFlags f) {
-	Array<char> a(mem);
-	if (f & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)   { Add(&a, "VK_MEMORY_HEAP_DEVICE_LOCAL_BIT|"); }
-	if (f & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT) { Add(&a, "VK_MEMORY_HEAP_MULTI_INSTANCE_BIT|"); }       
-	if (a.len > 0) {
-		a.len--;
+Str MemoryHeapFlagsStr(Mem::Mem mem, VkMemoryHeapFlags f) {
+	Fmt::PrintBuf pb(mem);
+	if (f & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)   { pb.Add("VK_MEMORY_HEAP_DEVICE_LOCAL_BIT|"); }
+	if (f & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT) { pb.Add("VK_MEMORY_HEAP_MULTI_INSTANCE_BIT|"); }       
+	if (pb.len > 0) {
+		pb.len--;
 	}
-	return Str(a.data, (U32)a.len);
+	return pb.ToStr();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Str MemoryPropertyFlagsStr(Mem::Mem* mem, VkMemoryPropertyFlags f) {
-	Array<char> a(mem);
-	if (f & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)        { Add(&a, "VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT|"); }
-	if (f & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)        { Add(&a, "VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|"); }       
-	if (f & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)       { Add(&a, "VK_MEMORY_PROPERTY_HOST_COHERENT_BIT|"); }
-	if (f & VK_MEMORY_PROPERTY_HOST_CACHED_BIT)         { Add(&a, "VK_MEMORY_PROPERTY_HOST_CACHED_BIT|"); } 
-	if (f & VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT)    { Add(&a, "VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT|"); }
-	if (f & VK_MEMORY_PROPERTY_PROTECTED_BIT)           { Add(&a, "VK_MEMORY_PROPERTY_PROTECTED_BIT|"); }
-	if (f & VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD) { Add(&a, "VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD|"); }
-	if (f & VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD) { Add(&a, "VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD|"); }
-	if (f & VK_MEMORY_PROPERTY_RDMA_CAPABLE_BIT_NV)     { Add(&a, "VK_MEMORY_PROPERTY_RDMA_CAPABLE_BIT_NV|"); }
-	if (a.len > 0) {
-		a.len--;
+Str MemoryPropertyFlagsStr(Mem::Mem mem, VkMemoryPropertyFlags f) {
+	Fmt::PrintBuf pb(mem);
+	if (f & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)        { pb.Add("VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT|"); }
+	if (f & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)        { pb.Add("VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|"); }       
+	if (f & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)       { pb.Add("VK_MEMORY_PROPERTY_HOST_COHERENT_BIT|"); }
+	if (f & VK_MEMORY_PROPERTY_HOST_CACHED_BIT)         { pb.Add("VK_MEMORY_PROPERTY_HOST_CACHED_BIT|"); } 
+	if (f & VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT)    { pb.Add("VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT|"); }
+	if (f & VK_MEMORY_PROPERTY_PROTECTED_BIT)           { pb.Add("VK_MEMORY_PROPERTY_PROTECTED_BIT|"); }
+	if (f & VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD) { pb.Add("VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD|"); }
+	if (f & VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD) { pb.Add("VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD|"); }
+	if (f & VK_MEMORY_PROPERTY_RDMA_CAPABLE_BIT_NV)     { pb.Add("VK_MEMORY_PROPERTY_RDMA_CAPABLE_BIT_NV|"); }
+	if (pb.len > 0) {
+		pb.len--;
 	}
-	return Str(a.data, (U32)a.len);
+	return pb.ToStr();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -781,20 +778,20 @@ Str PresentModeStr(VkPresentModeKHR m) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str QueueFlagsStr(Mem::Mem* mem, VkQueueFlags f) {
-	Array<char> a(mem);
-	if (f & VK_QUEUE_GRAPHICS_BIT)         { Add(&a, "VK_QUEUE_GRAPHICS_BIT|"); }
-	if (f & VK_QUEUE_COMPUTE_BIT)          { Add(&a, "VK_QUEUE_COMPUTE_BIT|"); }
-	if (f & VK_QUEUE_TRANSFER_BIT)         { Add(&a, "VK_QUEUE_TRANSFER_BIT|"); }
-	if (f & VK_QUEUE_SPARSE_BINDING_BIT)   { Add(&a, "VK_QUEUE_SPARSE_BINDING_BIT|"); }
-	if (f & VK_QUEUE_PROTECTED_BIT)        { Add(&a, "VK_QUEUE_PROTECTED_BIT|"); }
-	if (f & VK_QUEUE_VIDEO_DECODE_BIT_KHR) { Add(&a, "VK_QUEUE_VIDEO_DECODE_BIT_KHR|"); }
-	if (f & VK_QUEUE_VIDEO_ENCODE_BIT_KHR) { Add(&a, "VK_QUEUE_VIDEO_ENCODE_BIT_KHR|"); }
-	if (f & VK_QUEUE_OPTICAL_FLOW_BIT_NV)  { Add(&a, "VK_QUEUE_OPTICAL_FLOW_BIT_NV|"); }
-	if (a.len > 0) {
-		a.len--;
+Str QueueFlagsStr(Mem::Mem mem, VkQueueFlags f) {
+	Fmt::PrintBuf pb(mem);
+	if (f & VK_QUEUE_GRAPHICS_BIT)         { pb.Add("VK_QUEUE_GRAPHICS_BIT|"); }
+	if (f & VK_QUEUE_COMPUTE_BIT)          { pb.Add("VK_QUEUE_COMPUTE_BIT|"); }
+	if (f & VK_QUEUE_TRANSFER_BIT)         { pb.Add("VK_QUEUE_TRANSFER_BIT|"); }
+	if (f & VK_QUEUE_SPARSE_BINDING_BIT)   { pb.Add("VK_QUEUE_SPARSE_BINDING_BIT|"); }
+	if (f & VK_QUEUE_PROTECTED_BIT)        { pb.Add("VK_QUEUE_PROTECTED_BIT|"); }
+	if (f & VK_QUEUE_VIDEO_DECODE_BIT_KHR) { pb.Add("VK_QUEUE_VIDEO_DECODE_BIT_KHR|"); }
+	if (f & VK_QUEUE_VIDEO_ENCODE_BIT_KHR) { pb.Add("VK_QUEUE_VIDEO_ENCODE_BIT_KHR|"); }
+	if (f & VK_QUEUE_OPTICAL_FLOW_BIT_NV)  { pb.Add("VK_QUEUE_OPTICAL_FLOW_BIT_NV|"); }
+	if (pb.len > 0) {
+		pb.len--;
 	}
-	return Str(a.data, (U32)a.len);
+	return pb.ToStr();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -870,13 +867,13 @@ Str PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str VersionStr(Mem::Mem* mem, U32 v) {
+Str VersionStr(Mem::Mem mem, U32 v) {
 	return Fmt::Printf(mem, "%u.%u.%u", VK_API_VERSION_MAJOR(v), VK_API_VERSION_MINOR(v), VK_API_VERSION_PATCH(v));
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Str SizeStr(Mem::Mem* mem, U64 size) {
+Str SizeStr(Mem::Mem mem, U64 size) {
 	if (size > 1024 * 1024 * 1024) {
 		return Fmt::Printf(mem, "%.1fgb", (F64)size / (1024.0 * 1024.0 * 1024.0));
 	}

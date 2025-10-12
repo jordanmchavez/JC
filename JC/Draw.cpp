@@ -3,11 +3,11 @@
 #include "JC/Array.h"
 #include "JC/Bit.h"
 #include "JC/FS.h"
+#include "JC/HandlePool.h"
 #include "JC/Gpu.h"
 #include "JC/Log.h"
 #include "JC/Map.h"
 #include "JC/Math.h"
-#include "JC/Pool.h"
 
 #include "stb/stb_image.h"
 
@@ -23,8 +23,11 @@ Err_Def(Draw, SpriteNotFound);
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr U32 MaxDrawCmds = 1 * 1024 * 1024;
-static constexpr U32 MaxCanvases = 64;
+static constexpr U32 MaxDrawCmds          = 1 * MB;
+static constexpr U32 MaxSpriteAtlasImages = 64;
+static constexpr U32 MaxSprites           = 1 * MB;
+static constexpr U32 MaxCanvases          = 64;
+static constexpr U32 MaxPasses            = 64;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -68,7 +71,7 @@ struct CanvasObj {
 	Vec2             size;
 };
 
-using CanvasPool = HandlePool<CanvasObj, Canvas, MaxCanvases>;
+using CanvasPool = HandlePool<CanvasObj, Canvas>;
 
 struct Pass {
 	Canvas canvas;
@@ -78,39 +81,55 @@ struct Pass {
 
 //--------------------------------------------------------------------------------------------------
 
-static U32                windowWidth;
-static U32                windowHeight;
-static Gpu::Image         depthImage;
-static Gpu::Shader        vertexShader;
-static Gpu::Shader        fragmentShader;
-static Gpu::Pipeline      pipeline;
-static Gpu::Buffer        sceneBuffer;
-static U64                sceneBufferAddr;
-static Scene              scene;
-static Gpu::Buffer        drawCmdBuffer;
-static U64                drawCmdBufferAddr;
-static DrawCmd*           drawCmds;
-static U32                drawCmdCount;
-static CanvasPool         canvasObjs;
-static Canvas             swapchainCanvas;
-static Gpu::Image  spriteImages;
-static SpriteObj   spriteObjs;
-static Map<Str, U32>      spriteObjsByName;
-static Pass        passes;
+static Mem::Mem      permMem;
+static Mem::Mem      tempMem;
+static U32           windowWidth;
+static U32           windowHeight;
+static Gpu::Image    depthImage;
+static Gpu::Shader   vertexShader;
+static Gpu::Shader   fragmentShader;
+static Gpu::Pipeline pipeline;
+static Gpu::Buffer   sceneBuffer;
+static U64           sceneBufferAddr;
+static Scene         scene;
+static Gpu::Buffer   drawCmdBuffer;
+static U64           drawCmdBufferAddr;
+static DrawCmd*      drawCmds;
+static U32           drawCmdCount;
+static CanvasPool    canvasObjs;
+static Canvas        swapchainCanvas;
+static Pass*         passes;
+static U32           passesLen;
+static Gpu::Image*   spriteAtlasImages;
+static U32           spriteAtlasImagesLen;
+static SpriteObj*    spriteObjs;
+static U32           spriteObjsLen;
+static Map<Str, U32> spriteObjsByName;
 
 //--------------------------------------------------------------------------------------------------
 
 static Res<Gpu::Shader> LoadShader(Str path) {
 	Span<U8> data;
-	if (Res<> r = FS::ReadAll(tempAllocator, path).To(data); !r) { return r.err; }
+	if (Res<> r = FS::ReadAll(tempMem, path).To(data); !r) { return r.err; }
 	return Gpu::CreateShader(data.data, data.len);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Init(const InitDesc* initDesc) {
-	windowWidth   = initDesc->windowWidth;
-	windowHeight  = initDesc->windowHeight;
+Res<> Init(InitDesc const* initDesc) {
+	permMem      = initDesc->permMem;
+	tempMem      = initDesc->tempMem;
+	windowWidth  = initDesc->windowWidth;
+	windowHeight = initDesc->windowHeight;
+
+	canvasObjs.Init(permMem, MaxCanvases);
+	passes               = Mem::AllocT<Pass>(permMem, MaxPasses);
+	passesLen            = 0;
+	spriteAtlasImages    = Mem::AllocT<Gpu::Image>(permMem, MaxSpriteAtlasImages);
+	spriteAtlasImagesLen = 0;
+	spriteObjs           = Mem::AllocT<SpriteObj>(permMem, MaxSprites);
+	spriteObjsLen        = 0;
+	spriteObjsByName.Init(permMem, MaxSprites);
 
 	Try(Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(depthImage));
 	Gpu_Name(depthImage);
@@ -135,7 +154,7 @@ Res<> Init(const InitDesc* initDesc) {
 	Gpu_Name(drawCmdBuffer);
 	drawCmdBufferAddr = Gpu::GetBufferAddr(drawCmdBuffer);
 
-	const Vec2 windowSize = Vec2((F32)windowWidth, (F32)windowHeight);
+	Vec2 const windowSize = Vec2((F32)windowWidth, (F32)windowHeight);
 	CanvasPool::Entry* const entry = canvasObjs.Alloc();
 	entry->obj = {
 		.colorImage       = Gpu::Image(),
@@ -151,21 +170,14 @@ Res<> Init(const InitDesc* initDesc) {
 		-100.0f, 100.0f
 	);
 
-
-	spriteImages.Init(allocator);
-	spriteObjs.Init(allocator);
-	spriteObjs.Add(SpriteObj{});	// reserve 0 for invalid
-	spriteObjsByName.Init(allocator);
-	passes.Init(allocator);
-
 	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
 void Shutdown() {
-	for (U64 i = 0; i < spriteImages.len; i++) {
-		Gpu::DestroyImage(spriteImages[i]);
+	for (U64 i = 0; i < spriteAtlasImagesLen; i++) {
+		Gpu::DestroyImage(spriteAtlasImages[i]);
 	}
 	Gpu::DestroyBuffer(sceneBuffer);
 	Gpu::DestroyBuffer(drawCmdBuffer);
@@ -186,7 +198,7 @@ Res<> WindowResized(U32 inWindowWidth, U32 inWindowHeight) {
 	Gpu::DestroyImage(depthImage);
 	Try(Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(depthImage));
 
-	const Vec2 windowSize = Vec2((F32)windowWidth, (F32)windowHeight);
+	Vec2 const windowSize = Vec2((F32)windowWidth, (F32)windowHeight);
 	scene.projViews[canvasObjs.GetEntry(swapchainCanvas)->idx] = Math::Ortho(
 		0.0f, windowSize.x,
 		windowSize.y, 0.0f,
@@ -204,7 +216,7 @@ Res<> WindowResized(U32 inWindowWidth, U32 inWindowHeight) {
 
 static Res<Gpu::Image> LoadImage(Str path) {
 	Span<U8> data;
-	if (Res<> r = FS::ReadAll(tempAllocator, path).To(data); !r) { return r.err; }
+	if (Res<> r = FS::ReadAll(tempMem, path).To(data); !r) { return r.err; }
 
 	int width = 0;
 	int height = 0;
@@ -213,7 +225,7 @@ static Res<Gpu::Image> LoadImage(Str path) {
 	if (!imageData) {
 		return Err_LoadImage("path", path, "desc", stbi_failure_reason());
 	}
-	JC_DEFER { stbi_image_free(imageData); };
+	Defer { stbi_image_free(imageData); };
 
 	if (channels != 3 && channels != 4) {
 		return Err_ImageFmt("path", path, "channels", channels);
@@ -221,7 +233,7 @@ static Res<Gpu::Image> LoadImage(Str path) {
 
 	U8* copySrc = imageData;
 	if (channels != 4) {
-		copySrc = (U8*)tempAllocator->Alloc(width * height * 4);
+		copySrc = (U8*)Mem::Alloc(tempMem, width * height * 4);
 		U8* imageDataIter = imageData;
 		U8* copySrcIter   = copySrc;
 		for (int y = 0; y < height; y++) {
@@ -244,15 +256,17 @@ static Res<Gpu::Image> LoadImage(Str path) {
 //--------------------------------------------------------------------------------------------------
 
 Res<> LoadSpriteAtlas(Str imagePath, Str atlasPath) {
+	Assert(spriteAtlasImagesLen < MaxSpriteAtlasImages);
+
 	Gpu::Image image;
 	if (Res<> r = LoadImage(imagePath).To(image); !r) { return r; }
-	const U32 imageIdx = Gpu::GetImageBindIdx(image);
-	spriteImages.Add(image);
+	U32 const imageIdx = Gpu::GetImageBindIdx(image);
+	spriteAtlasImages[spriteAtlasImagesLen++] = image;
 
 	Span<U8> data;
-	if (Res<> r = FS::ReadAll(tempAllocator, atlasPath).To(data); !r) { return r.err; }	// TODO: ctx
+	if (Res<> r = FS::ReadAll(tempMem, atlasPath).To(data); !r) { return r.err; }	// TODO: ctx
 	Json::Doc* doc = 0;
-	if (Res<> r = Json::Parse(tempAllocator, tempAllocator, Str((const char*)data.data, data.len)).To(doc); !r) { return r.err; }	// TODO: ctx
+	if (Res<> r = Json::Parse(tempMem, tempMem, Str((char const*)data.data, data.len)).To(doc); !r) { return r.err; }	// TODO: ctx
 
 	Json::Elem root = Json::GetRoot(doc);
 	if (root.type != Json::Type::Arr) { return Err_AtlasFmt(); }	// TODO: ctx
@@ -268,18 +282,18 @@ Res<> LoadSpriteAtlas(Str imagePath, Str atlasPath) {
 		if (Json::GetStr(doc, obj.keys[3]) != "h"   ) { return Err_AtlasFmt(); }
 		if (Json::GetStr(doc, obj.keys[4]) != "name") { return Err_AtlasFmt(); }
 
-		const U64 ix   = Json::GetU64(doc, obj.vals[0]);
-		const U64 iy   = Json::GetU64(doc, obj.vals[1]);
-		const U64 iw   = Json::GetU64(doc, obj.vals[2]);
-		const U64 ih   = Json::GetU64(doc, obj.vals[3]);
-		const Str name = Json::GetStr(doc, obj.vals[4]);
+		U64 const ix   = Json::GetU64(doc, obj.vals[0]);
+		U64 const iy   = Json::GetU64(doc, obj.vals[1]);
+		U64 const iw   = Json::GetU64(doc, obj.vals[2]);
+		U64 const ih   = Json::GetU64(doc, obj.vals[3]);
+		Str const name = Json::GetStr(doc, obj.vals[4]);
 
-		const F32 imageWidth  = (F32)Gpu::GetImageWidth(image);
-		const F32 imageHeight = (F32)Gpu::GetImageHeight(image);
-		const F32 x = (F32)ix / imageWidth;
-		const F32 y = (F32)iy / imageHeight;
-		const F32 w = (F32)iw;
-		const F32 h = (F32)ih;
+		F32 const imageWidth  = (F32)Gpu::GetImageWidth(image);
+		F32 const imageHeight = (F32)Gpu::GetImageHeight(image);
+		F32 const x = (F32)ix / imageWidth;
+		F32 const y = (F32)iy / imageHeight;
+		F32 const w = (F32)iw;
+		F32 const h = (F32)ih;
 
 		if (spriteObjsByName.FindOrNull(name)) {
 			return Err_DuplicateSpriteName("path", atlasPath, "name", name);
@@ -301,7 +315,7 @@ Res<> LoadSpriteAtlas(Str imagePath, Str atlasPath) {
 //--------------------------------------------------------------------------------------------------
 
 Res<Sprite> GetSprite(Str name) {
-	const U32* const idx = spriteObjsByName.FindOrNull(name);
+	U32 const* const idx = spriteObjsByName.FindOrNull(name);
 	if (!idx) {
 		return Err_SpriteNotFound();
 	}
@@ -311,7 +325,7 @@ Res<Sprite> GetSprite(Str name) {
 //--------------------------------------------------------------------------------------------------
 
 Vec2 GetSpriteSize(Sprite sprite) {
-	JC_ASSERT(sprite.handle < spriteObjs.len);
+	Assert(sprite.handle > 0 && sprite.handle < spriteObjsLen);
 	return spriteObjs[sprite.handle].size;
 }
 
@@ -322,12 +336,12 @@ Res<Canvas> CreateCanvas(U32 width, U32 height) {
 	Try(Gpu::CreateImage(width, height, Gpu::ImageFormat::B8G8R8A8_UNorm, Gpu::ImageUsage::Color | Gpu::ImageUsage::Sampled).To(canvasColorImage));
 
 	Gpu::Image canvasDepthImage;
-	if (Res<> r = Gpu::CreateImage(width, height, Gpu::ImageFormat::D32_Float,      Gpu::ImageUsage::Depth).To(canvasDepthImage); !r) {
+	if (Res<> r = Gpu::CreateImage(width, height, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(canvasDepthImage); !r) {
 		Gpu::DestroyImage(canvasColorImage);
 		return r.err;
 	}
 
-	const Vec2 size = Vec2((F32)width, (F32)height);
+	Vec2 const size = Vec2((F32)width, (F32)height);
 	CanvasPool::Entry* const entry = canvasObjs.Alloc();
 	entry->obj = {
 		.colorImage       = canvasColorImage,
@@ -390,7 +404,7 @@ void EndFrame() {
 
 	passes[passes.len - 1].drawCmdEnd = drawCmdCount;
 	for (U64 i = 0; i < passes.len; i++) {
-		const Pass* const pass = &passes[i];
+		Pass const* const pass = &passes[i];
 		U32 const passDrawCmdCount = pass->drawCmdEnd - pass->drawCmdStart;
 		if (passDrawCmdCount == 0) {
 			continue;
@@ -398,7 +412,7 @@ void EndFrame() {
 
 		CanvasPool::Entry* const entry = canvasObjs.GetEntry(pass->canvas);
 		CanvasObj* canvasObj = &entry->obj;
-		const Gpu::Pass gpuPass = {
+		Gpu::Pass const gpuPass = {
 			.pipeline         = pipeline,
 			.colorAttachments = { canvasObj->colorImage },
 			.depthAttachment  = canvasObj->depthImage,

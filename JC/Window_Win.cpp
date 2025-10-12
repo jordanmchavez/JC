@@ -35,10 +35,10 @@ struct Window {
 	bool        focused;
 };
 
-static Mem::Mem* tempMem;
-static Display   displays[MaxDisplays];
-static U32       displaysLen;
-static Window    window;
+static Mem::Mem tempMem;
+static Display  displays[MaxDisplays];
+static U32      displaysLen;
+static Window   window;
 
 //----------------------------------------------------------------------------------------------
 
@@ -243,7 +243,7 @@ static BOOL MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
 //----------------------------------------------------------------------------------------------
 
 Res<> Init(const InitDesc* initDesc) {
-	tempMem = initDesc->tempMem;;
+	tempMem = initDesc->tempMem;
 
 	if (EnumDisplayMonitors(0, 0, MonitorEnumFn, 0) == FALSE) {
 		return Win_LastErr("EnumDisplayMonitors");

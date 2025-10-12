@@ -1,8 +1,7 @@
 #include "JC/Unit.h"
 
-#include "JC/Array.h"
+#include "JC/Common_Assert.h"
 #include "JC/Common_Fmt.h"
-#include "JC/Common_Mem.h"
 #include "JC/Log.h"
 #include "JC/Sys.h"
 
@@ -89,7 +88,10 @@ Subtest::~Subtest() {
 }
 
 bool Run() {
-	Mem::Mem* mem = Mem::Create((U64)8 * 1024 * 1024 * 1024);
+	Mem::Mem permMem = Mem::Create(16 * GB);
+	Mem::Mem tempMem = Mem::Create(16 * GB);
+
+	Log::Init(permMem, tempMem);
 
 	auto logFn = [](Log::Msg const* msg) {
 		Sys::Print(Str(msg->line, msg->lineLen));
@@ -110,23 +112,23 @@ bool Run() {
 			lastLen    = 1;
 			checkFails = 0;
 
-			tests[i].testFn(mem);
+			tests[i].testFn(tempMem);
 
-			Array<char> buf(mem);
+			Fmt::PrintBuf pb(tempMem);
 			if (checkFails > 0) {
-				Fmt::Printf(&buf, "Failed: ");
+				pb.Printf("Failed: ");
 				failedTests++;
 			} else {
-				Fmt::Printf(&buf, "Passed: ");
+				pb.Printf("Passed: ");
 				passedTests++;
 			}
 			for (U32 j = 0; j < lastLen; j++) {
-				Fmt::Printf(&buf, "%s::", last[j].name);
+				pb.Printf("%s::", last[j].name);
 			}
-			buf.Remove(2);
-			Logf("%s", Str(buf.data, (U32)buf.len));
+			pb.Remove(2);
+			Logf("%s", pb.ToStr());
 
-			Mem::Reset(mem);
+			Mem::Reset(tempMem, 0);
 		} while (nextLen > 0);
 	}
 
@@ -134,7 +136,6 @@ bool Run() {
 	Logf("Total failed: %u", failedTests);
 
 	Log::RemoveFn(logFn);
-	Mem::Destroy(mem);
 
 	return failedTests == 0;
 }

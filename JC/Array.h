@@ -9,23 +9,23 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 template <class T> struct Array {
-	Mem::Mem* mem;
-	T*        data;
-	U64       len;
-	U64       cap;
+	Mem::Mem mem;
+	T*       data;
+	U64      len;
+	U64      cap;
 
 	Array() { Init(0); }
 
-	explicit Array(Mem::Mem* mem_) {
+	explicit Array(Mem::Mem mem_) {
 		Init(mem_);
 	}
 
-	Array(Mem::Mem* mem_, U64 size) {
+	Array(Mem::Mem mem_, U64 size) {
 		Init(mem_);
 		Resize(size);
 	}
 
-	void Init(Mem::Mem* mem_) {
+	void Init(Mem::Mem mem_) {
 		mem = mem_;
 		data = 0;
 		len  = 0;

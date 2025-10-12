@@ -2,6 +2,7 @@
 
 #include "JC/Common_Arg.h"
 #include "JC/Common_Fmt.h"
+#include "JC/Common_Mem.h"
 #include "JC/Common_SrcLoc.h"
 #include "JC/Common_Std.h"
 
@@ -14,6 +15,8 @@ enum struct Level {
 	Error,
 };
 
+void Init(Mem::Mem permMem, Mem::Mem tempMem);
+
 void Printv(SrcLoc sl, Level level, char const*  fmt, Span<Arg::Arg const> args);
 
 template <class... A> void Printf(SrcLoc sl, Level level, Fmt::CheckStr<A...> fmt, A... args) {
@@ -25,7 +28,7 @@ template <class... A> void Printf(SrcLoc sl, Level level, Fmt::CheckStr<A...> fm
 
 struct Msg {
 	char const*          line;
-	U32                  lineLen;
+	U64                  lineLen;
 	SrcLoc               sl;
 	Level                level;
 	char const*          fmt;

@@ -2,6 +2,7 @@
 
 #include "JC/Common_Arg.h"
 #include "JC/Common_Fmt.h"
+#include "JC/Common_SrcLoc.h"
 
 namespace JC::Asrt {
 

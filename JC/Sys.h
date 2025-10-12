@@ -6,6 +6,11 @@ namespace JC::Sys {
 
 //--------------------------------------------------------------------------------------------------
 
+#if defined Platform_Windows
+	constexpr U32 MaxPath = 256;
+	constexpr U64 VirtualPageSize = 4096;
+#endif	// Platform
+
 struct Mutex {
 	#if defined Platform_Windows
 		U64 opaque = 0;

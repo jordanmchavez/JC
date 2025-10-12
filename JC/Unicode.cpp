@@ -1,6 +1,5 @@
 ﻿#include "JC/Unicode.h"
 
-#include "JC/Array.h"
 #include "JC/Unit.h"
 #include <wchar.h>
 
@@ -24,8 +23,10 @@ bool operator==(wchar_t const* s1, Span<wchar_t>  s2) { return !wcscmp(s1, s2.da
 
 //--------------------------------------------------------------------------------------------------
 
-Span<wchar_t> Utf8ToWtf16z(Mem::Mem* mem, Str s) {
-	Array<wchar_t> out(mem);
+Span<wchar_t> Utf8ToWtf16z(Mem::Mem mem, Str s) {
+	// Max WTF-16 encoding of a UTF-8 string is 2*len(utf8Str)
+	wchar_t* const out = Mem::AllocT<wchar_t>(mem, (s.len * 2) + 1);
+	U64 outLen = 0;
 
 	U8 const* p = (U8 const*)s.data;
 	U8 const* end = p + s.len;
@@ -51,56 +52,56 @@ Span<wchar_t> Utf8ToWtf16z(Mem::Mem* mem, Str s) {
 			cp = (U32)c1;
 
 		} else if (c1 >= 0xc2 && c1 <= 0xdf) {
-			if (p > end) { out.Add(L'?'); break; }
+			if (p > end) { out[outLen++] = L'?'; break; }
 			U32 const c2 = (U32)*p++;
-			if (c2 < 0x80 || c2 > 0xbf) { out.Add(L'?'); continue; }
+			if (c2 < 0x80 || c2 > 0xbf) { out[outLen++] = L'?'; continue; }
 			cp = ((c1 & 0x1f) << 6) + (c2 & 0x3f);
 
 		} else if (c1 <= 0xef) {
-			if (p + 1 > end) { out.Add(L'?'); break; }
+			if (p + 1 > end) { out[outLen++] = L'?'; break; }
 			U32 const c2 = (U32)*p++;
 			U32 const c3 = (U32)*p++;
 			if (c1 == 0xe0) {
-				if (c2 < 0xa0 || c2 > 0xbf) { out.Add(L'?'); continue; }
+				if (c2 < 0xa0 || c2 > 0xbf) { out[outLen++] = L'?'; continue; }
 			} else {
-				if (c2 < 0x80 || c2 > 0xbf) { out.Add(L'?'); continue; }
+				if (c2 < 0x80 || c2 > 0xbf) { out[outLen++] = L'?'; continue; }
 			}
-			if (c3 < 0x80 || c3 > 0xbf) { out.Add(L'?'); continue; }
+			if (c3 < 0x80 || c3 > 0xbf) { out[outLen++] = L'?'; continue; }
 			cp = ((c1 & 0xf) << 12) + ((c2 & 0x3f) << 6) + (c3 & 0x3f);
 
 		} else if (c1 <= 0xf4) {
 			if (p + 2 > end) {
-				out.Add(L'?');
+				out[outLen++] = L'?';
 				break;
 			}
 			U32 const c2 = (U32)*p++;
 			U32 const c3 = (U32)*p++;
 			U32 const c4 = (U32)*p++;
 			if (c1 == 0xf0) {
-				if (c2 < 0x90 || c2 > 0xbf) { out.Add(L'?'); continue; }
+				if (c2 < 0x90 || c2 > 0xbf) { out[outLen++] = L'?'; continue; }
 			} else if (c1 >= 0xf1 && c1 <= 0xf3) {
-				if (c2 < 0x80 || c2 > 0xbf) { out.Add(L'?'); continue; }
+				if (c2 < 0x80 || c2 > 0xbf) { out[outLen++] = L'?'; continue; }
 			} else {
-				if (c2 < 0x80 || c2 > 0x8f) { out.Add(L'?'); continue; }
+				if (c2 < 0x80 || c2 > 0x8f) { out[outLen++] = L'?'; continue; }
 			}
-			if (c3 < 0x80 || c3 > 0xbf) { out.Add(L'?'); continue; }
-			if (c4 < 0x80 || c4 > 0xbf) { out.Add(L'?'); continue; }
+			if (c3 < 0x80 || c3 > 0xbf) { out[outLen++] = L'?'; continue; }
+			if (c4 < 0x80 || c4 > 0xbf) { out[outLen++] = L'?'; continue; }
 			cp = ((c1 & 0x7) << 18) + ((c2 & 0x3f) << 12) + ((c3 & 0x3f) << 6) + (c4 & 0x3f);
 
 		} else {
-			out.Add(L'?');
+			out[outLen++] = L'?';
 		}
 
 		if (cp <= 0xffff) {
-			out.Add((wchar_t)cp);
+			out[outLen++] = (wchar_t)cp;
 		} else {
-			out.Add((wchar_t)((cp - 0x10000) >> 10) + 0xd800);
-			out.Add((wchar_t)((cp - 0x10000) & 0x3ff) + 0xdc00);
+			out[outLen++] = (wchar_t)((cp - 0x10000) >> 10) + 0xd800;
+			out[outLen++] = (wchar_t)((cp - 0x10000) & 0x3ff) + 0xdc00;
 		}
 	}
 
-	out.Add(u'\0');
-	return Span<wchar_t>(out.data, out.len - 1);
+	out[outLen] = u'\0';
+	return Span<wchar_t>(out, outLen - 1);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -174,8 +175,11 @@ Unit_Test("Utf8ToWtf16z") {
 
 //--------------------------------------------------------------------------------------------------
 
-Str Wtf16zToUtf8(Mem::Mem* mem, wchar_t const* s) {
-	Array<char> out(mem);
+Str Wtf16zToUtf8(Mem::Mem mem, wchar_t const* s) {
+	// Max UTF-8 encoding of a WTF-16 string is len(wtf16Str) * 3, due to BMP chars/unpaired surrogates
+	const U64 len = wcslen(s);
+	char* out = Mem::AllocT<char>(mem, len * 3);	
+	U64 outLen = 0;
 
 	wchar_t const* p = s;
 	while (*p) {
@@ -191,23 +195,23 @@ Str Wtf16zToUtf8(Mem::Mem* mem, wchar_t const* s) {
 		}
 
 		if (cp <= 0x7f) {
-			out.Add((char)cp);
+			out[outLen++] = (char)cp;
 		} else if (cp <= 0x7ff) {
-			out.Add((char)(0xc0 | (cp >> 6)));
-			out.Add((char)(0x80 | (cp & 0x3f)));
+			out[outLen++] = (char)(0xc0 | (cp >> 6));
+			out[outLen++] = (char)(0x80 | (cp & 0x3f));
 		} else if (cp <= 0xffff) {
-			out.Add((char)(0xe0 | (cp >> 12)));
-			out.Add((char)(0x80 | (cp >> 6) & 0x3f));
-			out.Add((char)(0x80 | (cp & 0x3f)));
+			out[outLen++] = (char)(0xe0 | (cp >> 12));
+			out[outLen++] = (char)(0x80 | (cp >> 6) & 0x3f);
+			out[outLen++] = (char)(0x80 | (cp & 0x3f));
 		} else {
-			out.Add((char)(0xf0 | (cp >> 18)));
-			out.Add((char)(0x80 | (cp >> 12) & 0x3f));
-			out.Add((char)(0x80 | (cp >> 6) & 0x3f));
-			out.Add((char)(0x80 | (cp & 0x3f)));
+			out[outLen++] = (char)(0xf0 | (cp >> 18));
+			out[outLen++] = (char)(0x80 | (cp >> 12) & 0x3f);
+			out[outLen++] = (char)(0x80 | (cp >> 6) & 0x3f);
+			out[outLen++] = (char)(0x80 | (cp & 0x3f));
 		}
 	}
 
-	return Str(out.data, (U32)out.len);
+	return Str(out, outLen);
 }
 
 // High surrogate range

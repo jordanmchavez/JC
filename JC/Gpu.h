@@ -23,18 +23,18 @@ constexpr Str Cfg_EnableDebug        = "Gpu::EnableDebug";
 constexpr U32 MaxFrames = 3;
 
 struct InitDesc {
-	Mem::Mem*                   permMem;
-	Mem::Mem*                   tempMem;
+	Mem::Mem                    permMem;
+	Mem::Mem                    tempMem;
 	U32                         windowWidth;
 	U32                         windowHeight;
 	Window::PlatformDesc const* windowPlatformDesc;
 };
 
-struct Buffer   { U64 handle = 0; };
-struct Sampler  { U64 handle = 0; };
-struct Image    { U64 handle = 0; };
-struct Shader   { U64 handle = 0; };
-struct Pipeline { U64 handle = 0; };
+DefHandle(Buffer);
+DefHandle(Sampler);
+DefHandle(Image);
+DefHandle(Shader);
+DefHandle(Pipeline);
 
 namespace BufferUsage {
 	using Flags = U32;
@@ -70,8 +70,8 @@ enum struct ImageLayout {
 struct Viewport {
 	F32 x;
 	F32 y;
-	F32 w;
-	F32 h;
+	F32 width;
+	F32 height;
 };
 
 namespace BarrierStage {

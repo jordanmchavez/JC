@@ -1,5 +1,7 @@
 #include "JC/Common_Mem.h"
 #include "JC/Event.h"
+#include "JC/FS.h"
+#include "JC/Gpu.h"
 #include "JC/Log.h"
 #include "JC/Sys.h"
 #include "JC/Unit.h"
@@ -7,9 +9,15 @@
 
 using namespace JC;
 
-Res<> Run() {
-	Mem::Mem* const frameMem = Mem::Create(16 * GB);
+static Mem::Mem permMem;
+static Mem::Mem tempMem;
 
+Res<> Run() {
+	Mem::Init();
+	permMem = Mem::Create(16 * GB);
+	tempMem = Mem::Create(16 * GB);
+
+	Log::Init(permMem, tempMem);
 	Log::AddFn([](Log::Msg const* msg) {
 		Sys::Print(Str(msg->line, msg->lineLen));
 		if (Sys::DbgPresent()) {
@@ -17,8 +25,10 @@ Res<> Run() {
 		}
 	});
 
-	const Window::InitDesc windowInitDesc = {
-		.tempMem    = frameMem,
+	FS::Init(permMem, tempMem);
+
+	Window::InitDesc const windowInitDesc = {
+		.tempMem    = tempMem,
 		.title      = "JC Test",
 		.style      = Window::Style::BorderedResizable,
 		.width      = 1024,
@@ -27,12 +37,20 @@ Res<> Run() {
 	};
 	Try(Window::Init(&windowInitDesc));
 
+	Window::PlatformDesc const windowPlatformDesc = Window::GetPlatformDesc();
+	const Gpu::InitDesc gpuInitDesc = {
+		.permMem            = permMem,
+		.tempMem            = tempMem,
+		.windowWidth        = 1024,
+		.windowHeight       = 768,
+		.windowPlatformDesc = &windowPlatformDesc,
+	};
+	Try(Gpu::Init(&gpuInitDesc));
+
 	U64 frame = 0;
 	bool exitRequested = false;
 	while (!exitRequested) {
 		frame++;
-
-		Mem::Reset(frameMem);
 
 		while (Event::Event const* const event = Event::Get()) {
 			switch (event->type) {
@@ -44,10 +62,9 @@ Res<> Run() {
 
 		Err::Frame(frame);
 		Window::Frame();
+		Mem::Reset(tempMem, 0);
 	}
 
-	Window::Shutdown();
-	Mem::Destroy(frameMem);
 
 	return Ok();
 }
@@ -59,8 +76,13 @@ int main(int argc, const char** argv) {
 	}
 
 	if (Res<> r = Run(); !r) {
-		r;
+		Errorf("%s:%s", r.err->ns, r.err->sCode);
 	}
+
+	Gpu::Shutdown();
+	Window::Shutdown();
+	Mem::Destroy(permMem);
+	Mem::Destroy(tempMem);
 
 	return 0;
 }

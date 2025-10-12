@@ -1,5 +1,6 @@
 #pragma once
 
+#include "JC/Common_Mem.h"
 #include "JC/Common_Res.h"
 #include "JC/Common_Std.h"
 
@@ -10,12 +11,14 @@ namespace JC::Draw {
 //--------------------------------------------------------------------------------------------------
 
 struct InitDesc {
-	U32 windowWidth   = 0;
-	U32 windowHeight  = 0;
+	Mem::Mem permMem;
+	Mem::Mem tempMem;
+	U32      windowWidth;
+	U32      windowHeight;
 };
 
-struct Sprite { U64 handle = 0; };
-struct Canvas { U64 handle = 0; };
+DefHandle(Sprite);
+DefHandle(Canvas);
 
 Res<>       Init(InitDesc const* initDesc);
 void        Shutdown();

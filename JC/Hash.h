@@ -1,6 +1,6 @@
 #pragma once
 
-#include "JC/Core.h"
+#include "JC/Common_Std.h"
 
 namespace JC {
 
@@ -18,7 +18,7 @@ struct PreHash {
 	constexpr PreHash& operator=(const PreHash& p) = default;
 	constexpr PreHash& operator=(U64 h) { hash = h; return *this; }
 };
-inline Bool operator==(PreHash p1, PreHash p2) { return p1.hash == p2.hash; }
+inline bool operator==(PreHash p1, PreHash p2) { return p1.hash == p2.hash; }
 
 U64 HashCombine(U64 h, void const* data, U64 len);
 
