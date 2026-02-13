@@ -1,9 +1,14 @@
-#include "JC/Common_Assert.h"
-
-#include "JC/Common_Fmt.h"
+#include "JC/Common.h"
 #include "JC/Sys.h"
 
-namespace JC::Asrt {
+namespace JC {
+
+//--------------------------------------------------------------------------------------------------
+
+Str::Str(char const* s, U64 l) { Assert(s || l == 0); data = s; len = l; }
+
+bool operator==(Str s1, Str s2) { return s1.len == s2.len && !memcmp(s1.data, s2.data, s1.len); }
+bool operator!=(Str s1, Str s2) { return s1.len != s2.len ||  memcmp(s1.data, s2.data, s1.len); }
 
 //--------------------------------------------------------------------------------------------------
 
@@ -15,11 +20,11 @@ PanicFn* SetPanicFn(PanicFn* newPanicFn) {
 	return oldPanicFn;
 }
 
-[[noreturn]] void Panicv(SrcLoc sl, char const* expr, char const* fmt, Span<Arg::Arg const> args) {
+[[noreturn]] void Panicv(SrcLoc sl, char const* expr, char const* fmt, Span<Arg const> args) {
 	static bool recursive = false;
 	if (recursive) {
 		if (Sys::DbgPresent()) {
-			Sys_DbgBreak;
+			DbgBreak;
 		}
 		Sys::Abort();
 	}
@@ -28,12 +33,12 @@ PanicFn* SetPanicFn(PanicFn* newPanicFn) {
 	if (panicFn) {
 		char msg[2048] = {};
 		if (fmt) {
-			*Fmt::Printv(msg, msg + LenOf(msg) - 1, fmt, args) = '\0';
+			*SPrintv(msg, msg + LenOf(msg) - 1, fmt, args) = '\0';
 		}
 		panicFn(sl, expr, msg);
 	} else {
 		if (Sys::DbgPresent()) {
-			Sys_DbgBreak;
+			DbgBreak;
 		}
 		Sys::Abort();
 	}
@@ -41,4 +46,4 @@ PanicFn* SetPanicFn(PanicFn* newPanicFn) {
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Asrt
+}	// namespace JC

@@ -40,14 +40,14 @@ struct SpriteObj {
 };
 
 struct Scene {
-	Mat4  projViews[MaxCanvases + 1];	// +1 for the
+	Mat4 projViews[MaxCanvases + 1];	// +1 for the
 };
 
 struct PushConstants {
-	U64  sceneBufferAddr;
-	U64  drawCmdBufferAddr;
-	U32  sceneBufferIdx;
-	U32  drawCmdStart;
+	U64 sceneBufferAddr;
+	U64 drawCmdBufferAddr;
+	U32 sceneBufferIdx;
+	U32 drawCmdStart;
 };
 
 struct DrawCmd {

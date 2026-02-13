@@ -1,7 +1,6 @@
-#include "JC/Common_Err.h"
-#include "JC/Common_Assert.h"
+#include "JC/Common.h"
 
-namespace JC::Err {
+namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -25,7 +24,7 @@ static char* AllocStr(U64 len) {
 
 //--------------------------------------------------------------------------------------------------
 
-static Arg::Arg CloneArg(Arg::Arg arg) {
+static Arg CloneArg(Arg arg) {
 	if (arg.type != Arg::Type::Str) {
 		return arg;
 	}
@@ -33,7 +32,7 @@ static Arg::Arg CloneArg(Arg::Arg arg) {
 	if (arg.s.len <= 256) {
 		char* str = AllocStr(arg.s.len);
 		memcpy(str, arg.s.data, arg.s.len);
-		return Arg::Arg { .s = { .data = str, .len = arg.s.len } };
+		return Arg { .s = { .data = str, .len = arg.s.len } };
 	}
 
 	char* str = AllocStr(256);
@@ -41,14 +40,14 @@ static Arg::Arg CloneArg(Arg::Arg arg) {
 	memcpy(str, arg.s.data, 127);
 	memcpy(str + 127, "...", 3);
 	memcpy(str + 130, arg.s.data + arg.s.len - 126, 126);
-	return Arg::Arg { .s = { .data = str, .len = 256 } };
+	return Arg { .s = { .data = str, .len = 256 } };
 }
 
 //--------------------------------------------------------------------------------------------------
 
 Err const* Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, Span<NamedArg const> namedArgs) {
 	Assert(errsLen < MaxErrs);
-	Assert(namedArgs.len <= MaxNamedArgs);
+	Assert(namedArgs.len <= Err::MaxNamedArgs);
 
 	Err* const err = &errs[errsLen++];
 

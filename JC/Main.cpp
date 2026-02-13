@@ -1,21 +1,11 @@
-#include "JC/Common_Mem.h"
-#include "JC/Event.h"
-#include "JC/FS.h"
-#include "JC/Gpu.h"
-#include "JC/Log.h"
-#include "JC/Sys.h"
 #include "JC/Unit.h"
-#include "JC/Window.h"
 
 using namespace JC;
-
+/*
 static Mem::Mem permMem;
 static Mem::Mem tempMem;
 
 Res<> Run() {
-	Mem::Init();
-	permMem = Mem::Create(16 * GB);
-	tempMem = Mem::Create(16 * GB);
 
 	Log::Init(permMem, tempMem);
 	Log::AddFn([](Log::Msg const* msg) {
@@ -68,21 +58,11 @@ Res<> Run() {
 
 	return Ok();
 }
-
+*/
 int main(int argc, const char** argv) {
 	if (argc == 2 && argv[1] == Str("test")) {
 		Unit::Run();
 		return 0;
 	}
-
-	if (Res<> r = Run(); !r) {
-		Errorf("%s:%s", r.err->ns, r.err->sCode);
-	}
-
-	Gpu::Shutdown();
-	Window::Shutdown();
-	Mem::Destroy(permMem);
-	Mem::Destroy(tempMem);
-
 	return 0;
 }

@@ -1,11 +1,9 @@
-﻿#include "JC/Common_Fmt.h"
-
-#include "JC/Common_Assert.h"
+﻿#include "JC/Common.h"
 #include "JC/Unit.h"
 #include <math.h>
 #include "3rd/dragonbox/dragonbox.h"
 
-namespace JC::Fmt {
+namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -130,7 +128,7 @@ static bool Round(char* ptr, U64 len, U64 round) {
 //--------------------------------------------------------------------------------------------------	
 
 template <class Out>
-static void PrintStr(Out* out, Str str, U32 flags, U32 width, U32 prec) {
+static void SPrintStr(Out* out, Str str, U32 flags, U32 width, U32 prec) {
 	if (prec && str.len > prec) {
 		str.len = prec;
 	}
@@ -148,7 +146,7 @@ static void PrintStr(Out* out, Str str, U32 flags, U32 width, U32 prec) {
 //--------------------------------------------------------------------------------------------------	
 
 template <class Out>
-static void PrintI64(Out* out, I64 i, U32 flags, U32 width, U32) {	// prec unused
+static void SPrintI64(Out* out, I64 i, U32 flags, U32 width, U32) {	// prec unused
 	char sign;
 	U32 totalLen = 0;
 	     if (i < 0)             { i = -i; sign = '-'; totalLen = 1; }
@@ -174,7 +172,7 @@ static void PrintI64(Out* out, I64 i, U32 flags, U32 width, U32) {	// prec unuse
 //--------------------------------------------------------------------------------------------------	
 
 template <class Out>
-static void PrintU64(Out* out, U64 u, U32 flags, U32 width, U32) {	// prec unused
+static void SPrintU64(Out* out, U64 u, U32 flags, U32 width, U32) {	// prec unused
 	char sign;
 	U32 totalLen = 0;
 	     if (flags & Flag_Plus)  { sign = '+'; totalLen = 1; }
@@ -202,7 +200,7 @@ static void PrintU64(Out* out, U64 u, U32 flags, U32 width, U32) {	// prec unuse
 //--------------------------------------------------------------------------------------------------	
 
 template <class Out>
-static void PrintF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
+static void SPrintF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
 	char sign;
 	if (signbit(f))              { sign = '-'; f = -f; }
 	else if (flags & Flag_Plus)  { sign = '+'; }
@@ -356,7 +354,7 @@ static void PrintF64(Out* out, F64 f, U32 flags, U32 width, U32 prec) {
 //--------------------------------------------------------------------------------------------------
 
 template <class Out>
-static void PrintPtr(Out* out, void const* p, U32 flags, U32 width, U32) {	// prec unused
+static void SPrintPtr(Out* out, void const* p, U32 flags, U32 width, U32) {	// prec unused
 	char buf[16];
 	char* bufIter = buf + sizeof(buf);
 	U64 u = (U64)p;
@@ -381,7 +379,7 @@ static void PrintPtr(Out* out, void const* p, U32 flags, U32 width, U32) {	// pr
 //--------------------------------------------------------------------------------------------------	
 
 template <class Out>
-void PrintImpl(Out* out, char const* fmt, Span<Arg::Arg const> args) {
+void SPrintImpl(Out* out, char const* fmt, Span<Arg const> args) {
 	U32 argIdx = 0;
 
 	char const* f = fmt;
@@ -432,7 +430,7 @@ void PrintImpl(Out* out, char const* fmt, Span<Arg::Arg const> args) {
 		}
 
 		Assert(argIdx < args.len);
-		Arg::Arg const* const arg = &args[argIdx];
+		Arg const* const arg = &args[argIdx];
 		argIdx++;
 		switch (*f) {
 			#define PrintfCase(ch, ExpectedArgType, Fn, val, addlFlags) \
@@ -440,30 +438,30 @@ void PrintImpl(Out* out, char const* fmt, Span<Arg::Arg const> args) {
 					Assert(arg->type == ExpectedArgType); \
 					Fn(out, val, flags | addlFlags, width, prec); \
 					break;
-			PrintfCase('t', Arg::Type::Bool, PrintStr, arg->b ? "true" : "false",   0);
-			PrintfCase('c', Arg::Type::Char, PrintStr, Str(&arg->c, 1),             0);
-			PrintfCase('s', Arg::Type::Str,  PrintStr, Str(arg->s.data, arg->s.len),0);
-			PrintfCase('i', Arg::Type::I64,  PrintI64, arg->i,                      0);
-			PrintfCase('u', Arg::Type::U64,  PrintU64, arg->u,                      0);
-			PrintfCase('x', Arg::Type::U64,  PrintU64, arg->u,                      Flag_Hex);
-			PrintfCase('X', Arg::Type::U64,  PrintU64, arg->u,                      Flag_Hex | Flag_Upper);
-			PrintfCase('b', Arg::Type::U64,  PrintU64, arg->u,                      Flag_Bin);
-			PrintfCase('f', Arg::Type::F64,  PrintF64, arg->f,                      Flag_Fix);
-			PrintfCase('e', Arg::Type::F64,  PrintF64, arg->f,                      Flag_Sci);
-			PrintfCase('E', Arg::Type::F64,  PrintF64, arg->f,                      Flag_Sci | Flag_Upper);
-			PrintfCase('g', Arg::Type::F64,  PrintF64, arg->f,                      0);
-			PrintfCase('p', Arg::Type::Ptr,  PrintPtr, arg->p,                      0);
+			PrintfCase('t', Arg::Type::Bool, SPrintStr, arg->b ? "true" : "false",   0);
+			PrintfCase('c', Arg::Type::Char, SPrintStr, Str(&arg->c, 1),             0);
+			PrintfCase('s', Arg::Type::Str,  SPrintStr, Str(arg->s.data, arg->s.len),0);
+			PrintfCase('i', Arg::Type::I64,  SPrintI64, arg->i,                      0);
+			PrintfCase('u', Arg::Type::U64,  SPrintU64, arg->u,                      0);
+			PrintfCase('x', Arg::Type::U64,  SPrintU64, arg->u,                      Flag_Hex);
+			PrintfCase('X', Arg::Type::U64,  SPrintU64, arg->u,                      Flag_Hex | Flag_Upper);
+			PrintfCase('b', Arg::Type::U64,  SPrintU64, arg->u,                      Flag_Bin);
+			PrintfCase('f', Arg::Type::F64,  SPrintF64, arg->f,                      Flag_Fix);
+			PrintfCase('e', Arg::Type::F64,  SPrintF64, arg->f,                      Flag_Sci);
+			PrintfCase('E', Arg::Type::F64,  SPrintF64, arg->f,                      Flag_Sci | Flag_Upper);
+			PrintfCase('g', Arg::Type::F64,  SPrintF64, arg->f,                      0);
+			PrintfCase('p', Arg::Type::Ptr,  SPrintPtr, arg->p,                      0);
 			#undef PrintfCase
 
 			case 'a':
 				switch (arg->type) {
-					case Arg::Type::Bool: PrintStr(out, arg->b ? "true": " false",    flags, width, prec); break;
-					case Arg::Type::Char: PrintStr(out, Str(&arg->c, 1),              flags, width, prec); break;
-					case Arg::Type::I64:  PrintI64(out, arg->i,                       flags, width, prec); break;
-					case Arg::Type::U64:  PrintU64(out, arg->u,                       flags, width, prec); break;
-					case Arg::Type::F64:  PrintF64(out, arg->f,                       flags, width, prec); break;
-					case Arg::Type::Str:  PrintStr(out, Str(arg->s.data, arg->s.len), flags, width, prec); break;
-					case Arg::Type::Ptr:  PrintPtr(out, arg->p,                       flags, width, prec); break;
+					case Arg::Type::Bool: SPrintStr(out, arg->b ? "true": " false",    flags, width, prec); break;
+					case Arg::Type::Char: SPrintStr(out, Str(&arg->c, 1),              flags, width, prec); break;
+					case Arg::Type::I64:  SPrintI64(out, arg->i,                       flags, width, prec); break;
+					case Arg::Type::U64:  SPrintU64(out, arg->u,                       flags, width, prec); break;
+					case Arg::Type::F64:  SPrintF64(out, arg->f,                       flags, width, prec); break;
+					case Arg::Type::Str:  SPrintStr(out, Str(arg->s.data, arg->s.len), flags, width, prec); break;
+					case Arg::Type::Ptr:  SPrintPtr(out, arg->p,                       flags, width, prec); break;
 					default: Panic("Unhandled ArgType %u", (U32)arg->type);
 				}
 				break;
@@ -476,21 +474,21 @@ void PrintImpl(Out* out, char const* fmt, Span<Arg::Arg const> args) {
 
 //--------------------------------------------------------------------------------------------------	
 
-Str Printv(Mem::Mem mem, char const* fmt, Span<Arg::Arg const> args) {
+Str SPrintv(Mem mem, char const* fmt, Span<Arg const> args) {
 	PrintBuf pb(mem);
-	PrintImpl(&pb, fmt, args);
+	SPrintImpl(&pb, fmt, args);
 	return pb.ToStr();
 }
 
-char* Printv(char* outBegin, char* outEnd, char const* fmt, Span<Arg::Arg const> args) {
+char* SPrintv(char* outBegin, char* outEnd, char const* fmt, Span<Arg const> args) {
 	FixedBuf fb = { .begin = outBegin, .cur = outBegin, .end = outEnd };
-	PrintImpl(&fb, fmt, args);
+	SPrintImpl(&fb, fmt, args);
 	return fb.cur;
 }
 
 //--------------------------------------------------------------------------------------------------	
 
-PrintBuf::PrintBuf(Mem::Mem mem_) {
+PrintBuf::PrintBuf(Mem mem_) {
 	mem  = mem_;
 	data = nullptr;
 	len  = 0;
@@ -564,8 +562,8 @@ void PrintBuf::Remove(U64 n) {
 
 //--------------------------------------------------------------------------------------------------	
 
-void PrintBuf::Printv(char const* fmt, Span<Arg::Arg const> args) {
-	PrintImpl(this, fmt, args);
+void PrintBuf::Printv(char const* fmt, Span<Arg const> args) {
+	SPrintImpl(this, fmt, args);
 }
 
 //--------------------------------------------------------------------------------------------------	
@@ -573,7 +571,7 @@ void PrintBuf::Printv(char const* fmt, Span<Arg::Arg const> args) {
 Unit_Test("Fmt") {
 	#define CheckPrintf(expect, fmt, ...) \
 		{ \
-			Mem::Scope sope(testMem); \
+			MemScope scope(testMem); \
 			PrintBuf pb(testMem); \
 			pb.Printf(fmt, ##__VA_ARGS__); \
 			Unit_CheckEq(expect, Str(pb.data, pb.len)); \
@@ -812,4 +810,4 @@ Unit_Test("Fmt") {
 
 //--------------------------------------------------------------------------------------------------	
 
-}	// namespace JC::Fmt
+}	// namespace JC

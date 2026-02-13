@@ -1,15 +1,13 @@
-#include "JC/Common_Mem.h"
-#include "JC/Common_Assert.h"
+#include "JC/Common.h"
 #include "JC/Bit.h"
-#include "JC/Handle.h"
 #include "JC/Sys.h"
 
-namespace JC::Mem {
+namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr U64 Align   = 8;
-static constexpr U32 MaxMems = 64;
+static constexpr U64 Align      = 8;
+static constexpr U32 MaxMemObjs = 64;
 
 struct MemObj {
 	U8* begin;
@@ -19,45 +17,47 @@ struct MemObj {
 	U8* lastAlloc;
 };
 
-static HandleArray<MemObj, Mem> memObjs;
+static MemObj memObjs[MaxMemObjs];
 
 //--------------------------------------------------------------------------------------------------
 
-void Init() {
-	constexpr U64 size = Bit::AlignUp(MaxMems * sizeof(MemObj), Sys::VirtualPageSize);
-	HandleArray<MemObj, Mem>::Entry* entries = (HandleArray<MemObj, Mem>::Entry*)Sys::VirtualAlloc(size);
-	memObjs.Init(entries, MaxMems);
-}
-
-//--------------------------------------------------------------------------------------------------
-
-Mem Create(U64 reserveSize) {
+Mem Mem::Create(U64 reserveSize) {
 	Assert(Bit::IsPow2(reserveSize));
-	HandleArray<MemObj, Mem>::Entry* const entry = memObjs.Alloc();
 
-	MemObj* const memObj = &entry->obj;
+	MemObj* memObj = 0;
+	for (U32 i = 1; i < MaxMemObjs; i++) {	// reserver zero
+		if (!memObjs[i].begin)
+		{
+			memObj = &memObjs[i];
+		}
+	}
+	Assert(memObj);
+
 	memObj->begin      = (U8*)Sys::VirtualReserve(reserveSize);
 	memObj->end        = memObj->begin;
 	memObj->endCommit  = memObj->begin;
 	memObj->endReserve = memObj->begin + reserveSize;
 	memObj->lastAlloc  = 0;
 
-	return entry->Handle();
+	return Mem { .handle = (U64)(memObj - memObjs) };
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void Destroy(Mem mem) {
-	if (mem) {
-		memObjs.Free(mem);
+void Mem::Destroy(Mem mem) {
+	Assert(mem.handle < MaxMemObjs);
+	if (mem.handle)
+	{
+		memset(&memObjs[mem.handle], 0, sizeof(MemObj));
 	}
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void* Alloc(Mem mem, U64 size, SrcLoc) {
+void* Mem::Alloc(Mem mem, U64 size, SrcLoc) {
 	Assert(mem);
-	MemObj* const memObj = memObjs.Get(mem);
+	Assert(mem.handle < MaxMemObjs);
+	MemObj* const memObj = &memObjs[mem.handle];
 
 	size = Bit::AlignUp(size, Align);
 
@@ -87,9 +87,10 @@ void* Alloc(Mem mem, U64 size, SrcLoc) {
 
 //--------------------------------------------------------------------------------------------------
 
-bool Extend(Mem mem, void* ptr, U64 size, SrcLoc) {
+bool Mem::Extend(Mem mem, void* ptr, U64 size, SrcLoc) {
 	Assert(mem);
-	MemObj* const memObj = memObjs.Get(mem);
+	Assert(mem.handle < MaxMemObjs);
+	MemObj* const memObj = &memObjs[mem.handle];
 
 	if (!ptr || memObj->lastAlloc != ptr) {
 		return false;
@@ -118,18 +119,20 @@ bool Extend(Mem mem, void* ptr, U64 size, SrcLoc) {
 
 //--------------------------------------------------------------------------------------------------
 
-U64 Mark(Mem mem) {
+U64 Mem::Mark(Mem mem) {
 	Assert(mem);
-	MemObj* const memObj = memObjs.Get(mem);
+	Assert(mem.handle < MaxMemObjs);
+	MemObj* const memObj = &memObjs[mem.handle];
 	Assert(memObj->end >= memObj->begin);
 	return (U64)(memObj->end - memObj->begin);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void Reset(Mem mem, U64 mark) {
+void Mem::Reset(Mem mem, U64 mark) {
 	Assert(mem);
-	MemObj* const memObj = memObjs.Get(mem);
+	Assert(mem.handle < MaxMemObjs);
+	MemObj* const memObj = &memObjs[mem.handle];
 	Assert(memObj->begin + mark <= memObj->endCommit);
 	memObj->end = memObj->begin + mark;
 }

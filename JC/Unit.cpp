@@ -1,7 +1,4 @@
 #include "JC/Unit.h"
-
-#include "JC/Common_Assert.h"
-#include "JC/Common_Fmt.h"
 #include "JC/Log.h"
 #include "JC/Sys.h"
 
@@ -88,8 +85,8 @@ Subtest::~Subtest() {
 }
 
 bool Run() {
-	Mem::Mem permMem = Mem::Create(16 * GB);
-	Mem::Mem tempMem = Mem::Create(16 * GB);
+	Mem permMem = Mem::Create(16 * GB);
+	Mem tempMem = Mem::Create(16 * GB);
 
 	Log::Init(permMem, tempMem);
 
@@ -114,7 +111,7 @@ bool Run() {
 
 			tests[i].testFn(tempMem);
 
-			Fmt::PrintBuf pb(tempMem);
+			PrintBuf pb(tempMem);
 			if (checkFails > 0) {
 				pb.Printf("Failed: ");
 				failedTests++;
@@ -155,7 +152,7 @@ bool CheckExprFail(SrcLoc sl, Str expr) {
 	return false;
 }
 
-bool CheckRelFail(SrcLoc sl, Str expr, Arg::Arg x, Arg::Arg y) {
+bool CheckRelFail(SrcLoc sl, Str expr, Arg x, Arg y) {
 	Logf("***CHECK FAILED***");
 	Logf("%s(%u)", sl.file, sl.line);
 	Logf("  %s", expr);
@@ -175,7 +172,7 @@ bool CheckSpanEqFail_Len(SrcLoc sl, Str expr, U64 xLen, U64 yLen) {
 	return false;
 }
 
-bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, U64 i, Arg::Arg x, Arg::Arg y) {
+bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, U64 i, Arg x, Arg y) {
 	Logf("***CHECK FAILED***");
 	Logf("%s(%u)", sl.file, sl.line);
 	Logf("  %s", expr);

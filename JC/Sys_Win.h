@@ -1,6 +1,6 @@
 #pragma once
 
-#include "JC/Common_Err.h"
+#include "JC/Common.h"
 
 #define WIN32_LEAN_AND_MEAN
 #define VC_EXTRALEAN

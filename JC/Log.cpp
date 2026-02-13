@@ -1,5 +1,5 @@
 #include "JC/Log.h"
-#include "JC/Common_Assert.h"
+#include "JC/Common.h"
 
 namespace JC::Log {
 
@@ -8,23 +8,23 @@ namespace JC::Log {
 static constexpr U32 MaxFns  = 32;
 static constexpr U32 MaxLine = 4096;
 
-static Mem::Mem permMem;
-static Mem::Mem tempMem;
-static Fn**     fns;
-static U32      fnsLen;
+static Mem  permMem;
+static Mem  tempMem;
+static Fn** fns;
+static U32  fnsLen;
 
 //--------------------------------------------------------------------------------------------------
 
-void Init(Mem::Mem permMem_, Mem::Mem tempMem_) {
-	permMem = permMem_;
-	tempMem = tempMem_;
+void Init(Mem permMemIn, Mem tempMemIn) {
+	permMem = permMemIn;
+	tempMem = tempMemIn;
 	fns = Mem::AllocT<Fn*>(permMem, MaxFns);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void Printv(SrcLoc sl, Level level, char const* fmt, Span<Arg::Arg const> args) {
-	Fmt::PrintBuf pb(tempMem);
+void Printv(SrcLoc sl, Level level, char const* fmt, Span<Arg const> args) {
+	PrintBuf pb(tempMem);
 	pb.Printf("%s%s(%u): ", level == Level::Error ? "!!! " : "", sl.file, sl.line);
 	pb.Printv(fmt, args);
 	pb.Add('\n');

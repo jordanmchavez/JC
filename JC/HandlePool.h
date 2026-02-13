@@ -1,7 +1,6 @@
 #pragma once
 
-#include "JC/Common_Assert.h"
-#include "JC/Common_Std.h"
+#include "JC/Common.h"
 
 namespace JC {
 
@@ -14,7 +13,7 @@ template <class T, class H> struct HandlePool {
 		U32 gen = 0;
 		U32 idx = 0;
 
-		H Handle() const { return H { .idx = idx, .gen = gen }; }
+		H Handle() const { return H { .handle = (((U64)gen) << 32) | ((U64)idx) }; }
 	};
 
 	Entry* entries;
@@ -23,7 +22,7 @@ template <class T, class H> struct HandlePool {
 	U32    gen;
 	U32    free;
 
-	void Init(Mem::Mem mem, U32 cap_) {
+	void Init(Mem mem, U32 cap_) {
 		entries = Mem::AllocT<Entry>(mem, cap_);
 		len     = 0;
 		cap     = cap_;
@@ -40,8 +39,8 @@ template <class T, class H> struct HandlePool {
 	}
 
 	Entry* GetEntry(H h) {
-		const U32 i = h.idx;
-		const U32 g = h.gen;
+		const U32 i = (U32)h.handle;
+		const U32 g = (U32)(h.handle >> 32);
 		Assert(i < len);
 		Assert(g > 0);
 		Entry* const entry = &entries[i];

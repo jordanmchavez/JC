@@ -1,8 +1,6 @@
 #pragma once
 
-#include "JC/Common_Arg.h"
-#include "JC/Common_Mem.h"
-#include "JC/Common_SrcLoc.h"
+#include "JC/Common.h"
 
 namespace JC::Unit {
 
@@ -12,9 +10,9 @@ bool Run();
 
 bool CheckFailImpl(SrcLoc sl);
 bool CheckExprFail(SrcLoc sl, Str expr);
-bool CheckRelFail(SrcLoc sl, Str expr, Arg::Arg x, Arg::Arg y);
+bool CheckRelFail(SrcLoc sl, Str expr, Arg x, Arg y);
 bool CheckSpanEqFail_Len(SrcLoc sl, Str expr, U64 xLen, U64 yLen);
-bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, U64 i, Arg::Arg x, Arg::Arg y);
+bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, U64 i, Arg x, Arg y);
 
 template <class X, class Y> bool CheckEq(SrcLoc sl, Str expr, X x, Y y) {
 	return (x == y) || CheckRelFail(sl, expr, Arg::Make(x), Arg::Make(y));
@@ -36,7 +34,7 @@ template <class X, class Y> bool CheckSpanEq(SrcLoc sl, Str expr, Span<X> x, Spa
 	return true;
 }
 
-using TestFn = void([[maybe_unused]] Mem::Mem testMem);
+using TestFn = void([[maybe_unused]] Mem testMem);
 
 struct TestRegistrar {
 	TestRegistrar(Str name, SrcLoc sl, TestFn* fn);
@@ -55,12 +53,12 @@ struct Subtest {
 	~Subtest();
 };
 
-#define Unit_DbgBreak ([]() { Sys_DbgBreak; return false; }())
+#define Unit_DbgBreak ([]() { DbgBreak; return false; }())
 
 #define Unit_TestImpl(name, fn, registrarVar) \
-	static void fn([[maybe_unused]] Mem::Mem testMem); \
+	static void fn([[maybe_unused]] Mem testMem); \
 	static Unit::TestRegistrar registrarVar = Unit::TestRegistrar(name, SrcLoc::Here(), fn); \
-	static void fn([[maybe_unused]] Mem::Mem testMem)
+	static void fn([[maybe_unused]] Mem testMem)
 
 #define Unit_Test(name) \
 	Unit_TestImpl(name, MacroUniqueName(Unit_TestFn_), MacroUniqueName(Unit_TestRegistrar_))
