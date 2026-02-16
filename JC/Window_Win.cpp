@@ -1,9 +1,6 @@
 #include "JC/Window.h"
 
-#include "JC/Array.h"
 #include "JC/Event.h"
-#include "JC/Common_Fmt.h"
-#include "JC/Common_Mem.h"
 #include "JC/Log.h"
 #include "JC/Sys_Win.h"
 #include "JC/Unicode.h"
@@ -35,10 +32,10 @@ struct Window {
 	bool        focused;
 };
 
-static Mem::Mem tempMem;
-static Display  displays[MaxDisplays];
-static U32      displaysLen;
-static Window   window;
+static Mem     tempMem;
+static Display displays[MaxDisplays];
+static U32     displaysLen;
+static Window  window;
 
 //----------------------------------------------------------------------------------------------
 

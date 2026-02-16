@@ -1,8 +1,6 @@
 #pragma once
 
-#include "JC/Common_Mem.h"
-#include "JC/Common_Res.h"
-#include "JC/Common_Std.h"
+#include "JC/Common.h"
 
 namespace JC::Window {
 
@@ -31,12 +29,12 @@ enum CursorMode {
 };
 
 struct InitDesc {
-	Mem::Mem tempMem;
-	Str      title;
-	Style    style;
-	U32      width;
-	U32      height;
-	U32      displayIdx;
+	Mem   tempMem;
+	Str   title;
+	Style style;
+	U32   width;
+	U32   height;
+	U32   displayIdx;
 };
 
 struct PlatformDesc {

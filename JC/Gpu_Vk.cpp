@@ -4,9 +4,7 @@
 #include "JC/Gpu_Vk.h"
 
 #include "JC/Bit.h"
-#include "JC/Common_Err.h"
-#include "JC/Common_Fmt.h"
-#include "JC/Handle.h"
+#include "JC/HandlePool.h"
 #include "JC/Log.h"
 #include "JC/Sys.h"
 #include "JC/Window.h"
@@ -17,14 +15,14 @@ namespace JC::Gpu {
 
 //--------------------------------------------------------------------------------------------------
 
-Err_Def(Gpu, Version);
-Err_Def(Gpu, NoLayer);
-Err_Def(Gpu, NoExt);
-Err_Def(Gpu, NoDevice);
-Err_Def(Gpu, NoMemType);
-Err_Def(Gpu, NoMem);
-Err_Def(Gpu, ShaderTooManyPushConstantBlocks);
-Err_Def(Gpu, SpvReflect);
+DefErr(Gpu, Version);
+DefErr(Gpu, NoLayer);
+DefErr(Gpu, NoExt);
+DefErr(Gpu, NoDevice);
+DefErr(Gpu, NoMemType);
+DefErr(Gpu, NoMem);
+DefErr(Gpu, ShaderTooManyPushConstantBlocks);
+DefErr(Gpu, SpvReflect);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -102,13 +100,13 @@ struct PipelineObj {
 
 //--------------------------------------------------------------------------------------------------
 
-using BufferPool   = HandleArray<BufferObj,   Buffer>;
-using ImagePool    = HandleArray<ImageObj,    Image>;
-using ShaderPool   = HandleArray<ShaderObj,   Shader>;
-using PipelinePool = HandleArray<PipelineObj, Pipeline>;
+using BufferPool   = HandlePool<BufferObj,   Buffer>;
+using ImagePool    = HandlePool<ImageObj,    Image>;
+using ShaderPool   = HandlePool<ShaderObj,   Shader>;
+using PipelinePool = HandlePool<PipelineObj, Pipeline>;
 
-static Mem::Mem                 permMem;
-static Mem::Mem                 tempMem;
+static Mem                      permMem;
+static Mem                      tempMem;
 static bool                     enableDebug = true;	// TODO: expose via cfg
 static Sys::Mutex               mutex;
 static BufferPool               bufferObjs;
@@ -184,12 +182,12 @@ static VkBool32 VKAPI_CALL DebugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT 
 	
 //-------------------------------------------------------------------------------------------------
 
-static void VkNameImpl(SrcLoc sl, U64 handle, VkObjectType vkObjectType, char const* fmt, Span<Arg::Arg const> args) {
+static void VkNameImpl(SrcLoc sl, U64 handle, VkObjectType vkObjectType, char const* fmt, Span<Arg const> args) {
 	if (!enableDebug) {
 		return;
 	}
 
-	Fmt::PrintBuf pb(tempMem);
+	PrintBuf pb(tempMem);
 	pb.Printv(fmt, args);
 	pb.Printf(" (%s:%u)", sl.file, sl.line);
 	pb.Add('\0');
@@ -206,7 +204,7 @@ static void VkNameImpl(SrcLoc sl, U64 handle, VkObjectType vkObjectType, char co
 }
 
 #define DefVkName(VkType, vkObjectType) \
-	void VkNamev(SrcLoc sl, VkType obj, char const* fmt, Span<Arg::Arg const> args) { VkNameImpl(sl, (U64)obj, vkObjectType, fmt, args); }
+	void VkNamev(SrcLoc sl, VkType obj, char const* fmt, Span<Arg const> args) { VkNameImpl(sl, (U64)obj, vkObjectType, fmt, args); }
 
 DefVkName(VkInstance,            VK_OBJECT_TYPE_INSTANCE)
 DefVkName(VkPhysicalDevice,      VK_OBJECT_TYPE_PHYSICAL_DEVICE)
@@ -233,17 +231,17 @@ DefVkName(VkDescriptorSet,       VK_OBJECT_TYPE_DESCRIPTOR_SET)
 DefVkName(VkCommandPool,         VK_OBJECT_TYPE_COMMAND_POOL)
 
 template <class T, class... A>
-void VkNamefImpl(SrcLoc sl, T obj, Fmt::CheckStr<A...> fmt, A... args) {
+void VkNamefImpl(SrcLoc sl, T obj, CheckFmtStr<A...> fmt, A... args) {
 	VkNamev(sl, obj, fmt, { Arg::Make(args)..., });
 }
 
 #define VkName(obj)            VkNamefImpl(SrcLoc::Here(), obj, #obj)
 #define VkNamef(obj, fmt, ...) VkNamefImpl(SrcLoc::Here(), obj, fmt, ##__VA_ARGS__)
 
-void Namev(SrcLoc sl, Buffer   buffer,   char const* fmt, Span<Arg::Arg const> args) { VkNameImpl(sl, (U64)bufferObjs.Get(buffer)->vkBuffer,             VK_OBJECT_TYPE_BUFFER,          fmt, args); }
-void Namev(SrcLoc sl, Image    image,    char const* fmt, Span<Arg::Arg const> args) { VkNameImpl(sl, (U64)imageObjs.Get(image)->vkImage,                VK_OBJECT_TYPE_IMAGE,           fmt, args); }
-void Namev(SrcLoc sl, Shader   shader,   char const* fmt, Span<Arg::Arg const> args) { VkNameImpl(sl, (U64)shaderObjs.Get(shader)->vkShaderModule,       VK_OBJECT_TYPE_SHADER_MODULE,   fmt, args); }
-void Namev(SrcLoc sl, Pipeline pipeline, char const* fmt, Span<Arg::Arg const> args) { VkNameImpl(sl, (U64)pipelineObjs.Get(pipeline)->vkPipeline,       VK_OBJECT_TYPE_PIPELINE,        fmt, args);
+void Namev(SrcLoc sl, Buffer   buffer,   char const* fmt, Span<Arg const> args) { VkNameImpl(sl, (U64)bufferObjs.Get(buffer)->vkBuffer,             VK_OBJECT_TYPE_BUFFER,          fmt, args); }
+void Namev(SrcLoc sl, Image    image,    char const* fmt, Span<Arg const> args) { VkNameImpl(sl, (U64)imageObjs.Get(image)->vkImage,                VK_OBJECT_TYPE_IMAGE,           fmt, args); }
+void Namev(SrcLoc sl, Shader   shader,   char const* fmt, Span<Arg const> args) { VkNameImpl(sl, (U64)shaderObjs.Get(shader)->vkShaderModule,       VK_OBJECT_TYPE_SHADER_MODULE,   fmt, args); }
+void Namev(SrcLoc sl, Pipeline pipeline, char const* fmt, Span<Arg const> args) { VkNameImpl(sl, (U64)pipelineObjs.Get(pipeline)->vkPipeline,       VK_OBJECT_TYPE_PIPELINE,        fmt, args);
                                                                                        VkNameImpl(sl, (U64)pipelineObjs.Get(pipeline)->vkPipelineLayout, VK_OBJECT_TYPE_PIPELINE_LAYOUT, fmt, args); }
 //----------------------------------------------------------------------------------------------
 
@@ -508,7 +506,7 @@ static Res<> InitDevice() {
 		pd->vkExtensionProperties = Mem::AllocSpan<VkExtensionProperties>(permMem, vkExtensionPropertiesLen);
 		Gpu_CheckVk(vkEnumerateDeviceExtensionProperties(pd->vkPhysicalDevice, 0, &vkExtensionPropertiesLen, pd->vkExtensionProperties.data));
 
-		Fmt::PrintBuf extensionsPb(tempMem);
+		PrintBuf extensionsPb(tempMem);
 		for (U64 j = 0; j < pd->vkExtensionProperties.len; j++) {
 			extensionsPb.Printf("%s(specVersion=%s), ", pd->vkExtensionProperties[j].extensionName, VersionStr(tempMem, pd->vkExtensionProperties[j].specVersion));
 		}
@@ -1492,10 +1490,86 @@ void DestroyImage(Image image) {
 
 //-------------------------------------------------------------------------------------------------
 
-U32             GetImageWidth (Image image)  { return imageObjs.Get(image)->width;  }
-U32             GetImageHeight(Image image)  { return imageObjs.Get(image)->height; }
+U32         GetImageWidth (Image image)  { return imageObjs.Get(image)->width;  }
+U32         GetImageHeight(Image image)  { return imageObjs.Get(image)->height; }
 ImageFormat GetImageFormat(Image image)  { return VkFormatToImageFormat(imageObjs.Get(image)->vkFormat); }
-U32             GetImageBindIdx(Image image) { return imageObjs.Get(image)->bindlessIdx; }
+U32         GetImageBindIdx(Image image) { return imageObjs.Get(image)->bindlessIdx; }
+
+//-------------------------------------------------------------------------------------------------
+
+void* AllocStaging(U64 len) {
+	Assert(frameStagingBufferUsed[frameIdx] + len <= PerFrameStagingBufferSize);
+	U8* const ptr = frameStagingBufferPtrs[frameIdx] + frameStagingBufferUsed[frameIdx];
+	frameStagingBufferUsed[frameIdx] += len;
+	return ptr;
+}
+
+//----------------------------------------------------------------------------------------------
+
+void CopyStagingToBuffer(void* staging, U64 len, Buffer buffer, U64 offset) {
+	Assert((U8*)staging >= frameStagingBufferPtrs[frameIdx]);
+	Assert((U8*)staging + len < frameStagingBufferPtrs[frameIdx] + PerFrameStagingBufferSize);
+
+	BufferObj const* const bufferObj = bufferObjs.Get(buffer);
+	VkDeviceSize const srcOffset = 
+		(frameIdx * PerFrameStagingBufferSize) + 
+		(VkDeviceSize)((U8*)staging - frameStagingBufferPtrs[frameIdx]);
+	VkBufferCopy2 const vkBufferCopy2 = {
+		.sType     = VK_STRUCTURE_TYPE_BUFFER_COPY_2,
+		.pNext     = 0,
+		.srcOffset = srcOffset,
+		.dstOffset = offset,
+		.size      = len,
+	};
+	VkCopyBufferInfo2 const vkCopyBufferInfo2 = {
+		.sType       = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
+		.pNext       = 0,
+		.srcBuffer   = frameStagingBuffer.vkBuffer,
+		.dstBuffer   = bufferObj->vkBuffer,
+		.regionCount = 1,
+		.pRegions    = &vkBufferCopy2,
+	};
+	vkCmdCopyBuffer2(vkFrameCommandBuffers[frameIdx], &vkCopyBufferInfo2);
+}
+
+//-------------------------------------------------------------------------------------------------
+
+void CopyStagingToImage(void* staging, Image image) {
+	ImageObj const* const imageObj = imageObjs.Get(image);
+	U64 const len = imageObj->width * imageObj->height * FormatSize(imageObj->vkFormat);
+	Assert((U8*)staging>= frameStagingBufferPtrs[frameIdx]);
+	Assert((U8*)staging + len < frameStagingBufferPtrs[frameIdx] + PerFrameStagingBufferSize);
+
+	VkDeviceSize const srcOffset = 
+		(frameIdx * PerFrameStagingBufferSize) + 
+		(VkDeviceSize)((U8*)staging - frameStagingBufferPtrs[frameIdx]);
+
+	VkBufferImageCopy2 const vkBufferImageCopy2 = {
+		.sType             = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2,
+		.pNext             = 0,
+		.bufferOffset      = srcOffset,
+		.bufferRowLength   = 0,
+		.bufferImageHeight = 0,
+		.imageSubresource  = {
+			.aspectMask      = (VkImageAspectFlags)(IsDepthFormat(imageObj->vkFormat) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT),
+			.mipLevel        = 0,
+			.baseArrayLayer  = 0,
+			.layerCount      = 1,
+		},
+		.imageOffset       = { .x = 0, .y = 0, .z = 0 },
+		.imageExtent       = { .width = imageObj->width, .height = imageObj->height, .depth = 1 },
+	};
+	VkCopyBufferToImageInfo2 const vkCopyBufferToImageInfo2 = {
+		.sType          = VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2,
+		.pNext          = 0,
+		.srcBuffer      = frameStagingBuffer.vkBuffer,
+		.dstImage       = imageObj->vkImage,
+		.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		.regionCount    = 1,
+		.pRegions       = &vkBufferImageCopy2,
+	};
+	vkCmdCopyBufferToImage2(vkFrameCommandBuffers[frameIdx], &vkCopyBufferToImageInfo2);
+}
 
 //-------------------------------------------------------------------------------------------------
 
@@ -2125,82 +2199,6 @@ void WaitIdle() {
 }
 
 //----------------------------------------------------------------------------------------------
-
-void* AllocStaging(U64 len) {
-	Assert(frameStagingBufferUsed[frameIdx] + len <= PerFrameStagingBufferSize);
-	U8* const ptr = frameStagingBufferPtrs[frameIdx] + frameStagingBufferUsed[frameIdx];
-	frameStagingBufferUsed[frameIdx] += len;
-	return ptr;
-}
-
-//----------------------------------------------------------------------------------------------
-
-void CopyStagingToBuffer(void* staging, U64 len, Buffer buffer, U64 offset) {
-	Assert((U8*)staging >= frameStagingBufferPtrs[frameIdx]);
-	Assert((U8*)staging + len < frameStagingBufferPtrs[frameIdx] + PerFrameStagingBufferSize);
-
-	BufferObj const* const bufferObj = bufferObjs.Get(buffer);
-	VkDeviceSize const srcOffset = 
-		(frameIdx * PerFrameStagingBufferSize) + 
-		(VkDeviceSize)((U8*)staging - frameStagingBufferPtrs[frameIdx]);
-	VkBufferCopy2 const vkBufferCopy2 = {
-		.sType     = VK_STRUCTURE_TYPE_BUFFER_COPY_2,
-		.pNext     = 0,
-		.srcOffset = srcOffset,
-		.dstOffset = offset,
-		.size      = len,
-	};
-	VkCopyBufferInfo2 const vkCopyBufferInfo2 = {
-		.sType       = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
-		.pNext       = 0,
-		.srcBuffer   = frameStagingBuffer.vkBuffer,
-		.dstBuffer   = bufferObj->vkBuffer,
-		.regionCount = 1,
-		.pRegions    = &vkBufferCopy2,
-	};
-	vkCmdCopyBuffer2(vkFrameCommandBuffers[frameIdx], &vkCopyBufferInfo2);
-}
-
-//-------------------------------------------------------------------------------------------------
-
-void CopyStagingToImage(void* staging, Image image) {
-	ImageObj const* const imageObj = imageObjs.Get(image);
-	U64 const len = imageObj->width * imageObj->height * FormatSize(imageObj->vkFormat);
-	Assert((U8*)staging>= frameStagingBufferPtrs[frameIdx]);
-	Assert((U8*)staging + len < frameStagingBufferPtrs[frameIdx] + PerFrameStagingBufferSize);
-
-	VkDeviceSize const srcOffset = 
-		(frameIdx * PerFrameStagingBufferSize) + 
-		(VkDeviceSize)((U8*)staging - frameStagingBufferPtrs[frameIdx]);
-
-	VkBufferImageCopy2 const vkBufferImageCopy2 = {
-		.sType             = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2,
-		.pNext             = 0,
-		.bufferOffset      = srcOffset,
-		.bufferRowLength   = 0,
-		.bufferImageHeight = 0,
-		.imageSubresource  = {
-			.aspectMask      = (VkImageAspectFlags)(IsDepthFormat(imageObj->vkFormat) ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT),
-			.mipLevel        = 0,
-			.baseArrayLayer  = 0,
-			.layerCount      = 1,
-		},
-		.imageOffset       = { .x = 0, .y = 0, .z = 0 },
-		.imageExtent       = { .width = imageObj->width, .height = imageObj->height, .depth = 1 },
-	};
-	VkCopyBufferToImageInfo2 const vkCopyBufferToImageInfo2 = {
-		.sType          = VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2,
-		.pNext          = 0,
-		.srcBuffer      = frameStagingBuffer.vkBuffer,
-		.dstImage       = imageObj->vkImage,
-		.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		.regionCount    = 1,
-		.pRegions       = &vkBufferImageCopy2,
-	};
-	vkCmdCopyBufferToImage2(vkFrameCommandBuffers[frameIdx], &vkCopyBufferToImageInfo2);
-}
-
-//-------------------------------------------------------------------------------------------------
 
 void BufferBarrier(Buffer buffer, U64 offset, U64 size, BarrierStage::Flags srcBarrierStageFlags, BarrierStage::Flags dstBarrierStageFlags) {
 	VkBufferMemoryBarrier2 const vkBufferMemoryBarrier2 = {

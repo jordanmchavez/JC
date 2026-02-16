@@ -1,8 +1,6 @@
 #pragma once
 
-#include "JC/Common_Mem.h"
-#include "JC/Common_Res.h"
-#include "JC/Common_Std.h"
+#include "JC/Common.h"
 
 namespace JC::Gpu { struct Frame; };
 
@@ -11,10 +9,10 @@ namespace JC::Draw {
 //--------------------------------------------------------------------------------------------------
 
 struct InitDesc {
-	Mem::Mem permMem;
-	Mem::Mem tempMem;
-	U32      windowWidth;
-	U32      windowHeight;
+	Mem permMem;
+	Mem tempMem;
+	U32 windowWidth;
+	U32 windowHeight;
 };
 
 DefHandle(Sprite);

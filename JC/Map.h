@@ -1,8 +1,6 @@
 #pragma once
 
-#include "JC/Common_Assert.h"
-#include "JC/Common_Mem.h"
-#include "JC/Common_Std.h"
+#include "JC/Common.h"
 
 namespace JC {
 
@@ -24,12 +22,12 @@ template <class K, class V> struct Map {
 	U64      elemsLen;
 	U64      cap;
 
-	void Init(Mem::Mem mem, U64 cap_) {
+	void Init(Mem mem, U64 capIn) {
 		Assert((cap & (cap - 1)) == 0);
 		buckets    = Mem::AllocT<Bucket>(mem, cap);
 		elems      = Mem::AllocT<Elem>(mem, cap);
 		elemsLen   = 0;
-		cap        = cap_;
+		cap        = capIn;
 	}
 
 	V* FindOrNull(K k) const {

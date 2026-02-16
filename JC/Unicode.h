@@ -1,14 +1,13 @@
 #pragma once
 
-#include "JC/Common_Mem.h"
-#include "JC/Common_Span.h"
+#include "JC/Common.h"
 
 namespace JC::Unicode {
 
 //--------------------------------------------------------------------------------------------------
 
-Span<wchar_t> Utf8ToWtf16z(Mem::Mem mem, Str s);
-Str           Wtf16zToUtf8(Mem::Mem mem, Span<wchar_t> s);
+Span<wchar_t> Utf8ToWtf16z(Mem mem, Str s);
+Str           Wtf16zToUtf8(Mem mem, Span<wchar_t> s);
 
 //--------------------------------------------------------------------------------------------------
 

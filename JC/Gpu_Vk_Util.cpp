@@ -2,7 +2,6 @@
 
 #include "JC/Gpu.h"
 #include "JC/Gpu_Vk.h"
-#include "JC/Common_Assert.h"
 
 namespace JC::Gpu {
 
@@ -733,8 +732,8 @@ Str FormatStr(VkFormat f) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str MemoryHeapFlagsStr(Mem::Mem mem, VkMemoryHeapFlags f) {
-	Fmt::PrintBuf pb(mem);
+Str MemoryHeapFlagsStr(Mem mem, VkMemoryHeapFlags f) {
+	PrintBuf pb(mem);
 	if (f & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)   { pb.Add("VK_MEMORY_HEAP_DEVICE_LOCAL_BIT|"); }
 	if (f & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT) { pb.Add("VK_MEMORY_HEAP_MULTI_INSTANCE_BIT|"); }       
 	if (pb.len > 0) {
@@ -745,8 +744,8 @@ Str MemoryHeapFlagsStr(Mem::Mem mem, VkMemoryHeapFlags f) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str MemoryPropertyFlagsStr(Mem::Mem mem, VkMemoryPropertyFlags f) {
-	Fmt::PrintBuf pb(mem);
+Str MemoryPropertyFlagsStr(Mem mem, VkMemoryPropertyFlags f) {
+	PrintBuf pb(mem);
 	if (f & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)        { pb.Add("VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT|"); }
 	if (f & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)        { pb.Add("VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|"); }       
 	if (f & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)       { pb.Add("VK_MEMORY_PROPERTY_HOST_COHERENT_BIT|"); }
@@ -778,8 +777,8 @@ Str PresentModeStr(VkPresentModeKHR m) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str QueueFlagsStr(Mem::Mem mem, VkQueueFlags f) {
-	Fmt::PrintBuf pb(mem);
+Str QueueFlagsStr(Mem mem, VkQueueFlags f) {
+	PrintBuf pb(mem);
 	if (f & VK_QUEUE_GRAPHICS_BIT)         { pb.Add("VK_QUEUE_GRAPHICS_BIT|"); }
 	if (f & VK_QUEUE_COMPUTE_BIT)          { pb.Add("VK_QUEUE_COMPUTE_BIT|"); }
 	if (f & VK_QUEUE_TRANSFER_BIT)         { pb.Add("VK_QUEUE_TRANSFER_BIT|"); }
@@ -867,23 +866,23 @@ Str PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str VersionStr(Mem::Mem mem, U32 v) {
-	return Fmt::Printf(mem, "%u.%u.%u", VK_API_VERSION_MAJOR(v), VK_API_VERSION_MINOR(v), VK_API_VERSION_PATCH(v));
+Str VersionStr(Mem mem, U32 v) {
+	return SPrintf(mem, "%u.%u.%u", VK_API_VERSION_MAJOR(v), VK_API_VERSION_MINOR(v), VK_API_VERSION_PATCH(v));
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Str SizeStr(Mem::Mem mem, U64 size) {
+Str SizeStr(Mem mem, U64 size) {
 	if (size > 1024 * 1024 * 1024) {
-		return Fmt::Printf(mem, "%.1fgb", (F64)size / (1024.0 * 1024.0 * 1024.0));
+		return SPrintf(mem, "%.1fgb", (F64)size / (1024.0 * 1024.0 * 1024.0));
 	}
 	if (size > 1024 * 1024) {
-		return Fmt::Printf(mem, "%.1fmb", (F64)size / (1024.0 * 1024.0));
+		return SPrintf(mem, "%.1fmb", (F64)size / (1024.0 * 1024.0));
 	}
 	if (size > 1024) {
-		return Fmt::Printf(mem, "%.1fkb", (F64)size / 1024.0);
+		return SPrintf(mem, "%.1fkb", (F64)size / 1024.0);
 	}
-	return Fmt::Printf(mem, "%u", size);
+	return SPrintf(mem, "%u", size);
 }
 
 //--------------------------------------------------------------------------------------------------

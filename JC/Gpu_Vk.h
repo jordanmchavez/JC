@@ -1,6 +1,6 @@
 #pragma once
 
-#include "JC/Common_Std.h"
+#include "JC/Common.h"
 #include "JC/Gpu.h"
 
 #define VK_NO_PROTOTYPES
@@ -57,14 +57,14 @@ void                  ImageMemoryBarrier(
 );
 Str                   ColorSpaceStr(VkColorSpaceKHR c);
 Str                   FormatStr(VkFormat f);
-Str                   MemoryHeapFlagsStr(Mem::Mem mem, VkMemoryHeapFlags f);
-Str                   MemoryPropertyFlagsStr(Mem::Mem mem, VkMemoryPropertyFlags f);
-Str                   QueueFlagsStr(Mem::Mem mem, VkQueueFlags f);
+Str                   MemoryHeapFlagsStr(Mem mem, VkMemoryHeapFlags f);
+Str                   MemoryPropertyFlagsStr(Mem mem, VkMemoryPropertyFlags f);
+Str                   QueueFlagsStr(Mem mem, VkQueueFlags f);
 Str                   PresentModeStr(VkPresentModeKHR m);
 Str                   ResultStr(VkResult r);
 Str                   PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
-Str                   VersionStr(Mem::Mem mem, U32 v);
-Str                   SizeStr(Mem::Mem mem, U64 size);
+Str                   VersionStr(Mem mem, U32 v);
+Str                   SizeStr(Mem mem, U64 size);
 
 //--------------------------------------------------------------------------------------------------
 

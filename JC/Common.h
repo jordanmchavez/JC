@@ -197,7 +197,6 @@ struct Arg {
 		*out = Make(arg1);
 		Fill(out + 1, args...);
 	}
-
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -225,12 +224,12 @@ struct Mem {
 	static Mem                        Create(U64 reserveSize);
 	static void                       Destroy(Mem mem);
 	static void*                      Alloc(Mem mem, U64 size, SrcLoc sl = SrcLoc::Here());
-	static bool                       Extend(Mem mem, void* ptr, U64 newSize, SrcLoc sl = SrcLoc::Here());
+	static void*                      Extend(Mem mem, void* ptr, U64 newSize, SrcLoc sl = SrcLoc::Here());
 	static U64                        Mark(Mem mem);
 	static void                       Reset(Mem mem, U64 mark);
 	template <class T> static T*      AllocT(Mem mem, U64 n, SrcLoc sl = SrcLoc::Here()) { return (T*)Mem::Alloc(mem, n * sizeof(T), sl); }
 	template <class T> static Span<T> AllocSpan(Mem mem, U64 n, SrcLoc sl = SrcLoc::Here()) { return Span<T>((T*)Mem::Alloc(mem, n * sizeof(T), sl), n); }
-	template <class T> static bool    ExtendT(Mem mem, T* ptr, U64 newN, SrcLoc sl = SrcLoc::Here()) { return Mem::Extend(mem, ptr , newN * sizeof(T), sl); }
+	template <class T> static T*      ExtendT(Mem mem, T* ptr, U64 newN, SrcLoc sl = SrcLoc::Here()) { return (T*)Mem::Extend(mem, ptr , newN * sizeof(T), sl); }
 };
 
 struct MemScope {
@@ -280,13 +279,14 @@ struct [[nodiscard]] Err {
 		FillNamedArgs(namedArgs, args...);
 		return Makev(prev, sl, ns, sCode, uCode, namedArgs);
 	}
+
+	static void Frame(U64 frame);
 };
 
 
 struct ErrCode {
 	Str const ns;
 	Str const code;
-
                                                                                               Err const * operator()(                                                                                                                        SrcLoc sl = SrcLoc::Here()) const { return Err::Make(nullptr, sl, ns, code, 0); }
 	template <class A1                                                                      > Err const * operator()(Str n1, A1 a1,                                                                                                          SrcLoc sl = SrcLoc::Here()) const { return Err::Make(nullptr, sl, ns, code, 0, n1, a1); }
 	template <class A1, class A2                                                            > Err const * operator()(Str n1, A1 a1, Str n2, A2 a2,                                                                                           SrcLoc sl = SrcLoc::Here()) const { return Err::Make(nullptr, sl, ns, code, 0, n1, a1, n2, a2); }
@@ -301,7 +301,7 @@ struct ErrCode {
 bool operator==(ErrCode ec, Err const* err);
 bool operator==(Err const* err, ErrCode ec);
 
-#define DefErr(Ns_, Code_) constexpr ErrCode Err_##Code_ = { .ns = #Ns_, .code = #Code_ }
+#define DefErr(NsIn, CodeIn) constexpr ErrCode Err_##CodeIn = { .ns = #NsIn, .code = #CodeIn }
 
 //--------------------------------------------------------------------------------------------------
 
@@ -450,7 +450,7 @@ Str SPrintv(Mem mem, char const* fmt, Span<Arg const> args);
 char* SPrintv(char* outBegin,  char* outEnd, char const* fmt, Span<Arg const> args);
 
 template <class... A> Str SPrintf(Mem mem, CheckFmtStr<A...> fmt, A... args) {
-	return Printv(mem, fmt.fmt, { Arg::Make(args)... });
+	return SPrintv(mem, fmt.fmt, { Arg::Make(args)... });
 }
 
 template <class... A> char* SPrintf(char* outBegin, char* outEnd, CheckFmtStr<A...> fmt, A... args) {

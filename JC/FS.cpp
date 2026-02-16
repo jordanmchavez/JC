@@ -1,5 +1,5 @@
 #include "JC/FS.h"
-#include "JC/Handle.h"
+#include "JC/HandlePool.h"
 #include "JC/Sys_Win.h"
 #include "JC/Unicode.h"
 
@@ -13,15 +13,15 @@ struct FileObj {
 	HANDLE hfile;
 };
 
-static Mem::Mem                   permMem;
-static Mem::Mem                   tempMem;
-static HandleArray<FileObj, File> files;
+static Mem                   permMem;
+static Mem                   tempMem;
+static HandlePool<FileObj, File> files;
 
 //--------------------------------------------------------------------------------------------------
 
-void Init(Mem::Mem permMem_, Mem::Mem tempMem_) {
-	permMem = permMem_;
-	tempMem = tempMem_;
+void Init(Mem permMemIn, Mem tempMemIn) {
+	permMem = permMemIn;
+	tempMem = tempMemIn;
 	files.Init(permMem, MaxFiles);
 }
 
@@ -67,7 +67,7 @@ Res<> Read(File file, void* out, U64 outLen) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Span<U8>> ReadAll(Mem::Mem mem, Str path) {
+Res<Span<U8>> ReadAll(Mem mem, Str path) {
 	File file;
 	if (Res<> r = Open(path).To(file); !r) {
 		return r.err;

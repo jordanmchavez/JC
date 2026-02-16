@@ -87,14 +87,16 @@ void* Mem::Alloc(Mem mem, U64 size, SrcLoc) {
 
 //--------------------------------------------------------------------------------------------------
 
-bool Mem::Extend(Mem mem, void* ptr, U64 size, SrcLoc) {
+void* Mem::Extend(Mem mem, void* ptr, U64 size, SrcLoc sl) {
 	Assert(mem);
 	Assert(mem.handle < MaxMemObjs);
 	MemObj* const memObj = &memObjs[mem.handle];
 
-	if (!ptr || memObj->lastAlloc != ptr) {
-		return false;
+	if (!ptr) {
+		return Alloc(mem, size, sl);
 	}
+	
+	Assert(memObj->lastAlloc == ptr);
 
 	size = Bit::AlignUp(size, Align);
 	memObj->end = (U8*)ptr;
@@ -114,7 +116,7 @@ bool Mem::Extend(Mem mem, void* ptr, U64 size, SrcLoc) {
 	Assert(memObj->end <= memObj->endCommit);
 	Assert(Bit::IsPow2(memObj->endCommit - memObj->begin));
 
-	return true;
+	return ptr;
 }
 
 //--------------------------------------------------------------------------------------------------

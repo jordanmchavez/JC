@@ -1,5 +1,4 @@
 ﻿#include "JC/Unicode.h"
-
 #include "JC/Unit.h"
 #include <wchar.h>
 
@@ -23,7 +22,7 @@ bool operator==(wchar_t const* s1, Span<wchar_t>  s2) { return !wcscmp(s1, s2.da
 
 //--------------------------------------------------------------------------------------------------
 
-Span<wchar_t> Utf8ToWtf16z(Mem::Mem mem, Str s) {
+Span<wchar_t> Utf8ToWtf16z(Mem mem, Str s) {
 	// Max WTF-16 encoding of a UTF-8 string is 2*len(utf8Str)
 	wchar_t* const out = Mem::AllocT<wchar_t>(mem, (s.len * 2) + 1);
 	U64 outLen = 0;
@@ -175,7 +174,7 @@ Unit_Test("Utf8ToWtf16z") {
 
 //--------------------------------------------------------------------------------------------------
 
-Str Wtf16zToUtf8(Mem::Mem mem, wchar_t const* s) {
+Str Wtf16zToUtf8(Mem mem, wchar_t const* s) {
 	// Max UTF-8 encoding of a WTF-16 string is len(wtf16Str) * 3, due to BMP chars/unpaired surrogates
 	const U64 len = wcslen(s);
 	char* out = Mem::AllocT<char>(mem, len * 3);	

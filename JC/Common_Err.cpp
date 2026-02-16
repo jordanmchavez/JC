@@ -9,16 +9,16 @@ static constexpr U32 MaxStrBuf = 64 * 1024;
 
 static Err  errs[MaxErrs];
 static U32  errsLen = 1;	// reserve index 0 for invalid
-static U64  frame;
-static char strBuf[MaxStrBuf];
-static U64  strBufLen;
+static U64  errFrame;
+static char errStrBuf[MaxStrBuf];
+static U64  errStrBufLen;
 
 //--------------------------------------------------------------------------------------------------
 
 static char* AllocStr(U64 len) {
-	Assert(strBufLen + len <= MaxStrBuf);
-	char* result = strBuf + strBufLen;
-	strBufLen += len;
+	Assert(errStrBufLen + len <= MaxStrBuf);
+	char* result = errStrBuf + errStrBufLen;
+	errStrBufLen += len;
 	return result;
 }
 
@@ -45,7 +45,7 @@ static Arg CloneArg(Arg arg) {
 
 //--------------------------------------------------------------------------------------------------
 
-Err const* Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, Span<NamedArg const> namedArgs) {
+Err const* Err::Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, Span<NamedArg const> namedArgs) {
 	Assert(errsLen < MaxErrs);
 	Assert(namedArgs.len <= Err::MaxNamedArgs);
 
@@ -53,10 +53,10 @@ Err const* Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, Span<
 
 	if (prev) {
 		Assert(prev >= errs && prev < errs + errsLen);
-		Assert(prev->frame == frame);
+		Assert(prev->frame == errFrame);
 	}
 
-	err->frame        = frame;
+	err->frame        = errFrame;
 	err->prev         = prev;
 	err->sl           = sl;
 	err->ns           = ns;
@@ -75,8 +75,8 @@ Err const* Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, Span<
 
 //--------------------------------------------------------------------------------------------------
 
-void Frame(U64 frame_) {
-	frame = frame_;
+void Err::Frame(U64 frameIn) {
+	errFrame = frameIn;
 	memset(errs, 0, errsLen * sizeof(Err));
 	errsLen = 0;
 }

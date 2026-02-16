@@ -1,11 +1,6 @@
 #pragma once
 
-#include "JC/Common_Arg.h"
-#include "JC/Common_Err.h"
-#include "JC/Common_Fmt.h"
-#include "JC/Common_Res.h"
-#include "JC/Common_SrcLoc.h"
-#include "JC/Common_Std.h"
+#include "JC/Common.h"
 
 namespace JC::Window { struct PlatformDesc; }
 
@@ -13,18 +8,13 @@ namespace JC::Gpu {
 
 //--------------------------------------------------------------------------------------------------
 
-Err_Def(Gpu, RecreateSwapchain);
-
-constexpr Str Cfg_EnableVkValidation = "Gpu::EnableVkValidation";
-constexpr Str Cfg_EnableDebug        = "Gpu::EnableDebug";
-
-//--------------------------------------------------------------------------------------------------
+DefErr(Gpu, RecreateSwapchain);
 
 constexpr U32 MaxFrames = 3;
 
 struct InitDesc {
-	Mem::Mem                    permMem;
-	Mem::Mem                    tempMem;
+	Mem                         permMem;
+	Mem                         tempMem;
 	U32                         windowWidth;
 	U32                         windowHeight;
 	Window::PlatformDesc const* windowPlatformDesc;
@@ -128,6 +118,9 @@ U32           GetImageWidth(Image image);	// TODO; -> IVec2 or IExtent or someth
 U32           GetImageHeight(Image image);
 ImageFormat   GetImageFormat(Image image);
 U32           GetImageBindIdx(Image image);
+void*         AllocStaging(U64 len);
+void          CopyStagingToBuffer(void* staging, U64 len, Buffer buffer, U64 offset);
+void          CopyStagingToImage(void* staging, Image image);
 Res<Shader>   CreateShader(void const* data, U64 len);
 void          DestroyShader(Shader shader);
 Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> colorAttachmentFormats, ImageFormat depthAttachmentFormat);
@@ -138,9 +131,6 @@ Res<>         ImmediateWait();
 Res<Frame>    BeginFrame();
 Res<>         EndFrame();
 void          WaitIdle();
-void*         AllocStaging(U64 len);
-void          CopyStagingToBuffer(void* staging, U64 len, Buffer buffer, U64 offset);
-void          CopyStagingToImage(void* staging, Image image);
 void          BufferBarrier(Buffer buffer, U64 offset, U64 size, BarrierStage::Flags srcBarrierStageFlags, BarrierStage::Flags dstBarrierStageFlags);
 void          ImageBarrier(Image image, BarrierStage::Flags srcBarrierStageFlags, ImageLayout srcImageLayout, BarrierStage::Flags dstBarrierStageFlags, ImageLayout dstImageLayout);
 void          DebugBarrier();
@@ -151,14 +141,14 @@ void          PushConstants(Pipeline pipeline, void const* data, U32 len);
 void          Draw(U32 vertexCount, U32 instanceCount);
 void          DrawIndexed(U32 indexCount);
 void          DrawIndexedIndirect(Buffer indirectBuffer, U32 drawCount);
-void          Namev(SrcLoc sl, Buffer   buffer,   char const* fmt, Span<Arg::Arg const> args);
-void          Namev(SrcLoc sl, Image    image,    char const* fmt, Span<Arg::Arg const> args);
-void          Namev(SrcLoc sl, Shader   shader,   char const* fmt, Span<Arg::Arg const> args);
-void          Namev(SrcLoc sl, Pipeline pipeline, char const* fmt, Span<Arg::Arg const> args);
+void          Namev(SrcLoc sl, Buffer   buffer,   char const* fmt, Span<Arg const> args);
+void          Namev(SrcLoc sl, Image    image,    char const* fmt, Span<Arg const> args);
+void          Namev(SrcLoc sl, Shader   shader,   char const* fmt, Span<Arg const> args);
+void          Namev(SrcLoc sl, Pipeline pipeline, char const* fmt, Span<Arg const> args);
 
 template <class T, class... A>
-void NamefImpl(SrcLoc sl, T obj, Fmt::CheckStr<A...> fmt, A... args) {
-	Namev(sl, obj, fmt, { Arg::Make(args)..., });
+void NamefImpl(SrcLoc sl, T obj, CheckFmtStr<A...> fmt, A... args) {
+	Namev(sl, obj, fmt, { MakeArg(args)..., });
 }
 
 #define Gpu_Name(obj)            Gpu::NamefImpl(SrcLoc::Here(), obj, #obj)

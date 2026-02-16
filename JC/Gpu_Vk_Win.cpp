@@ -1,5 +1,4 @@
 #include "JC/Gpu_Vk.h"
-#include "JC/Common_Assert.h"
 
 #if defined Platform_Windows
 	typedef __int64 (__stdcall *FARPROC)();

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "JC/Common_Std.h"
+#include "JC/Common.h"
 #include <math.h>
 
 namespace JC::Math {

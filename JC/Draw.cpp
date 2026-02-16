@@ -15,11 +15,11 @@ namespace JC::Draw {
 
 //--------------------------------------------------------------------------------------------------
 
-Err_Def(Draw, AtlasFmt);
-Err_Def(Draw, DuplicateSpriteName);
-Err_Def(Draw, ImageFmt);
-Err_Def(Draw, LoadImage);
-Err_Def(Draw, SpriteNotFound);
+DefErr(Draw, AtlasFmt);
+DefErr(Draw, DuplicateSpriteName);
+DefErr(Draw, ImageFmt);
+DefErr(Draw, LoadImage);
+DefErr(Draw, SpriteNotFound);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -81,8 +81,8 @@ struct Pass {
 
 //--------------------------------------------------------------------------------------------------
 
-static Mem::Mem      permMem;
-static Mem::Mem      tempMem;
+static Mem           permMem;
+static Mem           tempMem;
 static U32           windowWidth;
 static U32           windowHeight;
 static Gpu::Image    depthImage;
@@ -480,7 +480,7 @@ void SetCanvas(Canvas canvas) {
 //--------------------------------------------------------------------------------------------------
 
 static DrawCmd* AllocDrawCmds(U32 n) {
-	JC_ASSERT(drawCmdCount + n < MaxDrawCmds);
+	Assert(drawCmdCount + n < MaxDrawCmds);
 	DrawCmd* ptr = drawCmds + drawCmdCount;
 	drawCmdCount += n;
 	return ptr;

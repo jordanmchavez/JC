@@ -1,11 +1,19 @@
+//#include "JC/Draw.h"
+#include "JC/Event.h"
+#include "JC/Gpu.h"
+#include "JC/Log.h"
+#include "JC/Sys.h"
 #include "JC/Unit.h"
+#include "JC/Window.h"
 
 using namespace JC;
-/*
-static Mem::Mem permMem;
-static Mem::Mem tempMem;
+
+static Mem permMem;
+static Mem tempMem;
 
 Res<> Run() {
+	permMem = Mem::Create(16 * GB);
+	tempMem = Mem::Create(16 * GB);
 
 	Log::Init(permMem, tempMem);
 	Log::AddFn([](Log::Msg const* msg) {
@@ -14,8 +22,6 @@ Res<> Run() {
 			Sys::DbgPrint(msg->line);
 		}
 	});
-
-	FS::Init(permMem, tempMem);
 
 	Window::InitDesc const windowInitDesc = {
 		.tempMem    = tempMem,
@@ -27,6 +33,7 @@ Res<> Run() {
 	};
 	Try(Window::Init(&windowInitDesc));
 
+
 	Window::PlatformDesc const windowPlatformDesc = Window::GetPlatformDesc();
 	const Gpu::InitDesc gpuInitDesc = {
 		.permMem            = permMem,
@@ -36,7 +43,15 @@ Res<> Run() {
 		.windowPlatformDesc = &windowPlatformDesc,
 	};
 	Try(Gpu::Init(&gpuInitDesc));
-
+	/*
+	Draw::InitDesc const drawInitDesc = {
+		.permMem      = permMem,
+		.tempMem      = tempMem,
+		.windowWidth  = 1024,
+		.windowHeight = 768,
+	};
+	Try(Draw::Init(&drawInitDesc));
+	*/
 	U64 frame = 0;
 	bool exitRequested = false;
 	while (!exitRequested) {
@@ -55,14 +70,23 @@ Res<> Run() {
 		Mem::Reset(tempMem, 0);
 	}
 
-
 	return Ok();
 }
-*/
+
 int main(int argc, const char** argv) {
 	if (argc == 2 && argv[1] == Str("test")) {
 		Unit::Run();
 		return 0;
 	}
-	return 0;
+
+	Res<> r = Run();
+
+	//Draw::Shutdown();
+	Gpu::Shutdown();
+	Window::Shutdown();
+
+	if (!r) {
+		LogErr(r);
+	}
+	return r ? 0 : 1;
 }

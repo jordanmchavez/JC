@@ -1,32 +1,30 @@
 #pragma once
 
-#include "JC/Common_Assert.h"
-#include "JC/Common_Mem.h"
-#include "JC/Common_Std.h"
+#include "JC/Common.h"
 
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
 template <class T> struct Array {
-	Mem::Mem mem;
-	T*       data;
-	U64      len;
-	U64      cap;
+	Mem  mem;
+	T*   data;
+	U64  len;
+	U64  cap;
 
 	Array() { Init(0); }
 
-	explicit Array(Mem::Mem mem_) {
-		Init(mem_);
+	explicit Array(Mem memIn) {
+		Init(memIn);
 	}
 
-	Array(Mem::Mem mem_, U64 size) {
-		Init(mem_);
+	Array(Mem memIn, U64 size) {
+		Init(memIn);
 		Resize(size);
 	}
 
-	void Init(Mem::Mem mem_) {
-		mem = mem_;
+	void Init(Mem memIn) {
+		mem  = memIn;
 		data = 0;
 		len  = 0;
 		cap  = 0;
