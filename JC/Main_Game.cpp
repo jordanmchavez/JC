@@ -4,6 +4,7 @@
 #include "JC/Log.h"
 #include "JC/StrDb.h"
 #include "JC/Sys.h"
+#include "JC/Time.h"
 #include "JC/Unit.h"
 #include "JC/Window.h"
 
@@ -15,6 +16,8 @@ static Mem tempMem;
 Res<> Run() {
 	permMem = Mem::Create(16 * GB);
 	tempMem = Mem::Create(16 * GB);
+
+	Time::Init();
 
 	StrDb::Init();
 

@@ -86,7 +86,7 @@
       <TreatWarningAsError>false</TreatWarningAsError>
       <AdditionalIncludeDirectories>.;3rd</AdditionalIncludeDirectories>
       <ExceptionHandling>false</ExceptionHandling>
-      <DisableLanguageExtensions>true</DisableLanguageExtensions>
+      <DisableLanguageExtensions>false</DisableLanguageExtensions>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <OpenMPSupport>false</OpenMPSupport>
       <AdditionalOptions>/utf-8</AdditionalOptions>
@@ -101,6 +101,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="3rd\dragonbox\dragonbox.h" />
+    <ClInclude Include="3rd\simdjson\simdjson.h" />
     <ClInclude Include="3rd\spirv-reflect\spirv.h" />
     <ClInclude Include="3rd\spirv-reflect\spirv_reflect.h" />
     <ClInclude Include="3rd\stb\stb_image.h" />
@@ -142,6 +143,7 @@
     <ClInclude Include="Notes\Scratch.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="3rd\simdjson\simdjson.cpp" />
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
@@ -159,7 +161,7 @@
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Json.cpp" />
     <ClCompile Include="JC\Log.cpp" />
-    <ClCompile Include="JC\Main.cpp" />
+    <ClCompile Include="JC\Main_Game.cpp" />
     <ClCompile Include="JC\Map.cpp" />
     <ClCompile Include="JC\Math.cpp" />
     <ClCompile Include="JC\Rng.cpp" />

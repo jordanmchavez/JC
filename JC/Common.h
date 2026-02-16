@@ -1,5 +1,5 @@
 #pragma once
-
+/*
 namespace std {
 	template <class T> struct initializer_list {
 		const T* _begin = 0;
@@ -12,7 +12,8 @@ namespace std {
 		constexpr size_t size() const { return _end - _begin; }
 	};
 }	// namespace std
-
+*/
+#include <initializer_list>
 
 namespace JC {
 

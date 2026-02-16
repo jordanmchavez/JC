@@ -277,59 +277,34 @@ Json_End(SpriteAtlasEntry)
 Res<> LoadSpriteAtlas(Str imagePath, Str atlasPath) {
 	Assert(spriteAtlasImagesLen < MaxSpriteAtlasImages);
 
-	Gpu::Image image;
-	if (Res<> r = LoadImage(imagePath).To(image); !r) { return r; }
+	Gpu::Image image; TryTo(LoadImage(imagePath), image);
 	U32 const imageIdx = Gpu::GetImageBindIdx(image);
 	spriteAtlasImages[spriteAtlasImagesLen++] = image;
-imageIdx;
-	Span<U8> data;
-	if (Res<> r = FS::ReadAll(tempMem, atlasPath).To(data); !r) { return r.err; }	// TODO: ctx
 
-	/*
-	Json::Doc* doc = 0;
-	if (Res<> r = Json::Parse(tempMem, tempMem, Str((char const*)data.data, data.len)).To(doc); !r) { return r.err; }	// TODO: ctx
-
-	Json::Elem root = Json::GetRoot(doc);
-	if (root.type != Json::Type::Arr) { return Err_AtlasFmt(); }	// TODO: ctx
-	Span<Json::Elem> elems = Json::GetArr(doc, root);
-
-	for (U64 i = 0; i < elems.len; i++) {
-		if (elems[i].type != Json::Type::Obj) { return Err_AtlasFmt(); }	// TODO: ctx
-		Json::Obj obj = Json::GetObj(doc, elems[i]);
-		if (obj.keys.len != 5) { return Err_AtlasFmt(); }
-		if (Json::GetStr(doc, obj.keys[0]) != "x"   ) { return Err_AtlasFmt(); }
-		if (Json::GetStr(doc, obj.keys[1]) != "y"   ) { return Err_AtlasFmt(); }
-		if (Json::GetStr(doc, obj.keys[2]) != "w"   ) { return Err_AtlasFmt(); }
-		if (Json::GetStr(doc, obj.keys[3]) != "h"   ) { return Err_AtlasFmt(); }
-		if (Json::GetStr(doc, obj.keys[4]) != "name") { return Err_AtlasFmt(); }
-
-		U64 const ix   = Json::GetU64(doc, obj.vals[0]);
-		U64 const iy   = Json::GetU64(doc, obj.vals[1]);
-		U64 const iw   = Json::GetU64(doc, obj.vals[2]);
-		U64 const ih   = Json::GetU64(doc, obj.vals[3]);
-		Str const name = Json::GetStr(doc, obj.vals[4]);
-
+	Span<char> json; TryTo(FS::ReadAllZ(tempMem, atlasPath), json);
+	Span<SpriteAtlasEntry> entries; Try(Json::ToArray(tempMem, tempMem, json.data, (U32)json.len, &entries));
+	for (U64 i = 0; i < entries.len; i++) {
+		SpriteAtlasEntry* const entry = &entries[i];
 		F32 const imageWidth  = (F32)Gpu::GetImageWidth(image);
 		F32 const imageHeight = (F32)Gpu::GetImageHeight(image);
-		F32 const x = (F32)ix / imageWidth;
-		F32 const y = (F32)iy / imageHeight;
-		F32 const w = (F32)iw;
-		F32 const h = (F32)ih;
+		F32 const x = (F32)entry->x / imageWidth;
+		F32 const y = (F32)entry->y / imageHeight;
+		F32 const w = (F32)entry->w;
+		F32 const h = (F32)entry->h;
 
-		if (spriteObjsByName.FindOrNull(name)) {
-			return Err_DuplicateSpriteName("path", atlasPath, "name", name);
+		if (spriteObjsByName.FindOrNull(entry->name)) {
+			return Err_DuplicateSpriteName("path", atlasPath, "name", entry->name);
 		}
 
-		SpriteObj* const spriteObj = spriteObjs.Add(SpriteObj {
+		spriteObjsByName.Put(entry->name, spriteObjsLen);
+		spriteObjs[spriteObjsLen++] = {
 			.imageIdx = imageIdx,
 			.uv1      = { x, y },
 			.uv2      = { x + (w / imageWidth), y + (h / imageHeight) },
 			.size     = { w, h },
-			.name     = Copy(allocator, name),
-		});
-		spriteObjsByName.Put(spriteObj->name, (U32)(spriteObj - spriteObjs.data));
+			.name     = entry->name,
+		};
 	}
-	*/
 	return Ok();
 }
 

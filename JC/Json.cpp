@@ -64,14 +64,14 @@ static constexpr bool IsNormal(char c) { return charTable.data[c] == CharType::N
 //--------------------------------------------------------------------------------------------------
 
 static void AddStructPos(Ctx* ctx, U32 pos) {
+	const U32 cap = (U32)(ctx->structPosEndCap - ctx->structPos);
+	const U32 len = (U32)(ctx->structPosEnd - ctx->structPos);
 	if (ctx->structPosEnd == ctx->structPosEndCap) {
-		const U32 cap = (U32)(ctx->structPosEndCap - ctx->structPos);
-		const U32 newCap = cap ? cap * 2 : 256;
-		const U32 len = (U32)(ctx->structPosEnd - ctx->structPos);
-		ctx->structPos = Mem::ExtendT<U32>(ctx->tempMem, ctx->structPos, newCap);
-		ctx->structPosEnd = ctx->structPos + len;	// bleh
-		ctx->structPosEndCap = ctx->structPosEnd + newCap;
-		ctx->structPosIter = ctx->structPos;	// bleh
+		const U32 newCap     = cap ? cap * 2 : 256;
+		ctx->structPos       = Mem::ExtendT<U32>(ctx->tempMem, ctx->structPos, newCap);
+		ctx->structPosEnd    = ctx->structPos + len;	// bleh
+		ctx->structPosEndCap = ctx->structPos + newCap;
+		ctx->structPosIter   = ctx->structPos;	// bleh
 	}
 	*ctx->structPosEnd++ = pos;
 }
