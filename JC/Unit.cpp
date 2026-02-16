@@ -1,5 +1,6 @@
 #include "JC/Unit.h"
 #include "JC/Log.h"
+#include "JC/StrDb.h"
 #include "JC/Sys.h"
 
 namespace JC::Unit {
@@ -87,6 +88,8 @@ Subtest::~Subtest() {
 bool Run() {
 	Mem permMem = Mem::Create(16 * GB);
 	Mem tempMem = Mem::Create(16 * GB);
+
+	StrDb::Init();
 
 	Log::Init(permMem, tempMem);
 

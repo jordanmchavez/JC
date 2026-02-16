@@ -20,7 +20,7 @@ Unit_Test("Map") {
 
 	Map<Key, U64> map;
 	map.Init(testMem, 64);
-	Unit_CheckTrue(!map.FindOrNull(Key {0, 0}));
+	Unit_Check(!map.FindOrNull(Key {0, 0}));
 
 	map.Put(Key {0, 0}, (U64)0);
 	CheckMap(0, 0x100 | 0, 0);

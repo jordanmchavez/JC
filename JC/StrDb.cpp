@@ -1,5 +1,4 @@
 #include "JC/StrDb.h"
-#include "JC/Common_Mem.h"
 #include "JC/Hash.h"
 #include "JC/Map.h"
 
@@ -7,35 +6,38 @@ namespace JC::StrDb {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr U64 MaxStrings = 8 * KB;	// bump as needed
+static constexpr U64 MaxStrings = 1 * MB;	// bump as needed
 
-static Mem::Mem      permMem;
+static Mem           mem;
 static Map<Str, Str> index;
 
 //--------------------------------------------------------------------------------------------------
 
 void Init() {
-	permMem = Mem::Create(1 * GB);
-	index.Init(permMem, MaxStrings);
+	mem = Mem::Create(1 * GB);
+	index.Init(mem, MaxStrings);
 }
 
 //--------------------------------------------------------------------------------------------------
 
 void Shutdown() {
-	Mem::Destroy(permMem);
+	Mem::Destroy(mem);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Str Get(Str s) {
+Str Get(const char* s, U32 len) {
 	if (Str* intern = index.FindOrNull(s)) {
 		return *intern;
 	}
-	Str newIntern(Mem::AllocT<char>(permMem, s.len), s.len);
-	memcpy((char*)newIntern.data, s.data, s.len);
+	Str newIntern(Mem::AllocT<char>(mem, len), len);
+	memcpy((char*)newIntern.data, s, len);
 	index.Put(newIntern, newIntern);
 	return newIntern;
 }
+
+Str Get(const char* begin, const char* end) { return Get(begin, (U32)(end - begin)); }
+Str Get(Str s) { return Get(s.data, s.len); }
 
 //--------------------------------------------------------------------------------------------------
 

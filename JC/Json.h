@@ -53,10 +53,10 @@ template <class T> constexpr Traits GetJsonTraits(Span<T>) {
 	namespace JsonPrivate { using CurrentType = CppType; } \
 	static constexpr Json::Member CppType##JsonMembersArray[] = {
 
-#define Json_Field(jsonName, CppMember) \
+#define Json_Member(jsonName, CppMember) \
 	Json::Member { \
 		.name   = jsonName, \
-		.offset = offsetof(JsonPrivate::CurrentType, CppMember), \
+		.offset = OffsetOf(JsonPrivate::CurrentType, CppMember), \
 		.traits = GetJsonTraits(decltype(JsonPrivate::CurrentType::CppMember)()), \
 	},
 
@@ -67,14 +67,14 @@ template <class T> constexpr Traits GetJsonTraits(Span<T>) {
 			.type       = Json::Type::Obj, \
 			.size       = sizeof(CppType), \
 			.arrayDepth = 0, \
-			.members    = Span<const Json::Member>(CppType##JsonMembersArray, LenOf(CppType##JsonMembersArray)); \
+			.members    = Span<const Json::Member>(CppType##JsonMembersArray, LenOf(CppType##JsonMembersArray)), \
 		}; \
 	}
 
-Res<> ObjFromJson(Mem permMem, Mem tempMem, Str json, Span<const Member> members, U8* obj);
+Res<> ObjFromJson(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, Span<const Member> members, U8* obj);
 
-template <class T> Res<> FromJson(Mem permMem, Mem tempMem, Str json, T* obj) {
-	return ObjFromJson(permMem, tempMem, json, GetJsonTraits(*obj).members, (U8*)obj);
+template <class T> Res<> FromJson(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, T* obj) {
+	return ObjFromJson(permMem, tempMem, json, jsonLen, GetJsonTraits(*obj).members, (U8*)obj);
 }
 
 //--------------------------------------------------------------------------------------------------

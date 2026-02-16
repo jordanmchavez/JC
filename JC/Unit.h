@@ -70,8 +70,8 @@ struct Subtest {
 
 #define Unit_CheckFailAt(sl)         (Unit::CheckFailImpl(sl) || Unit_DbgBreak)
 #define Unit_CheckFail()             (Unit::CheckFailImpl(SrcHere) || Unit_DbgBreak)
-#define Unit_CheckTrueAt(sl, x)      ((x) || Unit::CheckExprFail(sl, #x) || Unit_DbgBreak)
-#define Unit_CheckTrue(x)            Unit_CheckTrueAt(SrcLoc::Here(), x)
+#define Unit_CheckAt(sl, x)          ((x) || Unit::CheckExprFail(sl, #x) || Unit_DbgBreak)
+#define Unit_Check(x)                Unit_CheckAt(SrcLoc::Here(), x)
 #define Unit_CheckFalseAt(sl, x)     (!(x) || Unit::CheckExprFail(sl, "NOT " #x) || Unit_DbgBreak)
 #define Unit_CheckFalse(x)           Unit_CheckFalseAt(SrcLoc::Here(), x)
 #define Unit_CheckEqAt(sl, x, y)     (Unit::CheckEq(sl, #x " == " #y, (x), (y)) || Unit_DbgBreak)

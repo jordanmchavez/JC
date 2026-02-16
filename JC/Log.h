@@ -30,7 +30,7 @@ struct Msg {
 	SrcLoc          sl;
 	Level           level;
 	char const*     line;	// new-line and null-terminated
-	U64             lineLen;
+	U32             lineLen;
 };
 using Fn = void (Msg const* msg);
 

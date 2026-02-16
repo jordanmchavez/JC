@@ -2,6 +2,7 @@
 #include "JC/Event.h"
 #include "JC/Gpu.h"
 #include "JC/Log.h"
+#include "JC/StrDb.h"
 #include "JC/Sys.h"
 #include "JC/Unit.h"
 #include "JC/Window.h"
@@ -14,6 +15,8 @@ static Mem tempMem;
 Res<> Run() {
 	permMem = Mem::Create(16 * GB);
 	tempMem = Mem::Create(16 * GB);
+
+	StrDb::Init();
 
 	Log::Init(permMem, tempMem);
 	Log::AddFn([](Log::Msg const* msg) {

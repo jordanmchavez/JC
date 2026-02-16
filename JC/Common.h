@@ -49,6 +49,7 @@ namespace JC {
 		int    __cdecl strcmp(char const* s1, char const* s2);
 
 	}
+	#define OffsetOf(type, member) __builtin_offsetof(type, member)
 	#define IfConstEval if (__builtin_is_constant_evaluated())
 	#define DbgBreak __debugbreak()
 #endif	// Compiler
@@ -109,15 +110,15 @@ constexpr U32 StrLen(char const* s) {
 
 struct Str {
 	char const* data = 0;
-	U64         len  = 0;
+	U32         len  = 0;
 
 	constexpr Str() = default;
 	constexpr Str(Str const&) = default;
 	constexpr Str(char const* s) { data = s; len = s ? StrLen(s) : 0; }
-	Str(char const* s, U64 l);
+	Str(char const* s, U32 l);
 	constexpr Str& operator=(Str const&) = default;
 	constexpr Str& operator=(char const* s) { data = s; len = s ? StrLen(s) : 0; return *this; }
-	char operator[](U64 i) const { return data[i]; }
+	char operator[](U32 i) const { return data[i]; }
 };
 
 bool operator==(Str s1, Str s2);
@@ -165,7 +166,7 @@ struct Arg {
 		I64 i;
 		U64 u;
 		F64 f;
-		struct { char const* data; U64 len; } s;
+		struct { char const* data; U32 len; } s;
 		const void* p;
 	};
 
@@ -462,17 +463,17 @@ template <class... A> char* SPrintf(char* outBegin, char* outEnd, CheckFmtStr<A.
 struct PrintBuf {
 	Mem   mem;
 	char* data;
-	U64   len;
-	U64   cap;
+	U32   len;
+	U32   cap;
 
 	PrintBuf(Mem mem);
 
 	void Add(char c, SrcLoc sl = SrcLoc::Here());
-	void Add(char c, U64 n, SrcLoc sl = SrcLoc::Here());
-	void Add(char const* str, U64 strLen, SrcLoc sl = SrcLoc::Here());
+	void Add(char c, U32 n, SrcLoc sl = SrcLoc::Here());
+	void Add(char const* str, U32 strLen, SrcLoc sl = SrcLoc::Here());
 	void Add(Str s, SrcLoc sl = SrcLoc::Here());
 	void Remove();
-	void Remove(U64 n);
+	void Remove(U32 n);
 
 	void Printv(char const* fmt, Span<Arg const> args);
 	template <class... A> void Printf(CheckFmtStr<A...> fmt, A... args) { Printv(fmt, { Arg::Make(args)... }); }

@@ -388,12 +388,12 @@ void SPrintImpl(Out* out, char const* fmt, Span<Arg const> args) {
 		while (*f != '%') {
 			if (*f == 0) {
 				Assert(argIdx == args.len);
-				out->Add(start, (U64)(f - start));
+				out->Add(start, (U32)(f - start));
 				return;
 			}
 			f++;
 		}
-		out->Add(start, (U64)(f - start));
+		out->Add(start, (U32)(f - start));
 		f++;
 
 		if (*f == '%') {
@@ -497,13 +497,9 @@ PrintBuf::PrintBuf(Mem mem_) {
 
 //--------------------------------------------------------------------------------------------------	
 
-void GrowPrintBuf(PrintBuf* pb, U64 n, SrcLoc sl) {
-	U64 const newCap = Max(pb->cap * 2, pb->len + n);
-	if (!Mem::ExtendT<char>(pb->mem, pb->data, newCap, sl)) {
-		char* const newData = Mem::AllocT<char>(pb->mem, newCap, sl);
-		memcpy(newData, pb->data, pb->len);
-		pb->data = newData;
-	}
+void GrowPrintBuf(PrintBuf* pb, U32 n, SrcLoc sl) {
+	U32 const newCap = Max(pb->cap * 2, pb->len + n);
+	pb->data = Mem::ExtendT<char>(pb->mem, pb->data, newCap, sl);
 	pb->cap = newCap;
 }
 
@@ -518,7 +514,7 @@ void PrintBuf::Add(char c, SrcLoc sl) {
 
 //--------------------------------------------------------------------------------------------------	
 
-void PrintBuf::Add(char c, U64 n, SrcLoc sl) {
+void PrintBuf::Add(char c, U32 n, SrcLoc sl) {
 	if (len + n >= cap) {
 		GrowPrintBuf(this, n, sl);
 	}
@@ -528,7 +524,7 @@ void PrintBuf::Add(char c, U64 n, SrcLoc sl) {
 
 //--------------------------------------------------------------------------------------------------	
 
-void PrintBuf::Add(char const* s, U64 sLen, SrcLoc sl) {
+void PrintBuf::Add(char const* s, U32 sLen, SrcLoc sl) {
 	if (len + sLen >= cap) {
 		GrowPrintBuf(this, sLen, sl);
 	}
@@ -555,7 +551,7 @@ void PrintBuf::Remove() {
 
 //--------------------------------------------------------------------------------------------------	
 
-void PrintBuf::Remove(U64 n) {
+void PrintBuf::Remove(U32 n) {
 	Assert(len >= n);
 	len -= n;
 }

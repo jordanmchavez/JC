@@ -23,9 +23,9 @@ template <class K, class V> struct Map {
 	U64      cap;
 
 	void Init(Mem mem, U64 capIn) {
-		Assert((cap & (cap - 1)) == 0);
-		buckets    = Mem::AllocT<Bucket>(mem, cap);
-		elems      = Mem::AllocT<Elem>(mem, cap);
+		Assert((capIn & (capIn - 1)) == 0);
+		buckets    = Mem::AllocT<Bucket>(mem, capIn);
+		elems      = Mem::AllocT<Elem>(mem, capIn);
 		elemsLen   = 0;
 		cap        = capIn;
 	}

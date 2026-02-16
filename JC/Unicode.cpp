@@ -106,7 +106,7 @@ Span<wchar_t> Utf8ToWtf16z(Mem mem, Str s) {
 //--------------------------------------------------------------------------------------------------
 
 #define CheckUtf8ToWtf16z(from8, to16z) \
-		Unit_CheckTrue(Utf8ToWtf16z(testMem, from8) == to16z)
+		Unit_Check(Utf8ToWtf16z(testMem, from8) == to16z)
 
 Unit_Test("Utf8ToWtf16z") {
 	CheckUtf8ToWtf16z("\x00", L"\x0000");
@@ -178,7 +178,7 @@ Str Wtf16zToUtf8(Mem mem, wchar_t const* s) {
 	// Max UTF-8 encoding of a WTF-16 string is len(wtf16Str) * 3, due to BMP chars/unpaired surrogates
 	const U64 len = wcslen(s);
 	char* out = Mem::AllocT<char>(mem, len * 3);	
-	U64 outLen = 0;
+	U32 outLen = 0;
 
 	wchar_t const* p = s;
 	while (*p) {
