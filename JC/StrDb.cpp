@@ -26,18 +26,15 @@ void Shutdown() {
 
 //--------------------------------------------------------------------------------------------------
 
-Str Get(const char* s, U32 len) {
+Str Get(Str s) {
 	if (Str* intern = index.FindOrNull(s)) {
 		return *intern;
 	}
-	Str newIntern(Mem::AllocT<char>(mem, len), len);
-	memcpy((char*)newIntern.data, s, len);
+	Str newIntern(Mem::AllocT<char>(mem, s.len), s.len);
+	memcpy((char*)newIntern.data, s.data, s.len);
 	index.Put(newIntern, newIntern);
 	return newIntern;
 }
-
-Str Get(const char* begin, const char* end) { return Get(begin, (U32)(end - begin)); }
-Str Get(Str s) { return Get(s.data, s.len); }
 
 //--------------------------------------------------------------------------------------------------
 

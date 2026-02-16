@@ -265,6 +265,7 @@ struct SpriteAtlasEntry {
 	U32 h;
 	Str name;
 };
+
 Json_Begin(SpriteAtlasEntry)
 	Json_Member("x",    x)
 	Json_Member("y",    y)

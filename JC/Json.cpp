@@ -93,7 +93,8 @@ static Res<> Expect(Ctx* ctx, char expected) {
 // Returns a pointer to the terminating quote
 static Res<const char*> ScanStr(const char* json, const char* iter) {
 	Assert(*iter == '"');
-	for (iter++;;) {
+	iter++;
+	for (;;) {
 		const char c = *iter;
 		if (c == '\0') { return Err_MissingClosingQuote("pos", iter - json); }
 		if (c == '"') { return iter; }
@@ -128,6 +129,8 @@ static Res<> Scan(Ctx* ctx) {
 			case CharType::Quote:
 				AddStructPos(ctx, (U32)(iter - ctx->json));
 				TryTo(ScanStr(ctx->json, iter), iter);
+				Assert(*iter == '"');
+				AddStructPos(ctx, (U32)(iter - ctx->json));
 				iter++;
 				break;
 			case CharType::Op:
@@ -152,27 +155,23 @@ static Res<bool> ParseBool(Ctx* ctx) {
 	const char* const end  = ctx->json + *ctx->structPosIter;
 	const U32 len = (U32)(end - iter);
 	if (*iter == 't') {
-		if (
-			len < 4 ||
-			*iter++ != 'r' ||
-			*iter++ != 'u' ||
-			*iter++ != 'e'
-		) {
-			return Err_BadBool("pos", iter - ctx->json);
-		}
+		iter++;
+		if (len < 4) { return Err_BadBool("pos", iter - ctx->json); }
+		if (*iter++ != 'r') { return Err_BadBool("pos", iter - ctx->json); }
+		if (*iter++ != 'u') { return Err_BadBool("pos", iter - ctx->json); }
+		if (*iter++ != 'e') { return Err_BadBool("pos", iter - ctx->json); }
 		if (IsNormal(*iter)) { return Err_BadBool("pos", iter - ctx->json); }
+		return true;
 	}
 	if (*iter == 'f') {
-		if (
-			len < 5 ||
-			*iter++ != 'a' ||
-			*iter++ != 'l' ||
-			*iter++ != 's' ||
-			*iter++ != 'e'
-		) {
-			return Err_BadBool("pos", iter - ctx->json);
-		}
+		iter++;
+		if (len < 5) { return Err_BadBool("pos", iter - ctx->json); }
+		if (*iter++ != 'a') { return Err_BadBool("pos", iter - ctx->json); }
+		if (*iter++ != 'l') { return Err_BadBool("pos", iter - ctx->json); }
+		if (*iter++ != 's') { return Err_BadBool("pos", iter - ctx->json); }
+		if (*iter++ != 'e') { return Err_BadBool("pos", iter - ctx->json); }
 		if (IsNormal(*iter)) { return Err_BadBool("pos", iter - ctx->json); }
+		return false;
 	}
 	return Err_BadBool("pos", iter - ctx->json);
 }
@@ -187,7 +186,7 @@ static Res<I64> ParseI64(Ctx* ctx) {
 		sign = -1;
 		iter++;
 	}
-	if (!IsDigit(*iter)) { Err_BadFloat("pos", iter - ctx->json); }
+	if (!IsDigit(*iter)) { return Err_BadInt("pos", iter - ctx->json); }
 	I64 val = (I64)(*iter - '0');
 	iter++;
 	while (IsDigit(*iter)) {
@@ -212,7 +211,7 @@ static Res<F64> ParseF64(Ctx* ctx) {
 		sign = -1.0;
 		iter++;
 	}
-	if (!IsDigit(*iter)) { Err_BadFloat("pos", iter - ctx->json); }
+	if (!IsDigit(*iter)) { return Err_BadFloat("pos", iter - ctx->json); }
 	U64 intVal = (U64)(*iter - '0');
 	iter++;
 	while (IsDigit(*iter)) {
@@ -262,7 +261,10 @@ static Res<F32> ParseF32(Ctx* ctx) { F64 val; TryTo(ParseF64(ctx), val); return 
 static Res<Str> ParseStr(Ctx* ctx) {
 	const char* iter = ctx->json + *ctx->structPosIter + 1;
 	Try(Expect(ctx, '"'));
-	const char* const end = ctx->json + *ctx->structPosIter - 1;
+	const char* const end = ctx->json + *ctx->structPosIter;
+	Try(Expect(ctx, '"'));
+
+	if (iter == end) { return Str(); }
 
 	MemScope memScope(ctx->tempMem);
 	char* data = Mem::AllocT<char>(ctx->tempMem, end - iter);
@@ -276,18 +278,18 @@ static Res<Str> ParseStr(Ctx* ctx) {
 				case '"':  *dataIter++ = '"';  break;
 				case '\\': *dataIter++ = '\\'; break;
 				case '/':  *dataIter++ = '/';  break;
-				case 'b':  *dataIter++ = 'b';  break;
-				case 'f':  *dataIter++ = 'f';  break;
-				case 'n':  *dataIter++ = 'n';  break;
-				case 'r':  *dataIter++ = 'r';  break;
-				case 't':  *dataIter++ = 't';  break;
+				case 'b':  *dataIter++ = '\b';  break;
+				case 'f':  *dataIter++ = '\f';  break;
+				case 'n':  *dataIter++ = '\n';  break;
+				case 'r':  *dataIter++ = '\r';  break;
+				case 't':  *dataIter++ = '\t';  break;
 				default: return Err_BadEscChar("pos", *iter);
 			}
 		}
 		iter++;
 	}
 
-	return StrDb::Get(data, dataIter);
+	return StrDb::Get(Str(data, (U32)(dataIter - data)));
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -379,10 +381,9 @@ static Res<> ParseVal(Ctx* ctx, const Traits* traits, U8* out) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> ObjFromJson(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, Span<const Member> members, U8* out) {
+Res<> ToObj(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, Span<const Member> members, U8* out) {
 	U64 mark = Mem::Mark(tempMem);
 	Defer { if (permMem != tempMem) { Mem::Reset(tempMem, mark); } };
-
 	Ctx ctx = {
 		.permMem  = permMem,
 		.tempMem  = tempMem,
@@ -390,9 +391,23 @@ Res<> ObjFromJson(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, Span<
 		.jsonLen  = jsonLen,
 	};
 	Try(Scan(&ctx));
-
 	const Traits traits = { .type = Type::Obj, .size = 0, .arrayDepth = 0, .members = members };
 	return ParseObj(&ctx, members, out);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<> ToArray(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, const Traits* traits, U8* out) {
+	U64 mark = Mem::Mark(tempMem);
+	Defer { if (permMem != tempMem) { Mem::Reset(tempMem, mark); } };
+	Ctx ctx = {
+		.permMem  = permMem,
+		.tempMem  = tempMem,
+		.json     = json,
+		.jsonLen  = jsonLen,
+	};
+	Try(Scan(&ctx));
+	return ParseArray(&ctx, traits, out);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -408,19 +423,48 @@ Json_Begin(Foo)
 	Json_Member("ints", ints)
 Json_End(Foo)
 
+struct Bar {
+	bool b;
+	U32  u;
+	Str  s;
+};
+Json_Begin(Bar)
+	Json_Member("b", b)
+	Json_Member("u", u)
+	Json_Member("s", s)
+Json_End(Bar)
+
 Unit_Test("Json") {
-	Unit_SubTest("simple") {
-		constexpr const char* json = "{ \"str\": \"hello world\", \"f\": 1.25, \"ints\": [ [ 1, 3, 5 ], [ 7, 8 ], [], [ 0, 1, 2, 3, 4 ] ] }";
-		Foo foo;
-		Unit_Check(FromJson(testMem, testMem, json, StrLen(json), &foo));
-		Unit_CheckEq(foo.str, "hello world");
-		Unit_CheckEq(foo.f, 1.25);
-		Unit_CheckEq(foo.ints.len, 4);
-		Unit_CheckSpanEq(foo.ints[0], Span<I32>({ 1, 3, 5 }));
-		Unit_CheckSpanEq(foo.ints[1], Span<I32>({ 7, 8  }));
-		Unit_CheckSpanEq(foo.ints[2], Span<I32>({ }));
-		Unit_CheckSpanEq(foo.ints[3], Span<I32>({ 0, 1, 2, 3, 4 }));
-	}
+	constexpr const char* fooJson = "{ \"str\": \"hello world\", \"f\": 1.25, \"ints\": [ [ 1, 3, 5 ], [ 7, 8 ], [], [ 0, 1, 2, 3, 4 ] ] }";
+	Foo foo;
+	Unit_Check(ToObj(testMem, testMem, fooJson, StrLen(fooJson), &foo));
+	Unit_CheckEq(foo.str, "hello world");
+	Unit_CheckEq(foo.f, 1.25);
+	Unit_CheckEq(foo.ints.len, 4);
+	Unit_CheckSpanEq(foo.ints[0], Span<I32>({ 1, 3, 5 }));
+	Unit_CheckSpanEq(foo.ints[1], Span<I32>({ 7, 8  }));
+	Unit_CheckSpanEq(foo.ints[2], Span<I32>({ }));
+	Unit_CheckSpanEq(foo.ints[3], Span<I32>({ 0, 1, 2, 3, 4 }));
+
+	constexpr const char* barsJson = "[ "
+		"{ \"b\": true,  \"u\": 123, \"s\": \"\" },"
+		"{ \"b\": false, \"u\": 456, \"s\": \"hello\" },"
+		"{ \"b\": true,  \"u\": 001, \"s\": \"wor\\r\\n\\b\\\"\\t\\\\ ,:][{}ld\" }"
+	"]";
+	Span<Bar> bars;
+	Res<> r = ToArray(testMem, testMem, barsJson, StrLen(barsJson), &bars);
+	Unit_Check(r);
+	Unit_CheckEq(bars.len, 3);
+	Unit_CheckEq(bars[0].b, true);
+	Unit_CheckEq(bars[0].u, 123u);
+	Unit_CheckEq(bars[0].s, "");
+	Unit_CheckEq(bars[1].b, false);
+	Unit_CheckEq(bars[1].u, 456u);
+	Unit_CheckEq(bars[1].s, "hello");
+	Unit_CheckEq(bars[2].b, true);
+	Unit_CheckEq(bars[2].u, 1u);
+	Unit_CheckEq(bars[2].s, "wor\r\n\b\"\t\\ ,:][{}ld");
+
 /*
 	SubTest("No Trailing Commas Object") {
 		const Str json = "{a:1,b:2}";

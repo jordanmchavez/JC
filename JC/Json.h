@@ -34,52 +34,58 @@ struct Member {
 	Traits traits;
 };
 
-#define Json_Begin(CppType) \
-	namespace JsonPrivate { using CurrentType = CppType; } \
-	static constexpr Json::Member CppType##JsonMembersArray[] = {
-
-#define Json_Member(jsonName, CppMember) \
-	Json::Member { \
-		.name   = jsonName, \
-		.offset = OffsetOf(JsonPrivate::CurrentType, CppMember), \
-		.traits = GetJsonTraits(decltype(JsonPrivate::CurrentType::CppMember)()), \
-	},
-
-#define Json_End(CppType) \
-	}; \
-	static constexpr Json::Traits GetJsonTraits(CppType) { \
-		return Json::Traits { \
-			.type       = Json::Type::Obj, \
-			.size       = sizeof(CppType), \
-			.arrayDepth = 0, \
-			.members    = Span<const Json::Member>(CppType##JsonMembersArray, LenOf(CppType##JsonMembersArray)), \
-		}; \
-	}
-
-Res<> ObjFromJson(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, Span<const Member> members, U8* obj);
-
-template <class T> Res<> FromJson(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, T* obj) {
-	return ObjFromJson(permMem, tempMem, json, jsonLen, GetJsonTraits(*obj).members, (U8*)obj);
-}
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC::Json
-
-namespace JC {
-
-constexpr Json::Traits GetJsonTraits(bool) { return Json::Traits { .type = Json::Type::Bool, .size = 1,           .arrayDepth = 0, .members = {}}; }
-constexpr Json::Traits GetJsonTraits(U32)  { return Json::Traits { .type = Json::Type::U32,  .size = 4,           .arrayDepth = 0, .members = {}}; }
-constexpr Json::Traits GetJsonTraits(U64)  { return Json::Traits { .type = Json::Type::U64,  .size = 8,           .arrayDepth = 0, .members = {}}; }
-constexpr Json::Traits GetJsonTraits(I32)  { return Json::Traits { .type = Json::Type::I32,  .size = 4,           .arrayDepth = 0, .members = {}}; }
-constexpr Json::Traits GetJsonTraits(I64)  { return Json::Traits { .type = Json::Type::I64,  .size = 8,           .arrayDepth = 0, .members = {}}; }
-constexpr Json::Traits GetJsonTraits(F32)  { return Json::Traits { .type = Json::Type::F32,  .size = 4,           .arrayDepth = 0, .members = {}}; }
-constexpr Json::Traits GetJsonTraits(F64)  { return Json::Traits { .type = Json::Type::F64,  .size = 8,           .arrayDepth = 0, .members = {}}; }
-constexpr Json::Traits GetJsonTraits(Str)  { return Json::Traits { .type = Json::Type::Str,  .size = sizeof(Str), .arrayDepth = 0, .members = {}}; }
-
-template <class T> constexpr Json::Traits GetJsonTraits(Span<T>) {
-	Json::Traits traits = GetJsonTraits(T());
+constexpr Traits GetJsonTraits(bool) { return Traits { .type = Type::Bool, .size = 1,           .arrayDepth = 0, .members = {}}; }
+constexpr Traits GetJsonTraits(U32)  { return Traits { .type = Type::U32,  .size = 4,           .arrayDepth = 0, .members = {}}; }
+constexpr Traits GetJsonTraits(U64)  { return Traits { .type = Type::U64,  .size = 8,           .arrayDepth = 0, .members = {}}; }
+constexpr Traits GetJsonTraits(I32)  { return Traits { .type = Type::I32,  .size = 4,           .arrayDepth = 0, .members = {}}; }
+constexpr Traits GetJsonTraits(I64)  { return Traits { .type = Type::I64,  .size = 8,           .arrayDepth = 0, .members = {}}; }
+constexpr Traits GetJsonTraits(F32)  { return Traits { .type = Type::F32,  .size = 4,           .arrayDepth = 0, .members = {}}; }
+constexpr Traits GetJsonTraits(F64)  { return Traits { .type = Type::F64,  .size = 8,           .arrayDepth = 0, .members = {}}; }
+constexpr Traits GetJsonTraits(Str)  { return Traits { .type = Type::Str,  .size = sizeof(Str), .arrayDepth = 0, .members = {}}; }
+template <class T> constexpr Traits GetJsonTraits(Span<T>) {
+	Traits traits = GetJsonTraits(T());
 	traits.arrayDepth++;
 	return traits;
 };
-}	// namespace JC
+
+template<class T> constexpr Traits GetTraitsHelper(T) { return GetJsonTraits(T()); }
+
+#define Json_Begin(CppType) \
+	namespace CppType##Json { \
+		using JsonType = CppType; \
+		static constexpr JC::Json::Member CppType##JsonMembers[] = {
+
+#define Json_Member(jsonName, CppMember) \
+		{ \
+			.name   = jsonName, \
+			.offset = OffsetOf(JsonType, CppMember), \
+			.traits = JC::Json::GetTraitsHelper(decltype(JsonType::CppMember)()), \
+		},
+
+#define Json_End(CppType) \
+		}; \
+	} \
+	static constexpr JC::Json::Traits GetJsonTraits(CppType) { \
+		return JC::Json::Traits { \
+			.type       = JC::Json::Type::Obj, \
+			.size       = sizeof(CppType), \
+			.arrayDepth = 0, \
+			.members    = Span<const JC::Json::Member>(CppType##Json::CppType##JsonMembers, LenOf(CppType##Json::CppType##JsonMembers)), \
+		}; \
+	}
+
+Res<> ToObj(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, Span<const Member> members, U8* out);
+Res<> ToArray(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, const Traits* traits, U8* out);
+
+template <class T> Res<> ToObj(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, T* obj) {
+	return ToObj(permMem, tempMem, json, jsonLen, GetJsonTraits(*obj).members, (U8*)obj);
+}
+
+template <class T> Res<> ToArray(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, Span<T>* out) {
+	Json::Traits traits = GetJsonTraits(T());
+	traits.arrayDepth++;
+	return ToArray(permMem, tempMem, json, jsonLen, &traits, (U8*)out);
+}
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Json

@@ -92,6 +92,32 @@ Res<Span<U8>> ReadAll(Mem mem, Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
+Res<Span<char>> ReadAllZ(Mem mem, Str path) {
+	File file;
+	if (Res<> r = Open(path).To(file); !r) {
+		return r.err;
+	}
+
+	U64 len = 0;
+	if (Res<> r = Len(file).To(len); !r) {
+		Close(file);
+		return r.err;
+	}
+
+	char* buf = (char*)Mem::Alloc(mem, len + 1);
+	if (Res<> r = Read(file, buf, len); !r) {
+		Close(file);
+		return r.err;
+	}
+	buf[len] = '\0';
+
+	Close(file);
+
+	return Span<char>(buf, len);
+}
+
+//--------------------------------------------------------------------------------------------------
+
 void Close(File file) {
 	if (file) {
 		FileObj* const fileObj = files.Get(file);
