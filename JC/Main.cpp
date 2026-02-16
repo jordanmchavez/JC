@@ -1,4 +1,4 @@
-//#include "JC/Draw.h"
+#include "JC/Draw.h"
 #include "JC/Event.h"
 #include "JC/Gpu.h"
 #include "JC/Log.h"
@@ -46,7 +46,7 @@ Res<> Run() {
 		.windowPlatformDesc = &windowPlatformDesc,
 	};
 	Try(Gpu::Init(&gpuInitDesc));
-	/*
+
 	Draw::InitDesc const drawInitDesc = {
 		.permMem      = permMem,
 		.tempMem      = tempMem,
@@ -54,7 +54,7 @@ Res<> Run() {
 		.windowHeight = 768,
 	};
 	Try(Draw::Init(&drawInitDesc));
-	*/
+
 	U64 frame = 0;
 	bool exitRequested = false;
 	while (!exitRequested) {
@@ -84,7 +84,7 @@ int main(int argc, const char** argv) {
 
 	Res<> r = Run();
 
-	//Draw::Shutdown();
+	Draw::Shutdown();
 	Gpu::Shutdown();
 	Window::Shutdown();
 

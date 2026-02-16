@@ -148,7 +148,7 @@ void          Namev(SrcLoc sl, Pipeline pipeline, char const* fmt, Span<Arg cons
 
 template <class T, class... A>
 void NamefImpl(SrcLoc sl, T obj, CheckFmtStr<A...> fmt, A... args) {
-	Namev(sl, obj, fmt, { MakeArg(args)..., });
+	Namev(sl, obj, fmt, { Arg::Make(args)..., });
 }
 
 #define Gpu_Name(obj)            Gpu::NamefImpl(SrcLoc::Here(), obj, #obj)

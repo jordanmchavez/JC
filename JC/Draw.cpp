@@ -4,7 +4,9 @@
 #include "JC/Bit.h"
 #include "JC/FS.h"
 #include "JC/HandlePool.h"
+#include "JC/Hash.h"
 #include "JC/Gpu.h"
+#include "JC/Json.h"
 #include "JC/Log.h"
 #include "JC/Map.h"
 #include "JC/Math.h"
@@ -255,6 +257,22 @@ static Res<Gpu::Image> LoadImage(Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
+struct SpriteAtlasEntry {
+	//{ x:   0, y:   0, w: 16, h: 16, name: "empty" },
+	U32 x;
+	U32 y;
+	U32 w;
+	U32 h;
+	Str name;
+};
+Json_Begin(SpriteAtlasEntry)
+	Json_Member("x",    x)
+	Json_Member("y",    y)
+	Json_Member("w",    w)
+	Json_Member("h",    h)
+	Json_Member("name", name)
+Json_End(SpriteAtlasEntry)
+
 Res<> LoadSpriteAtlas(Str imagePath, Str atlasPath) {
 	Assert(spriteAtlasImagesLen < MaxSpriteAtlasImages);
 
@@ -262,9 +280,11 @@ Res<> LoadSpriteAtlas(Str imagePath, Str atlasPath) {
 	if (Res<> r = LoadImage(imagePath).To(image); !r) { return r; }
 	U32 const imageIdx = Gpu::GetImageBindIdx(image);
 	spriteAtlasImages[spriteAtlasImagesLen++] = image;
-
+imageIdx;
 	Span<U8> data;
 	if (Res<> r = FS::ReadAll(tempMem, atlasPath).To(data); !r) { return r.err; }	// TODO: ctx
+
+	/*
 	Json::Doc* doc = 0;
 	if (Res<> r = Json::Parse(tempMem, tempMem, Str((char const*)data.data, data.len)).To(doc); !r) { return r.err; }	// TODO: ctx
 
@@ -308,7 +328,7 @@ Res<> LoadSpriteAtlas(Str imagePath, Str atlasPath) {
 		});
 		spriteObjsByName.Put(spriteObj->name, (U32)(spriteObj - spriteObjs.data));
 	}
-
+	*/
 	return Ok();
 }
 
@@ -350,8 +370,8 @@ Res<Canvas> CreateCanvas(U32 width, U32 height) {
 		.depthImage       = canvasDepthImage,
 		.size             = size,
 	};
-	Gpu_NameF(canvasColorImage, "canvasColor#{}", entry->idx);
-	Gpu_NameF(canvasDepthImage, "canvasDepth#{}", entry->idx);
+	Gpu_Namef(canvasColorImage, "canvasColor#%u", entry->idx);
+	Gpu_Namef(canvasDepthImage, "canvasDepth#%u", entry->idx);
 
 	scene.projViews[entry->idx] = Math::Ortho(
 		0.0f, size.x,
@@ -380,12 +400,12 @@ void BeginFrame(Gpu::Frame frame) {
 	drawCmds = (DrawCmd*)Gpu::AllocStaging(MaxDrawCmds * sizeof(DrawCmd));
 	drawCmdCount = 0;
 
-	passes.len = 0;
-	passes.Add(Pass {
+	passesLen = 0;
+	passes[passesLen++] = {
 		.canvas       = swapchainCanvas,
 		.drawCmdStart = 0,
 		.drawCmdEnd   = U32Max,
-	});
+	};
 
 }
 
@@ -402,8 +422,8 @@ void EndFrame() {
 	Gpu::CopyStagingToBuffer(drawCmds, drawCmdCount * sizeof(DrawCmd), drawCmdBuffer, 0);
 	Gpu::BufferBarrier(drawCmdBuffer, 0, drawCmdCount * sizeof(DrawCmd), Gpu::BarrierStage::Copy_Write, Gpu::BarrierStage::VertexShader_StorageRead);
 
-	passes[passes.len - 1].drawCmdEnd = drawCmdCount;
-	for (U64 i = 0; i < passes.len; i++) {
+	passes[passesLen - 1].drawCmdEnd = drawCmdCount;
+	for (U64 i = 0; i < passesLen; i++) {
 		Pass const* const pass = &passes[i];
 		U32 const passDrawCmdCount = pass->drawCmdEnd - pass->drawCmdStart;
 		if (passDrawCmdCount == 0) {
@@ -416,8 +436,8 @@ void EndFrame() {
 			.pipeline         = pipeline,
 			.colorAttachments = { canvasObj->colorImage },
 			.depthAttachment  = canvasObj->depthImage,
-			.viewport         = { .x = 0.0f, .y = 0.0f, .w = canvasObj->size.x,      .h = canvasObj->size.y },
-			.scissor          = { .x = 0,    .y = 0,    .w = (U32)canvasObj->size.x, .h = (U32)canvasObj->size.y },
+			.viewport         = { .x = 0.0f, .y = 0.0f, .width = canvasObj->size.x,      .height = canvasObj->size.y },
+			.scissor          = { .x = 0,    .y = 0,    .width = (U32)canvasObj->size.x, .height = (U32)canvasObj->size.y },
 			.clear            = true,
 		};
 
@@ -469,12 +489,12 @@ void EndFrame() {
 //--------------------------------------------------------------------------------------------------
 
 void SetCanvas(Canvas canvas) {
-	passes[passes.len - 1].drawCmdEnd = drawCmdCount;
-	passes.Add(Pass {
+	passes[passesLen - 1].drawCmdEnd = drawCmdCount;
+	passes[passesLen++] = {
 		.canvas       = canvas.handle ? canvas : swapchainCanvas,
 		.drawCmdStart = drawCmdCount,
 		.drawCmdEnd   = U32Max,
-	});
+	};
 }
 
 //--------------------------------------------------------------------------------------------------

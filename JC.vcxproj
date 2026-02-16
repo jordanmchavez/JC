@@ -120,6 +120,7 @@
     <ClInclude Include="JC\Array.h" />
     <ClInclude Include="JC\Bit.h" />
     <ClInclude Include="JC\Common.h" />
+    <ClInclude Include="JC\Draw.h" />
     <ClInclude Include="JC\Event.h" />
     <ClInclude Include="JC\FS.h" />
     <ClInclude Include="JC\Gpu.h" />
@@ -148,6 +149,7 @@
     <ClCompile Include="JC\Common_Err.cpp" />
     <ClCompile Include="JC\Common_Fmt.cpp" />
     <ClCompile Include="JC\Common_Mem.cpp" />
+    <ClCompile Include="JC\Draw.cpp" />
     <ClCompile Include="JC\Event.cpp" />
     <ClCompile Include="JC\FS.cpp" />
     <ClCompile Include="JC\Gpu_Vk.cpp" />
