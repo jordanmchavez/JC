@@ -270,16 +270,17 @@ struct [[nodiscard]] Err {
 	static Err const* Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, Span<NamedArg const> namedArgs);
 
 	template <class... A> static Err const* Make(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, A... args) {
-		static_assert(sizeof...(A) / 2 < MaxNamedArgs);
+		constexpr U32 NamedArgsLen = sizeof...(A) / 2;
+		static_assert(NamedArgsLen < MaxNamedArgs);
 		static_assert((sizeof...(A) & 1) == 0);
 
 		#if defined Cfg_BreakOnErr
 			DbgBreak;
 		#endif	// Cfg_BreakOnErr
 
-		NamedArg namedArgs[sizeof...(A) + 1];
+		NamedArg namedArgs[NamedArgsLen + 1];	// + 1 to allow zero args
 		FillNamedArgs(namedArgs, args...);
-		return Makev(prev, sl, ns, sCode, uCode, namedArgs);
+		return Makev(prev, sl, ns, sCode, uCode, Span<const NamedArgnamedArgs);
 	}
 
 	static void Frame(U64 frame);

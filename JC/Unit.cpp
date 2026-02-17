@@ -140,6 +140,15 @@ bool Run() {
 	return failedTests == 0;
 }
 
+bool CheckResImpl(SrcLoc sl, Res<> r) {
+	if (r) { return true; }
+	Logf("***CHECK FAILED***");
+	Logf("%s(%u)", sl.file, sl.line);
+	LogErr(r);
+	checkFails++;
+	return false;
+}
+
 bool CheckFailImpl(SrcLoc sl) {
 	Logf("***CHECK FAILED***");
 	Logf("%s(%u)", sl.file, sl.line);

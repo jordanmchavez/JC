@@ -74,14 +74,14 @@ template<class T> constexpr Traits GetTraitsHelper(T) { return GetJsonTraits(T()
 		}; \
 	}
 
-Res<> ToObj(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, Span<const Member> members, U8* out);
-Res<> ToArray(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, const Traits* traits, U8* out);
+Res<> ToObj(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, Span<const Member> members, U8* out);
+Res<> ToArray(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, const Traits* traits, U8* out);
 
-template <class T> Res<> ToObj(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, T* obj) {
+template <class T> Res<> ToObj(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, T* obj) {
 	return ToObj(permMem, tempMem, json, jsonLen, GetJsonTraits(*obj).members, (U8*)obj);
 }
 
-template <class T> Res<> ToArray(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, Span<T>* out) {
+template <class T> Res<> ToArray(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, Span<T>* out) {
 	Json::Traits traits = GetJsonTraits(T());
 	traits.arrayDepth++;
 	return ToArray(permMem, tempMem, json, jsonLen, &traits, (U8*)out);

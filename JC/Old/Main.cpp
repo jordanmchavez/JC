@@ -28,7 +28,7 @@ static Bool           exitRequested;
 
 //--------------------------------------------------------------------------------------------------
 
-static void PanicFn(SrcLoc sl, const char* expr, const char* msg) {
+static void PanicFn(SrcLoc sl, char const* expr, char const* msg) {
 	if (logger) {
 		char buf[1024];
 		char* iter = buf;
@@ -53,7 +53,7 @@ static void PanicFn(SrcLoc sl, const char* expr, const char* msg) {
 }
 //--------------------------------------------------------------------------------------------------
 
-static Res<> RunAppInternal(int argc, const char** argv) {
+static Res<> RunAppInternal(int argc, char const** argv) {
 	SetPanicFn(PanicFn);
 
 	Core::Init();
@@ -62,7 +62,7 @@ static Res<> RunAppInternal(int argc, const char** argv) {
 	Sys::Init(tempAllocator);
 
 	logger = Log::InitLogger(tempAllocator);
-	Log::AddFn([](const char* msg, U64 len) {
+	Log::AddFn([](char const* msg, U64 len) {
 		Sys::Print(Str(msg, len));
 		if (Sys::IsDebuggerPresent()) {
 			Sys::DebuggerPrint(msg);

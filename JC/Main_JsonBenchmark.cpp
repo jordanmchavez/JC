@@ -90,7 +90,7 @@ static Res<> Run() {
 	return Ok();
 }
 
-int main(int argc, const char* const* argv) {
+int main(int argc, char const* const* argv) {
 	if (argc == 2 && argv[1] == Str("test")) { Unit::Run(); return 0; }
 	Res<> r = Run();
 	return r ? 0 : 1;

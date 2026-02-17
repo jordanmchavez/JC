@@ -22,7 +22,7 @@ DefErr(Json, Eof);
 struct Ctx {
 	Mem         permMem;
 	Mem         tempMem;
-	const char* json;
+	char const* json;
 	U32         jsonLen;
 	U32*        structPos = 0;
 	U32*        structPosEnd = 0;
@@ -92,7 +92,7 @@ static Res<> Expect(Ctx* ctx, char expected) {
 //--------------------------------------------------------------------------------------------------
 
 // Returns a pointer to the terminating quote
-static Res<const char*> ScanStr(const char* json, const char* iter) {
+static Res<char const*> ScanStr(char const* json, char const* iter) {
 	Assert(*iter == '"');
 	iter++;
 	for (;;) {
@@ -114,7 +114,7 @@ static Res<> Scan(Ctx* ctx) {
 	// Replace with SIMD scanning
 	// Use vpshufb-based vectorized classification
 	// Can classify 32 bytes per instruction into: structural, whitespace, quote, backslash, other
-	const char* iter = ctx->json;
+	char const* iter = ctx->json;
 	for (;;) {
 		const char c = *iter;
 		switch (charTable.data[c]) {
@@ -152,8 +152,8 @@ static Res<> Scan(Ctx* ctx) {
 
 static Res<bool> ParseBool(Ctx* ctx) {
 	if (ctx->structPosIter >= ctx->structPosEnd) { return Err_Eof("expected", "bool"); }
-	const char*       iter = ctx->json + *ctx->structPosIter; ctx->structPosIter++;
-	const char* const end  = ctx->json + *ctx->structPosIter;
+	char const*       iter = ctx->json + *ctx->structPosIter; ctx->structPosIter++;
+	char const* const end  = ctx->json + *ctx->structPosIter;
 	const U32 len = (U32)(end - iter);
 	if (*iter == 't') {
 		iter++;
@@ -181,7 +181,7 @@ static Res<bool> ParseBool(Ctx* ctx) {
 
 static Res<I64> ParseI64(Ctx* ctx) {
 	if (ctx->structPosIter >= ctx->structPosEnd) { return Err_Eof("expected", "int"); }
-	const char* iter = ctx->json + *ctx->structPosIter; ctx->structPosIter++;
+	char const* iter = ctx->json + *ctx->structPosIter; ctx->structPosIter++;
 	I64 sign = 1;
 	if (*iter == '-') {
 		sign = -1;
@@ -206,7 +206,7 @@ static Res<U32> ParseU32(Ctx* ctx) { I64 val; TryTo(ParseI64(ctx), val); return 
 
 static Res<F64> ParseF64(Ctx* ctx) {
 	if (ctx->structPosIter >= ctx->structPosEnd) { return Err_Eof("expected", "float"); }
-	const char* iter = ctx->json + *ctx->structPosIter; ctx->structPosIter++;
+	char const* iter = ctx->json + *ctx->structPosIter; ctx->structPosIter++;
 	F64 sign = 1.0;
 	if (*iter == '-') {
 		sign = -1.0;
@@ -260,9 +260,9 @@ static Res<F32> ParseF32(Ctx* ctx) { F64 val; TryTo(ParseF64(ctx), val); return 
 //--------------------------------------------------------------------------------------------------
 
 static Res<Str> ParseStr(Ctx* ctx) {
-	const char* iter = ctx->json + *ctx->structPosIter + 1;
+	char const* iter = ctx->json + *ctx->structPosIter + 1;
 	Try(Expect(ctx, '"'));
-	const char* const end = ctx->json + *ctx->structPosIter;
+	char const* const end = ctx->json + *ctx->structPosIter;
 	Try(Expect(ctx, '"'));
 
 	if (iter == end) { return Str(); }
@@ -304,10 +304,10 @@ static constexpr bool IsName(char c) {
 }
 
 static Res<Str> ParseName(Ctx* ctx) {
-	const char* iter = ctx->json + *ctx->structPosIter;
+	char const* iter = ctx->json + *ctx->structPosIter;
 	if (*iter == '"') { return ParseStr(ctx); }
 
-	const char* const begin = iter;
+	char const* const begin = iter;
 	while (IsName(*iter)) {
 		iter++;
 	}
@@ -411,7 +411,7 @@ static Res<> ParseVal(Ctx* ctx, const Traits* traits, U8* out) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> ToObj(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, Span<const Member> members, U8* out) {
+Res<> ToObj(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, Span<const Member> members, U8* out) {
 	U64 mark = Mem::Mark(tempMem);
 	Defer { if (permMem != tempMem) { Mem::Reset(tempMem, mark); } };
 	Ctx ctx = {
@@ -426,7 +426,7 @@ Res<> ToObj(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, Span<const 
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> ToArray(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, const Traits* traits, U8* out) {
+Res<> ToArray(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, const Traits* traits, U8* out) {
 	U64 mark = Mem::Mark(tempMem);
 	Defer { if (permMem != tempMem) { Mem::Reset(tempMem, mark); } };
 	Ctx ctx = {
@@ -464,9 +464,13 @@ Json_Begin(Bar)
 Json_End(Bar)
 
 Unit_Test("Json") {
-	constexpr const char* fooJson = "{ \"str\": \"hello world\", \"f\": 1.25, \"ints\": [ [ 1, 3, 5 ], [ 7, 8 ], [], [ 0, 1, 2, 3, 4 ], [ 999 ] ] }";
+	constexpr char const* fooJson = "{"
+		"\"str\": \"hello world\","
+		"\"f\": 1.25,"
+		"\"ints\": [ [ 1, 3, 5 ], [ 7, 8 ], [], [ 0, 1, 2, 3, 4 ], [ 999 ] ]"
+	"}";
 	Foo foo;
-	Unit_Check(ToObj(testMem, testMem, fooJson, StrLen(fooJson), &foo));
+	Unit_CheckRes(ToObj(testMem, testMem, fooJson, StrLen(fooJson), &foo));
 	Unit_CheckEq(foo.str, "hello world");
 	Unit_CheckEq(foo.f, 1.25);
 	Unit_CheckEq(foo.ints.len, 5);
@@ -476,13 +480,28 @@ Unit_Test("Json") {
 	Unit_CheckSpanEq(foo.ints[3], Span<I32>({ 0, 1, 2, 3, 4 }));
 	Unit_CheckSpanEq(foo.ints[4], Span<I32>({ 999 }));
 
-	constexpr const char* barsJson = "[ "
+	constexpr char const* fooUnquotedMinifiedJson = "{"
+		"str:\"hello world\","
+		"f:1.25,"
+		"ints:[[1,3,5],[7,8],[],[0,1,2,3,4],[999]]"
+	"}";
+	Unit_CheckRes(ToObj(testMem, testMem, fooUnquotedMinifiedJson, StrLen(fooUnquotedMinifiedJson), &foo));
+	Unit_CheckEq(foo.str, "hello world");
+	Unit_CheckEq(foo.f, 1.25);
+	Unit_CheckEq(foo.ints.len, 5);
+	Unit_CheckSpanEq(foo.ints[0], Span<I32>({ 1, 3, 5 }));
+	Unit_CheckSpanEq(foo.ints[1], Span<I32>({ 7, 8  }));
+	Unit_CheckSpanEq(foo.ints[2], Span<I32>({ }));
+	Unit_CheckSpanEq(foo.ints[3], Span<I32>({ 0, 1, 2, 3, 4 }));
+	Unit_CheckSpanEq(foo.ints[4], Span<I32>({ 999 }));
+
+	constexpr char const* barsJson = "[ "
 		"{ \"b\": true,  \"u\": 123, \"s\": \"\" },"
 		"{ \"b\": false, \"u\": 456, \"s\": \"hello\" },"
 		"{ \"b\": true,  \"u\": 001, \"s\": \"wor\\r\\n\\b\\\"\\t\\\\ ,:][{}ld\" }"
 	"]";
 	Span<Bar> bars;
-	Unit_Check(ToArray(testMem, testMem, barsJson, StrLen(barsJson), &bars));
+	Unit_CheckRes(ToArray(testMem, testMem, barsJson, StrLen(barsJson), &bars));
 	Unit_CheckEq(bars.len, 3);
 	Unit_CheckEq(bars[0].b, true);
 	Unit_CheckEq(bars[0].u, 123u);
@@ -494,9 +513,9 @@ Unit_Test("Json") {
 	Unit_CheckEq(bars[2].u, 1u);
 	Unit_CheckEq(bars[2].s, "wor\r\n\b\"\t\\ ,:][{}ld");
 
-	constexpr const char* nestedArraysJson = "[[[]]]";
+	constexpr char const* nestedArraysJson = "[[[]]]";
 	Span<Span<Span<U32>>> nestedArrays;
-	Unit_Check(ToArray(testMem, testMem, nestedArraysJson, StrLen(nestedArraysJson), &nestedArrays));
+	Unit_CheckRes(ToArray(testMem, testMem, nestedArraysJson, StrLen(nestedArraysJson), &nestedArrays));
 	Unit_CheckEq(nestedArrays.len, 1);
 	Unit_CheckEq(nestedArrays[0].len, 1);
 	Unit_CheckEq(nestedArrays[0][0].len, 0);

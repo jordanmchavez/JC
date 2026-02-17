@@ -17,7 +17,7 @@ bool DbgPresent() {
 	return ::IsDebuggerPresent();
 }
 
-void DbgPrint(const char* msg) {
+void DbgPrint(char const* msg) {
 	OutputDebugStringA(msg);
 }
 

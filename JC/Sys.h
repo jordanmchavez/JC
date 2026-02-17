@@ -19,7 +19,7 @@ struct Mutex {
 
 void  Abort();
 bool  DbgPresent();
-void  DbgPrint(const char* msg);
+void  DbgPrint(char const* msg);
 void  Print(Str msg);
 void* VirtualAlloc(U64 size);
 void* VirtualReserve(U64 size);

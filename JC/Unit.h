@@ -13,6 +13,7 @@ bool CheckExprFail(SrcLoc sl, Str expr);
 bool CheckRelFail(SrcLoc sl, Str expr, Arg x, Arg y);
 bool CheckSpanEqFail_Len(SrcLoc sl, Str expr, U64 xLen, U64 yLen);
 bool CheckSpanEqFail_Elem(SrcLoc sl, Str expr, U64 i, Arg x, Arg y);
+bool CheckResImpl(SrcLoc sl, Res<> r);
 
 template <class X, class Y> bool CheckEq(SrcLoc sl, Str expr, X x, Y y) {
 	return (x == y) || CheckRelFail(sl, expr, Arg::Make(x), Arg::Make(y));
@@ -69,17 +70,20 @@ struct Subtest {
 #define Unit_SubTest(name) Unit_SubTestImpl(name, MacroUniqueName(UnitSubUnit_))
 
 #define Unit_CheckFailAt(sl)         (Unit::CheckFailImpl(sl) || Unit_DbgBreak)
-#define Unit_CheckFail()             (Unit::CheckFailImpl(SrcHere) || Unit_DbgBreak)
 #define Unit_CheckAt(sl, x)          ((x) || Unit::CheckExprFail(sl, #x) || Unit_DbgBreak)
-#define Unit_Check(x)                Unit_CheckAt(SrcLoc::Here(), x)
 #define Unit_CheckFalseAt(sl, x)     (!(x) || Unit::CheckExprFail(sl, "NOT " #x) || Unit_DbgBreak)
-#define Unit_CheckFalse(x)           Unit_CheckFalseAt(SrcLoc::Here(), x)
 #define Unit_CheckEqAt(sl, x, y)     (Unit::CheckEq(sl, #x " == " #y, (x), (y)) || Unit_DbgBreak)
-#define Unit_CheckEq(x, y)           Unit_CheckEqAt(SrcLoc::Here(), x, y)
 #define Unit_CheckNeqAt(sl, x, y)    (Unit::CheckNeq(sl, #x " != " #y, (x), (y)) || Unit_DbgBreak)
-#define Unit_CheckNeq(x, y)          Unit_CheckNeqAt(SrcLoc::Here(), x, y)
 #define Unit_CheckSpanEqAt(sl, x, y) (Unit::CheckSpanEq(sl, #x " == " #y, (x), (y)) || Unit_DbgBreak)
+#define Unit_CheckResAt(sl, expr)    (Unit::CheckResImpl(sl, (expr)) || Unit_DbgBreak);
+
+#define Unit_CheckFail()             Unit_CheckFailAt(  SrcLoc::Here())
+#define Unit_Check(x)                Unit_CheckAt(      SrcLoc::Here(), x)
+#define Unit_CheckFalse(x)           Unit_CheckFalseAt( SrcLoc::Here(), x)
+#define Unit_CheckEq(x, y)           Unit_CheckEqAt(    SrcLoc::Here(), x, y)
+#define Unit_CheckNeq(x, y)          Unit_CheckNeqAt(   SrcLoc::Here(), x, y)
 #define Unit_CheckSpanEq(x, y)       Unit_CheckSpanEqAt(SrcLoc::Here(), x, y)
+#define Unit_CheckRes(expr)          Unit_CheckResAt(   SrcLoc::Here(), expr)
 
 //--------------------------------------------------------------------------------------------------
 

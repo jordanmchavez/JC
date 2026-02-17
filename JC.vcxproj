@@ -101,7 +101,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="3rd\dragonbox\dragonbox.h" />
-    <ClInclude Include="3rd\simdjson\simdjson.h" />
     <ClInclude Include="3rd\spirv-reflect\spirv.h" />
     <ClInclude Include="3rd\spirv-reflect\spirv_reflect.h" />
     <ClInclude Include="3rd\stb\stb_image.h" />
@@ -143,7 +142,6 @@
     <ClInclude Include="Notes\Scratch.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="3rd\simdjson\simdjson.cpp" />
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
     <ClCompile Include="JC\Bit.cpp" />

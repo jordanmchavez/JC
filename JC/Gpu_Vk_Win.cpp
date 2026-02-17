@@ -4,7 +4,7 @@
 	typedef __int64 (__stdcall *FARPROC)();
 
 	extern "C" __declspec(dllimport) void*   __stdcall LoadLibraryW(const wchar_t*);
-	extern "C" __declspec(dllimport) FARPROC __stdcall GetProcAddress(void*, const char*);
+	extern "C" __declspec(dllimport) FARPROC __stdcall GetProcAddress(void*, char const*);
 	extern "C" __declspec(dllimport) int     __stdcall FreeLibrary(void*);
 
 	static void* vulkanDll = nullptr;
