@@ -10,6 +10,7 @@ namespace JC::Json {
 DefErr(Json, MissingClosingQuote);
 DefErr(Json, Unexpected);
 DefErr(Json, BadEscChar);
+DefErr(Json, BadName);
 DefErr(Json, BadBool);
 DefErr(Json, BadInt);
 DefErr(Json, BadFloat);
@@ -294,30 +295,59 @@ static Res<Str> ParseStr(Ctx* ctx) {
 
 //--------------------------------------------------------------------------------------------------
 
+static constexpr bool IsName(char c) {
+	return
+		(c >= '0' && c < '9') ||
+		(c >= 'a' && c < 'z') ||
+		(c >= 'A' && c < 'Z') ||
+		c == '_';
+}
+
+static Res<Str> ParseName(Ctx* ctx) {
+	const char* iter = ctx->json + *ctx->structPosIter;
+	if (*iter == '"') { return ParseStr(ctx); }
+
+	const char* const begin = iter;
+	while (IsName(*iter)) {
+		iter++;
+	}
+	if (begin == iter || IsNormal(*iter)) { return Err_BadName("pos", begin - ctx->json); }
+	return StrDb::Get(Str(begin, (U32)(iter - begin)));
+}
+
+//--------------------------------------------------------------------------------------------------
+
 static Res<> ParseVal(Ctx* ctx, const Traits* traits, U8* out);
 
 static Res<> ParseArray(Ctx* ctx, const Traits* traits, U8* out) {
 	Try(Expect(ctx, '['));
 
 	U32* const saved = ctx->structPosIter;
-	U32 commaCount = 0;
+	U32 elemCount = 0;
 	U32 depth = 0;
 	for (;;) {
 		const char c = ctx->json[*ctx->structPosIter];
 		ctx->structPosIter++;
-		if (c == '[' || c == '{') {
-			depth++;
-		} else if (c == ']' || c == '}') {
-			if (depth == 0) {
+		if (depth == 0) {
+			if (c == '[' || c == '{') {
+				depth++;
+				elemCount++;
+			} else if (c == ']' || c == '}') {
 				break;
+			} else if (c == ',') {
+				// skip
+			} else {
+				elemCount++;
 			}
-			depth--;
-		} else if (c == ',' && depth == 0) {
-			commaCount++;
+		} else {
+			if (c == '[' || c == '{') {
+				depth++;
+			} else if (c == ']' || c == '}') {
+				depth--;
+			}
 		}
 	}
 	ctx->structPosIter = saved;
-	const U32 elemCount = commaCount > 0 ? commaCount + 1 : 0;
 	Traits elemTraits = *traits;
 	elemTraits.arrayDepth--;
 	U8* elemData = 0;
@@ -345,7 +375,7 @@ static Res<> ParseObj(Ctx* ctx, Span<const Member> members, U8* out) {
 	Try(Expect(ctx, '{'));
 	for (U64 i = 0; i < members.len; i++) {
 		const Member* member = &members[i];
-		Str name; TryTo(ParseStr(ctx), name);
+		Str name; TryTo(ParseName(ctx), name);
 		if (name != member->name) {
 			return Err_Unexpected("expected", member->name, "actual", name);
 		}
@@ -391,7 +421,6 @@ Res<> ToObj(Mem permMem, Mem tempMem, const char* json, U32 jsonLen, Span<const 
 		.jsonLen  = jsonLen,
 	};
 	Try(Scan(&ctx));
-	const Traits traits = { .type = Type::Obj, .size = 0, .arrayDepth = 0, .members = members };
 	return ParseObj(&ctx, members, out);
 }
 
@@ -435,16 +464,17 @@ Json_Begin(Bar)
 Json_End(Bar)
 
 Unit_Test("Json") {
-	constexpr const char* fooJson = "{ \"str\": \"hello world\", \"f\": 1.25, \"ints\": [ [ 1, 3, 5 ], [ 7, 8 ], [], [ 0, 1, 2, 3, 4 ] ] }";
+	constexpr const char* fooJson = "{ \"str\": \"hello world\", \"f\": 1.25, \"ints\": [ [ 1, 3, 5 ], [ 7, 8 ], [], [ 0, 1, 2, 3, 4 ], [ 999 ] ] }";
 	Foo foo;
 	Unit_Check(ToObj(testMem, testMem, fooJson, StrLen(fooJson), &foo));
 	Unit_CheckEq(foo.str, "hello world");
 	Unit_CheckEq(foo.f, 1.25);
-	Unit_CheckEq(foo.ints.len, 4);
+	Unit_CheckEq(foo.ints.len, 5);
 	Unit_CheckSpanEq(foo.ints[0], Span<I32>({ 1, 3, 5 }));
 	Unit_CheckSpanEq(foo.ints[1], Span<I32>({ 7, 8  }));
 	Unit_CheckSpanEq(foo.ints[2], Span<I32>({ }));
 	Unit_CheckSpanEq(foo.ints[3], Span<I32>({ 0, 1, 2, 3, 4 }));
+	Unit_CheckSpanEq(foo.ints[4], Span<I32>({ 999 }));
 
 	constexpr const char* barsJson = "[ "
 		"{ \"b\": true,  \"u\": 123, \"s\": \"\" },"
@@ -452,8 +482,7 @@ Unit_Test("Json") {
 		"{ \"b\": true,  \"u\": 001, \"s\": \"wor\\r\\n\\b\\\"\\t\\\\ ,:][{}ld\" }"
 	"]";
 	Span<Bar> bars;
-	Res<> r = ToArray(testMem, testMem, barsJson, StrLen(barsJson), &bars);
-	Unit_Check(r);
+	Unit_Check(ToArray(testMem, testMem, barsJson, StrLen(barsJson), &bars));
 	Unit_CheckEq(bars.len, 3);
 	Unit_CheckEq(bars[0].b, true);
 	Unit_CheckEq(bars[0].u, 123u);
@@ -465,6 +494,12 @@ Unit_Test("Json") {
 	Unit_CheckEq(bars[2].u, 1u);
 	Unit_CheckEq(bars[2].s, "wor\r\n\b\"\t\\ ,:][{}ld");
 
+	constexpr const char* nestedArraysJson = "[[[]]]";
+	Span<Span<Span<U32>>> nestedArrays;
+	Unit_Check(ToArray(testMem, testMem, nestedArraysJson, StrLen(nestedArraysJson), &nestedArrays));
+	Unit_CheckEq(nestedArrays.len, 1);
+	Unit_CheckEq(nestedArrays[0].len, 1);
+	Unit_CheckEq(nestedArrays[0][0].len, 0);
 /*
 	SubTest("No Trailing Commas Object") {
 		const Str json = "{a:1,b:2}";

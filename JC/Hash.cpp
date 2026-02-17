@@ -54,13 +54,13 @@ namespace JC {
 
 static void Rapid_Mum(U64* A, U64* B){
 	#if defined(__SIZEOF_INT128__)
-		__uint128_t r = *a;
-		r *= *b; 
+		__uint128_t r = *A;
+		r *= *B; 
 		*A ^= (U64)r;
 		*B ^= (U64)(r >> 64);
 	#elif defined(_MSC_VER) && (defined(_WIN64) || defined(_M_HYBRID_CHPE_ARM64))
 		#if defined(_M_X64)
-			U64  a,  b;
+			U64 a, b;
 			a = _umul128(*A, *B, &b);
 			*A ^= a;
 			*B ^= b;

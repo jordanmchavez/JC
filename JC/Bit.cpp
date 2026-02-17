@@ -16,6 +16,7 @@ namespace JC::Bit {
 
 U32 Bsr64(U64 u) {
 	#if defined Compiler_Msvc
+		if (u == 0) { return 0; }
 		U32 idx;
 		_BitScanReverse64((unsigned long*)&idx, u);
 		return idx;
@@ -24,6 +25,7 @@ U32 Bsr64(U64 u) {
 
 U32 Bsf64(U64 u) {
 	#if defined Compiler_Msvc
+		if (u == 0) { return 0; }
 		U32 idx;
 		_BitScanForward64((unsigned long*)&idx, u);
 		return idx;
