@@ -46,16 +46,6 @@ Mem Mem::Create(U64 reserveSize) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Mem::Destroy(Mem mem) {
-	Assert(mem.handle < MaxMemObjs);
-	if (mem.handle)
-	{
-		memset(&memObjs[mem.handle], 0, sizeof(MemObj));
-	}
-}
-
-//--------------------------------------------------------------------------------------------------
-
 void* Mem::Alloc(Mem mem, U64 size, SrcLoc sl) {
 	Assert(mem);
 	Assert(mem.handle < MaxMemObjs);

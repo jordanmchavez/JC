@@ -26,8 +26,6 @@ void    AddFn(Fn* fn);
 void    RemoveFn(Fn* fn);
 void    Printv(SrcLoc sl, Level level, char const*  fmt, Span<Arg const> args);
 void    PrintErr(SrcLoc sl, const Err* err);
-StrBuf* Begin();
-void    End();
 
 template <class... A> void Printf(SrcLoc sl, Level level, CheckFmtStr<A...> fmt, A... args) { Printv(sl, level, fmt, { Arg::Make(args)..., }); }
 template <class T> void PrintErr(SrcLoc sl, Res<T> res) { PrintErr(sl, res.err); }

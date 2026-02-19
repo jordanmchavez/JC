@@ -60,7 +60,7 @@ template <class T> struct Array {
 
 	void Add(Span<T> vals) {
 		Assert(len + vals.len <= cap);
-		memcpy(data + len, vals,data, vals.len * sizeof(T));
+		memcpy(data + len, vals.data, vals.len * sizeof(T));
 		len += vals.len;
 	}
 
@@ -69,8 +69,8 @@ template <class T> struct Array {
 		if constexpr (sizeof(T) == 1) {
 			memset(data + len, (int)val, n);
 		} else {
-			T* const end = data + n;
-			for (T* iter = data + len; iter <= end; ++iter) {
+			T* const end = data + len + n;
+			for (T* iter = data + len; iter < end; ++iter) {
 				*iter = val;
 			}
 		}

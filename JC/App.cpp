@@ -155,8 +155,9 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Shutdown() {
+void Shutdown(App* app) {
 	Gpu::WaitIdle();
+	app->Shutdown();
 	Draw::Shutdown();
 	Gpu::Shutdown();
 	Window::Shutdown();
@@ -169,7 +170,7 @@ bool Run(App* app, int argc, char const* const* argv) {
 	if (!r) {
 		LogErr(r);
 	}
-	Shutdown();
+	Shutdown(app);
 	return (bool)r;
 }
 

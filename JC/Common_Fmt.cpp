@@ -25,7 +25,7 @@ struct FixedBuf {
 	char* end;
 
 	void Add(char c) {
-		if (end < begin) {
+		if (cur < end) {
 			*cur++ = c;
 		}
 	}
@@ -465,7 +465,7 @@ void SPrintImpl(Out* out, char const* fmt, Span<Arg const> args) {
 
 			case 'a':
 				switch (arg->type) {
-					case Arg::Type::Bool:    SPrintStr    (out, arg->b ? "true": " false",    flags, width, prec); break;
+					case Arg::Type::Bool:    SPrintStr    (out, arg->b ? "true": "false",     flags, width, prec); break;
 					case Arg::Type::Char:    SPrintStr    (out, Str(&arg->c, 1),              flags, width, prec); break;
 					case Arg::Type::I64:     SPrintI64    (out, arg->i,                       flags, width, prec); break;
 					case Arg::Type::U64:     SPrintU64    (out, arg->u,                       flags, width, prec); break;

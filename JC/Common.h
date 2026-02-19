@@ -83,7 +83,7 @@ template <class T> struct Array;
 #define MacroConcat(x, y)  MacroConcat2(x, y)
 #define MacroUniqueName(x) MacroConcat(x, __LINE__)
 #define MacroStringize2(x) #x
-#define MacroStringize(x) MacroStringize(x)
+#define MacroStringize(x) MacroStringize2(x)
 #define MacroLineStr MacroStringize(__LINE__)
 #define LenOf(a) (sizeof(a) / sizeof(a[0]))
 
@@ -243,7 +243,6 @@ struct Mem {
 	operator bool() const { return handle != 0; }
 
 	static Mem                        Create(U64 reserveSize);
-	static void                       Destroy(Mem mem);
 	static void*                      Alloc(Mem mem, U64 size, SrcLoc sl = SrcLoc::Here());
 	static void*                      Extend(Mem mem, void* ptr, U64 newSize, SrcLoc sl = SrcLoc::Here());
 	static MemMark                    Mark(Mem mem);
