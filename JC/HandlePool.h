@@ -39,8 +39,8 @@ template <class T, class H> struct HandlePool {
 	}
 
 	Entry* GetEntry(H h) {
-		const U32 i = (U32)h.handle;
-		const U32 g = (U32)(h.handle >> 32);
+		U32 const i = (U32)h.handle;
+		U32 const g = (U32)(h.handle >> 32);
 		Assert(i < len);
 		Assert(g > 0);
 		Entry* const entry = &entries[i];

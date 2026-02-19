@@ -187,17 +187,17 @@ static void VkNameImpl(SrcLoc sl, U64 handle, VkObjectType vkObjectType, char co
 		return;
 	}
 
-	PrintBuf pb(tempMem);
-	pb.Printv(fmt, args);
-	pb.Printf(" (%s:%u)", sl.file, sl.line);
-	pb.Add('\0');
+	StrBuf sb(tempMem);
+	sb.Printv(fmt, args);
+	sb.Printf(" (%s:%u)", sl.file, sl.line);
+	sb.Add('\0');
 
 	VkDebugUtilsObjectNameInfoEXT const vkDebugUtilsObjectNameInfoEXT = {
 		.sType        = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
 		.pNext        = 0,
 		.objectType   = vkObjectType,
 		.objectHandle = handle,
-		.pObjectName  = pb.data,
+		.pObjectName  = sb.data,
 	};
 	VkResult vkResult = vkSetDebugUtilsObjectNameEXT(vkDevice, &vkDebugUtilsObjectNameInfoEXT);
 	Assert(vkResult == VK_SUCCESS);
@@ -261,10 +261,10 @@ static Res<> InitInstance() {
 	Logf("%u layers:", layersLen);
 	for (U64 i = 0; i < layersLen; i++) {
 		Logf(
-			"  %s: implementationVersion=%s, specVersion=%s, description=%s",
+			"  %s: implementationVersion=%a, specVersion=%a, description=%s",
 			layers[i].layerName,
-			VersionStr(tempMem, layers[i].implementationVersion),
-			VersionStr(tempMem, layers[i].specVersion),
+			Addr(VersionPrinter(layers[i].implementationVersion)),
+			Addr(VersionPrinter(layers[i].specVersion)),
 			layers[i].description
 		);
 	}
@@ -292,8 +292,10 @@ static Res<> InitInstance() {
 	VkExtensionProperties* const instExts = Mem::AllocT<VkExtensionProperties>(tempMem, instExtsLen);
 	Gpu_CheckVk(vkEnumerateInstanceExtensionProperties(0, &instExtsLen, instExts));
 	Logf("%u instance extensions:", instExtsLen);
+
+	struct VPrinter : Printer {};
 	for (U64 i = 0; i < instExtsLen; i++) {
-		Logf("  %s specVersion=%s", instExts[i].extensionName, VersionStr(tempMem, instExts[i].specVersion));
+		Logf("  %s specVersion=%a", instExts[i].extensionName, Addr(VersionPrinter(instExts[i].specVersion)));
 	}
 	char const* requiredInstExts[3];
 	U32 requiredInstExtsLen = 0;
@@ -435,11 +437,13 @@ static Res<> InitDevice() {
 		pd->vkPhysicalDevice = vkPhysicalDevices[i];
 		pd->vkPhysicalDeviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
 		vkGetPhysicalDeviceProperties2(vkPhysicalDevices[i], &pd->vkPhysicalDeviceProperties2);
+		VersionPrinter apiVer(pd->vkPhysicalDeviceProperties2.properties.apiVersion);
+		VersionPrinter driverVer(pd->vkPhysicalDeviceProperties2.properties.driverVersion);
 		Logf(
-			"%s: apiVersion=%s, driverVersion=%s, vendorID=%u, deviceId=%u, deviceType=%s",
+			"%s: apiVersion=%a, driverVersion=%a, vendorID=%u, deviceId=%u, deviceType=%s",
 			pd->vkPhysicalDeviceProperties2.properties.deviceName,
-			VersionStr(tempMem, pd->vkPhysicalDeviceProperties2.properties.apiVersion),
-			VersionStr(tempMem, pd->vkPhysicalDeviceProperties2.properties.driverVersion),
+			&apiVer,
+			&driverVer,
 			pd->vkPhysicalDeviceProperties2.properties.vendorID,
 			pd->vkPhysicalDeviceProperties2.properties.deviceID,
 			PhysicalDeviceTypeStr(pd->vkPhysicalDeviceProperties2.properties.deviceType)
@@ -454,7 +458,8 @@ static Res<> InitDevice() {
 			case VK_PHYSICAL_DEVICE_TYPE_OTHER:          score +=    1; break;
 		};
 		if (pd->vkPhysicalDeviceProperties2.properties.apiVersion < VK_API_VERSION_1_3) {
-			Logf("  Rejecting device: need Vulkan 1.3: apiVersion=%s", VersionStr(tempMem, pd->vkPhysicalDeviceProperties2.properties.apiVersion));
+			VersionPrinter rejectVer(pd->vkPhysicalDeviceProperties2.properties.apiVersion);
+			Logf("  Rejecting device: need Vulkan 1.3: apiVersion=%a", &rejectVer);
 			score = 0;
 		}
 
@@ -488,12 +493,12 @@ static Res<> InitDevice() {
 		Logf("  %u memory types:", pd->vkPhysicalDeviceMemoryProperties.memoryTypeCount);
 		for (U64 j = 0; j < pd->vkPhysicalDeviceMemoryProperties.memoryTypeCount; j++) {
 			VkMemoryType const mt = pd->vkPhysicalDeviceMemoryProperties.memoryTypes[j];
-			Logf("    [%u] heapIndex=%u, flags=%s", j, mt.heapIndex, MemoryPropertyFlagsStr(tempMem, mt.propertyFlags));
+			Logf("    [%u] heapIndex=%u, flags=%a", j, mt.heapIndex, Addr(MemoryPropertyFlagsPrinter(mt.propertyFlags)));
 		}
 		Logf("  %u memory heaps:", pd->vkPhysicalDeviceMemoryProperties.memoryHeapCount);
 		for (U64 j = 0; j < pd->vkPhysicalDeviceMemoryProperties.memoryHeapCount; j++) {
 			VkMemoryHeap const mh = pd->vkPhysicalDeviceMemoryProperties.memoryHeaps[j];
-			Logf("    [%u] size=%s, flags=%s", j, SizeStr(tempMem, mh.size), MemoryHeapFlagsStr(tempMem, mh.flags));
+			Logf("    [%u] size=%a, flags=%a", j, Addr(SizePrinter(mh.size)), Addr(MemoryHeapFlagsPrinter(mh.flags)));
 		}
 
 		U32 vkQueueFamilyPropertiesLen = 0;
@@ -506,14 +511,15 @@ static Res<> InitDevice() {
 		pd->vkExtensionProperties = Mem::AllocSpan<VkExtensionProperties>(permMem, vkExtensionPropertiesLen);
 		Gpu_CheckVk(vkEnumerateDeviceExtensionProperties(pd->vkPhysicalDevice, 0, &vkExtensionPropertiesLen, pd->vkExtensionProperties.data));
 
-		PrintBuf extensionsPb(tempMem);
+		StrBuf extensionsSb(tempMem);
 		for (U64 j = 0; j < pd->vkExtensionProperties.len; j++) {
-			extensionsPb.Printf("%s(specVersion=%s), ", pd->vkExtensionProperties[j].extensionName, VersionStr(tempMem, pd->vkExtensionProperties[j].specVersion));
+			VersionPrinter specVer(pd->vkExtensionProperties[j].specVersion);
+			extensionsSb.Printf("%s(specVersion=%a), ", pd->vkExtensionProperties[j].extensionName, &specVer);
 		}
-		if (extensionsPb.len >= 2) {
-			extensionsPb.len -= 2;
+		if (extensionsSb.len >= 2) {
+			extensionsSb.len -= 2;
 		}
-		Logf("  %u device extensions: %s",  pd->vkExtensionProperties.len, extensionsPb.ToStr());
+		Logf("  %u device extensions: %s",  pd->vkExtensionProperties.len, extensionsSb.ToStr());
 		for (U64 j = 0; j < LenOf(RequiredDeviceExts); j++) {
 			bool found = false;
 			for (U64 k = 0; k < pd->vkExtensionProperties.len; k++) {
@@ -574,7 +580,7 @@ static Res<> InitDevice() {
 			Gpu_CheckVk(vkGetPhysicalDeviceSurfaceSupportKHR(pd->vkPhysicalDevice, (U32)j, vkSurface, &supportsPresent));
 			pd->queueFamilies[j].vkQueueFamilyProperties = vkQueueFamilyProperties[j];
 			pd->queueFamilies[j].supportsPresent         = (supportsPresent == VK_TRUE);
-			Logf("    [%u] count=%u, flags=%s, supportsPresent=%t", j, props->queueCount, QueueFlagsStr(tempMem, props->queueFlags), pd->queueFamilies[j].supportsPresent);
+			Logf("    [%u] count=%u, flags=%a, supportsPresent=%t", j, props->queueCount, Addr(QueueFlagsPrinter(props->queueFlags)), pd->queueFamilies[j].supportsPresent);
 			VkQueueFlags const flags = pd->queueFamilies[j].vkQueueFamilyProperties.queueFlags;
 			if (pd->queueFamily == VK_QUEUE_FAMILY_IGNORED && (flags & VK_QUEUE_GRAPHICS_BIT) && pd->queueFamilies[j].supportsPresent) {
 				pd->queueFamily = (U32)j;

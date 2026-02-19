@@ -33,6 +33,21 @@ static constexpr U32 MaxPasses            = 64;
 
 //--------------------------------------------------------------------------------------------------
 
+struct SpriteAtlasEntry {
+	U32 x;
+	U32 y;
+	U32 w;
+	U32 h;
+	Str name;
+};
+Json_Begin(SpriteAtlasEntry)
+	Json_Member("x",    x)
+	Json_Member("y",    y)
+	Json_Member("w",    w)
+	Json_Member("h",    h)
+	Json_Member("name", name)
+Json_End(SpriteAtlasEntry)
+
 struct SpriteObj {
 	U32  imageIdx;
 	Vec2 uv1;
@@ -130,7 +145,7 @@ Res<> Init(InitDesc const* initDesc) {
 	spriteAtlasImages    = Mem::AllocT<Gpu::Image>(permMem, MaxSpriteAtlasImages);
 	spriteAtlasImagesLen = 0;
 	spriteObjs           = Mem::AllocT<SpriteObj>(permMem, MaxSprites);
-	spriteObjsLen        = 0;
+	spriteObjsLen        = 1;	// reserve 0 for invalid since this is the handle value
 	spriteObjsByName.Init(permMem, MaxSprites);
 
 	Try(Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(depthImage));
@@ -257,23 +272,6 @@ static Res<Gpu::Image> LoadImage(Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
-struct SpriteAtlasEntry {
-	//{ x:   0, y:   0, w: 16, h: 16, name: "empty" },
-	U32 x;
-	U32 y;
-	U32 w;
-	U32 h;
-	Str name;
-};
-
-Json_Begin(SpriteAtlasEntry)
-	Json_Member("x",    x)
-	Json_Member("y",    y)
-	Json_Member("w",    w)
-	Json_Member("h",    h)
-	Json_Member("name", name)
-Json_End(SpriteAtlasEntry)
-
 Res<> LoadSpriteAtlas(Str imagePath, Str atlasPath) {
 	Assert(spriteAtlasImagesLen < MaxSpriteAtlasImages);
 
@@ -283,18 +281,19 @@ Res<> LoadSpriteAtlas(Str imagePath, Str atlasPath) {
 
 	Span<char> json; TryTo(FS::ReadAllZ(tempMem, atlasPath), json);
 	Span<SpriteAtlasEntry> entries; Try(Json::ToArray(tempMem, tempMem, json.data, (U32)json.len, &entries));
+	Assert(spriteObjsLen + entries.len <= MaxSprites);
 	for (U64 i = 0; i < entries.len; i++) {
 		SpriteAtlasEntry* const entry = &entries[i];
+		if (spriteObjsByName.FindOrNull(entry->name)) {
+			return Err_DuplicateSpriteName("path", atlasPath, "name", entry->name);
+		}
+
 		F32 const imageWidth  = (F32)Gpu::GetImageWidth(image);
 		F32 const imageHeight = (F32)Gpu::GetImageHeight(image);
 		F32 const x = (F32)entry->x / imageWidth;
 		F32 const y = (F32)entry->y / imageHeight;
 		F32 const w = (F32)entry->w;
 		F32 const h = (F32)entry->h;
-
-		if (spriteObjsByName.FindOrNull(entry->name)) {
-			return Err_DuplicateSpriteName("path", atlasPath, "name", entry->name);
-		}
 
 		spriteObjsByName.Put(entry->name, spriteObjsLen);
 		spriteObjs[spriteObjsLen++] = {
@@ -369,9 +368,9 @@ void DestroyCanvas(Canvas canvas) {
 
 //--------------------------------------------------------------------------------------------------
 
-void BeginFrame(Gpu::Frame frame) {
+void BeginFrame(Gpu::Frame* frame) {
 	CanvasObj* const canvasObj = canvasObjs.Get(swapchainCanvas);
-	canvasObj->colorImage = frame.swapchainImage;
+	canvasObj->colorImage = frame->swapchainImage;
 
 	drawCmds = (DrawCmd*)Gpu::AllocStaging(MaxDrawCmds * sizeof(DrawCmd));
 	drawCmdCount = 0;

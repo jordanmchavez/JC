@@ -121,7 +121,7 @@ U64 HashCombine(U64 seed, const void* data, U64 len) {
 		if (Rapid_Likely(len >= 4)) {
 			const U8* plast = p + len - 4;
 			a = (Rapid_Read32(p) << 32) | Rapid_Read32(plast);
-			const U64 delta = ((len & 24) >> (len >> 3));
+			U64 const delta = ((len & 24) >> (len >> 3));
 			b = ((Rapid_Read32(p + delta) << 32) | Rapid_Read32(plast - delta));
 		} else if (Rapid_Likely(len > 0)) {
 			a = Rapid_ReadSmall(p, len);

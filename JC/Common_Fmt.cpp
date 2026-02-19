@@ -378,6 +378,16 @@ static void SPrintPtr(Out* out, void const* p, U32 flags, U32 width, U32) {	// p
 
 //--------------------------------------------------------------------------------------------------	
 
+static void SPrintPrinter(StrBuf* out, Printer* printer) {
+	printer->Print(out);
+}
+
+static void SPrintPrinter(FixedBuf* out, Printer*) {
+	out->Add("<?>", 3);
+}
+
+//--------------------------------------------------------------------------------------------------
+
 template <class Out>
 void SPrintImpl(Out* out, char const* fmt, Span<Arg const> args) {
 	U32 argIdx = 0;
@@ -455,13 +465,14 @@ void SPrintImpl(Out* out, char const* fmt, Span<Arg const> args) {
 
 			case 'a':
 				switch (arg->type) {
-					case Arg::Type::Bool: SPrintStr(out, arg->b ? "true": " false",    flags, width, prec); break;
-					case Arg::Type::Char: SPrintStr(out, Str(&arg->c, 1),              flags, width, prec); break;
-					case Arg::Type::I64:  SPrintI64(out, arg->i,                       flags, width, prec); break;
-					case Arg::Type::U64:  SPrintU64(out, arg->u,                       flags, width, prec); break;
-					case Arg::Type::F64:  SPrintF64(out, arg->f,                       flags, width, prec); break;
-					case Arg::Type::Str:  SPrintStr(out, Str(arg->s.data, arg->s.len), flags, width, prec); break;
-					case Arg::Type::Ptr:  SPrintPtr(out, arg->p,                       flags, width, prec); break;
+					case Arg::Type::Bool:    SPrintStr    (out, arg->b ? "true": " false",    flags, width, prec); break;
+					case Arg::Type::Char:    SPrintStr    (out, Str(&arg->c, 1),              flags, width, prec); break;
+					case Arg::Type::I64:     SPrintI64    (out, arg->i,                       flags, width, prec); break;
+					case Arg::Type::U64:     SPrintU64    (out, arg->u,                       flags, width, prec); break;
+					case Arg::Type::F64:     SPrintF64    (out, arg->f,                       flags, width, prec); break;
+					case Arg::Type::Str:     SPrintStr    (out, Str(arg->s.data, arg->s.len), flags, width, prec); break;
+					case Arg::Type::Ptr:     SPrintPtr    (out, arg->p,                       flags, width, prec); break;
+					case Arg::Type::Printer: SPrintPrinter(out, arg->printer);                                     break;
 					default: Panic("Unhandled ArgType %u", (U32)arg->type);
 				}
 				break;
@@ -475,9 +486,9 @@ void SPrintImpl(Out* out, char const* fmt, Span<Arg const> args) {
 //--------------------------------------------------------------------------------------------------	
 
 Str SPrintv(Mem mem, char const* fmt, Span<Arg const> args) {
-	PrintBuf pb(mem);
-	SPrintImpl(&pb, fmt, args);
-	return pb.ToStr();
+	StrBuf sb(mem);
+	SPrintImpl(&sb, fmt, args);
+	return sb.ToStr();
 }
 
 char* SPrintv(char* outBegin, char* outEnd, char const* fmt, Span<Arg const> args) {
@@ -488,24 +499,30 @@ char* SPrintv(char* outBegin, char* outEnd, char const* fmt, Span<Arg const> arg
 
 //--------------------------------------------------------------------------------------------------	
 
-PrintBuf::PrintBuf(Mem mem_) {
-	mem  = mem_;
-	data = nullptr;
+StrBuf::StrBuf(Mem memIn) {
+	Init(memIn);
+}
+
+//--------------------------------------------------------------------------------------------------	
+
+void StrBuf::Init(Mem memIn) {
+	mem  = memIn;
+	data = 0;
 	len  = 0;
 	cap  = 0;
 }
 
 //--------------------------------------------------------------------------------------------------	
 
-void GrowPrintBuf(PrintBuf* pb, U32 n, SrcLoc sl) {
-	U32 const newCap = Max(pb->cap * 2, pb->len + n);
-	pb->data = Mem::ExtendT<char>(pb->mem, pb->data, newCap, sl);
-	pb->cap = newCap;
+void GrowPrintBuf(StrBuf* sb, U32 n, SrcLoc sl) {
+	U32 const newCap = Max(sb->cap * 2, sb->len + n);
+	sb->data = Mem::ExtendT<char>(sb->mem, sb->data, newCap, sl);
+	sb->cap = newCap;
 }
 
 //--------------------------------------------------------------------------------------------------	
 
-void PrintBuf::Add(char c, SrcLoc sl) {
+void StrBuf::Add(char c, SrcLoc sl) {
 	if (len >= cap) {
 		GrowPrintBuf(this, 1, sl);
 	}
@@ -514,7 +531,7 @@ void PrintBuf::Add(char c, SrcLoc sl) {
 
 //--------------------------------------------------------------------------------------------------	
 
-void PrintBuf::Add(char c, U32 n, SrcLoc sl) {
+void StrBuf::Add(char c, U32 n, SrcLoc sl) {
 	if (len + n >= cap) {
 		GrowPrintBuf(this, n, sl);
 	}
@@ -524,7 +541,7 @@ void PrintBuf::Add(char c, U32 n, SrcLoc sl) {
 
 //--------------------------------------------------------------------------------------------------	
 
-void PrintBuf::Add(char const* s, U32 sLen, SrcLoc sl) {
+void StrBuf::Add(char const* s, U32 sLen, SrcLoc sl) {
 	if (len + sLen >= cap) {
 		GrowPrintBuf(this, sLen, sl);
 	}
@@ -534,7 +551,7 @@ void PrintBuf::Add(char const* s, U32 sLen, SrcLoc sl) {
 
 //--------------------------------------------------------------------------------------------------	
 
-void PrintBuf::Add(Str s, SrcLoc sl) {
+void StrBuf::Add(Str s, SrcLoc sl) {
 	if (len + s.len >= cap) {
 		GrowPrintBuf(this, s.len, sl);
 	}
@@ -544,21 +561,21 @@ void PrintBuf::Add(Str s, SrcLoc sl) {
 
 //--------------------------------------------------------------------------------------------------	
 
-void PrintBuf::Remove() {
+void StrBuf::Remove() {
 	Assert(len > 0);
 	len--;
 }
 
 //--------------------------------------------------------------------------------------------------	
 
-void PrintBuf::Remove(U32 n) {
+void StrBuf::Remove(U32 n) {
 	Assert(len >= n);
 	len -= n;
 }
 
 //--------------------------------------------------------------------------------------------------	
 
-void PrintBuf::Printv(char const* fmt, Span<Arg const> args) {
+void StrBuf::Printv(char const* fmt, Span<Arg const> args) {
 	SPrintImpl(this, fmt, args);
 }
 
@@ -568,9 +585,9 @@ Unit_Test("Fmt") {
 	#define CheckPrintf(expect, fmt, ...) \
 		{ \
 			MemScope scope(testMem); \
-			PrintBuf pb(testMem); \
-			pb.Printf(fmt, ##__VA_ARGS__); \
-			Unit_CheckEq(expect, Str(pb.data, pb.len)); \
+			StrBuf sb(testMem); \
+			sb.Printf(fmt, ##__VA_ARGS__); \
+			Unit_CheckEq(expect, Str(sb.data, sb.len)); \
 		}
 
 	// Escape sequences

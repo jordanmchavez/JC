@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(cmd.exe /c \"powershell -NoProfile -Command \"\"$content = [IO.File]::ReadAllText\\(''C:/Code/JC/JC/Common_Fmt.cpp''\\); if \\($content -match ''Arg::Type::Ptr''\\) { ''FOUND'' } else { ''NOT FOUND'' }\"\"\")",
+      "Bash(cmd.exe /c \"powershell -NoProfile -ExecutionPolicy Bypass -File C:\\\\Code\\\\JC\\\\fix_fmt.ps1 2>&1\")"
+    ]
+  }
+}

@@ -58,7 +58,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 			break;
 
 		case WM_CLOSE:
-			Event::Add({ .type = Event::Type::ExitRequest });
+			Event::AddEvent({ .type = Event::Type::ExitRequest });
 			break;
 
 		case WM_DPICHANGED:
@@ -83,26 +83,26 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 			if (rawInput->header.dwType == RIM_TYPEMOUSE) {
 				const RAWMOUSE* const m = &rawInput->data.mouse;
 				if (m->usButtonFlags & RI_MOUSE_WHEEL) {
-					Event::Add({
+					Event::AddEvent({
 						.type = Event::Type::MouseWheel,
 						.mouseWheel = { .delta = (float)((signed short)m->usButtonData) / 120.0f },
 					});
 				}
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) { Event::Add({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::Mouse1 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_1_UP  ) { Event::Add({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::Mouse1 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) { Event::Add({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::Mouse2 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_2_UP  ) { Event::Add({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::Mouse2 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) { Event::Add({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::Mouse3 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_3_UP  ) { Event::Add({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::Mouse3 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) { Event::Add({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::Mouse4 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_4_UP  ) { Event::Add({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::Mouse4 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) { Event::Add({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::Mouse5 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_5_UP  ) { Event::Add({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::Mouse5 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::MouseLeft } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_1_UP  ) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::MouseLeft } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::MouseRight } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_2_UP  ) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::MouseRight } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::MouseMiddle } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_3_UP  ) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::MouseMiddle } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::Mouse4 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_4_UP  ) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::Mouse4 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::Mouse5 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_5_UP  ) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::Mouse5 } }); }
 
 				::POINT mousePos;
 				::GetCursorPos(&mousePos);
 				::ScreenToClient(hwnd, &mousePos);
-				Event::Add({
+				Event::AddEvent({
 					.type = Event::Type::MouseMove,
 					.mouseMove = {
 						.x  = (I32)mousePos.x,
@@ -145,7 +145,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 					case VK_CLEAR:   virtualKey = e0 ? VK_CLEAR     : VK_NUMPAD5;  break;
 				}
 				const bool down = !(k->Flags & RI_KEY_BREAK);
-				Event::Add({ .type = Event::Type::Key, .key = { .down = down, .key  = (Event::Key)virtualKey } });
+				Event::AddEvent({ .type = Event::Type::Key, .key = { .down = down, .key  = (Event::Key)virtualKey } });
 			}
 			break;
 		}
@@ -168,7 +168,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 
 		case WM_SYSCOMMAND:
 			if (wparam == SC_CLOSE) {
-				Event::Add({ .type = Event::Type::ExitRequest });
+				Event::AddEvent({ .type = Event::Type::ExitRequest });
 				return 0;
 			}
 			break;
@@ -392,8 +392,8 @@ Span<Display const> GetDisplays() {
 void Frame() {
 	const bool prevMinimized = window.minimized;
 	const bool prevFocused   = window.focused;
-	const U32  prevWidth     = window.windowRect.width;
-	const U32  prevHeight    = window.windowRect.height;
+	U32 const  prevWidth     = window.windowRect.width;
+	U32 const  prevHeight    = window.windowRect.height;
 
 
 	MSG msg;
@@ -403,17 +403,17 @@ void Frame() {
 	}
 
 	if (!prevMinimized && window.minimized) {
-		Event::Add({ .type = Event::Type::WindowMinimized });
+		Event::AddEvent({ .type = Event::Type::WindowMinimized });
 	} else if (prevMinimized && !window.minimized) {
-		Event::Add({ .type = Event::Type::WindowRestored });
+		Event::AddEvent({ .type = Event::Type::WindowRestored });
 	}
 	if (!prevFocused && window.focused) {
-		Event::Add({ .type = Event::Type::WindowFocused });
+		Event::AddEvent({ .type = Event::Type::WindowFocused });
 	} else if (prevFocused && !window.focused) {
-		Event::Add({ .type = Event::Type::WindowUnfocused });
+		Event::AddEvent({ .type = Event::Type::WindowUnfocused });
 	}
 	if (prevWidth != window.windowRect.width || prevHeight != window.windowRect.height) {
-		Event::Add({
+		Event::AddEvent({
 			.type = Event::Type::WindowResized,
 			.windowResized = {
 				.width  = window.windowRect.width,
@@ -452,6 +452,21 @@ PlatformDesc GetPlatformDesc() {
 	return PlatformDesc {
 		.hinstance = GetModuleHandleW(0),
 		.hwnd      = window.hwnd,
+	};
+}
+
+//----------------------------------------------------------------------------------------------
+
+State GetState() {
+	return {
+		.x          = window.windowRect.y,
+		.y          = window.windowRect.x,
+		.width      = window.clientRect.width,
+		.height     = window.clientRect.height,
+		.style      = window.style,
+		.cursorMode = window.cursorMode,
+		.minimized  = window.minimized,
+		.focused    = window.focused,
 	};
 }
 

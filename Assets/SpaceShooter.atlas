@@ -7,5 +7,5 @@
 	{ x:  40, y:   0, w: 3, h: 3, name: "Engine2" },
 	{ x:  48, y:   0, w: 3, h: 3, name: "Engine3" },
 	{ x:  56, y:   0, w: 3, h: 3, name: "Engine4" },
-	{ x:  64, y:   0, w: 5, h: 5, name: "Particle1" },
+	{ x:  64, y:   0, w: 5, h: 5, name: "Particle1" }
 ]

@@ -16,9 +16,9 @@ static U64 Rotl(U64 x, U32 k) {
 }
 
 static U64 Next() {
-	const U64 s0 = state[0];
+	U64 const s0 = state[0];
 	U64 s1 = state[1];
-	const U64 res = s0 + s1;
+	U64 const res = s0 + s1;
 	s1 ^= s0;
 	state[0] = Rotl(s0, 24) ^ s1 ^ (s1 << 16);
 	state[1] = Rotl(s1, 37);

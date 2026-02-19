@@ -57,14 +57,39 @@ void                  ImageMemoryBarrier(
 );
 Str                   ColorSpaceStr(VkColorSpaceKHR c);
 Str                   FormatStr(VkFormat f);
-Str                   MemoryHeapFlagsStr(Mem mem, VkMemoryHeapFlags f);
-Str                   MemoryPropertyFlagsStr(Mem mem, VkMemoryPropertyFlags f);
-Str                   QueueFlagsStr(Mem mem, VkQueueFlags f);
 Str                   PresentModeStr(VkPresentModeKHR m);
 Str                   ResultStr(VkResult r);
 Str                   PhysicalDeviceTypeStr(VkPhysicalDeviceType t);
-Str                   VersionStr(Mem mem, U32 v);
-Str                   SizeStr(Mem mem, U64 size);
+
+struct MemoryHeapFlagsPrinter : Printer {
+	VkMemoryHeapFlags flags;
+	MemoryHeapFlagsPrinter(VkMemoryHeapFlags f) : flags(f) {}
+	void Print(StrBuf* sb) override;
+};
+
+struct MemoryPropertyFlagsPrinter : Printer {
+	VkMemoryPropertyFlags flags;
+	MemoryPropertyFlagsPrinter(VkMemoryPropertyFlags f) : flags(f) {}
+	void Print(StrBuf* sb) override;
+};
+
+struct QueueFlagsPrinter : Printer {
+	VkQueueFlags flags;
+	QueueFlagsPrinter(VkQueueFlags f) : flags(f) {}
+	void Print(StrBuf* sb) override;
+};
+
+struct VersionPrinter : Printer {
+	U32 ver;
+	VersionPrinter(U32 verIn) : ver(verIn) {}
+	void Print(StrBuf* sb) override;
+};
+
+struct SizePrinter : Printer {
+	U64 size;
+	SizePrinter(U64 s) : size(s) {}
+	void Print(StrBuf* sb) override;
+};
 
 //--------------------------------------------------------------------------------------------------
 

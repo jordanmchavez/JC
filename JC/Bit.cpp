@@ -77,7 +77,7 @@ Unit_Test("Bit") {
 	Unit_CheckEq(AlignPow2(1), 1);
 	Unit_CheckEq(AlignPow2(2), 2);
 	for (U64 i = 2; i < 64; i++) {
-		const U64 pow2 = (U64)1 << i;
+		U64 const pow2 = (U64)1 << i;
 		Unit_CheckEq(AlignPow2(pow2 - 1), pow2);
 		Unit_CheckEq(AlignPow2(pow2    ), pow2);
 		Unit_CheckEq(AlignPow2(pow2 + 1), pow2 << 1);

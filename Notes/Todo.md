@@ -249,3 +249,14 @@ Test vk mem alloc paths: reducing chunk size when out of memory, dedicated/arena
 Redo Fmt_WriteF64 to make it more efficient, compare to stb_printf
 Move all static bounds to config
 cvar/config
+
+
+- clang / lint to enforce no dropped Res<>
+- frameId in ErrData, need Err::Frame()
+- Check frameId on access
+- Hash ns/code at compiletime
+- cap arg strings: set err flag on truncation
+- Err pool should be a ring buffer, so we don't overwrite frameId if possible
+- Implicit stack trace even if propagating?
+
+

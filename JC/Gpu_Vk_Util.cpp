@@ -732,37 +732,6 @@ Str FormatStr(VkFormat f) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str MemoryHeapFlagsStr(Mem mem, VkMemoryHeapFlags f) {
-	PrintBuf pb(mem);
-	if (f & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)   { pb.Add("VK_MEMORY_HEAP_DEVICE_LOCAL_BIT|"); }
-	if (f & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT) { pb.Add("VK_MEMORY_HEAP_MULTI_INSTANCE_BIT|"); }       
-	if (pb.len > 0) {
-		pb.len--;
-	}
-	return pb.ToStr();
-}
-
-//--------------------------------------------------------------------------------------------------
-
-Str MemoryPropertyFlagsStr(Mem mem, VkMemoryPropertyFlags f) {
-	PrintBuf pb(mem);
-	if (f & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)        { pb.Add("VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT|"); }
-	if (f & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)        { pb.Add("VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|"); }       
-	if (f & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)       { pb.Add("VK_MEMORY_PROPERTY_HOST_COHERENT_BIT|"); }
-	if (f & VK_MEMORY_PROPERTY_HOST_CACHED_BIT)         { pb.Add("VK_MEMORY_PROPERTY_HOST_CACHED_BIT|"); } 
-	if (f & VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT)    { pb.Add("VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT|"); }
-	if (f & VK_MEMORY_PROPERTY_PROTECTED_BIT)           { pb.Add("VK_MEMORY_PROPERTY_PROTECTED_BIT|"); }
-	if (f & VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD) { pb.Add("VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD|"); }
-	if (f & VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD) { pb.Add("VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD|"); }
-	if (f & VK_MEMORY_PROPERTY_RDMA_CAPABLE_BIT_NV)     { pb.Add("VK_MEMORY_PROPERTY_RDMA_CAPABLE_BIT_NV|"); }
-	if (pb.len > 0) {
-		pb.len--;
-	}
-	return pb.ToStr();
-}
-
-//--------------------------------------------------------------------------------------------------
-
 Str PresentModeStr(VkPresentModeKHR m) {
 	switch (m) {
 		case VK_PRESENT_MODE_IMMEDIATE_KHR: return "VK_PRESENT_MODE_IMMEDIATE_KHR";
@@ -773,24 +742,6 @@ Str PresentModeStr(VkPresentModeKHR m) {
 		case VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR: return "VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR";
 		default: return "<unknown VkPresentModeKHR>";
 	}
-}
-
-//--------------------------------------------------------------------------------------------------
-
-Str QueueFlagsStr(Mem mem, VkQueueFlags f) {
-	PrintBuf pb(mem);
-	if (f & VK_QUEUE_GRAPHICS_BIT)         { pb.Add("VK_QUEUE_GRAPHICS_BIT|"); }
-	if (f & VK_QUEUE_COMPUTE_BIT)          { pb.Add("VK_QUEUE_COMPUTE_BIT|"); }
-	if (f & VK_QUEUE_TRANSFER_BIT)         { pb.Add("VK_QUEUE_TRANSFER_BIT|"); }
-	if (f & VK_QUEUE_SPARSE_BINDING_BIT)   { pb.Add("VK_QUEUE_SPARSE_BINDING_BIT|"); }
-	if (f & VK_QUEUE_PROTECTED_BIT)        { pb.Add("VK_QUEUE_PROTECTED_BIT|"); }
-	if (f & VK_QUEUE_VIDEO_DECODE_BIT_KHR) { pb.Add("VK_QUEUE_VIDEO_DECODE_BIT_KHR|"); }
-	if (f & VK_QUEUE_VIDEO_ENCODE_BIT_KHR) { pb.Add("VK_QUEUE_VIDEO_ENCODE_BIT_KHR|"); }
-	if (f & VK_QUEUE_OPTICAL_FLOW_BIT_NV)  { pb.Add("VK_QUEUE_OPTICAL_FLOW_BIT_NV|"); }
-	if (pb.len > 0) {
-		pb.len--;
-	}
-	return pb.ToStr();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -866,23 +817,65 @@ Str PhysicalDeviceTypeStr(VkPhysicalDeviceType v) {
 
 //--------------------------------------------------------------------------------------------------
 
-Str VersionStr(Mem mem, U32 v) {
-	return SPrintf(mem, "%u.%u.%u", VK_API_VERSION_MAJOR(v), VK_API_VERSION_MINOR(v), VK_API_VERSION_PATCH(v));
+void MemoryHeapFlagsPrinter::Print(StrBuf* sb) {
+	if (flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)   { sb->Add("VK_MEMORY_HEAP_DEVICE_LOCAL_BIT|"); }
+	if (flags & VK_MEMORY_HEAP_MULTI_INSTANCE_BIT) { sb->Add("VK_MEMORY_HEAP_MULTI_INSTANCE_BIT|"); }
+	if (sb->len > 0) {
+		sb->len--;
+	}
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Str SizeStr(Mem mem, U64 size) {
+void MemoryPropertyFlagsPrinter::Print(StrBuf* sb) {
+	if (flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)        { sb->Add("VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT|"); }
+	if (flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)        { sb->Add("VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|"); }
+	if (flags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)       { sb->Add("VK_MEMORY_PROPERTY_HOST_COHERENT_BIT|"); }
+	if (flags & VK_MEMORY_PROPERTY_HOST_CACHED_BIT)         { sb->Add("VK_MEMORY_PROPERTY_HOST_CACHED_BIT|"); }
+	if (flags & VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT)    { sb->Add("VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT|"); }
+	if (flags & VK_MEMORY_PROPERTY_PROTECTED_BIT)           { sb->Add("VK_MEMORY_PROPERTY_PROTECTED_BIT|"); }
+	if (flags & VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD) { sb->Add("VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD|"); }
+	if (flags & VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD) { sb->Add("VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD|"); }
+	if (flags & VK_MEMORY_PROPERTY_RDMA_CAPABLE_BIT_NV)     { sb->Add("VK_MEMORY_PROPERTY_RDMA_CAPABLE_BIT_NV|"); }
+	if (sb->len > 0) {
+		sb->len--;
+	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void QueueFlagsPrinter::Print(StrBuf* sb) {
+	if (flags & VK_QUEUE_GRAPHICS_BIT)         { sb->Add("VK_QUEUE_GRAPHICS_BIT|"); }
+	if (flags & VK_QUEUE_COMPUTE_BIT)          { sb->Add("VK_QUEUE_COMPUTE_BIT|"); }
+	if (flags & VK_QUEUE_TRANSFER_BIT)         { sb->Add("VK_QUEUE_TRANSFER_BIT|"); }
+	if (flags & VK_QUEUE_SPARSE_BINDING_BIT)   { sb->Add("VK_QUEUE_SPARSE_BINDING_BIT|"); }
+	if (flags & VK_QUEUE_PROTECTED_BIT)        { sb->Add("VK_QUEUE_PROTECTED_BIT|"); }
+	if (flags & VK_QUEUE_VIDEO_DECODE_BIT_KHR) { sb->Add("VK_QUEUE_VIDEO_DECODE_BIT_KHR|"); }
+	if (flags & VK_QUEUE_VIDEO_ENCODE_BIT_KHR) { sb->Add("VK_QUEUE_VIDEO_ENCODE_BIT_KHR|"); }
+	if (flags & VK_QUEUE_OPTICAL_FLOW_BIT_NV)  { sb->Add("VK_QUEUE_OPTICAL_FLOW_BIT_NV|"); }
+	if (sb->len > 0) {
+		sb->len--;
+	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void VersionPrinter::Print(StrBuf* sb) {
+	sb->Printf("%u.%u.%u", VK_API_VERSION_MAJOR(ver), VK_API_VERSION_MINOR(ver), VK_API_VERSION_PATCH(ver));
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void SizePrinter::Print(StrBuf* sb) {
 	if (size > 1024 * 1024 * 1024) {
-		return SPrintf(mem, "%.1fgb", (F64)size / (1024.0 * 1024.0 * 1024.0));
+		sb->Printf("%.1fgb", (F64)size / (1024.0 * 1024.0 * 1024.0));
+	} else if (size > 1024 * 1024) {
+		sb->Printf("%.1fmb", (F64)size / (1024.0 * 1024.0));
+	} else if (size > 1024) {
+		sb->Printf("%.1fkb", (F64)size / 1024.0);
+	} else {
+		sb->Printf("%u", size);
 	}
-	if (size > 1024 * 1024) {
-		return SPrintf(mem, "%.1fmb", (F64)size / (1024.0 * 1024.0));
-	}
-	if (size > 1024) {
-		return SPrintf(mem, "%.1fkb", (F64)size / 1024.0);
-	}
-	return SPrintf(mem, "%u", size);
 }
 
 //--------------------------------------------------------------------------------------------------

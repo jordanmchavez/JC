@@ -176,7 +176,7 @@ Unit_Test("Utf8ToWtf16z") {
 
 Str Wtf16zToUtf8(Mem mem, const wchar_t* s) {
 	// Max UTF-8 encoding of a WTF-16 string is len(wtf16Str) * 3, due to BMP chars/unpaired surrogates
-	const U64 len = wcslen(s);
+	U64 const len = wcslen(s);
 	char* out = Mem::AllocT<char>(mem, len * 3);	
 	U32 outLen = 0;
 

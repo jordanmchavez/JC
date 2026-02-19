@@ -212,7 +212,7 @@ static Res<> Draw(Gpu::Frame frame) {
 	}
 
 	/*
-	const U32 unitRowParity = spearmanRow & 1;
+	U32 const unitRowParity = spearmanRow & 1;
 	constexpr Vec2 UnitSize = { 16.f, 16.f };
 	const F32 unitX = (F32)(MapPadding + (spearmanCol * 64) + (unitRowParity * 32) + 32) - (UnitSize.x / 2);
 	const F32 unitY = (F32)(MapPadding + (spearmanRow * 48)                        + 32) - (UnitSize.y / 2);

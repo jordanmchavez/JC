@@ -117,8 +117,10 @@
     <ClInclude Include="3rd\vulkan\vulkan.h" />
     <ClInclude Include="3rd\vulkan\vulkan_core.h" />
     <ClInclude Include="3rd\vulkan\vulkan_win32.h" />
+    <ClInclude Include="JC\App.h" />
     <ClInclude Include="JC\Array.h" />
     <ClInclude Include="JC\Bit.h" />
+    <ClInclude Include="JC\Cfg.h" />
     <ClInclude Include="JC\Common.h" />
     <ClInclude Include="JC\Draw.h" />
     <ClInclude Include="JC\Event.h" />
@@ -144,6 +146,9 @@
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
+    <ClCompile Include="Cfg.cpp" />
+    <ClCompile Include="JC\App.cpp" />
+    <ClCompile Include="JC\App_Shooter.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
     <ClCompile Include="JC\Common.cpp" />
     <ClCompile Include="JC\Common_Err.cpp" />
@@ -159,7 +164,7 @@
     <ClCompile Include="JC\Hash.cpp" />
     <ClCompile Include="JC\Json.cpp" />
     <ClCompile Include="JC\Log.cpp" />
-    <ClCompile Include="JC\Main_Game.cpp" />
+    <ClCompile Include="JC\Main.cpp" />
     <ClCompile Include="JC\Map.cpp" />
     <ClCompile Include="JC\Math.cpp" />
     <ClCompile Include="JC\Rng.cpp" />

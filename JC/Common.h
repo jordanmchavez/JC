@@ -63,15 +63,17 @@ constexpr U64 MB = 1024 * KB;
 constexpr U64 GB = 1024 * MB;
 constexpr U64 TB = 1024 * GB;
 
+template <class T> inline const T* Addr(const T& t) { return &t; }
+
 //--------------------------------------------------------------------------------------------------
 
-struct IRect { I32 x, y; U32 width, height; };
-struct Vec2 { F32 x, y; };
-struct Vec3 { F32 x, y, z; };
-struct Vec4 { F32 x, y, z, w; };
-struct Mat2 { F32 m[2][2]; };
-struct Mat3 { F32 m[3][3]; };
-struct Mat4 { F32 m[4][4]; };
+struct IRect { I32 x = 0; I32 y = 0; U32 width = 0; U32 height = 0; };
+struct Vec2 { F32 x = 0.0f; F32 y = 0.0f; };
+struct Vec3 { F32 x = 0.0f; F32 y = 0.0f; F32 z = 0.0f; };
+struct Vec4 { F32 x = 0.0f; F32 y = 0.0f; F32 z = 0.0f; F32 w = 0.0f; };
+struct Mat2 { F32 m[2][2] = {}; };
+struct Mat3 { F32 m[3][3] = {}; };
+struct Mat4 { F32 m[4][4] = {}; };
 
 template <class T> struct Array;
 
@@ -157,8 +159,16 @@ template <class T> constexpr T Clamp(T x, T lo, T hi) { return x < lo ? lo : (x 
 
 //--------------------------------------------------------------------------------------------------
 
+struct StrBuf;
+
+struct Printer {
+	virtual void Print(StrBuf* sb) = 0;
+};
+
+//--------------------------------------------------------------------------------------------------
+
 struct Arg {
-	enum struct Type { Bool, Char, I64, U64, F64, Str, Ptr };
+	enum struct Type { Bool, Char, I64, U64, F64, Str, Ptr, Printer };
 
 	Type type;
 	union {
@@ -169,27 +179,30 @@ struct Arg {
 		F64 f;
 		struct { char const* data; U32 len; } s;
 		const void* p;
+		Printer* printer;
 	};
 
-	static constexpr Arg Make(bool               val) { return Arg { .type = Type::Bool, .b  = val }; }
-	static constexpr Arg Make(char               val) { return Arg { .type = Type::Char, .c  = val }; }
-	static constexpr Arg Make(signed char        val) { return Arg { .type = Type::I64,  .i  = val }; }
-	static constexpr Arg Make(signed short       val) { return Arg { .type = Type::I64,  .i  = val }; }
-	static constexpr Arg Make(signed int         val) { return Arg { .type = Type::I64,  .i  = val }; }
-	static constexpr Arg Make(signed long        val) { return Arg { .type = Type::I64,  .i  = val }; }
-	static constexpr Arg Make(signed long long   val) { return Arg { .type = Type::I64,  .i  = val }; }
-	static constexpr Arg Make(unsigned char      val) { return Arg { .type = Type::U64,  .u  = val }; }
-	static constexpr Arg Make(unsigned short     val) { return Arg { .type = Type::U64,  .u  = val }; }
-	static constexpr Arg Make(unsigned int       val) { return Arg { .type = Type::U64,  .u  = val }; }
-	static constexpr Arg Make(unsigned long      val) { return Arg { .type = Type::U64,  .u  = val }; }
-	static constexpr Arg Make(unsigned long long val) { return Arg { .type = Type::U64,  .u  = val }; }
-	static constexpr Arg Make(float              val) { return Arg { .type = Type::F64,  .f  = val }; }
-	static constexpr Arg Make(double             val) { return Arg { .type = Type::F64,  .f  = val }; }
-	static constexpr Arg Make(char*              val) { return Arg { .type = Type::Str,  .s  = { .data = val,      .len = val ? StrLen(val) : 0 } }; }
-	static constexpr Arg Make(char const*        val) { return Arg { .type = Type::Str,  .s  = { .data = val,      .len = val ? StrLen(val) : 0 } }; }
-	static constexpr Arg Make(Str                val) { return Arg { .type = Type::Str,  .s  = { .data = val.data, .len = val.len } }; }
-	static constexpr Arg Make(const void*        val) { return Arg { .type = Type::Ptr,  .p  = val }; }
-	static constexpr Arg Make(decltype(nullptr)  val) { return Arg { .type = Type::Ptr,  .p  = val }; }
+	static constexpr Arg Make(bool               val) { return Arg { .type = Type::Bool,    .b  = val }; }
+	static constexpr Arg Make(char               val) { return Arg { .type = Type::Char,    .c  = val }; }
+	static constexpr Arg Make(signed char        val) { return Arg { .type = Type::I64,     .i  = val }; }
+	static constexpr Arg Make(signed short       val) { return Arg { .type = Type::I64,     .i  = val }; }
+	static constexpr Arg Make(signed int         val) { return Arg { .type = Type::I64,     .i  = val }; }
+	static constexpr Arg Make(signed long        val) { return Arg { .type = Type::I64,     .i  = val }; }
+	static constexpr Arg Make(signed long long   val) { return Arg { .type = Type::I64,     .i  = val }; }
+	static constexpr Arg Make(unsigned char      val) { return Arg { .type = Type::U64,     .u  = val }; }
+	static constexpr Arg Make(unsigned short     val) { return Arg { .type = Type::U64,     .u  = val }; }
+	static constexpr Arg Make(unsigned int       val) { return Arg { .type = Type::U64,     .u  = val }; }
+	static constexpr Arg Make(unsigned long      val) { return Arg { .type = Type::U64,     .u  = val }; }
+	static constexpr Arg Make(unsigned long long val) { return Arg { .type = Type::U64,     .u  = val }; }
+	static constexpr Arg Make(float              val) { return Arg { .type = Type::F64,     .f  = val }; }
+	static constexpr Arg Make(double             val) { return Arg { .type = Type::F64,     .f  = val }; }
+	static constexpr Arg Make(char*              val) { return Arg { .type = Type::Str,     .s  = { .data = val,      .len = val ? StrLen(val) : 0 } }; }
+	static constexpr Arg Make(char const*        val) { return Arg { .type = Type::Str,     .s  = { .data = val,      .len = val ? StrLen(val) : 0 } }; }
+	static constexpr Arg Make(Str                val) { return Arg { .type = Type::Str,     .s  = { .data = val.data, .len = val.len } }; }
+	static constexpr Arg Make(Printer*            val) { return Arg { .type = Type::Printer, .printer = val }; }
+	static constexpr Arg Make(const Printer*     val) { return Arg { .type = Type::Printer, .printer = const_cast<Printer*>(val) }; }
+	static constexpr Arg Make(const void*        val) { return Arg { .type = Type::Ptr,     .p  = val }; }
+	static constexpr Arg Make(decltype(nullptr)  val) { return Arg { .type = Type::Ptr,     .p  = val }; }
 	static constexpr Arg Make(Arg                val) { return val; }
 							      
 	static constexpr void Fill(Arg*) {}
@@ -209,8 +222,8 @@ struct Arg {
 #endif	// Compiler
 
 struct SrcLoc {
-	char const* file;
-	U32         line;
+	char const* file = 0;
+	U32         line = 0;
 
 	static consteval SrcLoc Here(char const* file = SrcLoc_File, U32 line = SrcLoc_Line) {
 		return SrcLoc { .file = file, .line = line };
@@ -218,6 +231,12 @@ struct SrcLoc {
 };
 
 //--------------------------------------------------------------------------------------------------
+
+struct MemMark {
+	U64    mark      = 0;
+	U8*    lastAlloc = 0;
+	SrcLoc lastAllocSl;
+};
 
 struct Mem {
 	U64 handle = 0;
@@ -227,8 +246,8 @@ struct Mem {
 	static void                       Destroy(Mem mem);
 	static void*                      Alloc(Mem mem, U64 size, SrcLoc sl = SrcLoc::Here());
 	static void*                      Extend(Mem mem, void* ptr, U64 newSize, SrcLoc sl = SrcLoc::Here());
-	static U64                        Mark(Mem mem);
-	static void                       Reset(Mem mem, U64 mark);
+	static MemMark                    Mark(Mem mem);
+	static void                       Reset(Mem mem, MemMark mark);
 	template <class T> static T*      AllocT(Mem mem, U64 n, SrcLoc sl = SrcLoc::Here()) { return (T*)Mem::Alloc(mem, n * sizeof(T), sl); }
 	template <class T> static Span<T> AllocSpan(Mem mem, U64 n, SrcLoc sl = SrcLoc::Here()) { return Span<T>((T*)Mem::Alloc(mem, n * sizeof(T), sl), n); }
 	template <class T> static T*      ExtendT(Mem mem, T* ptr, U64 newN, SrcLoc sl = SrcLoc::Here()) { return (T*)Mem::Extend(mem, ptr , newN * sizeof(T), sl); }
@@ -236,8 +255,8 @@ struct Mem {
 
 struct MemScope {
 	Mem mem;
-	U64 mark;
-	MemScope(Mem mem_) { mem = mem_; mark = Mem::Mark(mem); }
+	MemMark mark;
+	MemScope(Mem memIn) { mem = memIn; mark = Mem::Mark(mem); }
 	~MemScope() { Mem::Reset(mem, mark); }
 };
 
@@ -274,13 +293,13 @@ struct [[nodiscard]] Err {
 		static_assert(NamedArgsLen < MaxNamedArgs);
 		static_assert((sizeof...(A) & 1) == 0);
 
-		#if defined Cfg_BreakOnErr
+		//#if defined Cfg_BreakOnErr
 			DbgBreak;
-		#endif	// Cfg_BreakOnErr
+		//#endif	// Cfg_BreakOnErr
 
 		NamedArg namedArgs[NamedArgsLen + 1];	// + 1 to allow zero args
 		FillNamedArgs(namedArgs, args...);
-		return Makev(prev, sl, ns, sCode, uCode, Span<const NamedArgnamedArgs);
+		return Makev(prev, sl, ns, sCode, uCode, Span<NamedArg const>(namedArgs, NamedArgsLen));
 	}
 
 	static void Frame(U64 frame);
@@ -340,13 +359,13 @@ template <class T> struct [[nodiscard]] Res {
 constexpr Res<> Ok() { return Res<>(); }
 
 #define Try(Expr) \
-	do { if (Res<> r = (Expr); !r) { \
-		return r.err; \
+	do { if (Res<> MacroConcat(r, __LINE__) = (Expr); !MacroConcat(r, __LINE__)) { \
+		return MacroConcat(r, __LINE__).err; \
 	} } while (false)
 
 #define TryTo(Expr, Out) \
-	do { if (Res<> r = (Expr).To(Out); !r) { \
-		return r.err; \
+	do { if (Res<> MacroConcat(r, __LINE__) = (Expr).To(Out); !MacroConcat(r, __LINE__)) { \
+		return MacroConcat(r, __LINE__).err; \
 	} } while (false)
 
 //--------------------------------------------------------------------------------------------------
@@ -462,14 +481,15 @@ template <class... A> char* SPrintf(char* outBegin, char* outEnd, CheckFmtStr<A.
 
 //--------------------------------------------------------------------------------------------------
 
-struct PrintBuf {
+struct StrBuf {
 	Mem   mem;
-	char* data;
-	U32   len;
-	U32   cap;
+	char* data = 0;
+	U32   len  = 0;
+	U32   cap  = 0;
 
-	PrintBuf(Mem mem);
-
+	StrBuf() = default;
+	StrBuf(Mem mem);
+	void Init(Mem mem);
 	void Add(char c, SrcLoc sl = SrcLoc::Here());
 	void Add(char c, U32 n, SrcLoc sl = SrcLoc::Here());
 	void Add(char const* str, U32 strLen, SrcLoc sl = SrcLoc::Here());

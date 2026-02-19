@@ -91,7 +91,7 @@ bool Run() {
 
 	StrDb::Init();
 
-	Log::Init(permMem, tempMem);
+	Log::Init(tempMem);
 
 	auto logFn = [](Log::Msg const* msg) {
 		Sys::Print(Str(msg->line, msg->lineLen));
@@ -114,21 +114,21 @@ bool Run() {
 
 			tests[i].testFn(tempMem);
 
-			PrintBuf pb(tempMem);
+			StrBuf sb(tempMem);
 			if (checkFails > 0) {
-				pb.Printf("Failed: ");
+				sb.Printf("Failed: ");
 				failedTests++;
 			} else {
-				pb.Printf("Passed: ");
+				sb.Printf("Passed: ");
 				passedTests++;
 			}
 			for (U32 j = 0; j < lastLen; j++) {
-				pb.Printf("%s::", last[j].name);
+				sb.Printf("%s::", last[j].name);
 			}
-			pb.Remove(2);
-			Logf("%s", pb.ToStr());
+			sb.Remove(2);
+			Logf("%s", sb.ToStr());
 
-			Mem::Reset(tempMem, 0);
+			Mem::Reset(tempMem, MemMark());
 		} while (nextLen > 0);
 	}
 

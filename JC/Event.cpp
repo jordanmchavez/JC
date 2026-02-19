@@ -12,25 +12,26 @@ static U32   tail;
 
 //----------------------------------------------------------------------------------------------
 
-void Add(Event e) {
+void AddEvent(Event event) {
 	U32 const nextHead = (head + 1) & (MaxEvents - 1);
 	if (nextHead == tail) {
 		// TODO: report error
 		tail = (tail + 1) & (MaxEvents - 1);
 	}
 	head = nextHead;
-	events[head] = e;
+	events[head] = event;
 }
 
 //----------------------------------------------------------------------------------------------
 
-Event const* Get() {
+// TODO: consider just returning Span<Event const>
+bool GetEvent(Event* eventOut) {
 	if (head == tail) {
-		return 0;
+		return false;
 	}
-	Event const* event = &events[tail];
+	*eventOut = events[tail];
 	tail = (tail + 1) & (MaxEvents - 1);
-	return event;
+	return true;
 }
 
 //----------------------------------------------------------------------------------------------

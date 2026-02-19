@@ -37,6 +37,17 @@ struct InitDesc {
 	U32   displayIdx;
 };
 
+struct State {
+	I32        x          = 0;
+	I32        y          = 0;
+	U32        width      = 0;
+	U32        height     = 0;
+	Style      style      = {};
+	CursorMode cursorMode = {};
+	bool       minimized  = false;
+	bool       focused    = false;
+};
+
 struct PlatformDesc {
 	#if defined Platform_Windows
 		void* hinstance = 0;
@@ -49,6 +60,7 @@ void                Shutdown();
 Span<const Display> GetDisplays();
 void                Frame();
 PlatformDesc        GetPlatformDesc();
+State               GetState();
 
 //--------------------------------------------------------------------------------------------------
 

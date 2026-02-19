@@ -83,4 +83,9 @@ void Err::Frame(U64 frameIn) {
 
 //--------------------------------------------------------------------------------------------------
 
+bool operator==(ErrCode ec, Err const* err) { return err->ns == ec.ns && err->sCode == ec.code; }
+bool operator==(Err const* err, ErrCode ec) { return err->ns == ec.ns && err->sCode == ec.code; }
+
+//--------------------------------------------------------------------------------------------------
+
 }	// namespace JC::Err

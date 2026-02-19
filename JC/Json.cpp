@@ -61,14 +61,15 @@ constexpr CharTable charTable;
 
 static constexpr bool IsDigit(char c) { return c >= '0' && c <= '9'; }
 static constexpr bool IsNormal(char c) { return charTable.data[c] == CharType::Normal; }
+// TODO: IsNormal() and IsDigit() tables
 
 //--------------------------------------------------------------------------------------------------
 
 static void AddStructPos(Ctx* ctx, U32 pos) {
-	const U32 cap = (U32)(ctx->structPosEndCap - ctx->structPos);
-	const U32 len = (U32)(ctx->structPosEnd - ctx->structPos);
+	U32 const cap = (U32)(ctx->structPosEndCap - ctx->structPos);
+	U32 const len = (U32)(ctx->structPosEnd - ctx->structPos);
 	if (ctx->structPosEnd == ctx->structPosEndCap) {
-		const U32 newCap     = cap ? cap * 2 : 256;
+		U32 const newCap     = cap ? cap * 2 : 256;
 		ctx->structPos       = Mem::ExtendT<U32>(ctx->tempMem, ctx->structPos, newCap);
 		ctx->structPosEnd    = ctx->structPos + len;	// bleh
 		ctx->structPosEndCap = ctx->structPos + newCap;
@@ -80,8 +81,8 @@ static void AddStructPos(Ctx* ctx, U32 pos) {
 //--------------------------------------------------------------------------------------------------
 
 static Res<> Expect(Ctx* ctx, char expected) {
-	const U32 pos = *ctx->structPosIter;
-	const char actual = ctx->json[pos];
+	U32 const pos = *ctx->structPosIter;
+	char const actual = ctx->json[pos];
 	if (actual != expected) {
 		return Err_Unexpected("pos", pos, "expected", expected, "actual", actual ? Str(&actual, 1) : "eof");
 	}
@@ -96,7 +97,7 @@ static Res<char const*> ScanStr(char const* json, char const* iter) {
 	Assert(*iter == '"');
 	iter++;
 	for (;;) {
-		const char c = *iter;
+		char const c = *iter;
 		if (c == '\0') { return Err_MissingClosingQuote("pos", iter - json); }
 		if (c == '"') { return iter; }
 		iter++;
@@ -116,7 +117,7 @@ static Res<> Scan(Ctx* ctx) {
 	// Can classify 32 bytes per instruction into: structural, whitespace, quote, backslash, other
 	char const* iter = ctx->json;
 	for (;;) {
-		const char c = *iter;
+		char const c = *iter;
 		switch (charTable.data[c]) {
 			case CharType::Normal:
 				AddStructPos(ctx, (U32)(iter - ctx->json));
@@ -154,7 +155,7 @@ static Res<bool> ParseBool(Ctx* ctx) {
 	if (ctx->structPosIter >= ctx->structPosEnd) { return Err_Eof("expected", "bool"); }
 	char const*       iter = ctx->json + *ctx->structPosIter; ctx->structPosIter++;
 	char const* const end  = ctx->json + *ctx->structPosIter;
-	const U32 len = (U32)(end - iter);
+	U32 const len = (U32)(end - iter);
 	if (*iter == 't') {
 		iter++;
 		if (len < 4) { return Err_BadBool("pos", iter - ctx->json); }
@@ -307,6 +308,7 @@ static Res<Str> ParseName(Ctx* ctx) {
 	char const* iter = ctx->json + *ctx->structPosIter;
 	if (*iter == '"') { return ParseStr(ctx); }
 
+	ctx->structPosIter++;
 	char const* const begin = iter;
 	while (IsName(*iter)) {
 		iter++;
@@ -326,7 +328,7 @@ static Res<> ParseArray(Ctx* ctx, const Traits* traits, U8* out) {
 	U32 elemCount = 0;
 	U32 depth = 0;
 	for (;;) {
-		const char c = ctx->json[*ctx->structPosIter];
+		char const c = ctx->json[*ctx->structPosIter];
 		ctx->structPosIter++;
 		if (depth == 0) {
 			if (c == '[' || c == '{') {
@@ -352,7 +354,7 @@ static Res<> ParseArray(Ctx* ctx, const Traits* traits, U8* out) {
 	elemTraits.arrayDepth--;
 	U8* elemData = 0;
 	if (elemCount > 0) {
-		const U32 elemSize = elemTraits.arrayDepth == 0 ? elemTraits.size : sizeof(Span<U8>);
+		U32 const elemSize = elemTraits.arrayDepth == 0 ? elemTraits.size : sizeof(Span<U8>);
 		elemData = Mem::AllocT<U8>(ctx->permMem, elemCount * elemSize);
 		for (U32 i = 0; i < elemCount; i++) {
 			U8* elemOut = elemData + (i * elemSize);
@@ -412,7 +414,7 @@ static Res<> ParseVal(Ctx* ctx, const Traits* traits, U8* out) {
 //--------------------------------------------------------------------------------------------------
 
 Res<> ToObj(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, Span<const Member> members, U8* out) {
-	U64 mark = Mem::Mark(tempMem);
+	MemMark mark = Mem::Mark(tempMem);
 	Defer { if (permMem != tempMem) { Mem::Reset(tempMem, mark); } };
 	Ctx ctx = {
 		.permMem  = permMem,
@@ -427,7 +429,7 @@ Res<> ToObj(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, Span<const 
 //--------------------------------------------------------------------------------------------------
 
 Res<> ToArray(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, const Traits* traits, U8* out) {
-	U64 mark = Mem::Mark(tempMem);
+	MemMark mark = Mem::Mark(tempMem);
 	Defer { if (permMem != tempMem) { Mem::Reset(tempMem, mark); } };
 	Ctx ctx = {
 		.permMem  = permMem,

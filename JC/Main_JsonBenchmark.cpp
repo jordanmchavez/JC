@@ -39,9 +39,9 @@ static Res<> Run() {
 
 	#if defined TEST_JC
 		Span<char> json; TryTo(FS::ReadAllZ(permMem, "Assets/test5m.json"), json);
-		const U64 startTicks = Time::Now();
+		U64 const startTicks = Time::Now();
 		Span<Entry> entries; Try(Json::ToArray(permMem, tempMem, json.data, (U32)json.len, &entries));
-		const U64 endTicks = Time::Now();
+		U64 const endTicks = Time::Now();
 	printf("Time: %.2f ms\n", Time::Mils(endTicks - startTicks));
 	#endif	// TEST_JC
 
@@ -58,7 +58,7 @@ static Res<> Run() {
 			Try(FS::Read(file, json, jsonLen));
 		}
 
-		const U64 startTicks = Time::Now();
+		U64 const startTicks = Time::Now();
 		simdjson::ondemand::parser parser;
 		simdjson::ondemand::document doc;
 		parser.iterate(json, jsonLen, jsonLen + simdjson::SIMDJSON_PADDING).get(doc);
@@ -82,7 +82,7 @@ static Res<> Run() {
 			};
 			entriesIter++;
 		}
-		const U64 endTicks = Time::Now();
+		U64 const endTicks = Time::Now();
 		printf("Time: %.2f ms\n", Time::Mils(endTicks - startTicks));
 	#endif	// TEST_SIMDJSON
 
