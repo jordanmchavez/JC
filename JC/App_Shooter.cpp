@@ -6,6 +6,7 @@
 #include "JC/Gpu.h"
 #include "JC/Log.h"
 #include "JC/Math.h"
+#include "JC/Particle.h"
 #include "JC/Rng.h"
 #include "JC/Time.h"
 #include "JC/Window.h"
@@ -15,84 +16,10 @@ namespace JC::Shooter {
 //--------------------------------------------------------------------------------------------------
 
 static constexpr U32  MaxBullets          = 1024;
-static constexpr U32  MaxParticleEmitters = 1024;
-static constexpr U32  MaxParticleTypes    = 64;
 static constexpr U32  MaxEngineParticles  = 128;
 static constexpr Vec2 CanvasSize          = { 300.0f, 200.0f };
-static constexpr F32  CanvasScale         = 5.f;
+static constexpr F32  CanvasScale         = 3.f;
 static constexpr F32  ShipFireCooldown    = 0.1f;
-
-struct Particle {
-	Vec2 pos;
-	F32  size = 0.0f;
-	F32  angle = 0.0f;
-	F32  speed = 0.0f;
-	F32  rotation = 0.0f;
-	Vec4 color;
-	F32  life = 0.0f;
-	F32  lifeEnd = 0.0f;
-};
-
-struct ParticleType {
-	// animated
-	// stretch animation over particle lifetime, or repeat, or runonce
-	// use random subimage
-	Draw::Sprite    sprite;
-	Vec2            spriteSize;
-	F32             scaleMin = 0.0f;
-	F32             scaleMax = 0.0f;
-	F32             scaleInc = 0.0f;
-	F32             sizeWiggle = 0.0f;
-	F32             speedMin = 0.0f;
-	F32             speedMax = 0.0f;
-	F32             speedInc = 0.0f;
-	F32             speedWiggle = 0.0f;
-	F32             angleMin = 0.0f;
-	F32             angleMax = 0.0f;
-	F32             angleInc = 0.0f;
-	F32             angleWiggle = 0.0f;
-	F32             gravityAngle = 0.0f;
-	F32             gravityAmount = 0.0f;
-	F32             rotationMin = 0.0f;
-	F32             rotationMax = 0.0f;
-	F32             rotationInc = 0.0f;
-	F32             rotationWiggle = 0.0f;
-	bool            rotationRelMotion = false;
-	Vec4            color1;
-	Vec4            color2;
-	Vec4            color3;
-	F32             lifeMin = 0.0f;
-	F32             lifeMax = 0.0f;
-	Array<Particle> particles;
-};
-
-enum struct ParticleEmitterShape {
-	Invalid = 0,
-	Rectangle,
-	Ellipse,
-	Diamond,
-	Line,
-};
-
-enum struct ParticleEmitterDistribution {
-	Invalid = 0,
-	Linear,
-	Gauss,
-	InvGauss,
-};
-
-struct ParticleEmitter {
-	ParticleType*               type = 0;
-	Vec2                        pos;
-	ParticleEmitterShape        shape = ParticleEmitterShape::Invalid;
-	F32                         minX = 0.0f;
-	F32                         maxX = 0.0f;
-	F32                         minY = 0.0f;
-	F32                         maxY = 0.0f;
-	ParticleEmitterDistribution dist = ParticleEmitterDistribution::Invalid;
-	F32                         emitRate = 0.0f;
-	F32                         emitAccum = 0.0f;
-};
 
 struct Ship {
 	Vec2          pos;
@@ -120,79 +47,7 @@ static Ship                   ship;
 static Draw::Sprite           bulletSprite;
 static Vec2                   bulletSize;
 static Array<Bullet>          bullets;
-static Array<ParticleEmitter> particleEmitters;
-static Array<ParticleType>    particleTypes;
 static U32                    emitterIdx; 
-
-//---------------------------------------------------------------------------------------------
-
-static void UpdateParticleType(F32 secs, ParticleType* type) {
-	for (U64 i = 0; i < type->particles.len;) {
-		Particle* const p = &type->particles[i];
-		if (p->life += secs; p->life >= p->lifeEnd) {
-			type->particles.RemoveUnordered(i);
-			continue;
-		}
-		p->size     += secs * type->scaleInc;
-		p->speed    += secs * type->speedInc;
-		p->angle    += secs * type->angleInc;
-		p->rotation += secs * type->rotationInc ;
-		p->pos.x    += secs * p->speed * cosf(Math::DegToRad(p->angle));
-		p->pos.y    += secs * p->speed * sinf(Math::DegToRad(p->angle));
-		F32 t = p->life / p->lifeEnd;
-		if (t < 0.5f) {
-			p->color = Math::Lerp(type->color1, type->color2, t * 2.0f);
-		} else {
-			p->color = Math::Lerp(type->color2, type->color3, (t - 0.5f) * 2.0f);
-		}
-		i++;
-	}
-}
-
-//---------------------------------------------------------------------------------------------
-
-static void UpdateParticleEmitter(F32 secs, ParticleEmitter* emitter) {
-	ParticleType* const t = emitter->type;
-	emitter->emitAccum += emitter->emitRate * secs;
-	while (emitter->emitAccum >= 1.0f) {
-		Particle* const p = t->particles.Add();
-		switch (emitter->shape) {
-			case ParticleEmitterShape::Rectangle: {
-				p->pos.x = emitter->pos.x + Math::Lerp(emitter->minX, emitter->maxX, Rng::NextF32()) - (t->spriteSize.x / 2) + 0.5f;
-				p->pos.y = emitter->pos.y + Math::Lerp(emitter->minY, emitter->maxY, Rng::NextF32()) - (t->spriteSize.x / 2) + 0.5f;
-
-				break;
-			}
-			case ParticleEmitterShape::Ellipse: {
-				break;
-			}
-			case ParticleEmitterShape::Diamond: {
-				break;
-			}
-			case ParticleEmitterShape::Line: {
-				break;
-			}
-			default: Panic("Unhandled ParticleEmitterShape %u", (U32)emitter->shape);
-		}
-		p->size     = Math::Lerp(t->scaleMin, t->scaleMax, Rng::NextF32());
-		p->angle    = Math::Lerp(t->angleMin, t->angleMax, Rng::NextF32());
-		p->speed    = Math::Lerp(t->speedMin, t->speedMax, Rng::NextF32());
-		p->rotation = Math::Lerp(t->rotationMin, t->rotationMax, Rng::NextF32());
-		p->color    = t->color1;
-		p->life     = 0.0f;
-		p->lifeEnd  = Math::Lerp(t->lifeMin, t->lifeMax, Rng::NextF32());
-		emitter->emitAccum -= 1.0f;
-	}
-}
-
-//---------------------------------------------------------------------------------------------
-
-static void DrawParticleType(const ParticleType* type) {
-	for (U64 i = 0; i < type->particles.len; i++) {
-		const Particle* const p = &type->particles[i];
-		Draw::DrawSprite(type->sprite, p->pos, Vec2(p->size, p->size), p->rotation, p->color);
-	}
-}
 
 //---------------------------------------------------------------------------------------------
 
@@ -289,6 +144,7 @@ static void Shutdown() {
 }
 
 //---------------------------------------------------------------------------------------------
+
 static Res<> Update(U64 ticks) {
 	F32 const fsecs = (F32)Time::Secs(ticks);
 
@@ -316,16 +172,7 @@ static Res<> Update(U64 ticks) {
 		}
 	}
 
-	for (U64 i = 0; i < particleTypes.len; i++) {
-		UpdateParticleType(fsecs, &particleTypes[i]);
-	}
-
-	for (U64 i = 0; i < particleEmitters.len; i++) {
-		UpdateParticleEmitter(fsecs, &particleEmitters[i]);
-	}
-
-	ship.pos.x = Clamp(ship.pos.x, 0.0f, CanvasSize.x - ship.size.x);
-	ship.pos.y = Clamp(ship.pos.y, 0.0f, CanvasSize.y - ship.size.y);
+	Particle::Frame(ticks);
 
 	for (U64 i = 0; i < bullets.len; ) {
 		Bullet* b = &bullets[i];
@@ -351,7 +198,10 @@ static Res<> Update(U64 ticks) {
 	if (keyDown[(U32)Event::Key::S]) { dPos.y += fsecs * ship.speed.y; }
 	if (keyDown[(U32)Event::Key::A]) { dPos.x -= fsecs * ship.speed.x; }
 	if (keyDown[(U32)Event::Key::D]) { dPos.x += fsecs * ship.speed.x; }
-	ship.pos= Math::Add(ship.pos, dPos);
+	ship.pos = Math::Add(ship.pos, dPos);
+	ship.pos.x = Clamp(ship.pos.x, 0.0f, CanvasSize.x - ship.size.x);
+	ship.pos.y = Clamp(ship.pos.y, 0.0f, CanvasSize.y - ship.size.y);
+
 
 		 if (dPos.x == 0.0f) { ship.sprite = &ship.spriteNotMoving;   }
 	else if (dPos.x < 0.0f)  { ship.sprite = &ship.spriteMovingLeft;  }
@@ -388,9 +238,7 @@ static Res<> Draw(Gpu::Frame* gpuFrame) {
 		Draw::DrawSprite(bulletSprite, bullets[i].pos);
 	}
 
-	for (U64 i = 0; i < particleTypes.len; i++) {
-		DrawParticleType(&particleTypes[i]);
-	}
+	Particle::Draw();
 
 	Draw::SetCanvas();
 	Draw::DrawCanvas(canvas, Vec2(80.f, 60.f), Vec2(CanvasScale, CanvasScale));

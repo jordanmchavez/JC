@@ -298,9 +298,9 @@ static Res<Str> ParseStr(Ctx* ctx) {
 
 static constexpr bool IsName(char c) {
 	return
-		(c >= '0' && c < '9') ||
-		(c >= 'a' && c < 'z') ||
-		(c >= 'A' && c < 'Z') ||
+		(c >= '0' && c <= '9') ||
+		(c >= 'a' && c <= 'z') ||
+		(c >= 'A' && c <= 'Z') ||
 		c == '_';
 }
 
@@ -338,6 +338,9 @@ static Res<> ParseArray(Ctx* ctx, const Traits* traits, U8* out) {
 				break;
 			} else if (c == ',') {
 				// skip
+			} else if (c == '"') {
+				elemCount++;
+				ctx->structPosIter++;	// skip the paired closing-quote token
 			} else {
 				elemCount++;
 			}
@@ -443,168 +446,235 @@ Res<> ToArray(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, const Tra
 
 //--------------------------------------------------------------------------------------------------
 
-struct Foo {
-	Str str;
-	F64 f;
-	Span<Span<I32>> ints;
+struct Point {
+	I32 x;
+	I32 y;
 };
-Json_Begin(Foo)
-	Json_Member("str", str)
-	Json_Member("f", f)
-	Json_Member("ints", ints)
-Json_End(Foo)
+Json_Begin(Point)
+	Json_Member("x", x)
+	Json_Member("y", y)
+Json_End(Point)
 
-struct Bar {
-	bool b;
-	U32  u;
-	Str  s;
+struct Item {
+	Str       name;
+	I32       count;
+	Span<F32> values;
 };
-Json_Begin(Bar)
-	Json_Member("b", b)
-	Json_Member("u", u)
-	Json_Member("s", s)
-Json_End(Bar)
+Json_Begin(Item)
+	Json_Member("name",   name)
+	Json_Member("count",  count)
+	Json_Member("values", values)
+Json_End(Item)
+
+struct Catalog {
+	bool            active;
+	U32             version;
+	I32             offset;
+	I64             bigNum;
+	F64             ratio;
+	Str             label;
+	Span<I32>       ids;
+	Span<Span<I32>> matrix;
+	Span<Item>      items;
+};
+Json_Begin(Catalog)
+	Json_Member("active",  active)
+	Json_Member("version", version)
+	Json_Member("offset",  offset)
+	Json_Member("bigNum",  bigNum)
+	Json_Member("ratio",   ratio)
+	Json_Member("label",   label)
+	Json_Member("ids",     ids)
+	Json_Member("matrix",  matrix)
+	Json_Member("items",   items)
+Json_End(Catalog)
 
 Unit_Test("Json") {
-	constexpr char const* fooJson = "{"
-		"\"str\": \"hello world\","
-		"\"f\": 1.25,"
-		"\"ints\": [ [ 1, 3, 5 ], [ 7, 8 ], [], [ 0, 1, 2, 3, 4 ], [ 999 ] ]"
-	"}";
-	Foo foo;
-	Unit_CheckRes(ToObj(testMem, testMem, fooJson, StrLen(fooJson), &foo));
-	Unit_CheckEq(foo.str, "hello world");
-	Unit_CheckEq(foo.f, 1.25);
-	Unit_CheckEq(foo.ints.len, 5);
-	Unit_CheckSpanEq(foo.ints[0], Span<I32>({ 1, 3, 5 }));
-	Unit_CheckSpanEq(foo.ints[1], Span<I32>({ 7, 8  }));
-	Unit_CheckSpanEq(foo.ints[2], Span<I32>({ }));
-	Unit_CheckSpanEq(foo.ints[3], Span<I32>({ 0, 1, 2, 3, 4 }));
-	Unit_CheckSpanEq(foo.ints[4], Span<I32>({ 999 }));
 
-	constexpr char const* fooUnquotedMinifiedJson = "{"
-		"str:\"hello world\","
-		"f:1.25,"
-		"ints:[[1,3,5],[7,8],[],[0,1,2,3,4],[999]]"
-	"}";
-	Unit_CheckRes(ToObj(testMem, testMem, fooUnquotedMinifiedJson, StrLen(fooUnquotedMinifiedJson), &foo));
-	Unit_CheckEq(foo.str, "hello world");
-	Unit_CheckEq(foo.f, 1.25);
-	Unit_CheckEq(foo.ints.len, 5);
-	Unit_CheckSpanEq(foo.ints[0], Span<I32>({ 1, 3, 5 }));
-	Unit_CheckSpanEq(foo.ints[1], Span<I32>({ 7, 8  }));
-	Unit_CheckSpanEq(foo.ints[2], Span<I32>({ }));
-	Unit_CheckSpanEq(foo.ints[3], Span<I32>({ 0, 1, 2, 3, 4 }));
-	Unit_CheckSpanEq(foo.ints[4], Span<I32>({ 999 }));
-
-	constexpr char const* barsJson = "[ "
-		"{ \"b\": true,  \"u\": 123, \"s\": \"\" },"
-		"{ \"b\": false, \"u\": 456, \"s\": \"hello\" },"
-		"{ \"b\": true,  \"u\": 001, \"s\": \"wor\\r\\n\\b\\\"\\t\\\\ ,:][{}ld\" }"
-	"]";
-	Span<Bar> bars;
-	Unit_CheckRes(ToArray(testMem, testMem, barsJson, StrLen(barsJson), &bars));
-	Unit_CheckEq(bars.len, 3);
-	Unit_CheckEq(bars[0].b, true);
-	Unit_CheckEq(bars[0].u, 123u);
-	Unit_CheckEq(bars[0].s, "");
-	Unit_CheckEq(bars[1].b, false);
-	Unit_CheckEq(bars[1].u, 456u);
-	Unit_CheckEq(bars[1].s, "hello");
-	Unit_CheckEq(bars[2].b, true);
-	Unit_CheckEq(bars[2].u, 1u);
-	Unit_CheckEq(bars[2].s, "wor\r\n\b\"\t\\ ,:][{}ld");
-
-	constexpr char const* nestedArraysJson = "[[[]]]";
-	Span<Span<Span<U32>>> nestedArrays;
-	Unit_CheckRes(ToArray(testMem, testMem, nestedArraysJson, StrLen(nestedArraysJson), &nestedArrays));
-	Unit_CheckEq(nestedArrays.len, 1);
-	Unit_CheckEq(nestedArrays[0].len, 1);
-	Unit_CheckEq(nestedArrays[0][0].len, 0);
-/*
-	SubTest("No Trailing Commas Object") {
-		const Str json = "{a:1,b:2}";
-		CheckTrue(Parse(testAllocator, testAllocator, json).To(doc));
-		Obj obj = GetObj(doc, GetRoot(doc));
-		CheckEq(obj.keys.len, 2);
-		CheckEq(obj.vals.len, 2);
-		CheckEq(GetStr(doc, obj.keys[0]), "a");
-		CheckEq(GetU64(doc, obj.vals[0]), 1);
-		CheckEq(GetStr(doc, obj.keys[1]), "b");
-		CheckEq(GetU64(doc, obj.vals[1]), 2);
+	Unit_SubTest("Bool") {
+		Span<bool> vals;
+		Unit_CheckRes(ToArray(testMem, testMem, "[ true, false, true ]", StrLen("[ true, false, true ]"), &vals));
+		Unit_CheckEq(vals.len, 3u);
+		Unit_CheckEq(vals[0], true);
+		Unit_CheckEq(vals[1], false);
+		Unit_CheckEq(vals[2], true);
 	}
 
-	SubTest("Trailing Commas Object") {
-		const Str json = "{a:1,b:2,}";
-		CheckTrue(Parse(testAllocator, testAllocator, json).To(doc));
-		Obj obj = GetObj(doc, GetRoot(doc));
-		CheckEq(obj.keys.len, 2);
-		CheckEq(obj.vals.len, 2);
-		CheckEq(GetStr(doc, obj.keys[0]), "a");
-		CheckEq(GetU64(doc, obj.vals[0]), 1);
-		CheckEq(GetStr(doc, obj.keys[1]), "b");
-		CheckEq(GetU64(doc, obj.vals[1]), 2);
+	Unit_SubTest("Integers") {
+		Span<I32> vals;
+		Unit_CheckRes(ToArray(testMem, testMem, "[ 0, 1, -1, 100, -999 ]", StrLen("[ 0, 1, -1, 100, -999 ]"), &vals));
+		Unit_CheckEq(vals.len, 5u);
+		Unit_CheckEq(vals[0], 0);
+		Unit_CheckEq(vals[1], 1);
+		Unit_CheckEq(vals[2], -1);
+		Unit_CheckEq(vals[3], 100);
+		Unit_CheckEq(vals[4], -999);
 	}
 
-	SubTest("No Trailing Commas Array") {
-		const Str json = "[1,2,3]";
-		CheckTrue(Parse(testAllocator, testAllocator, json).To(doc));
-		Span<Elem> arr = GetArr(doc, GetRoot(doc));
-		CheckEq(arr.len, 3);
-		CheckEq(GetU64(doc, arr[0]), 1);
-		CheckEq(GetU64(doc, arr[1]), 2);
-		CheckEq(GetU64(doc, arr[2]), 3);
+	Unit_SubTest("Floats") {
+		Span<F64> vals;
+		constexpr char const* json = "[ 0.0, 1.5, -2.25, 1.5e2, 1.5E2, 2.5e-1 ]";
+		Unit_CheckRes(ToArray(testMem, testMem, json, StrLen(json), &vals));
+		Unit_CheckEq(vals.len, 6u);
+		Unit_CheckEq(vals[0], 0.0);
+		Unit_CheckEq(vals[1], 1.5);
+		Unit_CheckEq(vals[2], -2.25);
+		Unit_CheckEq(vals[3], 150.0);
+		Unit_CheckEq(vals[4], 150.0);
+		Unit_CheckEq(vals[5], 0.25);
 	}
 
-	SubTest("Trailing Commas Array") {
-		const Str json = "[1, 2, 3,]";
-		CheckTrue(Parse(testAllocator, testAllocator, json).To(doc));
-		Span<Elem> arr = GetArr(doc, GetRoot(doc));
-		CheckEq(arr.len, 3);
-		CheckEq(GetU64(doc, arr[0]), 1);
-		CheckEq(GetU64(doc, arr[1]), 2);
-		CheckEq(GetU64(doc, arr[2]), 3);
+	Unit_SubTest("Strings") {
+		Span<Str> vals;
+		Unit_CheckRes(ToArray(testMem, testMem, "[ \"hello\", \"world\", \"\" ]", StrLen("[ \"hello\", \"world\", \"\" ]"), &vals));
+		Unit_CheckEq(vals.len, 3u);
+		Unit_CheckEq(vals[0], "hello");
+		Unit_CheckEq(vals[1], "world");
+		Unit_CheckEq(vals[2], "");
 	}
 
-	SubTest("Big Complex Object") {
-		const Str json = "{"
-			"foo: \"hello\","
-			"\"foo bar\": 1.25,"
-			"\"arr\": ["
-				"\"qux\","
-				"456,"
-				"{"
-					"\"another\": \"key\","
-					"\"day\": 1,"
-				"}"
-			"]"
-		"}";
-		CheckTrue(Parse(testAllocator, testAllocator, json).To(doc));
-		Obj obj = GetObj(doc, GetRoot(doc));
-		CheckEq(obj.keys.len, 3);
-		CheckEq(obj.vals.len, 3);
-		CheckEq(GetStr(doc, obj.keys[0]), "foo");
-		CheckEq(GetStr(doc, obj.vals[0]), "hello");
-		CheckEq(GetStr(doc, obj.keys[1]), "foo bar");
-		CheckEq(GetF64(doc, obj.vals[1]), 1.25);
-		CheckEq(GetStr(doc, obj.keys[2]), "arr");
-		Span<Elem> arr = GetArr(doc, obj.vals[2]);
-		CheckEq(arr.len, 3);
-		CheckEq(GetStr(doc, arr[0]), "qux");
-		CheckEq(GetU64(doc, arr[1]), 456);
-		Obj subObj = GetObj(doc, arr[2]);
-		CheckEq(subObj.keys.len, 2);
-		CheckEq(subObj.vals.len, 2);
-		CheckEq(GetStr(doc, subObj.keys[0]), "another");
-		CheckEq(GetStr(doc, subObj.vals[0]), "key");
-		CheckEq(GetStr(doc, subObj.keys[1]), "day");
-		CheckEq(GetU64(doc, subObj.vals[1]), 1);
+	Unit_SubTest("String escapes") {
+		Span<Str> vals;
+		constexpr char const* json = "[ \"\\\"quote\\\"\", \"\\\\\", \"\\/\", \"\\b\\f\\n\\r\\t\" ]";
+		Unit_CheckRes(ToArray(testMem, testMem, json, StrLen(json), &vals));
+		Unit_CheckEq(vals.len, 4u);
+		Unit_CheckEq(vals[0], "\"quote\"");
+		Unit_CheckEq(vals[1], "\\");
+		Unit_CheckEq(vals[2], "/");
+		Unit_CheckEq(vals[3], "\b\f\n\r\t");
 	}
 
-	Free(doc);
+	Unit_SubTest("Structural chars in strings") {
+		// Verify the scanner does not misinterpret [ ] { } , : inside quoted strings.
+		Span<Str> vals;
+		constexpr char const* json = "[ \"a[b]c\", \"x:{y}\", \"p,q\", \"{[,:]}\" ]";
+		Unit_CheckRes(ToArray(testMem, testMem, json, StrLen(json), &vals));
+		Unit_CheckEq(vals.len, 4u);
+		Unit_CheckEq(vals[0], "a[b]c");
+		Unit_CheckEq(vals[1], "x:{y}");
+		Unit_CheckEq(vals[2], "p,q");
+		Unit_CheckEq(vals[3], "{[,:]}");
+	}
 
-	// TODO: more detailed tests, especially error conditions
-	*/
+	Unit_SubTest("Empty array") {
+		Span<I32> vals;
+		Unit_CheckRes(ToArray(testMem, testMem, "[ ]", StrLen("[ ]"), &vals));
+		Unit_CheckEq(vals.len, 0u);
+	}
+
+	Unit_SubTest("Single-element array") {
+		Span<I32> vals;
+		Unit_CheckRes(ToArray(testMem, testMem, "[ 42 ]", StrLen("[ 42 ]"), &vals));
+		Unit_CheckEq(vals.len, 1u);
+		Unit_CheckEq(vals[0], 42);
+	}
+
+	Unit_SubTest("2D array") {
+		// Inner arrays cover zero ([ ]), one ([ 3 ]), and many ([ 1, 2 ]) elements.
+		Span<Span<I32>> vals;
+		Unit_CheckRes(ToArray(testMem, testMem, "[ [ 1, 2 ], [ 3 ], [ ] ]", StrLen("[ [ 1, 2 ], [ 3 ], [ ] ]"), &vals));
+		Unit_CheckEq(vals.len, 3u);
+		Unit_CheckSpanEq(vals[0], Span<I32>({1, 2}));
+		Unit_CheckSpanEq(vals[1], Span<I32>({3}));
+		Unit_CheckSpanEq(vals[2], Span<I32>({}));
+	}
+
+	Unit_SubTest("3D array") {
+		Span<Span<Span<I32>>> vals;
+		Unit_CheckRes(ToArray(testMem, testMem, "[ [ [ 1, 2 ], [ 3 ] ], [ [ ] ] ]", StrLen("[ [ [ 1, 2 ], [ 3 ] ], [ [ ] ] ]"), &vals));
+		Unit_CheckEq(vals.len, 2u);
+		Unit_CheckEq(vals[0].len, 2u);
+		Unit_CheckSpanEq(vals[0][0], Span<I32>({1, 2}));
+		Unit_CheckSpanEq(vals[0][1], Span<I32>({3}));
+		Unit_CheckEq(vals[1].len, 1u);
+		Unit_CheckSpanEq(vals[1][0], Span<I32>({}));
+	}
+
+	Unit_SubTest("Object with quoted keys") {
+		Point p;
+		Unit_CheckRes(ToObj(testMem, testMem, "{ \"x\": 10, \"y\": -5 }", StrLen("{ \"x\": 10, \"y\": -5 }"), &p));
+		Unit_CheckEq(p.x, 10);
+		Unit_CheckEq(p.y, -5);
+	}
+
+	Unit_SubTest("Object with unquoted keys") {
+		Point p;
+		Unit_CheckRes(ToObj(testMem, testMem, "{ x: 10, y: -5 }", StrLen("{ x: 10, y: -5 }"), &p));
+		Unit_CheckEq(p.x, 10);
+		Unit_CheckEq(p.y, -5);
+	}
+
+	Unit_SubTest("Array of objects") {
+		Span<Point> pts;
+		constexpr char const* json = "[ { \"x\": 1, \"y\": 2 }, { \"x\": -3, \"y\": 0 } ]";
+		Unit_CheckRes(ToArray(testMem, testMem, json, StrLen(json), &pts));
+		Unit_CheckEq(pts.len, 2u);
+		Unit_CheckEq(pts[0].x, 1);
+		Unit_CheckEq(pts[0].y, 2);
+		Unit_CheckEq(pts[1].x, -3);
+		Unit_CheckEq(pts[1].y, 0);
+	}
+
+	Unit_SubTest("Whitespace") {
+		// Spacious JSON with newlines and tabs.
+		constexpr char const* spacious =
+			"{\n"
+			"\t\"x\" :\t10 ,\n"
+			"\t\"y\" :\t-5\n"
+			"}";
+		Point ps;
+		Unit_CheckRes(ToObj(testMem, testMem, spacious, StrLen(spacious), &ps));
+		Unit_CheckEq(ps.x, 10);
+		Unit_CheckEq(ps.y, -5);
+
+		// Same data, minified — must produce identical result.
+		constexpr char const* minified = "{\"x\":10,\"y\":-5}";
+		Point pm;
+		Unit_CheckRes(ToObj(testMem, testMem, minified, StrLen(minified), &pm));
+		Unit_CheckEq(pm.x, 10);
+		Unit_CheckEq(pm.y, -5);
+	}
+
+	Unit_SubTest("Complex") {
+		constexpr char const* json =
+			"{ "
+			"\"active\": true, "
+			"\"version\": 3, "
+			"\"offset\": -100, "
+			"\"bigNum\": 9999999999, "
+			"\"ratio\": 1.5, "
+			"\"label\": \"hello \\\"world\\\"\", "
+			"\"ids\": [ 10, 20, 30 ], "
+			"\"matrix\": [ [ 1, 2, 3 ], [ 4, 5, 6 ] ], "
+			"\"items\": [ "
+				"{ \"name\": \"sword\",  \"count\": 2,  \"values\": [ 1.5, 2.5 ] }, "
+				"{ \"name\": \"shield\", \"count\": 1,  \"values\": [ ] }, "
+				"{ \"name\": \"potion\", \"count\": 10, \"values\": [ 0.25, 0.5, 0.75 ] }"
+			" ] }";
+		Catalog cat;
+		Unit_CheckRes(ToObj(testMem, testMem, json, StrLen(json), &cat));
+		Unit_CheckEq(cat.active,  true);
+		Unit_CheckEq(cat.version, 3u);
+		Unit_CheckEq(cat.offset,  -100);
+		Unit_CheckEq(cat.bigNum,  (I64)9999999999);
+		Unit_CheckEq(cat.ratio,   1.5);
+		Unit_CheckEq(cat.label,   "hello \"world\"");
+		Unit_CheckSpanEq(cat.ids, Span<I32>({ 10, 20, 30 }));
+		Unit_CheckEq(cat.matrix.len, 2u);
+		Unit_CheckSpanEq(cat.matrix[0], Span<I32>({ 1, 2, 3 }));
+		Unit_CheckSpanEq(cat.matrix[1], Span<I32>({ 4, 5, 6 }));
+		Unit_CheckEq(cat.items.len,        3u);
+		Unit_CheckEq(cat.items[0].name,    "sword");
+		Unit_CheckEq(cat.items[0].count,   2);
+		Unit_CheckSpanEq(cat.items[0].values, Span<F32>({ 1.5f, 2.5f }));
+		Unit_CheckEq(cat.items[1].name,    "shield");
+		Unit_CheckEq(cat.items[1].count,   1);
+		Unit_CheckEq(cat.items[1].values.len, 0u);
+		Unit_CheckEq(cat.items[2].name,    "potion");
+		Unit_CheckEq(cat.items[2].count,   10);
+		Unit_CheckSpanEq(cat.items[2].values, Span<F32>({ 0.25f, 0.5f, 0.75f }));
+	}
+
 }
 
 //--------------------------------------------------------------------------------------------------

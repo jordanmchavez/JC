@@ -254,7 +254,7 @@ Mat4 Mul(Mat4 a, Mat4 b) {
 //--------------------------------------------------------------------------------------------------
 
 Vec3 Normalize(Vec3 b) {
-	const F32 s = 1.0f / sqrtf(b.x * b.x + b.y * b.y + b.z * b.z);
+	F32 const s = 1.0f / sqrtf(b.x * b.x + b.y * b.y + b.z * b.z);
 	return {
 		.x = b.x * s,
 		.y = b.y * s,
@@ -276,7 +276,7 @@ Mat4 Ortho(F32 l, F32 r, F32 b, F32 t, F32 n, F32 f) {
 //--------------------------------------------------------------------------------------------------
 
 Mat4 Perspective(F32 fovy, F32 aspect, F32 zn, F32 zf) {
-	const F32 ht = tanf(fovy / 2.0f);
+	F32 const ht = tanf(fovy / 2.0f);
 	return Mat4 {
 		1.0f / (aspect * ht), 0.0f,       0.0f,           0.0f,
 		0.0f,                 -1.0f / ht, 0.0f,           0.0f,
@@ -288,8 +288,8 @@ Mat4 Perspective(F32 fovy, F32 aspect, F32 zn, F32 zf) {
 //--------------------------------------------------------------------------------------------------
 
 Mat3 RotationXMat3(F32 a) {
-	const F32 s = sinf(a);
-	const F32 c = cosf(a);
+	F32 const s = sinf(a);
+	F32 const c = cosf(a);
 	return Mat3 {
 		1.0f, 0.0f, 0.0f,
 		0.0f,    c,   -s,
@@ -298,8 +298,8 @@ Mat3 RotationXMat3(F32 a) {
 }
 
 Mat3 RotationYMat3(F32 a) {
-	const F32 s = sinf(a);
-	const F32 c = cosf(a);
+	F32 const s = sinf(a);
+	F32 const c = cosf(a);
 	return Mat3 {
 		   c, 0.0f,    s,
 		0.0f, 1.0f, 0.0f,
@@ -308,8 +308,8 @@ Mat3 RotationYMat3(F32 a) {
 }
 
 Mat3 RotationZMat3(F32 a) {
-	const F32 s = sinf(a);
-	const F32 c = cosf(a);
+	F32 const s = sinf(a);
+	F32 const c = cosf(a);
 	return Mat3 {
 		   c,   -s, 0.0f,
 		   s,    c, 0.0f,
@@ -318,8 +318,8 @@ Mat3 RotationZMat3(F32 a) {
 }
 
 Mat4 RotationXMat4(F32 a) {
-	const F32 s = sinf(a);
-	const F32 c = cosf(a);
+	F32 const s = sinf(a);
+	F32 const c = cosf(a);
 	return Mat4 {
 		1.0f, 0.0f, 0.0f, 0.0f,
 		0.0f,    c,   -s, 0.0f,
@@ -329,8 +329,8 @@ Mat4 RotationXMat4(F32 a) {
 }
 
 Mat4 RotationYMat4(F32 a) {
-	const F32 s = sinf(a);
-	const F32 c = cosf(a);
+	F32 const s = sinf(a);
+	F32 const c = cosf(a);
 	return Mat4 {
 		   c, 0.0f,    s, 0.0f,
 		0.0f, 1.0f, 0.0f, 0.0f,
@@ -340,8 +340,8 @@ Mat4 RotationYMat4(F32 a) {
 }
 
 Mat4 RotationZMat4(F32 a) {
-	const F32 s = sinf(a);
-	const F32 c = cosf(a);
+	F32 const s = sinf(a);
+	F32 const c = cosf(a);
 	return Mat4 {
 		   c,   -s, 0.0f, 0.0f,
 		   s,    c, 0.0f, 0.0f,

@@ -180,9 +180,11 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </None>
-    <None Include="Notes\Game Design.md" />
+    <None Include="Notes\4xGameDesign.md" />
     <None Include="Notes\Guidebook.md" />
+    <None Include="Notes\ShooterGameDesign.md" />
     <None Include="Notes\Todo.md" />
+    <None Include="Rules.ruleset" />
     <None Include="Shaders\MeshCommon.glsl" />
     <None Include="Shaders\MeshFrag.glsl" />
     <None Include="Shaders\MeshVert.glsl" />
