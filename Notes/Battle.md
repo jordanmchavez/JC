@@ -1,40 +1,28 @@
 # Battle Layer — Implementation Spec
 
 ## 1. Scope
-
 This document fully specifies the battle layer as a standalone prototype module. The prototype uses hardcoded unit and army definitions; the player controls both sides. Graphics, sound, and AI are out of scope.
 
----
-
 ## 2. Grid
-
 ### 2.1 Geometry
-
-- Hex grid, default size **12 × 12** (configurable).
+- Hex grid, configurable dimensions, average map size 12x12.
 - Coordinate system: **axial (q, r)**. Use the standard cube-coordinate distance formula: `(|dq| + |dr| + |ds|) / 2` where `s = -q - r`.
 - Each hex has exactly 6 neighbors at unit distance.
 
 ### 2.2 Deployment Zones
-
 - Side A deploys in the **first 2 columns** (q = 0, 1).
 - Side B deploys in the **last 2 columns** (q = 10, 11 for a 12-wide grid).
 - The number of available deployment columns is a general stat (Tactics) — use 2 columns per side for the prototype.
 - One unit per hex.
 
----
-
 ## 3. Terrain
-
 Each hex has exactly one terrain type. Terrain governs:
-
 1. **Movement cost** — stamina per hex entered.
 2. **Defense bonus** — modifier to the defender's DefSkl when attacked while on that hex.
 3. **Ranged range bonus** — mountain hexes grant +1 to the short-range ceiling of ranged weapons (effectively extending short range by 1 hex; does not increase max range).
-
 All values are data-defined.
 
 ### Default Terrain Table
-
 | Terrain  | Move Cost | Defense Bonus |
 |----------|-----------|---------------|
 | Grass    | 1         | 0             |
@@ -43,33 +31,44 @@ All values are data-defined.
 | Mountain | 3         | +2 DefSkl     |
 | Swamp    | 3         | −1 DefSkl     |
 
----
-
 ## 4. Unit Data
-
 ### 4.1 Static Unit Record
-
 Defined once per unit type; shared across all instances.
+```
+struct Weapon {
+	U32 atk;	// number of attacks
+	U32 off;	// offense skill
+	U32 str;	// strength
+	U32 tgh;	// toughness
+	U32 maxAmmo;
+};
 
-**Identity**
-- `name: str`
-- `race: str`
-- `tier: int` — determines which army slot the unit occupies.
+struct Ability {
+	// TBD, abilities can pretty much affect any part of the game and can be active or passive
+};
 
-**Base Stats** (integers; all modifiable by abilities, conditions, and equipment)
-- `hpMax: int`
-- `staminaMax: int`
-- `morale: int` — base morale stat for checks and interval thresholds.
-- `movement: int` — maximum hex distance per activation.
-- `defSkl: int` — Defense Skill (subtracted from attacker's hit roll).
-- `toughness: int` — Toughness (subtracted from attacker's wound roll).
-- `manaMax: int`
+struct UnitType {
+	Str name;
+	U32 hp;
+	U32 sta;	// max stamina
+	U32 mor;	// max morale
+	U32 mov;	// movement points per turn
+	U32 def;	// defense skill
+	U32 tgh;	// toughness
+	U32 mana;
+	bool hasZoc;
+	Ability[] abilities
+	Weapon[] weapons;
+};
 
-**Weapons** — ordered list of Weapon records (§5). Index 0 is default equipped.
-
-**ZoC** — `hasZoC: bool`
-
-**Abilities** — list of Ability references (§7).
+struct Unit {
+	UnitType unitType;
+	U32 curHp;
+	U32 curSta;
+	U32 curMor;
+	Weapon curWeapon;	// currently equipped weapo
+};
+```
 
 **Interval Definitions** — HP, stamina, and morale each carry their own threshold and penalty data (§4.3–§4.5).
 
