@@ -1230,7 +1230,6 @@ static Res<Allocation> AllocVkMem(
 
 //--------------------------------------------------------------------------------------------------
 
-#pragma warning (disable: 4505)
 static Res<BufferObj> CreateBufferImpl(
 	U64                   size,
 	VkBufferUsageFlags    vkBufferUsageFlags,
@@ -1831,7 +1830,7 @@ Res<> ImmediateWait() {
 	};
 	TryVk(vkWaitSemaphores(vkDevice, &vkSemaphoreWaitInfo, U64Max));
 
-	vkResetCommandPool(vkDevice, vkImmediateCommandPool, 0);
+	TryVk(vkResetCommandPool(vkDevice, vkImmediateCommandPool, 0));
 
 	immediateStagingBufferUsed = 0;
 

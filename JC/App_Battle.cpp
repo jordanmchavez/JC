@@ -4,6 +4,7 @@
 #include "JC/Draw.h"
 #include "JC/Event.h"
 #include "JC/Gpu.h"
+#include "JC/Log.h"
 #include "JC/Math.h"
 #include "JC/Rng.h"
 #include "JC/Window.h"
@@ -25,9 +26,14 @@ namespace Terrain {
 	constexpr U32 Max      = 6;
 };
 
-struct MapPos {
-	U32 col;
-	U32 row;
+struct HexPos {
+	U32 col = 0;
+	U32 row = 0;
+};
+
+struct MapTile {
+	HexPos        pos;
+	Terrain::Type terrainType;
 };
 
 static Mem           permMem;
@@ -36,10 +42,12 @@ static U8            hexLut[32 * 24];
 static Draw::Canvas  canvas;
 static U32           canvasWidth = MapCols * 64;
 static U32           canvasHeight = 64 + (MapRows - 1) * 48;
-static Vec2          canvasPos = { .x = 50.f, .y = 50.f };
+static Vec2          canvasPos = { .x = 25, .y = 25.f };
 static F32           canvasScale = 2.f;
 static Draw::Sprite  terrainSprites[Terrain::Max];
-static Terrain::Type mapTiles[MapCols * MapRows];
+static Draw::Sprite  terrainHighlightSprite;
+static MapTile       mapTiles[MapCols * MapRows];
+static Vec2          mousePos;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -59,35 +67,36 @@ static void InitHexLut() {
 	}
 	return;
 }
-/*
-static Vec2 HexToPixel(MapPos p) {
+
+static Vec2 HexToCenterPixel(HexPos p) {
 	return {
 		(F32)(32 + p.col * 64 + (p.row & 1) * 32),
 		(F32)(32 + p.row * 48),
 	};
 }
 
-static MapPos PixelToHex(Vec2 p) {
+static HexPos PixelToHex(Vec2 p) {
 	p = Math::Sub(p, canvasPos);
 	p = Math::Scale(p, 1.f / canvasScale);
-	//pos = Math::Sub(pos, Vec2(MapPadding, MapPadding));
 
 	I32 iy = (I32)p.y;
-	I32 row = iy / 48;
-	const U8 parity = (row & 1);
+	I32 ix = (I32)p.x;
+	Logf("ix=%i, iy=%i", ix, iy);
 
-	I32 ix = (I32)p.x - parity * 32;
 	I32 col = ix / 64;
-	if (ix < 0 || iy < 0) {
-		return { .col = U32Max, .row = U32Max };
-	}
+	I32 row = iy / 48;
 
-	I32 lx = ix - (col * 64);
+	if (row < 0 || col < 0) { return { .col = U32Max, .row = U32Max }; }
+	return { .col = (U32)col, .row = (U32)row };
+
+	//const U8 parity = (row & 1);
+
+
+	/*I32 lx = ix - (col * 64);
 	I32 ly = iy - (row * 48);
 	Assert(lx >= 0 && ly >= 0);
-
+	/*
 	const U8 l = (hexLut[(ly / 2) * 32 + (lx / 2)] >> ((lx & 1) * 4)) & 0xf;
-
 	switch (l) {
 		case 1: col -= 1 * (1 - parity); row -= 1; break;
 		case 2: col += 1 * parity;       row -= 1; break;
@@ -97,8 +106,9 @@ static MapPos PixelToHex(Vec2 p) {
 	}
 
 	return { .col = (U32)col, .row = (U32)row };
+	*/
 }
-*/
+
 //--------------------------------------------------------------------------------------------------
 
 Res<> PreInit(Mem permMemIn, Mem tempMemIn) {
@@ -114,15 +124,19 @@ Res<> Init(const Window::State*) {	// windowState
 	TryTo(Draw::CreateCanvas(canvasWidth, canvasHeight), canvas);
 	Try(Draw::LoadSpriteAtlas("Assets/Terrain.png", "Assets/Terrain.atlas"));
 	Try(Gpu::ImmediateWait());
-	TryTo(Draw::GetSprite("Terrain_Grass"),    terrainSprites[Terrain::Grass]);
-	TryTo(Draw::GetSprite("Terrain_Forest"),   terrainSprites[Terrain::Forest]);
-	TryTo(Draw::GetSprite("Terrain_Swamp"),    terrainSprites[Terrain::Swamp]);
-	TryTo(Draw::GetSprite("Terrain_Hill"),     terrainSprites[Terrain::Hill]);
-	TryTo(Draw::GetSprite("Terrain_Mountain"), terrainSprites[Terrain::Mountain]);
+	TryTo(Draw::GetSprite("Terrain_Grass"),     terrainSprites[Terrain::Grass]);
+	TryTo(Draw::GetSprite("Terrain_Forest"),    terrainSprites[Terrain::Forest]);
+	TryTo(Draw::GetSprite("Terrain_Swamp"),     terrainSprites[Terrain::Swamp]);
+	TryTo(Draw::GetSprite("Terrain_Hill"),      terrainSprites[Terrain::Hill]);
+	TryTo(Draw::GetSprite("Terrain_Mountain"),  terrainSprites[Terrain::Mountain]);
+	TryTo(Draw::GetSprite("Terrain_Highlight"), terrainHighlightSprite);
 
 	for (U32 c = 0; c < MapCols; c++) {
 		for (U32 r = 0; r < MapRows; r++) {
-			mapTiles[c * MapRows + r] = Rng::NextU32(1, Terrain::Max);
+			mapTiles[c * MapRows + r] = {
+				.pos = { .col = c, .row = r },
+				.terrainType = Rng::NextU32(1, Terrain::Max),
+			};
 		}
 	}
 
@@ -141,6 +155,9 @@ Res<> Update(U64 ticks) {
 			if (event.key.key == Event::Key::Escape) { App::RequestExit(); }
 		} else if (event.type == Event::Type::WindowResized) {
 			Try(Draw::ResizeWindow(event.windowResized.width, event.windowResized.height));
+		} else if (event.type == Event::Type::MouseMove) {
+			mousePos.x = (F32)event.mouseMove.x;
+			mousePos.y = (F32)event.mouseMove.y;
 		}
 	}
 	return Ok();
@@ -148,7 +165,7 @@ Res<> Update(U64 ticks) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Draw(const Gpu::Frame* gpuFrame) {
+Res<> Draw(Gpu::Frame const* gpuFrame) {
 	Draw::BeginFrame(gpuFrame);
 
 	Draw::SetCanvas(canvas);
@@ -156,17 +173,18 @@ Res<> Draw(const Gpu::Frame* gpuFrame) {
 
 	for (U32 col = 0; col < MapCols; col++) {
 		for (U32 row = 0; row < MapRows; row++) {
-			Draw::DrawSprite(
-				terrainSprites[mapTiles[col * MapRows + row]],
-				Vec2 {
-					.x = (F32)((col * 64) + ((row & 1) * -32)),
-					.y = (F32)(row* 48),
-				}
-			);
+			MapTile const* const mapTile = &mapTiles[col * MapRows + row];
+			Vec2 pos = HexToCenterPixel(mapTile->pos);
+			Draw::DrawSprite(terrainSprites[mapTile->terrainType], pos);
 		}
 	}
 
-	Draw::SetCanvas();
+	HexPos const hp = PixelToHex(mousePos);
+	if (hp.col < MapCols && hp.row < MapRows) {
+		Draw::DrawSprite(terrainHighlightSprite, HexToCenterPixel(hp));
+	}
+
+	Draw::SetDefaultCanvas();
 	Draw::DrawCanvas(canvas, canvasPos, Vec2 { .x = canvasScale, .y = canvasScale });
 
 	Draw::EndFrame();

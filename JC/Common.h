@@ -69,6 +69,7 @@ template <class T> inline const T* Addr(const T& t) { return &t; }
 //--------------------------------------------------------------------------------------------------
 
 struct IRect { I32 x = 0; I32 y = 0; U32 width = 0; U32 height = 0; };
+struct UVec2 { U32 x = 0; U32 y = 0; };
 struct Vec2 { F32 x = 0.0f; F32 y = 0.0f; };
 struct Vec3 { F32 x = 0.0f; F32 y = 0.0f; F32 z = 0.0f; };
 struct Vec4 { F32 x = 0.0f; F32 y = 0.0f; F32 z = 0.0f; F32 w = 0.0f; };

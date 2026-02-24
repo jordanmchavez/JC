@@ -24,7 +24,7 @@ void main() {
 	float s = sin(drawCmd.rotation);
 	float c = cos(drawCmd.rotation);
 	vec2 local = (offset - 0.5) * drawCmd.size;
-	vec2 worldPos = drawCmd.pos + drawCmd.size * 0.5 + vec2(
+	vec2 worldPos = drawCmd.pos + vec2(
 		local.x * c - local.y * s,
 		local.x * s + local.y * c
 	);
