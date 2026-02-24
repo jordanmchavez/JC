@@ -14,6 +14,8 @@ inline    F32 Abs(F32 f) { return ::fabsf(f); }
 constexpr F32 DegToRad(F32 deg) { return deg * Pi / 180.0f; }
 inline    F32 Round(F32 f) { return ::roundf(f); }
 inline    F32 Sqrt(F32 f) { return ::sqrtf(f); }
+inline    F32 Sin(float f) { return ::sinf(f); }
+inline    F32 Cos(float f) { return ::cosf(f); }
 
 //--------------------------------------------------------------------------------------------------
 

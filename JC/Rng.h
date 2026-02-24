@@ -6,8 +6,9 @@ namespace JC::Rng {
 
 //--------------------------------------------------------------------------------------------------
 
-void Seed(U64 s[2]);
+void Seed(U64 seed);
 U32  NextU32();
+U32  NextU32(U32 min, U32 max);
 U64  NextU64();
 F32  NextF32();
 F64  NextF64();

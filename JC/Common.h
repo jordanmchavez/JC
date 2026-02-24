@@ -55,6 +55,7 @@ namespace JC {
 	#define DbgBreak __debugbreak()
 #endif	// Compiler
 
+constexpr U32 U16Max = (U16)0xffff;
 constexpr U32 U32Max = 0xffffffff;
 constexpr U64 U64Max = (U64)0xffffffffffffffff;
 

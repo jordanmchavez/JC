@@ -1,67 +1,7 @@
-# Draw.cpp / Sprite shader review findings
-
-## Critical
-- SpriteVert: rotation stored in DrawCmd but never applied to worldPos — all DrawSprite(..., rotation) calls silently ignored
-- SpriteFrag: colorIn applied twice for textured sprites — `colorOut = texture * colorIn` then `colorOut *= colorIn` → tint/alpha is squared; default white tint masks the bug
-
-## High
-- SpriteVert: SDF position wrong — `sdfPosOut = offset * size` should be `sdfPosOut = (offset - 0.5) * size` (RectSdf expects center-relative p); DrawRect with cornerRadius>0 or border>0 renders broken (interior treated as outside)
-- Draw.h declares `ResizeWindow`, Draw.cpp implements `WindowResized` — name mismatch, linker error or dead resize path
-- 80MB committed from staging buffer every BeginFrame regardless of draw count (MaxDrawCmds=1MB * sizeof(DrawCmd)=80); reduce MaxDrawCmds to something sane (16k–64k)
-
-## Medium
-- drawCmdBuffer is DEVICE_LOCAL + staged each frame — per-frame streaming data should be HOST_VISIBLE|HOST_COHERENT with direct CPU writes; eliminates staging alloc, CopyStagingToBuffer, and both barriers
-
-## Low
-- Pre-copy barriers on sceneBuffer/drawCmdBuffer unnecessary — timeline semaphore guarantees previous frame complete; only post-copy barrier (Copy_Write→VertexShader_StorageRead) is needed
-- Depth buffer (D32, ~8MB) allocated, attached, and cleared every pass but depth test disabled and all z=0 — remove or actually use it
-- stbi: pass comp=4 to force RGBA output, eliminating manual RGB→RGBA pixel loop
-- SpriteVert: `gl_VertexIndex % 6` is redundant since Draw(6, N) always gives gl_VertexIndex 0..5
-
----
-
-# Gpu_Vk.cpp review findings
-
-## Critical
-- RecreateSwapchain: new swapchain images not transitioned UNDEFINED→PRESENT_SRC_KHR, so next BeginFrame barriers from wrong srcLayout
-- VK_SUBOPTIMAL_KHR from vkAcquireNextImageKHR: image is acquired and semaphore signaled, but we bail early without consuming it — leaves vkFrameImageAcquiredSemaphores[frameIdx] signaled; next frame reuses same slot as signal semaphore → validation error
-- DrawIndexedIndirect: stride=0 means all draws use first command; should be sizeof(VkDrawIndexedIndirectCommand)=20
-
-## High
-- CreateImage: vkDeviceMemory not freed when vkCreateImageView fails
-- queueFamily never initialized to VK_QUEUE_FAMILY_IGNORED before selection loop; if allocator doesn't zero, device is incorrectly rejected
-- VkName(vkDevice) called before LoadDeviceFns — vkSetDebugUtilsObjectNameEXT not yet loaded, null ptr call
-- DebugBarrier: srcAccessMask/dstStageMask fields swapped (happens to work by numeric coincidence — ALL_COMMANDS_BIT==MEMORY_WRITE_BIT==0x10000 — but dstStage only covers graphics not compute, and dstAccess is write-only)
-- ImmediateCopyToBuffer: when staging buffer completely full (amt=0), emits zero-size vkCmdCopyBuffer2 (spec violation); needs pre-flush like ImmediateCopyToImage
-
-## Medium
-- PushConstants: offset hardcoded to 0, ignores pipelineObj->vkPushConstantRange.offset from SPIRV reflection
-- AllocStaging: no alignment — Vulkan requires bufferOffset alignment for image copies (texel block size, min 4)
-- vkBeginCommandBuffer in Init (line 1030) result not checked
-- FormatSize (Gpu_Vk_Util.cpp): R16G16B16_* returns 4 (should be 6), R16G16B16A16_* returns 4 (should be 8)
-
-## Low/Cosmetic
-- Dead static viewport/scissor built from swapchainImages[0] in CreateGraphicsPipeline — overridden by dynamic state, should be removed
-- Validation layer warnings silently dropped (commented out in DebugCallback)
-- Missing oldSwapchain in RecreateSwapchain — destroy new-before-old prevents driver resource reuse
-- Missing break in present mode selection loop
-- #pragma once in Gpu_Vk.cpp (a .cpp file)
-- BarrierStage::Flags uses int literal 1<<N instead of U64(1)<<N
-- Shutdown doesn't vkDeviceWaitIdle — relies on caller
-
----
-
 memtrace
-windowing based on sdl2
-simple 2d renderer api based on, maybe, love.2d
-input
-console/cmd
-
 vk allocation callbacks
-
 console window for logging
 log file
-move gfx into its own header
 log pattern
 do something with timestamp/file/line/system/thread
 memory scopes
@@ -311,5 +251,4 @@ cvar/config
 - cap arg strings: set err flag on truncation
 - Err pool should be a ring buffer, so we don't overwrite frameId if possible
 - Implicit stack trace even if propagating?
-
-
+- Error on zero-sized window: vk can't create a zero sized swapchain

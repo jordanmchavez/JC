@@ -6,6 +6,7 @@
 #include "JC/FS.h"
 #include "JC/Gpu.h"
 #include "JC/Log.h"
+#include "JC/Rng.h"
 #include "JC/StrDb.h"
 #include "JC/Sys.h"
 #include "JC/Time.h"
@@ -57,6 +58,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 	Time::Init();
 	FS::Init(tempMem);
 	StrDb::Init();
+	Rng::Seed(Time::Now());
 
 	Cfg::Init(permMem, argc, argv);
 
@@ -122,12 +124,25 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 
 		Try(app->Update(deltaTicks));
 
+		bool recreatedSwapChain = false;
 		if (prevWindowState.width != windowState.width || prevWindowState.height != windowState.height) {
 			Try(Gpu::RecreateSwapchain(windowState.width, windowState.height));
+			recreatedSwapChain = true;
+			Event::AddEvent({
+				.type = Event::Type::WindowResized,
+				.windowResized = {
+					.width  = windowState.width,
+					.height = windowState.height,
+				},
+			});
 			Logf("Window size changed: %ux%u -> %ux%u", prevWindowState.width, prevWindowState.height, windowState.width, windowState.height);
+			continue;
 		}
 
-		bool recreatedSwapChain = false;
+		if (windowState.minimized || windowState.width == 0 || windowState.height == 0) {
+			continue;
+		}
+
 		Gpu::Frame gpuFrame;
 		if (Res<> r = Gpu::BeginFrame().To(gpuFrame); !r) {
 			if (r.err != Gpu::Err_RecreateSwapchain) {
@@ -135,18 +150,17 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 			}
 			Try(Gpu::RecreateSwapchain(windowState.width, windowState.height));
 			Logf("Recreated swapchain after BeginFrame() with w=%u, h=%u", windowState.width, windowState.height);
-			recreatedSwapChain = true;
+			continue;
 		}
 
-		if (!recreatedSwapChain && !windowState.minimized && windowState.width > 0 && windowState.height > 0) {
-			Try(app->Draw(&gpuFrame));
+		Try(app->Draw(&gpuFrame));
 		
-			if (Res<> r = Gpu::EndFrame(); !r) {
-				if (r.err != Gpu::Err_RecreateSwapchain) {
-					return r;
-				}
-				Logf("Recreated swapchain after EndFrame() with w=%u, h=%u", windowState.width, windowState.height);
+		if (Res<> r = Gpu::EndFrame(); !r) {
+			if (r.err != Gpu::Err_RecreateSwapchain) {
+				return r;
 			}
+			Try(Gpu::RecreateSwapchain(windowState.width, windowState.height));
+			Logf("Recreated swapchain after EndFrame() with w=%u, h=%u", windowState.width, windowState.height);
 		}
 	}
 

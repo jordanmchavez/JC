@@ -152,7 +152,7 @@ static void UpdateParticleEmitter(F32 secs, Emitter* emitter) {
 //---------------------------------------------------------------------------------------------
 
 void Frame(U64 ticks) {
-	F32 const secs = Time::Secs(ticks);
+	F32 const secs = (F32)Time::Secs(ticks);
 	for (U64 i = 0; i < types.len; i++) {
 		UpdateParticleType(secs, &types[i]);
 	}
@@ -167,8 +167,8 @@ void Frame(U64 ticks) {
 void Draw() {
 	for (U64 i = 0; i < types.len; i++) {
 		Type const* const type = &types[i];
-		for (U64 i = 0; i < type->particles.len; i++) {
-			Particle const* const p = &type->particles[i];
+		for (U64 j = 0; j < type->particles.len; i++) {
+			Particle const* const p = &type->particles[j];
 			Draw::DrawSprite(type->sprite, p->pos, Vec2(p->size, p->size), p->rotation, p->color);
 		}
 	}

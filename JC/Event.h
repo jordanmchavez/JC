@@ -167,7 +167,7 @@ struct Event {
 };
 
 void AddEvent(Event event);
-bool GetEvent(Event* eventOut);
+bool GetEvent(Event* event);
 Str  KeyStr(Key key);
 
 //----------------------------------------------------------------------------------------------

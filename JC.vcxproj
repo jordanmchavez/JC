@@ -133,6 +133,7 @@
     <ClInclude Include="JC\Log.h" />
     <ClInclude Include="JC\Map.h" />
     <ClInclude Include="JC\Math.h" />
+    <ClInclude Include="JC\Particle.h" />
     <ClInclude Include="JC\Rng.h" />
     <ClInclude Include="JC\StrDb.h" />
     <ClInclude Include="JC\Sys.h" />
@@ -141,14 +142,13 @@
     <ClInclude Include="JC\Unicode.h" />
     <ClInclude Include="JC\Unit.h" />
     <ClInclude Include="JC\Window.h" />
-    <ClInclude Include="Notes\Scratch.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
     <ClCompile Include="Cfg.cpp" />
     <ClCompile Include="JC\App.cpp" />
-    <ClCompile Include="JC\App_Shooter.cpp" />
+    <ClCompile Include="JC\App_Battle.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
     <ClCompile Include="JC\Common.cpp" />
     <ClCompile Include="JC\Common_Err.cpp" />
@@ -167,6 +167,7 @@
     <ClCompile Include="JC\Main.cpp" />
     <ClCompile Include="JC\Map.cpp" />
     <ClCompile Include="JC\Math.cpp" />
+    <ClCompile Include="JC\Particle.cpp" />
     <ClCompile Include="JC\Rng.cpp" />
     <ClCompile Include="JC\StrDb.cpp" />
     <ClCompile Include="JC\Sys_Win.cpp" />
@@ -176,13 +177,14 @@
     <ClCompile Include="JC\Window_Win.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Assets\Terrain.atlas" />
     <None Include="JC.natstepfilter">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </None>
     <None Include="Notes\4xGameDesign.md" />
+    <None Include="Notes\Battle.md" />
     <None Include="Notes\Guidebook.md" />
-    <None Include="Notes\ShooterGameDesign.md" />
     <None Include="Notes\Todo.md" />
     <None Include="Rules.ruleset" />
     <None Include="Shaders\MeshCommon.glsl" />
@@ -194,6 +196,9 @@
     <None Include="Shaders\SpriteCommon.glsl" />
     <None Include="Shaders\SpriteFrag.glsl" />
     <None Include="Shaders\SpriteVert.glsl" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Assets\Terrain.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

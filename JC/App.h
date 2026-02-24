@@ -23,7 +23,7 @@ struct App {
 	Res<> (*Init)(Window::State const* windowState);
 	void  (*Shutdown)();
 	Res<> (*Update)(U64 ticks);
-	Res<> (*Draw)(Gpu::Frame* frame);
+	Res<> (*Draw)(const Gpu::Frame* frame);
 };
 
 void RequestExit();

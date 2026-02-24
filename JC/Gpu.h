@@ -35,6 +35,12 @@ namespace BufferUsage {
 	constexpr Flags Addr         = 1 << 4;
 }
 
+enum struct MemoryLocation {
+	Undefined = 0,
+	Gpu,
+	Cpu,
+};
+
 namespace ImageUsage {
 	using Flags = U32;
 	constexpr Flags Sampled = 1 << 0;
@@ -101,7 +107,8 @@ struct Pass {
 };
 
 struct Frame {
-	U64   frame;
+	U64   frameNum;
+	U64   frameIdx;
 	Image swapchainImage;
 };
 
@@ -109,18 +116,16 @@ Res<>         Init(InitDesc const* initDesc);
 void          Shutdown();
 ImageFormat   GetSwapchainImageFormat();
 Res<>         RecreateSwapchain(U32 width, U32 height);
-Res<Buffer>   CreateBuffer(U64 size, BufferUsage::Flags bufferUsageFlags);
+Res<Buffer>   CreateBuffer(U64 size, BufferUsage::Flags bufferUsageFlags, MemoryLocation memoryLocation);
 void          DestroyBuffer(Buffer buffer);
-U64           GetBufferAddr(Buffer buffer);
+Res<void*>    MapBuffer(Buffer buffer);
+U64           GetBufferGpuAddr(Buffer buffer);
 Res<Image>    CreateImage(U32 width, U32 height, ImageFormat format, ImageUsage::Flags imageUsageFlags);
 void          DestroyImage(Image image);
 U32           GetImageWidth(Image image);	// TODO; -> IVec2 or IExtent or something
 U32           GetImageHeight(Image image);
 ImageFormat   GetImageFormat(Image image);
 U32           GetImageBindIdx(Image image);
-void*         AllocStaging(U64 len);
-void          CopyStagingToBuffer(void* staging, U64 len, Buffer buffer, U64 offset);
-void          CopyStagingToImage(void* staging, Image image);
 Res<Shader>   CreateShader(void const* data, U64 len);
 void          DestroyShader(Shader shader);
 Res<Pipeline> CreateGraphicsPipeline(Span<Shader> shaders, Span<ImageFormat> colorAttachmentFormats, ImageFormat depthAttachmentFormat);

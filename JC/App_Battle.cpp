@@ -1,77 +1,47 @@
 #pragma once
 
+#include "JC/App.h"
 #include "JC/Draw.h"
+#include "JC/Event.h"
 #include "JC/Gpu.h"
 #include "JC/Math.h"
+#include "JC/Rng.h"
 #include "JC/Window.h"
 
 namespace JC::Battle {
 
 //--------------------------------------------------------------------------------------------------
 
-enum struct State {
-	StartingBattle = 0,
-	EndingBattle,
-	StartingRound,
-	EndingRound,
-	StartingTurn,
-	EndingTurn,
-	WaitingSelectUnit,
-	WaitingOrder,
-	ExecutingOrder,
-	Max,
+static constexpr U32 MapCols = 16;
+static constexpr U32 MapRows = 12;
+
+namespace Terrain {
+	using Type = U32;
+	constexpr U32 Grass    = 1;
+	constexpr U32 Forest   = 2;
+	constexpr U32 Mountain = 3;
+	constexpr U32 Hill     = 4;
+	constexpr U32 Swamp    = 5;
+	constexpr U32 Max      = 6;
 };
 
 struct MapPos {
-	U16 col;
-	U16 row;
+	U32 col;
+	U32 row;
 };
 
-struct Unit {
-	Str          name;
-	MapPos       mapPos;
-	U8           moves;
-	U8           movesRem;
-	Vec2         drawPos;
-	Draw::Sprite drawSprite;
-};
-
-enum struct Team {
-	Player1,
-	Player2,
-	Ai,
-	Max,
-};
-
-static constexpr U8 MaxArmyUnits = 128;
-
-struct Army {
-	Team team;
-	Unit units[MaxArmyUnits];
-	U16  unitsLen;
-};
-
-static constexpr U8 MaxOrderPath = 32;
-
-struct Order {
-	Unit*  unit;
-	MapPos path[MaxOrderPath];	// includes starting and ending hexes
-	U8     pathLen;
-	U8     pathIdx;
-	U16    durMs;
-	U16    elapsedMs;	// current path
-};
-
-static Draw::Sprite spearmanSprite;
-static State        state;
-static Army         armies[(U64)Team::Max];
-static Team         currentTeam;
-static Unit*        selectedUnit;
-static Order        order;
+static Mem           permMem;
+static Mem           tempMem;
+static U8            hexLut[32 * 24];
+static Draw::Canvas  canvas;
+static U32           canvasWidth = MapCols * 64;
+static U32           canvasHeight = 64 + (MapRows - 1) * 48;
+static Vec2          canvasPos = { .x = 50.f, .y = 50.f };
+static F32           canvasScale = 2.f;
+static Draw::Sprite  terrainSprites[Terrain::Max];
+static Terrain::Type mapTiles[MapCols * MapRows];
 
 //--------------------------------------------------------------------------------------------------
-
-static U8 hexLut[32 * 24];
 
 static void InitHexLut() {
 	memset(hexLut, 0, sizeof(hexLut));
@@ -89,9 +59,7 @@ static void InitHexLut() {
 	}
 	return;
 }
-
-//---------------------------------------------------------------------------------------------
-
+/*
 static Vec2 HexToPixel(MapPos p) {
 	return {
 		(F32)(32 + p.col * 64 + (p.row & 1) * 32),
@@ -100,25 +68,23 @@ static Vec2 HexToPixel(MapPos p) {
 }
 
 static MapPos PixelToHex(Vec2 p) {
-	p = Math::Sub(pos, CanvasPos);
-	pos = Math::Scale(pos, 1.f / CanvasScale);
-	pos = Math::Sub(pos, Vec2(MapPadding, MapPadding));
+	p = Math::Sub(p, canvasPos);
+	p = Math::Scale(p, 1.f / canvasScale);
+	//pos = Math::Sub(pos, Vec2(MapPadding, MapPadding));
 
-
-	I32 iy = (I32)pos.y;
+	I32 iy = (I32)p.y;
 	I32 row = iy / 48;
 	const U8 parity = (row & 1);
 
-	I32 ix = (I32)pos.x - parity * 32;
+	I32 ix = (I32)p.x - parity * 32;
 	I32 col = ix / 64;
 	if (ix < 0 || iy < 0) {
-		terrainHoverCol = terrainHoverRow = U32Max;
-		return;
+		return { .col = U32Max, .row = U32Max };
 	}
 
 	I32 lx = ix - (col * 64);
 	I32 ly = iy - (row * 48);
-	JC_ASSERT(lx >= 0 && ly >= 0);
+	Assert(lx >= 0 && ly >= 0);
 
 	const U8 l = (hexLut[(ly / 2) * 32 + (lx / 2)] >> ((lx & 1) * 4)) & 0xf;
 
@@ -126,32 +92,38 @@ static MapPos PixelToHex(Vec2 p) {
 		case 1: col -= 1 * (1 - parity); row -= 1; break;
 		case 2: col += 1 * parity;       row -= 1; break;
 	}
-	if (col >= MapCols || row >= MapRows) {
-		terrainHoverCol = terrainHoverRow = U32Max;
-		return;
+	if (col >= (I32)MapCols || row >= (I32)MapRows) {
+		return { .col = U32Max, .row = U32Max };
 	}
-	terrainHoverCol = col;
-	terrainHoverRow = row;
+
+	return { .col = (U32)col, .row = (U32)row };
+}
+*/
+//--------------------------------------------------------------------------------------------------
+
+Res<> PreInit(Mem permMemIn, Mem tempMemIn) {
+	permMem = permMemIn;
+	tempMem = tempMemIn;
+	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Init() {
-	JC_CHECK_RES(Draw::GetSprite("Unit_Spearman").To(spearmanSprite));
+Res<> Init(const Window::State*) {	// windowState
+	InitHexLut();
+	TryTo(Draw::CreateCanvas(canvasWidth, canvasHeight), canvas);
+	Try(Draw::LoadSpriteAtlas("Assets/Terrain.png", "Assets/Terrain.atlas"));
+	Try(Gpu::ImmediateWait());
+	TryTo(Draw::GetSprite("Terrain_Grass"),    terrainSprites[Terrain::Grass]);
+	TryTo(Draw::GetSprite("Terrain_Forest"),   terrainSprites[Terrain::Forest]);
+	TryTo(Draw::GetSprite("Terrain_Swamp"),    terrainSprites[Terrain::Swamp]);
+	TryTo(Draw::GetSprite("Terrain_Hill"),     terrainSprites[Terrain::Hill]);
+	TryTo(Draw::GetSprite("Terrain_Mountain"), terrainSprites[Terrain::Mountain]);
 
-	armies[(U32)Team::Player1] = {
-		.team = Team::Player1,
-		.units = {
-			{
-				.name       = "Spearman",
-				.mapPos     = { 0, 0 },
-				.moves      = 3,
-				.movesRem   = 3,
-				.drawPos    = HexToPixel({ 0, 0 }),
-				.drawSprite = spearmanSprite,
-			},
-		},
-		.unitsLen = 1,
+	for (U32 c = 0; c < MapCols; c++) {
+		for (U32 r = 0; r < MapRows; r++) {
+			mapTiles[c * MapRows + r] = Rng::NextU32(1, Terrain::Max);
+		}
 	}
 
 	return Ok();
@@ -159,63 +131,65 @@ Res<> Init() {
 
 //--------------------------------------------------------------------------------------------------
 
-void Events(Span<const Window::Event> events) {
-	for (U64 i = 0; i < events.len; i++) {
-		const Window::Event* const event = &events[i];
+Res<> Update(U64 ticks) {
+	ticks;
 
-		switch (state) {
-			case State::WaitingSelectUnit:
-				if (event->type == Window::EventType::Key && event->key.down && event->key.key == Window::Key::Mouse1) {
-					// get mouse pos
-					// get hex for mouse pos
-					// check if hex's unit is on the current team and has any moves left
-					// if okay, selectedUnit = hex->unit;
-					// state = State::WaitingUnitOrder;
-				}
-				break;
-
-			case State::WaitingOrder:
-				if (event->type == Window::EventType::Key && event->key.down && event->key.key == Window::Key::Mouse1) {
-					// get mouse pos
-					// get hex for mouse pos
-					// if empty hex:
-					selectedUnit = 0;
-					state = State::WaitingSelectUnit;
-				} else if (event->type == Window::EventType::Key && event->key.down && event->key.key == Window::Key::Mouse2) {
-					// get mouse pos
-					// get hex for mouse pos
-					// if hex is empty and exists a path from selectedUnit's pos to target hex
-						// set up move order
-					state = State::ExecutingOrder;
-				}
-				break;
-
-			case State::ExecutingOrder:
-				// no input
-				break;
+	for (Event::Event event; Event::GetEvent(&event);) {
+		if (event.type == Event::Type::ExitRequest) {
+			App::RequestExit();
+		} else if (event.type == Event::Type::Key) {
+			if (event.key.key == Event::Key::Escape) { App::RequestExit(); }
+		} else if (event.type == Event::Type::WindowResized) {
+			Try(Draw::ResizeWindow(event.windowResized.width, event.windowResized.height));
 		}
 	}
+	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void Update(U64 ticks) {
-	if (state != State::ExecutingOrder) {
-		return;
+Res<> Draw(const Gpu::Frame* gpuFrame) {
+	Draw::BeginFrame(gpuFrame);
+
+	Draw::SetCanvas(canvas);
+	Draw::DrawRect(Vec2(0.f, 0.f), Vec2((F32)canvasWidth, (F32)canvasHeight), Vec4(0.15f, 0.3f, 0.25f, 1.0f));
+
+	for (U32 col = 0; col < MapCols; col++) {
+		for (U32 row = 0; row < MapRows; row++) {
+			Draw::DrawSprite(
+				terrainSprites[mapTiles[col * MapRows + row]],
+				Vec2 {
+					.x = (F32)((col * 64) + ((row & 1) * -32)),
+					.y = (F32)(row* 48),
+				}
+			);
+		}
 	}
-	//update move animation
+
+	Draw::SetCanvas();
+	Draw::DrawCanvas(canvas, canvasPos, Vec2 { .x = canvasScale, .y = canvasScale });
+
+	Draw::EndFrame();
+
+	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void Draw(Gpu::Frame frame) {
-	// map
-	// units
-	// selected unit
-	// target hex
-	// path
+void Shutdown() {
+	Draw::DestroyCanvas(canvas);
 }
 
 //--------------------------------------------------------------------------------------------------
+
+App::App app = {
+	.PreInit  = PreInit,
+	.Init     = Init,
+	.Shutdown = Shutdown,
+	.Update   = Update,
+	.Draw     = Draw,
+};
+
+App::App* GetApp() { return &app; }
 
 }	// namespace JC::Battle

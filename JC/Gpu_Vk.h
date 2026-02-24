@@ -21,17 +21,6 @@ namespace JC::Gpu {
 
 //--------------------------------------------------------------------------------------------------
 
-#define Err_Vk(vkResult, fn, ...) \
-	Err::Make(nullptr, SrcLoc::Here(), "Vk", "", (U64)vkResult, "fn", fn, ##__VA_ARGS__)
-
-#define Gpu_CheckVk(expr) { \
-	if (const VkResult r = expr; r != VK_SUCCESS) { \
-		return Err_Vk(r, #expr); \
-	} \
-}
-
-//--------------------------------------------------------------------------------------------------
-
 void                  LoadRootFns();
 void                  LoadInstanceFns(VkInstance vkInstance);
 void                  LoadDeviceFns(VkDevice vkDevice);
