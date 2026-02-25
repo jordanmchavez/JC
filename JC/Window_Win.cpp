@@ -335,9 +335,9 @@ Res<> Init(const InitDesc* initDesc) {
 	window.windowRect.height = r.bottom - r.top;
 	window.dpiScale     = (F32)window.dpi / (F32)USER_DEFAULT_SCREEN_DPI;
 
-	SetFocus(window.hwnd);
 	ShowWindow(window.hwnd, SW_SHOW);
 	UpdateWindow(window.hwnd);
+	SetFocus(window.hwnd);
 	RAWINPUTDEVICE rawInputDevices[2] = {
 		{
 			.usUsagePage = (USHORT)HID_USAGE_PAGE_GENERIC,

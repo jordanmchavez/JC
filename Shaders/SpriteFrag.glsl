@@ -43,5 +43,6 @@ void main() {
 		tempColorOut *= colorIn;
 	}
 
+	if (tempColorOut.a < 0.01) discard;
 	colorOut = tempColorOut;
 }

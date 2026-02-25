@@ -126,6 +126,13 @@ F32 Lerp(F32 a, F32 b, F32 t) {
 	return a + (t * (b - a));
 }
 
+Vec2 Lerp(Vec2 a, Vec2 b, F32 t) {
+	return {
+		.x = a.x + (t * (b.x - a.x)),
+		.y = a.y + (t * (b.y - a.y)),
+	};
+}
+
 Vec4 Lerp(Vec4 a, Vec4 b, F32 t) {
 	return {
 		.x = a.x + (t * (b.x - a.x)),
@@ -385,6 +392,51 @@ Mat4 TranslationMat4(Vec3 b) {
 		0.0f, 0.0f, 1.0f,  0.f,
 		 b.x,  b.y,  b.z, 1.0f,
 	};
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Vec2 ClosestPointToAABB(Vec2 p, Vec2 aabbMin, Vec2 aabbMax) {
+	return Vec2(
+		p.x < aabbMin.x ? aabbMin.x : (p.x > aabbMax.x ? aabbMax.x : p.x),
+		p.y < aabbMin.y ? aabbMin.y : (p.y > aabbMax.y ? aabbMax.y : p.y)
+	);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+bool IntersectLineSegmentAabb(Vec2 a, Vec2 b, Vec2 aabbMin, Vec2 aabbMax, Vec2* out) {
+	F32 tMin = 0.f;
+	F32 tMax = 1.f;
+	Vec2 const d = Math::Sub(b, a);
+	constexpr F32 Epsilon = 1e-6f;
+
+	if (Abs(d.x) < Epsilon) {
+		if (a.x < aabbMin.x || a.x > aabbMax.x) { return false; }
+	} else {
+		F32 const oneOverD = 1.f / d.x;
+		F32 t1 = (aabbMin.x - a.x) * oneOverD;
+		F32 t2 = (aabbMax.x - a.x) * oneOverD;
+		if (t1 > t2) { F32 tmp = t1; t1 = t2; t2 = tmp;; }
+		tMin = Max(t1, tMin);
+		tMax = Min(t2, tMax);
+		if (tMin > tMax) { return false; }
+	}
+
+	if (Abs(d.y) < Epsilon) {
+		if (a.y < aabbMin.y || a.y > aabbMax.y) { return false; }
+	} else {
+		F32 const oneOverD = 1.f / d.y;
+		F32 t1 = (aabbMin.y - a.y) * oneOverD;
+		F32 t2 = (aabbMax.y - a.y) * oneOverD;
+		if (t1 > t2) { F32 tmp = t1; t1 = t2; t2 = tmp;; }
+		tMin = Max(t1, tMin);
+		tMax = Min(t2, tMax);
+		if (tMin > tMax) { return false; }
+	}
+
+	*out = Vec2(a.x + tMin * d.x, a.y + tMin * d.y);
+	return true;
 }
 
 //--------------------------------------------------------------------------------------------------

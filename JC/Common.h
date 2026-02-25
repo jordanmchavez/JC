@@ -40,6 +40,9 @@ namespace JC {
 	using F32 = float;
 	using F64 = double;
 
+	constexpr F32 F32Max = 3.402823466e+38f;
+	constexpr F64 F64Max = 1.7976931348623158e+308;
+
 	extern "C" {
 		using size_t = decltype(sizeof(0));
 		void*  __cdecl memcpy(void* dst, const void* src, size_t size);

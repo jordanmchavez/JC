@@ -32,6 +32,7 @@ Mat2 IdentityMat2();
 Mat3 IdentityMat3();
 Mat4 IdentityMat4();
 F32  Lerp(F32 a, F32 b, F32 t);
+Vec2 Lerp(Vec2 a, Vec2 b, F32 t);
 Vec4 Lerp(Vec4 a, Vec4 b, F32 t);
 Mat4 Look(Vec3 pos, Vec3 x, Vec3 y, Vec3 z);
 Vec2 Mul(Vec2 v, F32 s);
@@ -55,6 +56,9 @@ Vec2 Scale(Vec2 u, F32 s);
 Vec2 Sub(Vec2 u, Vec2 v);
 Vec3 Sub(Vec3 u, Vec3 v);
 Mat4 TranslationMat4(Vec3 v);
+
+Vec2 ClosestPointToAABB(Vec2 p, Vec2 aabbMin, Vec2 aabbMax);
+bool IntersectLineSegmentAabb(Vec2 a, Vec2 b, Vec2 aabbMin, Vec2 aabbMax, Vec2* out);
 
 //--------------------------------------------------------------------------------------------------
 
