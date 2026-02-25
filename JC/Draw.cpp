@@ -68,13 +68,15 @@ struct PushConstants {
 };
 
 struct DrawCmd {
-	Vec2 pos;
+	U32  textureIdx = 0;
+	Vec3 pos;
 	Vec2 size;
 	Vec2 uv1;
 	Vec2 uv2;
-	Vec4 color;
-	F32  rotation;
-	U32  textureIdx;
+	Vec4 color = Vec4(1.f, 1.f, 1.f, 1.f);
+	Vec4 outlineColor;
+	F32  outlineWidth = 0.f;
+	F32  rotation = 0.f;
 };
 
 struct CanvasObj {
@@ -471,67 +473,32 @@ static DrawCmd* AllocDrawCmds(U32 n) {
 
 //--------------------------------------------------------------------------------------------------
 
-void DrawSprite(Sprite sprite, Vec2 pos) {
-	Assert(sprite.handle > 0 && sprite.handle < spriteObjsLen);
-	SpriteObj* const spriteObj = &spriteObjs[sprite.handle];
+void Draw(DrawDesc drawDesc) {
 	DrawCmd* const drawCmd = AllocDrawCmds(1);
-	*drawCmd =  {
-		.pos          = pos,
-		.size         = spriteObj->size,
-		.uv1          = spriteObj->uv1,
-		.uv2          = spriteObj->uv2,
-		.color        = Vec4(1.0f, 1.0f, 1.0f, 1.0f),
-		.rotation     = 0.0f,
-		.textureIdx   = spriteObj->imageIdx,
-	};
-}
+	drawCmd->pos          = Vec3(drawDesc.pos.x, drawDesc.pos.y, drawDesc.z);
+	drawCmd->color        = drawDesc.color;
+	drawCmd->outlineColor = drawDesc.outlineColor;
+	drawCmd->outlineWidth = drawDesc.outlineWidth;
+	drawCmd->rotation     = drawDesc.rotation;
 
-void DrawSprite(Sprite sprite, Vec2 pos, Vec2 scale, F32 rotation, Vec4 color) {
-	Assert(sprite.handle > 0 && sprite.handle < spriteObjsLen);
-	SpriteObj* const spriteObj = &spriteObjs[sprite.handle];
-	DrawCmd* const drawCmd = AllocDrawCmds(1);
-	*drawCmd =  {
-		.pos          = pos,
-		.size         = Math::Mul(spriteObj->size, scale),
-		.uv1          = spriteObj->uv1,
-		.uv2          = spriteObj->uv2,
-		.color        = color,
-		.rotation     = rotation,
-		.textureIdx   = spriteObj->imageIdx,
-	};
+	if (drawDesc.sprite) {
+		Assert(drawDesc.sprite.handle < spriteObjsLen);
+		const SpriteObj* const spriteObj = &spriteObjs[drawDesc.sprite.handle];
+		drawCmd->size       = Math::Mul(spriteObj->size, drawDesc.size);
+		drawCmd->uv1        = spriteObj->uv1;
+		drawCmd->uv2        = spriteObj->uv2;
+		drawCmd->textureIdx = spriteObj->imageIdx;
+	} else if (drawDesc.canvas) {
+		const CanvasObj* const canvasObj = canvasObjs.Get(drawDesc.canvas);
+		drawCmd->size       = Math::Mul(canvasObj->size, drawDesc.size),
+		drawCmd->uv1        = Vec2(0.f, 0.f),
+		drawCmd->uv2        = Vec2(1.f, 1.f),
+		drawCmd->textureIdx = canvasObj->colorImageIdx;
+	} else {
+		drawCmd->size       = drawDesc.size;
+		drawCmd->textureIdx = 0;
+	}
 }
 
 //--------------------------------------------------------------------------------------------------
-
-void DrawRect(Vec2 pos, Vec2 size, Vec4 color) {
-	DrawCmd* const drawCmd = AllocDrawCmds(1);
-	*drawCmd =  {
-		.pos          = pos,
-		.size         = size,
-		.uv1          = Vec2(),
-		.uv2          = Vec2(),
-		.color        = color,
-		.rotation     = 0.0f,
-		.textureIdx   = 0,
-	};
-}
-
-//--------------------------------------------------------------------------------------------------
-
-void DrawCanvas(Canvas canvas, Vec2 pos, Vec2 scale) {
-	CanvasObj* const canvasObj = canvasObjs.Get(canvas);
-	DrawCmd* const drawCmd = AllocDrawCmds(1);
-	*drawCmd =  {
-		.pos          = pos,
-		.size         = Math::Mul(canvasObj->size, scale),
-		.uv1          = Vec2(0.f, 0.f),
-		.uv2          = Vec2(1.f, 1.f),
-		.color        = Vec4(1.f, 1.f, 1.f, 1.f),
-		.rotation     = 0.0f,
-		.textureIdx   = canvasObj->colorImageIdx
-	};
-}
-
-//--------------------------------------------------------------------------------------------------
-
 }	// namespace JC::Draw

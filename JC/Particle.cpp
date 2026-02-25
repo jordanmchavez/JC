@@ -169,7 +169,13 @@ void Draw() {
 		Type const* const type = &types[i];
 		for (U64 j = 0; j < type->particles.len; i++) {
 			Particle const* const p = &type->particles[j];
-			Draw::DrawSprite(type->sprite, p->pos, Vec2(p->size, p->size), p->rotation, p->color);
+			Draw::Draw({
+				.sprite   = type->sprite,
+				.pos      = p->pos,
+				.size     = Vec2(p->size, p->size),
+				.color    = p->color,
+				.rotation = p->rotation,
+			});
 		}
 	}
 }

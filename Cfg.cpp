@@ -31,6 +31,7 @@ Str GetStr(Str name, Str defVal) {
 	U32* idx = cfgsIndex.FindOrNull(name);
 	if (!idx) {
 		Assert(cfgsLen < MaxCfgs);
+		cfgsIndex.Put(name, cfgsLen);
 		cfgs[cfgsLen++] = {
 			.name = name,
 			.str  = defVal,
@@ -46,6 +47,7 @@ U32 GetU32(Str name, U32 defVal) {
 	U32* idx = cfgsIndex.FindOrNull(name);
 	if (!idx) {
 		Assert(cfgsLen < MaxCfgs);
+		cfgsIndex.Put(name, cfgsLen);
 		cfgs[cfgsLen++] = {
 			.name = name,
 			.u32  = defVal,
@@ -61,6 +63,7 @@ void SetStr(Str name, Str val) {
 	U32* idx = cfgsIndex.FindOrNull(name);
 	if (!idx) {
 		Assert(cfgsLen < MaxCfgs);
+		cfgsIndex.Put(name, cfgsLen);
 		cfgs[cfgsLen++] = {
 			.name = name,
 			.str= val,
@@ -76,6 +79,7 @@ void SetU32(Str name, U32 val) {
 	U32* idx = cfgsIndex.FindOrNull(name);
 	if (!idx) {
 		Assert(cfgsLen < MaxCfgs);
+		cfgsIndex.Put(name, cfgsLen);
 		cfgs[cfgsLen++] = {
 			.name = name,
 			.u32  = val,

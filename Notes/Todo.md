@@ -252,3 +252,4 @@ cvar/config
 - Err pool should be a ring buffer, so we don't overwrite frameId if possible
 - Implicit stack trace even if propagating?
 - Error on zero-sized window: vk can't create a zero sized swapchain
+- Consider whether permmem allocation for handlepools and such is worth it. Could easily require static buffers

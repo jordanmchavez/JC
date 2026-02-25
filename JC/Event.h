@@ -168,6 +168,7 @@ struct Event {
 
 void AddEvent(Event event);
 bool GetEvent(Event* event);
+bool IsKeyDown(Key key);
 Str  KeyStr(Key key);
 
 //----------------------------------------------------------------------------------------------

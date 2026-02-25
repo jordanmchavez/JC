@@ -3,13 +3,15 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 
 struct DrawCmd {
-	vec2  pos;
+	uint  textureIdx;
+	vec3  pos;
 	vec2  size;
 	vec2  uv1;
 	vec2  uv2;
 	vec4  color;
+	vec4  outlineColor;
+	float outlineWidth;
 	float rotation;
-	uint  textureIdx;
 };
 
 layout (buffer_reference, scalar) readonly buffer DrawCmdBuffer {

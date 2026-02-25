@@ -8,6 +8,9 @@ namespace JC::Draw {
 
 //--------------------------------------------------------------------------------------------------
 
+DefHandle(Sprite);
+DefHandle(Canvas);
+
 struct InitDesc {
 	Mem permMem;
 	Mem tempMem;
@@ -15,8 +18,17 @@ struct InitDesc {
 	U32 windowHeight;
 };
 
-DefHandle(Sprite);
-DefHandle(Canvas);
+struct DrawDesc {
+	Sprite sprite;
+	Canvas canvas;
+	Vec2   pos;
+	F32    z = 0.f;
+	Vec2   size         = Vec2(1.f, 1.f);
+	Vec4   color        = Vec4(1.f, 1.f, 1.f, 1.f);
+	Vec4   outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
+	F32    outlineWidth = 0.f;
+	F32    rotation     = 0.f;
+};
 
 Res<>       Init(InitDesc const* initDesc);
 void        Shutdown();
@@ -30,10 +42,7 @@ void        BeginFrame(const Gpu::Frame* frame);
 void        EndFrame();
 void        SetDefaultCanvas();
 void        SetCanvas(Canvas canvas);
-void        DrawSprite(Sprite sprite, Vec2 pos);
-void        DrawSprite(Sprite sprite, Vec2 pos, Vec2 scale, F32 rotation, Vec4 color);
-void        DrawRect(Vec2 pos, Vec2 size, Vec4 color);
-void        DrawCanvas(Canvas canvas, Vec2 pos, Vec2 scale);
+void        Draw(DrawDesc drawDesc);
 
 //--------------------------------------------------------------------------------------------------
 
