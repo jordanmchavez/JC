@@ -39,8 +39,8 @@ U32 NextU32() {
 	return (U32)Next();
 }
 
-U32 NextU32(U32 min, U32 max) {
-	return min + ((U32)Next() % (max - min));
+U32 NextU32(U32 minInclusive, U32 maxExclusive) {
+	return minInclusive + ((U32)Next() % (maxExclusive - minInclusive));
 }
 
 U64 NextU64() {

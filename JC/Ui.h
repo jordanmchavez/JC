@@ -2,17 +2,12 @@
 
 #include "JC/Common.h"
 
-namespace JC::Rng {
+namespace JC::UI {
 
 //--------------------------------------------------------------------------------------------------
 
-void Seed(U64 seed);
-U32  NextU32();
-U32  NextU32(U32 minInclusive, U32 maxExclusive);
-U64  NextU64();
-F32  NextF32();
-F64  NextF64();
+
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Rng
+}	// namespace JC::UI

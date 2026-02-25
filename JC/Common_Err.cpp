@@ -32,7 +32,7 @@ static Arg CloneArg(Arg arg) {
 	if (arg.s.len <= 256) {
 		char* str = AllocStr(arg.s.len);
 		memcpy(str, arg.s.data, arg.s.len);
-		return Arg { .s = { .data = str, .len = arg.s.len } };
+		return Arg { .type = Arg::Type::Str, .s = { .data = str, .len = arg.s.len } };
 	}
 
 	char* str = AllocStr(256);
@@ -40,7 +40,7 @@ static Arg CloneArg(Arg arg) {
 	memcpy(str, arg.s.data, 127);
 	memcpy(str + 127, "...", 3);
 	memcpy(str + 130, arg.s.data + arg.s.len - 126, 126);
-	return Arg { .s = { .data = str, .len = 256 } };
+	return Arg { .type = Arg::Type::Str, .s = { .data = str, .len = 256 } };
 }
 
 //--------------------------------------------------------------------------------------------------

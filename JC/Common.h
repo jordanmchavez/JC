@@ -156,7 +156,9 @@ template <class T> constexpr T Clamp(T x, T lo, T hi) { return x < lo ? lo : (x 
 #define DefHandle(Type) \
 	struct Type { \
 		U64 handle = 0; \
-		operator bool() const { return handle != 0; } \
+		explicit operator bool() const { return handle != 0; } \
+		bool operator==(Type other) const { return handle == other.handle; } \
+		bool operator!=(Type other) const { return handle != other.handle; } \
 	}
 
 //--------------------------------------------------------------------------------------------------

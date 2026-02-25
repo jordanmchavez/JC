@@ -298,7 +298,7 @@ Res<> LoadSpriteAtlas(Str imagePath, Str atlasPath) {
 Res<Sprite> GetSprite(Str name) {
 	U32 const* const idx = spriteObjsByName.FindOrNull(name);
 	if (!idx) {
-		return Err_SpriteNotFound();
+		return Err_SpriteNotFound("name", name);
 	}
 	return Sprite { .handle = (U64)(*idx) };
 }

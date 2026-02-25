@@ -21,24 +21,27 @@ void main() {
 	} else {
 		tempColorOut = vec4(1.0f, 1.0f, 1.0f, 1.0f);
 	}
-	tempColorOut *= colorIn;
 
-	//if (outlineWidthIn > 0.0 && tempColorOut.a < 0.5) {
-	//if (tempColorOut.a < 1.0) {
-		vec2 uvDx = dFdx(uvIn);
-		vec2 uvDy = dFdy(uvIn);
+	if (outlineWidthIn > 0.0 && tempColorOut.a < 0.5) {
+		vec2 texelStep = 1.0 / vec2(textureSize(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[SamplerId_Nearest]), 0));
+
 		float maxNeighborAlpha = 0.0;
-		for (int nx = -1; nx <= 1; nx += 2) {
-			for (int ny = -1; ny <= 1; ny += 2) {
-				vec2 neighborUV = clamp(uvIn + uvDx * float(nx) + uvDy * float(ny), uv1In, uv2In);
-				float a = texture(nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[SamplerId_Nearest])), neighborUV).a;
-				maxNeighborAlpha = max(maxNeighborAlpha, a);
-			}
-		}
+		vec2 neighborUV;
+		neighborUV = clamp(uvIn + texelStep * vec2(-1, 0), uv1In, uv2In);
+		maxNeighborAlpha = max(maxNeighborAlpha, texture(nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[SamplerId_Nearest])), neighborUV).a);
+		neighborUV = clamp(uvIn + texelStep * vec2(1, 0), uv1In, uv2In);
+		maxNeighborAlpha = max(maxNeighborAlpha, texture(nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[SamplerId_Nearest])), neighborUV).a);
+		neighborUV = clamp(uvIn + texelStep * vec2(0, -1), uv1In, uv2In);
+		maxNeighborAlpha = max(maxNeighborAlpha, texture(nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[SamplerId_Nearest])), neighborUV).a);
+		neighborUV = clamp(uvIn + texelStep * vec2(0, 1), uv1In, uv2In);
+		maxNeighborAlpha = max(maxNeighborAlpha, texture(nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[SamplerId_Nearest])), neighborUV).a);
+
 		if (maxNeighborAlpha > 0.0) {
 			tempColorOut = outlineColorIn;
 		}
-	//}
+	} else {
+		tempColorOut *= colorIn;
+	}
 
 	colorOut = tempColorOut;
 }
