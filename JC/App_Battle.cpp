@@ -24,6 +24,12 @@ static constexpr Vec4 MapBackgroundColor = Vec4(13.f/255.f, 30.f/255.f, 22.f/255
 static constexpr Vec4 SelectedColor = Vec4(0.f, 1.f, 0.f, 1.f);
 static constexpr Vec4 HoverColor = Vec4(1.f, 1.f, 1.f, 0.75f);
 
+constexpr F32 Z_Background   = 0.f;
+constexpr F32 Z_Map          = 1.f;
+constexpr F32 Z_MapHighlight = 2.f;
+constexpr F32 Z_Unit         = 3.f;
+constexpr F32 Z_UnitSelected = 4.f;
+
 struct HexCoord {
 	I16 x = 0;
 	I16 y = 0;
@@ -52,7 +58,7 @@ struct Unit {
 	bool                alive = false;
 	UnitDef const*      unitDef = nullptr;
 	Vec2                pos;
-	F32                 z = 0.f;
+	F32                 z = Z_Unit;
 	U32                 hp = 0;
 	AnimationDef const* activeAnimationDef;
 	U16                 animationFrame = 0;
@@ -298,7 +304,7 @@ Res<> Init(const Window::State*) {	// windowState
 			unit->alive   = true;
 			unit->unitDef = spearmenUnitDef;
 			unit->pos     = MapCoordToCenterPixel(mapTile->mapCoord);
-			unit->z       = 1.f;
+			unit->z       = Z_Unit;
 			unit->hp      = spearmenUnitDef->maxHp;
 			mapTile->unit = unit;
 		}
@@ -326,6 +332,7 @@ static void HandleLeftClick() {
 			Assert(!selectedMapTile);
 			if (clickedMapTile->unit) {
 				selectedUnit = clickedMapTile->unit;
+				selectedUnit->z = Z_UnitSelected;
 				selectedMapTile = clickedMapTile;
 				Logf("Selected unit (%i, %i)", clickedMapTile->mapCoord.col, clickedMapTile->mapCoord.row);
 			} else {
@@ -394,10 +401,9 @@ static void ExecuteMoveOrder(F32 secs) {
 		Vec2 const endPos   = MapCoordToCenterPixel(moveOrder->endMapTile->mapCoord);
 		F32 const t         = moveOrder->elapsedSecs / moveOrder->durSecs;
 		moveOrder->unit->pos = Math::Lerp(startPos, endPos, t);
-		moveOrder->unit->z = 2.f;
 	} else {
-		moveOrder->unit->z = 1.f;
 		moveOrder->endMapTile->unit = moveOrder->unit;
+		moveOrder->unit->z = Z_Unit;
 		memset(&order, 0, sizeof(order));
 		selectedMapTile = nullptr;
 		selectedUnit    = nullptr;
@@ -430,7 +436,7 @@ static void ExecuteAttackOrder(F32 secs) {
 			if (unit->animationFrameElapsedSecs < unit->activeAnimationDef->frameDurSecs[unit->animationFrame]) {
 				// nothing
 			} else {
-				if (unit->animationFrame < unit->activeAnimationDef->frameLen) {
+				if (unit->animationFrame < unit->activeAnimationDef->frameLen - 1) {
 					unit->animationFrame++;
 					unit->animationFrameElapsedSecs = 0.f;
 				} else {
@@ -453,6 +459,7 @@ static void ExecuteAttackOrder(F32 secs) {
 				unit->pos = Math::Lerp(startPos, endPos, t);
 			} else {
 				unit->pos = MapCoordToCenterPixel(attackOrder->unitMapTile->mapCoord);
+				unit->z = Z_Unit;
 				memset(&order, 0, sizeof(order));
 				selectedMapTile = nullptr;
 				selectedUnit    = nullptr;
@@ -550,7 +557,7 @@ Res<> Draw(Gpu::Frame const* gpuFrame) {
 	Draw::SetCanvas(canvas);
 	Draw::Draw({
 		.pos   = Vec2(canvasSize.x / 2.f, canvasSize.y / 2.f),
-		.z     = -1.f,
+		.z     = Z_Background,
 		.size  = canvasSize,
 		.color = MapBackgroundColor,
 	});
@@ -562,11 +569,13 @@ Res<> Draw(Gpu::Frame const* gpuFrame) {
 			Draw::Draw({
 				.sprite = terrainSprites[(U32)mapTile->terrainType],
 				.pos    = centerPos,
+				.z      = Z_Map,
 			});
 			if (mapTile == selectedMapTile) {
 				Draw::Draw({
 					.sprite = hexBorderSprite,
 					.pos    = centerPos,
+					.z      = Z_MapHighlight,
 					.color  = SelectedColor
 				});
 			}
@@ -576,6 +585,7 @@ Res<> Draw(Gpu::Frame const* gpuFrame) {
 		Draw::Draw({
 			.sprite = hexBorderSprite,
 			.pos    = MapCoordToCenterPixel(mouseMapCoord),
+			.z      = Z_MapHighlight,
 			.color  = HoverColor
 		});
 	}
