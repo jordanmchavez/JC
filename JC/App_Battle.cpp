@@ -55,6 +55,7 @@ struct UnitDef {
 };
 
 struct Unit {
+	U64                 id = 0;
 	bool                alive = false;
 	UnitDef const*      unitDef = nullptr;
 	Vec2                pos;
@@ -142,12 +143,14 @@ static Vec2         mousePos;
 static MapCoord     mouseMapCoord;
 static UnitDef      unitDefs[MaxUnitDefs];
 static U32          unitDefsLen;
+static U64          nextUnitId = 1;
 static UnitDef*     spearmenUnitDef;
 static Unit         units[MaxUnits];
 static U32          unitsLen;
 static State        state;
 static Draw::Sprite hexBorderSprite;
 static Draw::Sprite terrainSprites[(U32)TerrainType::Max];
+static Draw::Sprite fontSprites[256];
 static Unit*        selectedUnit;
 static MapTile*     selectedMapTile;
 static MapTile*     hoverMapTile;
@@ -241,7 +244,10 @@ static MapCoord PixelToMapCoord(Vec2 p) {
 
 static Unit* AllocUnit() {
 	Assert(unitsLen < MaxUnits);
-	return &units[unitsLen++];
+	Unit* const unit = &units[unitsLen++];
+	unit->id = nextUnitId;
+	nextUnitId++;
+	return unit;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -308,6 +314,17 @@ Res<> Init(const Window::State*) {	// windowState
 			unit->hp      = spearmenUnitDef->maxHp;
 			mapTile->unit = unit;
 		}
+	}
+
+	Draw::Sprite badFontSprite; TryTo(Draw::GetSprite("Font_?"), badFontSprite);
+	for (U32 i = 0; i < 256; i++) {
+		fontSprites[i] = badFontSprite;
+	}
+	for (char c = 'A'; c <= 'Z'; c++) {
+		TryTo(Draw::GetSprite(SPrintf(tempMem, "Font_%c", c)), fontSprites[c]);
+	}
+	for (char c = '0'; c <= '9'; c++) {
+		TryTo(Draw::GetSprite(SPrintf(tempMem, "Font_%c", c)), fontSprites[c]);
 	}
 
 	mousePos = Vec2(0.f, 0.f);
@@ -589,26 +606,48 @@ Res<> Draw(Gpu::Frame const* gpuFrame) {
 			.color  = HoverColor
 		});
 	}
-
 	for (U32 i = 0; i < unitsLen; i++) {
 		Unit const* const unit = &units[i];
 		if (!unit->alive) { continue; }
-			F32 outlineWidth = 0.f;
-			if (unit == selectedUnit) {
-				outlineWidth = 1.f;
-			}
-			Draw::Sprite sprite = unit->unitDef->sprite;
-			if (unit->activeAnimationDef) {
-				sprite = unit->activeAnimationDef->frameSprites[unit->animationFrame];
-			}
-			Draw::Draw({
-				.sprite       = sprite,
-				.pos          = unit->pos,
-				.z            = unit->z,
-				.outlineColor = SelectedColor,
-				.outlineWidth = outlineWidth,
-			});
+		F32 outlineWidth = 0.f;
+		if (unit == selectedUnit) {
+			outlineWidth = 1.f;
 		}
+		Draw::Sprite sprite = unit->unitDef->sprite;
+		if (unit->activeAnimationDef) {
+			sprite = unit->activeAnimationDef->frameSprites[unit->animationFrame];
+		}
+		Draw::Draw({
+			.sprite       = sprite,
+			.pos          = unit->pos,
+			.z            = unit->z,
+			.outlineColor = SelectedColor,
+			.outlineWidth = outlineWidth,
+		});
+		constexpr F32 HpBarHeight = 2.f;
+		F32 y = unit->pos.y - (unit->unitDef->size.y / 2.f) - (HpBarHeight / 2.f);
+		Draw::Draw({
+			.pos   = Vec2(unit->pos.x, y),
+			.z     = unit->z,
+			.size  = Vec2(unit->unitDef->size.x, HpBarHeight),
+			.color = Vec4(1.f, 0.f, 0.f, 1.f),
+		});
+		constexpr F32 FontSize = 5.f;
+		y -= HpBarHeight / 2.f;
+		y -= FontSize / 2.f;
+		y -= 1;
+		Str idStr = SPrintf(tempMem, "%u", unit->id);
+		F32 x = unit->pos.x - (unit->unitDef->size.x / 2.f) + (FontSize / 2.f);
+		for (U32 j = 0; j < idStr.len; j++) {
+			Draw::Draw({
+				.sprite = fontSprites[idStr[j]],
+				.pos    = Vec2(x, y),
+				.z     = unit->z,
+				.color  = Vec4(1.f, 0.5f, 1.f, 1.f),
+			});
+			x += FontSize + 1;
+		}
+	}
 
 
 	Draw::SetDefaultCanvas();
