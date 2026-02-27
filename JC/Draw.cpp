@@ -102,7 +102,6 @@ Json_End(FontFile)
 
 struct Glyph {
 	U32  imageIdx;
-	char ch = '\0';
 	Vec2 uv1;
 	Vec2 uv2;
 	Vec2 size;
@@ -272,6 +271,9 @@ void Shutdown() {
 	for (U32 i = 0; i < spriteImagesLen; i++) {
 		Gpu::DestroyImage(spriteImages[i].image);
 	}
+	for (U32 i = 0; i < fontObjsLen; i++) {
+		Gpu::DestroyImage(fontObjs[i].image);
+	}
 	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
 		Gpu::DestroyBuffer(sceneBuffers[i]);
 		Gpu::DestroyBuffer(drawCmdBuffers[i]);
@@ -416,7 +418,6 @@ Res<Font> LoadFont(Str fontPath, Str imagePath) {
 		F32 const h = (F32)fontFileGlyph->h;
 		fontObj->glyphs[fontFileGlyph->ch] = {
 			.imageIdx = imageIdx,
-			.ch       = (char)fontFileGlyph->ch,
 			.uv1      = { x / imageWidth, y / imageHeight },
 			.uv2      = { (x + w) / imageWidth, (y + h) / imageHeight },
 			.size     = { w, h },
@@ -599,7 +600,7 @@ static DrawCmd* AllocDrawCmds(U32 n) {
 //--------------------------------------------------------------------------------------------------
 
 void  DrawSprite(SpriteDrawDef drawDef) {
-	Assert(drawDef.sprite.handle < spriteObjsLen);
+	Assert(drawDef.sprite.handle > 0 && drawDef.sprite.handle < spriteObjsLen);
 	SpriteObj const* const spriteObj = &spriteObjs[drawDef.sprite.handle];
 
 	DrawCmd* const drawCmd = AllocDrawCmds(1);

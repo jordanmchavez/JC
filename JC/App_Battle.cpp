@@ -350,7 +350,7 @@ Res<> Init(Window::State const* windowState) {
 	}
 
 	TryTo(Draw::LoadFont("Assets/PixelWarden.font", "Assets/PixelWarden.png"), font);
-	fontLineHeight = (F32)Draw::GetFontLineHeight(font);
+	fontLineHeight = Draw::GetFontLineHeight(font);
 	
 	// TODO: this needs to be in all gpu resource load functions...it costs us so much time
 	Try(Gpu::ImmediateWait());
@@ -678,10 +678,10 @@ Res<> Draw(Gpu::Frame const* gpuFrame) {
 		});
 		constexpr F32 HpBarHeight = 2.f;
 		F32 y = unit->pos.y - (unit->unitDef->size.y / 2.f) - (HpBarHeight / 2.f);
-		Draw::DrawSprite({
+		Draw::DrawRect({
 			.pos   = Vec2(unit->pos.x, y),
 			.z     = unit->z,
-			.scale = Vec2(unit->unitDef->size.x, HpBarHeight),
+			.size  = Vec2(unit->unitDef->size.x, HpBarHeight),
 			.color = Vec4(1.f, 0.f, 0.f, 1.f),
 		});
 
@@ -698,7 +698,6 @@ Res<> Draw(Gpu::Frame const* gpuFrame) {
 			.color  = Vec4(0.8f, 0.8f, 1.f, 1.f),
 		});
 	}
-
 
 	Draw::SetDefaultCanvas();
 	Draw::DrawCanvas({
