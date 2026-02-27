@@ -16,6 +16,7 @@ layout (location = 0)      out vec4  colorOut;
 
 void main() {
 	uint samplerId = SamplerId_Nearest;
+	//uint samplerId = SamplerId_Linear;
 
 	vec4 tempColorOut;
 	if (textureIdxIn != 0) {

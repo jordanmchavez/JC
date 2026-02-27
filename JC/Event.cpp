@@ -1,5 +1,7 @@
 #include "JC/Event.h"
 
+#include "JC/Log.h"
+
 namespace JC::Event {
 
 //----------------------------------------------------------------------------------------------
@@ -17,7 +19,6 @@ void AddEvent(Event event) {
 	if (event.type == Type::Key) {
 		keyDown[(U32)event.key.key] = event.key.down;
 	}
-
 	U32 const nextHead = (head + 1) & (MaxEvents - 1);
 	if (nextHead == tail) {
 		Panic("Ran out of events");

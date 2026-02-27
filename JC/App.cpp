@@ -72,7 +72,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 
 	Try(app->PreInit(permMem, tempMem));
 
-	Window::InitDesc const windowInitDesc = {
+	Window::InitDef const windowInitDef = {
 		.tempMem    = tempMem,
 		.title      = Cfg::GetStr(Cfg_Title, "Untitled"),
 		.style      = (Window::Style)Cfg::GetU32(Cfg_WindowStyle, (U32)Window::Style::BorderedResizable),
@@ -80,28 +80,28 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 		.height     = Cfg::GetU32(Cfg_WindowHeight, 768),
 		.displayIdx = Cfg::GetU32(Cfg_WindowDisplayIdx, 1),
 	};
-	Try(Window::Init(&windowInitDesc));
+	Try(Window::Init(&windowInitDef));
 
 	Window::Frame();
 	Window::State windowState = Window::GetState();
 
-	Window::PlatformDesc const windowPlatformDesc = Window::GetPlatformDesc();
-	const Gpu::InitDesc gpuInitDesc = {
-		.permMem            = permMem,
-		.tempMem            = tempMem,
-		.windowWidth        = windowState.width,
-		.windowHeight       = windowState.height,
-		.windowPlatformDesc = &windowPlatformDesc,
+	Window::PlatformDef const windowPlatformDef = Window::GetPlatformDef();
+	const Gpu::InitDef gpuInitDef = {
+		.permMem           = permMem,
+		.tempMem           = tempMem,
+		.windowWidth       = windowState.width,
+		.windowHeight      = windowState.height,
+		.windowPlatformDef = &windowPlatformDef,
 	};
-	Try(Gpu::Init(&gpuInitDesc));
+	Try(Gpu::Init(&gpuInitDef));
 
-	Draw::InitDesc const drawInitDesc = {
+	Draw::InitDef const drawInitDef = {
 		.permMem      = permMem,
 		.tempMem      = tempMem,
 		.windowWidth  = windowState.width,
 		.windowHeight = windowState.height,
 	};
-	Try(Draw::Init(&drawInitDesc));
+	Try(Draw::Init(&drawInitDef));
 
 	Try(app->Init(&windowState));
 

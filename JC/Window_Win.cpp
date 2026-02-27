@@ -36,6 +36,7 @@ static Mem     tempMem;
 static Display displays[MaxDisplays];
 static U32     displaysLen;
 static Window  window;
+static bool    inSizeMove;
 
 //----------------------------------------------------------------------------------------------
 
@@ -66,15 +67,24 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 			window.dpiScale = (F32)LOWORD(wparam) / (F32)USER_DEFAULT_SCREEN_DPI;
 			break;
 
+		case WM_ENTERSIZEMOVE:
+			inSizeMove = true;
+			break;
+
 		case WM_EXITSIZEMOVE:
 			if (window.cursorMode != CursorMode::VisibleFree && hwnd == GetActiveWindow()) {
 				RECT r;
 				GetWindowRect(hwnd, &r);
 				ClipCursor(&r);
 			}
+			inSizeMove = false;
 			break;
 
 		case WM_INPUT: {
+			if (inSizeMove) {
+				break;
+			}
+
 			const HRAWINPUT hrawInput = (HRAWINPUT)lparam;
 			UINT size = 0;
 			GetRawInputData(hrawInput, RID_INPUT, 0, &size, sizeof(RAWINPUTHEADER));
@@ -167,6 +177,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 			break;
 
 		case WM_SYSCOMMAND:
+			if (inSizeMove) {
+				break;
+			}
 			if (wparam == SC_CLOSE) {
 				Event::AddEvent({ .type = Event::Type::ExitRequest });
 				return 0;
@@ -204,6 +217,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 			break;
 	}
 	return DefWindowProc(hwnd, msg, wparam, lparam);
+
 }
 
 //----------------------------------------------------------------------------------------------
@@ -239,8 +253,8 @@ static BOOL MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
 
 //----------------------------------------------------------------------------------------------
 
-Res<> Init(const InitDesc* initDesc) {
-	tempMem = initDesc->tempMem;
+Res<> Init(const InitDef* initDef) {
+	tempMem = initDef->tempMem;
 
 	if (EnumDisplayMonitors(0, 0, MonitorEnumFn, 0) == FALSE) {
 		return Win_LastErr("EnumDisplayMonitors");
@@ -269,9 +283,9 @@ Res<> Init(const InitDesc* initDesc) {
 		return Win_LastErr("RegisterClassExW");
 	}
 
-	Span<wchar_t> titlew = Unicode::Utf8ToWtf16z(tempMem, initDesc->title);
+	Span<wchar_t> titlew = Unicode::Utf8ToWtf16z(tempMem, initDef->title);
 
-	window.style = initDesc->style;
+	window.style = initDef->style;
 	window.winStyle = 0;
 	switch (window.style) {
 		case Style::Bordered:
@@ -288,16 +302,16 @@ Res<> Init(const InitDesc* initDesc) {
 			break;
 	}
 
-	Display const* const display = &displays[(initDesc->displayIdx >= displaysLen) ? 0 : initDesc->displayIdx];
+	Display const* const display = &displays[(initDef->displayIdx >= displaysLen) ? 0 : initDef->displayIdx];
 	RECT r = {};
-	if (initDesc->style == Style::Fullscreen) {
+	if (initDef->style == Style::Fullscreen) {
 		r.left =   display->x;
 		r.top    = display->y;
 		r.right  = display->x + display->width;
 		r.bottom = display->y + display->height;
 	} else {
-		U32 const w = Min(initDesc->width,  display->width);
-		U32 const h = Min(initDesc->height, display->height);
+		U32 const w = Min(initDef->width,  display->width);
+		U32 const h = Min(initDef->height, display->height);
 		I32 const x = display->x + (I32)(display->width  - w) / 2;
 		I32 const y = display->y + (I32)(display->height - h) / 2;
 		r.left =   x;
@@ -448,8 +462,8 @@ void SetCursorMode(CursorMode newCursorMode) {
 
 //----------------------------------------------------------------------------------------------
 
-PlatformDesc GetPlatformDesc() {
-	return PlatformDesc {
+PlatformDef GetPlatformDef() {
+	return PlatformDef {
 		.hinstance = GetModuleHandleW(0),
 		.hwnd      = window.hwnd,
 	};

@@ -248,7 +248,7 @@ void Namev(SrcLoc sl, Buffer   buffer,   char const* fmt, Span<Arg const> args) 
 void Namev(SrcLoc sl, Image    image,    char const* fmt, Span<Arg const> args) { VkNameImpl(sl, (U64)imageObjs.Get(image)->vkImage,                VK_OBJECT_TYPE_IMAGE,           fmt, args); }
 void Namev(SrcLoc sl, Shader   shader,   char const* fmt, Span<Arg const> args) { VkNameImpl(sl, (U64)shaderObjs.Get(shader)->vkShaderModule,       VK_OBJECT_TYPE_SHADER_MODULE,   fmt, args); }
 void Namev(SrcLoc sl, Pipeline pipeline, char const* fmt, Span<Arg const> args) { VkNameImpl(sl, (U64)pipelineObjs.Get(pipeline)->vkPipeline,       VK_OBJECT_TYPE_PIPELINE,        fmt, args);
-                                                                                       VkNameImpl(sl, (U64)pipelineObjs.Get(pipeline)->vkPipelineLayout, VK_OBJECT_TYPE_PIPELINE_LAYOUT, fmt, args); }
+                                                                                  VkNameImpl(sl, (U64)pipelineObjs.Get(pipeline)->vkPipelineLayout, VK_OBJECT_TYPE_PIPELINE_LAYOUT, fmt, args); }
 //----------------------------------------------------------------------------------------------
 
 static Res<> InitInstance() {
@@ -405,14 +405,14 @@ static Res<> InitInstance() {
 
 //-------------------------------------------------------------------------------------------------
 
-static Res<> InitSurface(Window::PlatformDesc const* windowPlatformDesc) {
+static Res<> InitSurface(Window::PlatformDef const* windowPlatformDef) {
 	#if defined Platform_Windows
 		VkWin32SurfaceCreateInfoKHR win32SurfaceCreateInfo = {
 			.sType     = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
 			.pNext     = 0,
 			.flags     = 0,
-			.hinstance = (HINSTANCE)windowPlatformDesc->hinstance,
-			.hwnd      = (HWND)windowPlatformDesc->hwnd,
+			.hinstance = (HINSTANCE)windowPlatformDef->hinstance,
+			.hwnd      = (HWND)windowPlatformDef->hwnd,
 		};
 		TryVk(vkCreateWin32SurfaceKHR(vkInstance, &win32SurfaceCreateInfo, vkAllocationCallbacks, &vkSurface));
 	#endif	// Platform
@@ -991,9 +991,9 @@ static Res<> InitBindless() {
 
 //-------------------------------------------------------------------------------------------------
 
-Res<> Init(InitDesc const* initDesc) {
-	permMem = initDesc->permMem;
-	tempMem = initDesc->tempMem;
+Res<> Init(InitDef const* initDef) {
+	permMem = initDef->permMem;
+	tempMem = initDef->tempMem;
 
 	Sys::InitMutex(&mutex);
 
@@ -1003,9 +1003,9 @@ Res<> Init(InitDesc const* initDesc) {
 	pipelineObjs.Init(permMem, MaxPipelines);
 
 	Try(InitInstance());
-	Try(InitSurface(initDesc->windowPlatformDesc));
+	Try(InitSurface(initDef->windowPlatformDef));
 	Try(InitDevice());
-	Try(InitSwapchain(initDesc->windowWidth, initDesc->windowHeight, VK_NULL_HANDLE));
+	Try(InitSwapchain(initDef->windowWidth, initDef->windowHeight, VK_NULL_HANDLE));
 	Try(InitFrame());
 	Try(InitImmediate());
 	Try(InitBindless());

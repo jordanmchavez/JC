@@ -156,13 +156,14 @@ template <class T> constexpr T Clamp(T x, T lo, T hi) { return x < lo ? lo : (x 
 
 //--------------------------------------------------------------------------------------------------
 
-#define DefHandle(Type) \
-	struct Type { \
-		U64 handle = 0; \
-		explicit operator bool() const { return handle != 0; } \
-		bool operator==(Type other) const { return handle == other.handle; } \
-		bool operator!=(Type other) const { return handle != other.handle; } \
-	}
+template <typename Tag>
+struct Handle {
+    U64 handle = 0;
+    bool operator==(const Handle&) const = default;
+    bool operator!=(const Handle&) const = default;
+    explicit operator bool() const { return handle != 0; }
+};
+#define DefHandle(Type) struct Type##HandleTag; using Type = Handle<Type##HandleTag>
 
 //--------------------------------------------------------------------------------------------------
 

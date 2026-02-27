@@ -28,7 +28,7 @@ enum CursorMode {
 	HiddenLocked,	// ->visible: reappear at position hidden, same with alt+tabbing
 };
 
-struct InitDesc {
+struct InitDef {
 	Mem   tempMem;
 	Str   title;
 	Style style;
@@ -48,18 +48,18 @@ struct State {
 	bool       focused    = false;
 };
 
-struct PlatformDesc {
+struct PlatformDef {
 	#if defined Platform_Windows
 		void* hinstance = 0;
 		void* hwnd      = 0;
 	#endif	// Platform
 };
 
-Res<>               Init(const InitDesc* initDesc);
+Res<>               Init(const InitDef* initDef);
 void                Shutdown();
 Span<const Display> GetDisplays();
 void                Frame();
-PlatformDesc        GetPlatformDesc();
+PlatformDef         GetPlatformDef();
 State               GetState();
 
 //--------------------------------------------------------------------------------------------------

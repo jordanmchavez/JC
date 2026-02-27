@@ -1,0 +1,11 @@
+[
+	{ x:   0, y:   0, w: 64, h: 64, name: "Hex_64" },
+	{ x:  64, y:   0, w: 64, h: 64, name: "Hex_64_Border" },
+	{ x: 128, y:   0, w: 32, h: 32, name: "Hex_Border_32" },
+	{ x: 160, y:   0, w: 32, h: 32, name: "Hex_Grass_32" },
+	{ x: 192, y:   0, w: 32, h: 32, name: "Hex_Forest_32" },
+	{ x: 224, y:   0, w: 32, h: 32, name: "Hex_Mountain_32" },
+	{ x: 256, y:   0, w: 32, h: 32, name: "Hex_Swamp_32" },
+	{ x: 288, y:   0, w: 32, h: 32, name: "Hex_Water_32" },
+	{ x: 320, y:   0, w: 32, h: 32, name: "Hex_Hill_32" }
+]

@@ -10,6 +10,7 @@
 #include "JC/Log.h"
 #include "JC/Map.h"
 #include "JC/Math.h"
+#include "JC/StrDb.h"
 
 #include "stb/stb_image.h"
 
@@ -22,39 +23,115 @@ DefErr(Draw, DuplicateSpriteName);
 DefErr(Draw, ImageFmt);
 DefErr(Draw, LoadImage);
 DefErr(Draw, SpriteNotFound);
+DefErr(Draw, BadFontChar);
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr U32 MaxDrawCmds          = 128 * 1024;
-static constexpr U32 MaxSpriteAtlasImages = 64;
-static constexpr U32 MaxSprites           = 1 * MB;
-static constexpr U32 MaxCanvases          = 64;
-static constexpr U32 MaxPasses            = 64;
+static constexpr U32 MaxDrawCmds     = 128 * 1024;
+static constexpr U32 MaxSpriteImages = 256;
+static constexpr U32 MaxSprites      = 1 * MB;
+static constexpr U32 MaxFonts        = 256;
+static constexpr U32 MaxCanvases     = 64;
+static constexpr U32 MaxPasses       = 64;
 
 //--------------------------------------------------------------------------------------------------
 
-struct SpriteAtlasEntry {
-	U32 x;
-	U32 y;
-	U32 w;
-	U32 h;
+struct SpriteFileEntry {
+	U32 x = 0;
+	U32 y = 0;
+	U32 w = 0;
+	U32 h = 0;
 	Str name;
 };
-Json_Begin(SpriteAtlasEntry)
+Json_Begin(SpriteFileEntry)
 	Json_Member("x",    x)
 	Json_Member("y",    y)
 	Json_Member("w",    w)
 	Json_Member("h",    h)
 	Json_Member("name", name)
-Json_End(SpriteAtlasEntry)
+Json_End(SpriteFileEntry)
+
+struct SpriteImage {
+	Str        path;
+	Gpu::Image image;
+	U32        imageIdx = 0;
+};
 
 struct SpriteObj {
-	U32  imageIdx;
+	U32  imageIdx = 0;
 	Vec2 uv1;
 	Vec2 uv2;
 	Vec2 size;
 	Str  name;
 };
+
+//--------------------------------------------------------------------------------------------------
+
+struct FontFileGlyph {
+	U32 x    = 0;
+	U32 y    = 0;
+	U32 w    = 0;
+	U32 h    = 0;
+	I32 xOff = 0;
+	I32 yOff = 0;
+	U32 xAdv = 0;
+	U32 ch   = 0;
+};
+Json_Begin(FontFileGlyph)
+	Json_Member("x",    x)
+	Json_Member("y",    y)
+	Json_Member("w",    w)
+	Json_Member("h",    h)
+	Json_Member("xOff", xOff)
+	Json_Member("yOff", yOff)
+	Json_Member("xAdv", xAdv)
+	Json_Member("ch",   ch)
+Json_End(FontFileGlyph)
+
+struct FontFile {
+	U32                 lineHeight = 0;
+	U32                 base = 0;
+	Span<FontFileGlyph> glyphs;
+};
+Json_Begin(FontFile)
+	Json_Member("lineHeight", lineHeight)
+	Json_Member("base",       base)
+	Json_Member("glyphs",     glyphs)
+Json_End(FontFile)
+
+
+struct Glyph {
+	U32  imageIdx;
+	char ch = '\0';
+	Vec2 uv1;
+	Vec2 uv2;
+	Vec2 size;
+	Vec2 off;
+	F32  xAdv = 0.f;
+};
+
+struct FontObj {
+	Str        path;
+	Gpu::Image image;
+	U32        imageIdx;
+	F32        lineHeight;
+	F32        base;	// pixels from top of line to baseline
+	Glyph      glyphs[256];
+};
+
+//--------------------------------------------------------------------------------------------------
+
+struct CanvasObj {
+	Gpu::Image       colorImage;
+	U32              colorImageIdx;
+	Gpu::ImageLayout colorImageLayout;
+	Gpu::Image       depthImage;
+	Vec2             size;
+};
+
+using CanvasPool = HandlePool<CanvasObj, Canvas>;
+
+//--------------------------------------------------------------------------------------------------
 
 struct Scene {
 	Mat4 projViews[MaxCanvases + 1];	// +1 for the no-canvas pass
@@ -79,16 +156,6 @@ struct DrawCmd {
 	F32  rotation = 0.f;
 };
 
-struct CanvasObj {
-	Gpu::Image       colorImage;
-	U32              colorImageIdx;
-	Gpu::ImageLayout colorImageLayout;
-	Gpu::Image       depthImage;
-	Vec2             size;
-};
-
-using CanvasPool = HandlePool<CanvasObj, Canvas>;
-
 struct Pass {
 	Canvas canvas;
 	U32    drawCmdStart;
@@ -101,6 +168,14 @@ static Mem           permMem;
 static Mem           tempMem;
 static U32           windowWidth;
 static U32           windowHeight;
+static SpriteImage*  spriteImages;
+static U32           spriteImagesLen;
+static SpriteObj*    spriteObjs;
+static U32           spriteObjsLen;
+static Map<Str, U32> spriteObjsByName;
+static FontObj*      fontObjs;
+static U32           fontObjsLen;
+static CanvasPool    canvasObjs;
 static Gpu::Image    depthImage;
 static Gpu::Shader   vertexShader;
 static Gpu::Shader   fragmentShader;
@@ -114,15 +189,9 @@ static void*         drawCmdBufferPtrs[Gpu::MaxFrames];
 static U64           drawCmdBufferAddrs[Gpu::MaxFrames];
 static DrawCmd*      drawCmds;
 static U32           drawCmdCount;
-static CanvasPool    canvasObjs;
 static Canvas        swapchainCanvas;
 static Pass*         passes;
 static U32           passesLen;
-static Gpu::Image*   spriteAtlasImages;
-static U32           spriteAtlasImagesLen;
-static SpriteObj*    spriteObjs;
-static U32           spriteObjsLen;
-static Map<Str, U32> spriteObjsByName;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -134,20 +203,22 @@ static Res<Gpu::Shader> LoadShader(Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Init(InitDesc const* initDesc) {
-	permMem      = initDesc->permMem;
-	tempMem      = initDesc->tempMem;
-	windowWidth  = initDesc->windowWidth;
-	windowHeight = initDesc->windowHeight;
+Res<> Init(InitDef const* initDef) {
+	permMem      = initDef->permMem;
+	tempMem      = initDef->tempMem;
+	windowWidth  = initDef->windowWidth;
+	windowHeight = initDef->windowHeight;
 
-	canvasObjs.Init(permMem, MaxCanvases);
-	passes               = Mem::AllocT<Pass>(permMem, MaxPasses);
-	passesLen            = 0;
-	spriteAtlasImages    = Mem::AllocT<Gpu::Image>(permMem, MaxSpriteAtlasImages);
-	spriteAtlasImagesLen = 0;
-	spriteObjs           = Mem::AllocT<SpriteObj>(permMem, MaxSprites);
-	spriteObjsLen        = 1;	// reserve 0 for invalid since this is the handle value
+	spriteImages    = Mem::AllocT<SpriteImage>(permMem, MaxSpriteImages);
+	spriteImagesLen = 0;
+	spriteObjs      = Mem::AllocT<SpriteObj>(permMem, MaxSprites);
+	spriteObjsLen   = 1;	// reserve 0 for invalid
+	fontObjs        = Mem::AllocT<FontObj>(permMem, MaxFonts);
+	fontObjsLen     = 1;	// reserve 0 for invalid
+	passes          = Mem::AllocT<Pass>(permMem, MaxPasses);
+	passesLen       = 0;
 	spriteObjsByName.Init(permMem, MaxSprites);
+	canvasObjs.Init(permMem, MaxCanvases);
 
 	Try(Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(depthImage));
 	Gpu_Name(depthImage);
@@ -198,8 +269,8 @@ Res<> Init(InitDesc const* initDesc) {
 //--------------------------------------------------------------------------------------------------
 
 void Shutdown() {
-	for (U32 i = 0; i < spriteAtlasImagesLen; i++) {
-		Gpu::DestroyImage(spriteAtlasImages[i]);
+	for (U32 i = 0; i < spriteImagesLen; i++) {
+		Gpu::DestroyImage(spriteImages[i].image);
 	}
 	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
 		Gpu::DestroyBuffer(sceneBuffers[i]);
@@ -252,6 +323,7 @@ static Res<Gpu::Image> LoadImage(Str path) {
 
 	Gpu::Image image;
 	Try(Gpu::CreateImage(width, height, Gpu::ImageFormat::R8G8B8A8_UNorm, Gpu::ImageUsage::Sampled | Gpu::ImageUsage::Copy).To(image));
+	Gpu_Namef(image, "%s", path);
 	Try(Gpu::ImmediateCopyToImage(imageData, image, Gpu::BarrierStage::VertexShader_SamplerRead, Gpu::ImageLayout::ShaderRead));
 
 	return image;
@@ -259,33 +331,37 @@ static Res<Gpu::Image> LoadImage(Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> LoadSpriteAtlas(Str imagePath, Str atlasPath) {
-	Assert(spriteAtlasImagesLen < MaxSpriteAtlasImages);
+Res<> LoadSprites(Str imagePath, Str spritesPath) {
+	Assert(spriteImagesLen < MaxSpriteImages);
 
 	Gpu::Image image; TryTo(LoadImage(imagePath), image);
-	U32 const imageIdx = Gpu::GetImageBindIdx(image);
+	U32 const imageIdx    = Gpu::GetImageBindIdx(image);
 	F32 const imageWidth  = (F32)Gpu::GetImageWidth(image);
 	F32 const imageHeight = (F32)Gpu::GetImageHeight(image);
-	spriteAtlasImages[spriteAtlasImagesLen++] = image;
+	spriteImages[spriteImagesLen++] = {
+		.path     = StrDb::Get(imagePath),
+		.image    = image,
+		.imageIdx = imageIdx,
+	};
 
-	Span<char> json; TryTo(FS::ReadAllZ(tempMem, atlasPath), json);
-	Span<SpriteAtlasEntry> entries; Try(Json::ToArray(tempMem, tempMem, json.data, (U32)json.len, &entries));
+	Span<char> json; TryTo(FS::ReadAllZ(tempMem, spritesPath), json);
+	Span<SpriteFileEntry> entries; Try(Json::ToArray(tempMem, tempMem, json.data, (U32)json.len, &entries));
 	Assert(spriteObjsLen + entries.len <= MaxSprites);
 	for (U64 i = 0; i < entries.len; i++) {
-		SpriteAtlasEntry* const entry = &entries[i];
+		SpriteFileEntry const* const entry = &entries[i];
 		if (spriteObjsByName.FindOrNull(entry->name)) {
-			return Err_DuplicateSpriteName("path", atlasPath, "name", entry->name);
+			return Err_DuplicateSpriteName("path", spritesPath, "name", entry->name);
 		}
-		F32 const x = (F32)entry->x / imageWidth;
-		F32 const y = (F32)entry->y / imageHeight;
+		F32 const x = (F32)entry->x;
+		F32 const y = (F32)entry->y;
 		F32 const w = (F32)entry->w;
 		F32 const h = (F32)entry->h;
 
 		spriteObjsByName.Put(entry->name, spriteObjsLen);
 		spriteObjs[spriteObjsLen++] = {
 			.imageIdx = imageIdx,
-			.uv1      = { x, y },
-			.uv2      = { x + (w / imageWidth), y + (h / imageHeight) },
+			.uv1      = { x / imageWidth, y / imageHeight },
+			.uv2      = { (x + w) / imageWidth, (y + h) / imageHeight },
 			.size     = { w, h },
 			.name     = entry->name,
 		};
@@ -308,6 +384,55 @@ Res<Sprite> GetSprite(Str name) {
 Vec2 GetSpriteSize(Sprite sprite) {
 	Assert(sprite.handle > 0 && sprite.handle < spriteObjsLen);
 	return spriteObjs[sprite.handle].size;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<Font> LoadFont(Str fontPath, Str imagePath) {
+	Assert(fontObjsLen < MaxFonts);
+
+	Gpu::Image image; TryTo(LoadImage(imagePath), image);
+	U32 const imageIdx    = Gpu::GetImageBindIdx(image);
+	F32 const imageWidth  = (F32)Gpu::GetImageWidth(image);
+	F32 const imageHeight = (F32)Gpu::GetImageHeight(image);
+
+	Span<char> json; TryTo(FS::ReadAllZ(tempMem, fontPath), json);
+	FontFile fontFile; Try(Json::ToObj(tempMem, tempMem, json.data, (U32)json.len, &fontFile));
+
+	FontObj* const fontObj = &fontObjs[fontObjsLen++];
+	fontObj->path       = StrDb::Get(fontPath);
+	fontObj->image      = image;
+	fontObj->imageIdx   = imageIdx;
+	fontObj->lineHeight = (F32)fontFile.lineHeight;
+	fontObj->base       = (F32)fontFile.base;
+
+	for (U64 i = 0; i < fontFile.glyphs.len; i++) {
+		FontFileGlyph const* const fontFileGlyph = &fontFile.glyphs[i];
+		// TODO: more validation, here and in sprite
+		if (fontFileGlyph->ch >= 256) { return Err_BadFontChar("fontPath", fontPath, "ch", fontFileGlyph->ch); }
+		F32 const x = (F32)fontFileGlyph->x;
+		F32 const y = (F32)fontFileGlyph->y;
+		F32 const w = (F32)fontFileGlyph->w;
+		F32 const h = (F32)fontFileGlyph->h;
+		fontObj->glyphs[fontFileGlyph->ch] = {
+			.imageIdx = imageIdx,
+			.ch       = (char)fontFileGlyph->ch,
+			.uv1      = { x / imageWidth, y / imageHeight },
+			.uv2      = { (x + w) / imageWidth, (y + h) / imageHeight },
+			.size     = { w, h },
+			.off      = Vec2((F32)fontFileGlyph->xOff, (F32)fontFileGlyph->yOff),
+			.xAdv     = (F32)fontFileGlyph->xAdv,
+		};
+	}
+
+	return Font { .handle = (U64)(fontObj - fontObjs) };
+}
+
+//--------------------------------------------------------------------------------------------------
+
+F32 GetFontLineHeight(Font font) {
+	Assert(font.handle > 0 && font.handle < fontObjsLen);
+	return fontObjs[font.handle].lineHeight;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -473,32 +598,123 @@ static DrawCmd* AllocDrawCmds(U32 n) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Draw(DrawDesc drawDesc) {
-	DrawCmd* const drawCmd = AllocDrawCmds(1);
-	drawCmd->pos          = Vec3(drawDesc.pos.x, drawDesc.pos.y, drawDesc.z);
-	drawCmd->color        = drawDesc.color;
-	drawCmd->outlineColor = drawDesc.outlineColor;
-	drawCmd->outlineWidth = drawDesc.outlineWidth;
-	drawCmd->rotation     = drawDesc.rotation;
+void  DrawSprite(SpriteDrawDef drawDef) {
+	Assert(drawDef.sprite.handle < spriteObjsLen);
+	SpriteObj const* const spriteObj = &spriteObjs[drawDef.sprite.handle];
 
-	if (drawDesc.sprite) {
-		Assert(drawDesc.sprite.handle < spriteObjsLen);
-		const SpriteObj* const spriteObj = &spriteObjs[drawDesc.sprite.handle];
-		drawCmd->size       = Math::Mul(spriteObj->size, drawDesc.size);
-		drawCmd->uv1        = spriteObj->uv1;
-		drawCmd->uv2        = spriteObj->uv2;
-		drawCmd->textureIdx = spriteObj->imageIdx;
-	} else if (drawDesc.canvas) {
-		const CanvasObj* const canvasObj = canvasObjs.Get(drawDesc.canvas);
-		drawCmd->size       = Math::Mul(canvasObj->size, drawDesc.size),
-		drawCmd->uv1        = Vec2(0.f, 0.f),
-		drawCmd->uv2        = Vec2(1.f, 1.f),
-		drawCmd->textureIdx = canvasObj->colorImageIdx;
-	} else {
-		drawCmd->size       = drawDesc.size;
-		drawCmd->textureIdx = 0;
+	DrawCmd* const drawCmd = AllocDrawCmds(1);
+	drawCmd->textureIdx   = spriteObj->imageIdx;
+	drawCmd->pos          = Vec3(drawDef.pos.x, drawDef.pos.y, drawDef.z);
+	drawCmd->size         = Math::Mul(spriteObj->size, drawDef.scale);
+	drawCmd->uv1          = spriteObj->uv1;
+	drawCmd->uv2          = spriteObj->uv2;
+	drawCmd->color        = drawDef.color;
+	drawCmd->outlineColor = drawDef.outlineColor;
+	drawCmd->outlineWidth = drawDef.outlineWidth;
+	drawCmd->rotation     = drawDef.rotation;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static F32 StrWidth(FontObj const* fontObj, Str str, Vec2 scale) {
+	if (str.len == 0) {
+		return 0;
+	}
+
+	F32 width = 0;
+	for (U32 i = 0; i < str.len - 1; i++) {
+		Glyph const glyph = fontObj->glyphs[str[i]];
+		width += glyph.xAdv * scale.x;
+	}
+	Glyph const glyph = fontObj->glyphs[str.len - 1];
+	width += (glyph.off.x + glyph.size.x) * scale.x;
+	return width;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void DrawFont(FontDrawDef drawDef) {
+	Assert(drawDef.font.handle > 0 && drawDef.font.handle < fontObjsLen);
+	FontObj const* const fontObj = &fontObjs[drawDef.font.handle];
+
+	F32 x = drawDef.pos.x;
+	F32 y = drawDef.pos.y;
+
+	switch (drawDef.origin) {
+		case Origin::BottomLeft:
+		case Origin::BottomCenter:
+		case Origin::BottomRight:
+			y -= (fontObj->lineHeight - fontObj->base) * drawDef.scale.y;
+			break;
+		case Origin::TopLeft:
+		case Origin::TopCenter:
+		case Origin::TopRight:
+			y += fontObj->base * drawDef.scale.y;
+			break;
+	}
+	switch (drawDef.origin) {
+		case Origin::BottomCenter:
+		case Origin::Center:
+		case Origin::TopCenter:
+			x -= StrWidth(fontObj, drawDef.str, drawDef.scale) * 0.5f;
+			break;
+		case Origin::BottomRight:
+		case Origin::Right:
+		case Origin::TopRight:
+			x -= StrWidth(fontObj, drawDef.str, drawDef.scale);
+			break;
+	}
+
+	F32 const lineTop = drawDef.pos.y - (fontObj->base * drawDef.scale.y);
+	for (U32 i = 0; i < drawDef.str.len; i++) {
+		Glyph const* glyph = &fontObj->glyphs[drawDef.str[i]];
+		Vec2 const drawTopLeft = Vec2(
+			x       + (glyph->off.x * drawDef.scale.x),
+			lineTop + (glyph->off.y * drawDef.scale.y)
+		);
+		Vec2 const drawCenter = Vec2(
+			drawTopLeft.x + (glyph->size.x * drawDef.scale.x * 0.5f),
+			drawTopLeft.y + (glyph->size.y * drawDef.scale.y * 0.5f)
+		);
+
+		Assert(glyph->imageIdx);	// TODO: filled squares for chars without glyphs
+		DrawCmd* const drawCmd = AllocDrawCmds(1);
+		drawCmd->textureIdx   = glyph->imageIdx;
+		drawCmd->pos          = Vec3(drawCenter.x, drawCenter.y, drawDef.z);
+		drawCmd->size         = Math::Mul(glyph->size, drawDef.scale);
+		drawCmd->uv1          = glyph->uv1;
+		drawCmd->uv2          = glyph->uv2;
+		drawCmd->color        = drawDef.color;
+
+		x += glyph->xAdv * drawDef.scale.x;
 	}
 }
 
 //--------------------------------------------------------------------------------------------------
+
+void DrawCanvas(CanvasDrawDef drawDef) {
+	CanvasObj const* const canvasObj = canvasObjs.Get(drawDef.canvas);
+
+	DrawCmd* const drawCmd = AllocDrawCmds(1);
+	drawCmd->textureIdx   = canvasObj->colorImageIdx;
+	drawCmd->pos          = Vec3(drawDef.pos.x, drawDef.pos.y, drawDef.z);
+	drawCmd->size         = Math::Mul(canvasObj->size, drawDef.scale);
+	drawCmd->uv1          = Vec2(0.f, 0.f);
+	drawCmd->uv2          = Vec2(1.f, 1.f);
+	drawCmd->color        = drawDef.color;
+	drawCmd->rotation     = drawDef.rotation;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void DrawRect(RectDrawDef drawDef) {
+	DrawCmd* const drawCmd = AllocDrawCmds(1);
+	drawCmd->textureIdx   = 0;
+	drawCmd->pos          = Vec3(drawDef.pos.x, drawDef.pos.y, drawDef.z);
+	drawCmd->size         = drawDef.size;
+	drawCmd->color        = drawDef.color;
+}
+
+//--------------------------------------------------------------------------------------------------
+
 }	// namespace JC::Draw

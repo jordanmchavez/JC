@@ -3,6 +3,7 @@
 #include "JC/App.h"
 #include "JC/Cfg.h"
 #include "JC/Draw.h"
+#include "JC/Effect.h"
 #include "JC/Event.h"
 #include "JC/Gpu.h"
 #include "JC/Log.h"
@@ -15,20 +16,24 @@ namespace JC::Battle {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr I16 HexSize = 32;
-static constexpr I32 MapCols = 16;
-static constexpr I32 MapRows = 12;
-static constexpr U32 MaxUnitDefs = 64;
-static constexpr U32 MaxUnits = 256;
+static constexpr I16  HexSize = 32;
+static constexpr I32  MapCols = 16;
+static constexpr I32  MapRows = 14;
+static constexpr U32  MaxUnitDefs = 64;
+static constexpr U32  MaxUnits = 256;
 static constexpr Vec4 MapBackgroundColor = Vec4(13.f/255.f, 30.f/255.f, 22.f/255.f, 1.f);
 static constexpr Vec4 SelectedColor = Vec4(0.f, 1.f, 0.f, 1.f);
 static constexpr Vec4 HoverColor = Vec4(1.f, 1.f, 1.f, 0.75f);
+static constexpr F32  UiPanelWidth = 300.f;
+static constexpr Vec4 UiBackgroundColor = Vec4(0.2f, 0.3f, 0.4f, 0.5f);
 
-constexpr F32 Z_Background   = 0.f;
-constexpr F32 Z_Map          = 1.f;
-constexpr F32 Z_MapHighlight = 2.f;
-constexpr F32 Z_Unit         = 3.f;
-constexpr F32 Z_UnitSelected = 4.f;
+static constexpr F32 Z_Background   = 0.f;
+static constexpr F32 Z_Map          = 1.f;
+static constexpr F32 Z_MapHighlight = 2.f;
+static constexpr F32 Z_Unit         = 3.f;
+static constexpr F32 Z_UnitSelected = 4.f;
+static constexpr F32 Z_UiBackground = 5.f;
+static constexpr F32 Z_Ui           = 6.f;
 
 struct HexCoord {
 	I16 x = 0;
@@ -136,8 +141,13 @@ static U8           hexLut[(HexSize / 2) * (HexSize * 3 / 8)];
 static HexCoord     hexCoordLut[(HexSize / 2) * (HexSize / 2)];
 static U32          hexCoordLutLen;
 static Draw::Canvas canvas;
+static F32          canvasAreaWidth;
+static F32          canvasAreaHeight;
 static Vec2         canvasSize(MapCols * HexSize + (HexSize / 2), MapRows * (HexSize * 3 / 4) + (HexSize / 4));
-static Vec2         canvasTopLeft(25.f, 25.f);
+static F32          canvasScale = 3.f;
+static Vec2         canvasPos;
+static Vec2         canvasMinPos;
+static Vec2         canvasMaxPos;
 static MapTile      mapTiles[MapCols * MapRows];
 static Vec2         mousePos;
 static MapCoord     mouseMapCoord;
@@ -150,13 +160,13 @@ static U32          unitsLen;
 static State        state;
 static Draw::Sprite hexBorderSprite;
 static Draw::Sprite terrainSprites[(U32)TerrainType::Max];
-static Draw::Sprite fontSprites[256];
 static Unit*        selectedUnit;
 static MapTile*     selectedMapTile;
 static MapTile*     hoverMapTile;
 static Order        order;
-
-static F32 canvasScale = 2.f;
+static Draw::Font   font;
+static F32          fontLineHeight;
+static Vec2         windowSize;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -256,21 +266,44 @@ Res<> PreInit(Mem permMemIn, Mem tempMemIn) {
 	permMem = permMemIn;
 	tempMem = tempMemIn;
 	Cfg::SetStr(App::Cfg_Title, "4x Fantasy");
-	Cfg::SetU32(App::Cfg_WindowWidth, 1600);
-	Cfg::SetU32(App::Cfg_WindowHeight, 1200);
+	Cfg::SetU32(App::Cfg_WindowWidth, 1920);
+	Cfg::SetU32(App::Cfg_WindowHeight, 1080);
 	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Init(const Window::State*) {	// windowState
+Res<> Init(Window::State const* windowState) {
 	InitLuts();
+
+	windowSize = Vec2((F32)windowState->width, (F32)windowState->height);
 
 	TryTo(Draw::CreateCanvas((U32)canvasSize.x, (U32)canvasSize.y), canvas);
 
-	Try(Draw::LoadSpriteAtlas("Assets/Terrain.png", "Assets/Terrain.atlas"));
-	Try(Draw::LoadSpriteAtlas("Assets/Units.png", "Assets/Units.atlas"));
-	Try(Gpu::ImmediateWait());
+	canvasAreaWidth  = windowSize.x - UiPanelWidth;
+	canvasAreaHeight = windowSize.y - 100.f;
+
+	F32 const canvasScaledWidth  = canvasSize.x * canvasScale;
+	F32 const canvasScaledHeight = canvasSize.y * canvasScale;
+	canvasMaxPos.x = (canvasAreaWidth  / 2.f) - (canvasAreaWidth  - canvasScaledWidth) / 2.f;
+	canvasMaxPos.y = (canvasAreaHeight / 2.f) - (canvasAreaHeight - canvasScaledHeight) / 2.f;
+	if (canvasScaledWidth > canvasAreaWidth) {
+		canvasMinPos.x = canvasAreaWidth - canvasMaxPos.x;
+	} else {
+		canvasMinPos.x = canvasMaxPos.x;
+	}
+	if (canvasScaledHeight > canvasAreaHeight) {
+		canvasMinPos.y = canvasAreaWidth - canvasMaxPos.y;
+	} else {
+		canvasMinPos.y = canvasMaxPos.y;
+	}
+	canvasPos = canvasMaxPos;
+	Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y);
+	Logf("canvasMinPos=(%.2f, %.2f)", canvasMinPos.x, canvasMinPos.y);
+	Logf("canvasMaxPos=(%.2f, %.2f)", canvasMaxPos.x, canvasMaxPos.y);
+
+	Try(Draw::LoadSprites("Assets/Terrain.png", "Assets/Terrain.sprites"));
+	Try(Draw::LoadSprites("Assets/Units.png", "Assets/Units.sprites"));
 
 	spearmenUnitDef = &unitDefs[unitDefsLen++];
 	TryTo(Draw::GetSprite("Unit_Spearmen"), spearmenUnitDef->sprite);
@@ -316,20 +349,14 @@ Res<> Init(const Window::State*) {	// windowState
 		}
 	}
 
-	Draw::Sprite badFontSprite; TryTo(Draw::GetSprite("Font_?"), badFontSprite);
-	for (U32 i = 0; i < 256; i++) {
-		fontSprites[i] = badFontSprite;
-	}
-	for (char c = 'A'; c <= 'Z'; c++) {
-		TryTo(Draw::GetSprite(SPrintf(tempMem, "Font_%c", c)), fontSprites[c]);
-	}
-	for (char c = '0'; c <= '9'; c++) {
-		TryTo(Draw::GetSprite(SPrintf(tempMem, "Font_%c", c)), fontSprites[c]);
-	}
+	TryTo(Draw::LoadFont("Assets/PixelWarden.font", "Assets/PixelWarden.png"), font);
+	fontLineHeight = (F32)Draw::GetFontLineHeight(font);
+	
+	// TODO: this needs to be in all gpu resource load functions...it costs us so much time
+	Try(Gpu::ImmediateWait());
 
 	mousePos = Vec2(0.f, 0.f);
-	const Vec2 canvasMousePos = Math::Scale(Math::Sub(mousePos, canvasTopLeft), 1.f / canvasScale);
-	mouseMapCoord = PixelToMapCoord(canvasMousePos);
+	mouseMapCoord = MapCoord(0, 0);
 
 	state = State::WaitingOrder;
 
@@ -495,6 +522,7 @@ Res<> Update(U64 ticks) {
 	const F32 secs = (F32)Time::Secs(ticks);
 
 	for (Event::Event event; Event::GetEvent(&event);) {
+
 		switch (event.type) {
 			case Event::Type::ExitRequest:
 				App::RequestExit();
@@ -526,28 +554,52 @@ Res<> Update(U64 ticks) {
 			case Event::Type::MouseMove: {
 				mousePos.x = (F32)event.mouseMove.x;
 				mousePos.y = (F32)event.mouseMove.y;
-
-				const Vec2 canvasMousePos = Math::Scale(Math::Sub(mousePos, canvasTopLeft), 1.f / canvasScale);
-				mouseMapCoord = PixelToMapCoord(canvasMousePos);
-				if (mouseMapCoord.col >= 0 && mouseMapCoord.col < MapCols && mouseMapCoord.row >= 0 && mouseMapCoord.row < MapRows) {
-					hoverMapTile = &mapTiles[mouseMapCoord.col + mouseMapCoord.row * MapCols];
-				} else {
-					hoverMapTile = nullptr;
-				}
 				break;
 			}
 
 			case Event::Type::MouseWheel:
-				     if (event.mouseWheel.delta < 0.f) { canvasScale *= 0.9f; }
-				else if (event.mouseWheel.delta > 0.f) { canvasScale *= 1.1f; }
+			    if (event.mouseWheel.delta < 0.f && canvasScale > 1.f) {
+					canvasScale-= 0.25f;
+				} else if (event.mouseWheel.delta > 0.f && canvasScale < 10.f) {
+					canvasScale+= 0.25f;
+				}
+				Logf("canvasScale=%.2f", canvasScale);
+
+				F32 const canvasScaledWidth  = canvasSize.x * canvasScale;
+				F32 const canvasScaledHeight = canvasSize.y * canvasScale;
+				canvasMaxPos.x = (canvasAreaWidth  / 2.f) - (canvasAreaWidth  - canvasScaledWidth) / 2.f;
+				canvasMaxPos.y = (canvasAreaHeight / 2.f) - (canvasAreaHeight - canvasScaledHeight) / 2.f;
+				if (canvasScaledWidth > canvasAreaWidth) {
+					canvasMinPos.x = canvasAreaWidth - canvasMaxPos.x;
+				} else {
+					canvasMinPos.x = canvasMaxPos.x;
+				}
+				if (canvasScaledHeight > canvasAreaHeight) {
+					canvasMinPos.y = canvasAreaHeight - canvasMaxPos.y;
+				} else {
+					canvasMinPos.y = canvasMaxPos.y;
+				}
+				canvasPos.x = Clamp(canvasPos.x, canvasMinPos.x, canvasMaxPos.x);
+				canvasPos.y = Clamp(canvasPos.y, canvasMinPos.y, canvasMaxPos.y);
+				Logf("canvasMinPos=(%.2f, %.2f)", canvasMinPos.x, canvasMinPos.y);
+				Logf("canvasMaxPos=(%.2f, %.2f)", canvasMaxPos.x, canvasMaxPos.y);
 				break;
 		}
 	}
 
-	if (Event::IsKeyDown(Event::Key::Z)) { canvasScale *= 0.9995f; }
-	if (Event::IsKeyDown(Event::Key::X)) { canvasScale *= 1.0005f; }
+	constexpr float CanvasScrollPixelsPerSec = 1000.f;
+	
+	if (Event::IsKeyDown(Event::Key::Left))  { canvasPos.x = Min(canvasMaxPos.x, canvasPos.x + (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); };
+	if (Event::IsKeyDown(Event::Key::Right)) { canvasPos.x = Max(canvasMinPos.x, canvasPos.x - (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); };
+	if (Event::IsKeyDown(Event::Key::Up))    { canvasPos.y = Min(canvasMaxPos.y, canvasPos.y + (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); };
+	if (Event::IsKeyDown(Event::Key::Down))  { canvasPos.y = Max(canvasMinPos.y, canvasPos.y - (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); };
 
-	const Vec2 canvasMousePos = Math::Scale(Math::Sub(mousePos, canvasTopLeft), 1.f / canvasScale);
+
+	Vec2 const canvasTopLeft = Vec2(
+		canvasPos.x - (canvasSize.x * canvasScale) / 2.f,
+		canvasPos.y - (canvasSize.y * canvasScale) / 2.f
+	);
+	Vec2 const canvasMousePos = Math::Scale(Math::Sub(mousePos, canvasTopLeft), 1.f / canvasScale);
 	mouseMapCoord = PixelToMapCoord(canvasMousePos);
 	if (mouseMapCoord.col >= 0 && mouseMapCoord.col < MapCols && mouseMapCoord.row >= 0 && mouseMapCoord.row < MapRows) {
 		hoverMapTile = &mapTiles[mouseMapCoord.col + mouseMapCoord.row * MapCols];
@@ -572,7 +624,7 @@ Res<> Draw(Gpu::Frame const* gpuFrame) {
 	Draw::BeginFrame(gpuFrame);
 
 	Draw::SetCanvas(canvas);
-	Draw::Draw({
+	Draw::DrawRect({
 		.pos   = Vec2(canvasSize.x / 2.f, canvasSize.y / 2.f),
 		.z     = Z_Background,
 		.size  = canvasSize,
@@ -583,13 +635,13 @@ Res<> Draw(Gpu::Frame const* gpuFrame) {
 		for (I32 row = 0; row < MapRows; row++) {
 			MapTile const* const mapTile = &mapTiles[col + row * MapCols];
 			Vec2 const centerPos = MapCoordToCenterPixel(mapTile->mapCoord);
-			Draw::Draw({
+			Draw::DrawSprite({
 				.sprite = terrainSprites[(U32)mapTile->terrainType],
 				.pos    = centerPos,
 				.z      = Z_Map,
 			});
 			if (mapTile == selectedMapTile) {
-				Draw::Draw({
+				Draw::DrawSprite({
 					.sprite = hexBorderSprite,
 					.pos    = centerPos,
 					.z      = Z_MapHighlight,
@@ -599,7 +651,7 @@ Res<> Draw(Gpu::Frame const* gpuFrame) {
 		}
 	}
 	if (hoverMapTile && hoverMapTile != selectedMapTile) {
-		Draw::Draw({
+		Draw::DrawSprite({
 			.sprite = hexBorderSprite,
 			.pos    = MapCoordToCenterPixel(mouseMapCoord),
 			.z      = Z_MapHighlight,
@@ -617,7 +669,7 @@ Res<> Draw(Gpu::Frame const* gpuFrame) {
 		if (unit->activeAnimationDef) {
 			sprite = unit->activeAnimationDef->frameSprites[unit->animationFrame];
 		}
-		Draw::Draw({
+		Draw::DrawSprite({
 			.sprite       = sprite,
 			.pos          = unit->pos,
 			.z            = unit->z,
@@ -626,37 +678,61 @@ Res<> Draw(Gpu::Frame const* gpuFrame) {
 		});
 		constexpr F32 HpBarHeight = 2.f;
 		F32 y = unit->pos.y - (unit->unitDef->size.y / 2.f) - (HpBarHeight / 2.f);
-		Draw::Draw({
+		Draw::DrawSprite({
 			.pos   = Vec2(unit->pos.x, y),
 			.z     = unit->z,
-			.size  = Vec2(unit->unitDef->size.x, HpBarHeight),
+			.scale = Vec2(unit->unitDef->size.x, HpBarHeight),
 			.color = Vec4(1.f, 0.f, 0.f, 1.f),
 		});
-		constexpr F32 FontSize = 5.f;
-		y -= HpBarHeight / 2.f;
-		y -= FontSize / 2.f;
-		y -= 1;
-		Str idStr = SPrintf(tempMem, "%u", unit->id);
-		F32 x = unit->pos.x - (unit->unitDef->size.x / 2.f) + (FontSize / 2.f);
-		for (U32 j = 0; j < idStr.len; j++) {
-			Draw::Draw({
-				.sprite = fontSprites[idStr[j]],
-				.pos    = Vec2(x, y),
-				.z     = unit->z,
-				.color  = Vec4(1.f, 0.5f, 1.f, 1.f),
-			});
-			x += FontSize + 1;
-		}
+
+
+		y -= (HpBarHeight / 2.f);
+		F32 unitLeftX = unit->pos.x - (unit->unitDef->size.x / 2.f);
+		Draw::DrawFont({
+			.font   = font,
+			.str    = SPrintf(tempMem, "%u", unit->id),
+			.pos    = Vec2(unitLeftX, y),
+			.z      = unit->z,
+			.origin = Draw::Origin::BottomLeft,
+			.scale  = Vec2(1.f, 1.f),
+			.color  = Vec4(0.8f, 0.8f, 1.f, 1.f),
+		});
 	}
 
 
 	Draw::SetDefaultCanvas();
-	const Vec2 canvasCenter(canvasTopLeft.x + (canvasSize.x * canvasScale) / 2.f, canvasTopLeft.y + (canvasSize.y * canvasScale) / 2.f);
-	Draw::Draw({
+	Draw::DrawCanvas({
 		.canvas = canvas,
-		.pos    = canvasCenter,
-		.size   = Vec2(canvasScale, canvasScale),
+		.pos    = canvasPos,
+		.scale  = Vec2(canvasScale, canvasScale),
 	});
+	
+	Draw::DrawRect({
+		.pos   = Vec2(windowSize.x - UiPanelWidth / 2.f, 0.f),
+		.z     = Z_UiBackground,
+		.size  = Vec2(UiPanelWidth, windowSize.y),
+		.color = UiBackgroundColor,
+	});
+	constexpr F32 UiScale = 2.f;
+	constexpr Str lines[] = {
+		"Spearman",
+		"HP: 10",
+		"Atk: 2",
+		"Def: 3",
+	};
+	Draw::FontDrawDef fontDrawDef = {
+		.font   = font,
+		.pos    = Vec2(canvasAreaWidth + 10.f, 10.f + (fontLineHeight * UiScale)),
+		.z      = Z_Ui,
+		.origin = Draw::Origin::TopLeft,
+		.scale  = Vec2(UiScale, UiScale),
+		.color  = Vec4(1.f, 1.f, 1.f, 1.f),
+	};
+	for (U32 i = 0; i < LenOf(lines); i++) {
+		fontDrawDef.str = lines[i];
+		Draw::DrawFont(fontDrawDef);
+		fontDrawDef.pos.y += fontLineHeight * UiScale;
+	}
 
 	Draw::EndFrame();
 

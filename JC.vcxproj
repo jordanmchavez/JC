@@ -119,10 +119,12 @@
     <ClInclude Include="3rd\vulkan\vulkan_win32.h" />
     <ClInclude Include="JC\App.h" />
     <ClInclude Include="JC\Array.h" />
+    <ClInclude Include="JC\BattleMap.h" />
     <ClInclude Include="JC\Bit.h" />
     <ClInclude Include="JC\Cfg.h" />
     <ClInclude Include="JC\Common.h" />
     <ClInclude Include="JC\Draw.h" />
+    <ClInclude Include="JC\Effect.h" />
     <ClInclude Include="JC\Event.h" />
     <ClInclude Include="JC\FS.h" />
     <ClInclude Include="JC\Gpu.h" />
@@ -150,12 +152,14 @@
     <ClCompile Include="Cfg.cpp" />
     <ClCompile Include="JC\App.cpp" />
     <ClCompile Include="JC\App_Battle.cpp" />
+    <ClCompile Include="JC\BattleMap.cpp" />
     <ClCompile Include="JC\Bit.cpp" />
     <ClCompile Include="JC\Common.cpp" />
     <ClCompile Include="JC\Common_Err.cpp" />
     <ClCompile Include="JC\Common_Fmt.cpp" />
     <ClCompile Include="JC\Common_Mem.cpp" />
     <ClCompile Include="JC\Draw.cpp" />
+    <ClCompile Include="JC\Effect.cpp" />
     <ClCompile Include="JC\Event.cpp" />
     <ClCompile Include="JC\FS.cpp" />
     <ClCompile Include="JC\Gpu_Vk.cpp" />
@@ -179,16 +183,16 @@
     <ClCompile Include="JC\Window_Win.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Assets\Terrain.atlas" />
-    <None Include="Assets\Units.atlas" />
+    <None Include="Assets\Terrain.sprites" />
+    <None Include="Assets\Units.sprites" />
     <None Include="JC.natstepfilter">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </None>
-    <None Include="Notes\4xGameDesign.md" />
-    <None Include="Notes\Battle.md" />
-    <None Include="Notes\Guidebook.md" />
-    <None Include="Notes\Todo.md" />
+    <None Include="Docs\4xGameDesign.md" />
+    <None Include="Docs\Battle.md" />
+    <None Include="Docs\Guidebook.md" />
+    <None Include="Docs\Todo.md" />
     <None Include="Rules.ruleset" />
     <None Include="Shaders\MeshCommon.glsl" />
     <None Include="Shaders\MeshFrag.glsl" />

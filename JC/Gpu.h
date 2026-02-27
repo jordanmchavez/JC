@@ -2,7 +2,7 @@
 
 #include "JC/Common.h"
 
-namespace JC::Window { struct PlatformDesc; }
+namespace JC::Window { struct PlatformDef; }
 
 namespace JC::Gpu {
 
@@ -12,12 +12,12 @@ DefErr(Gpu, RecreateSwapchain);
 
 constexpr U32 MaxFrames = 3;
 
-struct InitDesc {
-	Mem                         permMem;
-	Mem                         tempMem;
-	U32                         windowWidth;
-	U32                         windowHeight;
-	Window::PlatformDesc const* windowPlatformDesc;
+struct InitDef {
+	Mem                        permMem;
+	Mem                        tempMem;
+	U32                        windowWidth;
+	U32                        windowHeight;
+	Window::PlatformDef const* windowPlatformDef;
 };
 
 DefHandle(Buffer);
@@ -112,7 +112,7 @@ struct Frame {
 	Image swapchainImage;
 };
 
-Res<>         Init(InitDesc const* initDesc);
+Res<>         Init(InitDef const* initDef);
 void          Shutdown();
 ImageFormat   GetSwapchainImageFormat();
 Res<>         RecreateSwapchain(U32 width, U32 height);
