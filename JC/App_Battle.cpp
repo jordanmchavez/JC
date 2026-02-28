@@ -1,4 +1,5 @@
 #pragma warning(disable: 4505)
+#pragma warning(disable: 4189)
 
 #include "JC/App.h"
 #include "JC/Cfg.h"
@@ -25,7 +26,7 @@ static constexpr Vec4 MapBackgroundColor = Vec4(13.f/255.f, 30.f/255.f, 22.f/255
 static constexpr Vec4 SelectedColor = Vec4(0.f, 1.f, 0.f, 1.f);
 static constexpr Vec4 HoverColor = Vec4(1.f, 1.f, 1.f, 0.75f);
 static constexpr F32  UiPanelWidth = 300.f;
-static constexpr Vec4 UiBackgroundColor = Vec4(0.2f, 0.3f, 0.4f, 0.5f);
+static constexpr Vec4 UiBackgroundColor = Vec4(0.2f, 0.3f, 0.4f, 1.f);
 
 static constexpr F32 Z_Background   = 0.f;
 static constexpr F32 Z_Map          = 1.f;
@@ -302,8 +303,8 @@ Res<> Init(Window::State const* windowState) {
 	Logf("canvasMinPos=(%.2f, %.2f)", canvasMinPos.x, canvasMinPos.y);
 	Logf("canvasMaxPos=(%.2f, %.2f)", canvasMaxPos.x, canvasMaxPos.y);
 
-	Try(Draw::LoadSprites("Assets/Terrain.png", "Assets/Terrain.sprites"));
-	Try(Draw::LoadSprites("Assets/Units.png", "Assets/Units.sprites"));
+	Try(Draw::LoadSprites("Assets/Terrain.png", "Assets/Terrain.spritejson"));
+	Try(Draw::LoadSprites("Assets/Units.png", "Assets/Units.spritejson"));
 
 	spearmenUnitDef = &unitDefs[unitDefsLen++];
 	TryTo(Draw::GetSprite("Unit_Spearmen"), spearmenUnitDef->sprite);
@@ -349,7 +350,11 @@ Res<> Init(Window::State const* windowState) {
 		}
 	}
 
-	TryTo(Draw::LoadFont("Assets/PixelWarden.font", "Assets/PixelWarden.png"), font);
+	constexpr Str fontName = "6_TinyPixie";
+	TryTo(Draw::LoadFont(
+		SPrintf(tempMem, "Assets/Fonts/%s.fontjson", fontName),
+		SPrintf(tempMem, "Assets/Fonts/%s.png", fontName)
+	), font);
 	fontLineHeight = Draw::GetFontLineHeight(font);
 	
 	// TODO: this needs to be in all gpu resource load functions...it costs us so much time
@@ -685,15 +690,13 @@ Res<> Draw(Gpu::Frame const* gpuFrame) {
 			.color = Vec4(1.f, 0.f, 0.f, 1.f),
 		});
 
-
 		y -= (HpBarHeight / 2.f);
-		F32 unitLeftX = unit->pos.x - (unit->unitDef->size.x / 2.f);
 		Draw::DrawFont({
 			.font   = font,
 			.str    = SPrintf(tempMem, "%u", unit->id),
-			.pos    = Vec2(unitLeftX, y),
-			.z      = unit->z,
-			.origin = Draw::Origin::BottomLeft,
+			.pos    = Vec2(unit->pos.x, y),
+			.z      = unit->z + 10,
+			.origin = Draw::Origin::BottomCenter,
 			.scale  = Vec2(1.f, 1.f),
 			.color  = Vec4(0.8f, 0.8f, 1.f, 1.f),
 		});
@@ -707,7 +710,7 @@ Res<> Draw(Gpu::Frame const* gpuFrame) {
 	});
 	
 	Draw::DrawRect({
-		.pos   = Vec2(windowSize.x - UiPanelWidth / 2.f, 0.f),
+		.pos   = Vec2(windowSize.x - UiPanelWidth / 2.f, windowSize.y / 2.f),
 		.z     = Z_UiBackground,
 		.size  = Vec2(UiPanelWidth, windowSize.y),
 		.color = UiBackgroundColor,
@@ -718,6 +721,13 @@ Res<> Draw(Gpu::Frame const* gpuFrame) {
 		"HP: 10",
 		"Atk: 2",
 		"Def: 3",
+		"abcdefghjiklm",
+		"nopqrstuvwxyz",
+		"ABCDEFGHJIKLM",
+		"NOPQRSTUVWXYZ",
+		"0123456789",
+		"66",
+		"66666666",
 	};
 	Draw::FontDrawDef fontDrawDef = {
 		.font   = font,

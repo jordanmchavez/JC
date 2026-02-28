@@ -24,6 +24,7 @@ DefErr(Draw, ImageFmt);
 DefErr(Draw, LoadImage);
 DefErr(Draw, SpriteNotFound);
 DefErr(Draw, BadFontChar);
+DefErr(Draw, Ttf);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -312,8 +313,7 @@ Res<> ResizeWindow(U32 windowWidthIn, U32 windowHeightIn) {
 //--------------------------------------------------------------------------------------------------
 
 static Res<Gpu::Image> LoadImage(Str path) {
-	Span<U8> data;
-	if (Res<> r = FS::ReadAll(tempMem, path).To(data); !r) { return r.err; }
+	Span<U8> data; TryTo(FS::ReadAll(tempMem, path), data);
 
 	int width = 0;
 	int height = 0;
@@ -624,11 +624,14 @@ static F32 StrWidth(FontObj const* fontObj, Str str, Vec2 scale) {
 
 	F32 width = 0;
 	for (U32 i = 0; i < str.len - 1; i++) {
-		Glyph const glyph = fontObj->glyphs[str[i]];
-		width += glyph.xAdv * scale.x;
+		Glyph const* const glyph = &fontObj->glyphs[str[i]];
+		width += glyph->xAdv * scale.x;
 	}
-	Glyph const glyph = fontObj->glyphs[str.len - 1];
-	width += (glyph.off.x + glyph.size.x) * scale.x;
+	Glyph const* const lastGlyph = &fontObj->glyphs[str[str.len - 1]];
+	// This way gives the correct length but causes aliasing issues with pixel-perfect fonts using linear filtering
+	//width += (lastGlyph->off.x + lastGlyph->size.x) * scale.x;
+	// this line makes the center slightly offset but doesn't have aliasing problems
+	width += lastGlyph->xAdv * scale.x;
 	return width;
 }
 
@@ -666,7 +669,7 @@ void DrawFont(FontDrawDef drawDef) {
 			break;
 	}
 
-	F32 const lineTop = drawDef.pos.y - (fontObj->base * drawDef.scale.y);
+	F32 const lineTop = y - (fontObj->base * drawDef.scale.y);
 	for (U32 i = 0; i < drawDef.str.len; i++) {
 		Glyph const* glyph = &fontObj->glyphs[drawDef.str[i]];
 		Vec2 const drawTopLeft = Vec2(
@@ -686,7 +689,9 @@ void DrawFont(FontDrawDef drawDef) {
 		drawCmd->uv1          = glyph->uv1;
 		drawCmd->uv2          = glyph->uv2;
 		drawCmd->color        = drawDef.color;
-
+		drawCmd->outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
+		drawCmd->outlineWidth = 0.f;
+		drawCmd->rotation     = 0.f;
 		x += glyph->xAdv * drawDef.scale.x;
 	}
 }
@@ -703,6 +708,8 @@ void DrawCanvas(CanvasDrawDef drawDef) {
 	drawCmd->uv1          = Vec2(0.f, 0.f);
 	drawCmd->uv2          = Vec2(1.f, 1.f);
 	drawCmd->color        = drawDef.color;
+	drawCmd->outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
+	drawCmd->outlineWidth = 0.f;
 	drawCmd->rotation     = drawDef.rotation;
 }
 
@@ -713,7 +720,12 @@ void DrawRect(RectDrawDef drawDef) {
 	drawCmd->textureIdx   = 0;
 	drawCmd->pos          = Vec3(drawDef.pos.x, drawDef.pos.y, drawDef.z);
 	drawCmd->size         = drawDef.size;
+	drawCmd->uv1          = Vec2(0.f, 0.f);
+	drawCmd->uv2          = Vec2(0.f, 0.f);
 	drawCmd->color        = drawDef.color;
+	drawCmd->outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
+	drawCmd->outlineWidth = 0.f;
+	drawCmd->rotation     = 0.f;
 }
 
 //--------------------------------------------------------------------------------------------------
