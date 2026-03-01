@@ -1,4 +1,5 @@
 #include "JC/StrDb.h"
+
 #include "JC/Hash.h"
 #include "JC/Map.h"
 
@@ -20,7 +21,7 @@ void Init() {
 
 //--------------------------------------------------------------------------------------------------
 
-Str Get(Str s) {
+Str Intern(Str s) {
 	if (Str* intern = index.FindOrNull(s)) {
 		return *intern;
 	}

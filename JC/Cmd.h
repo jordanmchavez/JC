@@ -2,13 +2,16 @@
 
 #include "JC/Common.h"
 
-namespace JC::StrDb {
+namespace JC::Cmd {
 
 //--------------------------------------------------------------------------------------------------
 
-void Init();
-Str  Intern(Str s);
+using CmdFn = void (Span<Str> args);
+
+void Init(Mem permMem);
+void AddCmd(Str name, CmdFn* cmdFn);
+Res<> Exec(Str buf);
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::StrDb
+}	// namespace JC::Cmd

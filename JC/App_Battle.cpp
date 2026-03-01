@@ -350,7 +350,7 @@ Res<> Init(Window::State const* windowState) {
 		}
 	}
 
-	constexpr Str fontName = "6_TinyPixie";
+	constexpr Str fontName = "13_Lief";
 	TryTo(Draw::LoadFont(
 		SPrintf(tempMem, "Assets/Fonts/%s.fontjson", fontName),
 		SPrintf(tempMem, "Assets/Fonts/%s.png", fontName)
@@ -695,7 +695,7 @@ Res<> Draw(Gpu::Frame const* gpuFrame) {
 			.font   = font,
 			.str    = SPrintf(tempMem, "%u", unit->id),
 			.pos    = Vec2(unit->pos.x, y),
-			.z      = unit->z + 10,
+			.z      = unit->z,
 			.origin = Draw::Origin::BottomCenter,
 			.scale  = Vec2(1.f, 1.f),
 			.color  = Vec4(0.8f, 0.8f, 1.f, 1.f),

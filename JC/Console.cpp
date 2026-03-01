@@ -1,14 +1,9 @@
-#pragma once
+#include "JC/Console.h"
 
-#include "JC/Common.h"
-
-namespace JC::StrDb {
+namespace JC::Console {
 
 //--------------------------------------------------------------------------------------------------
 
-void Init();
-Str  Intern(Str s);
-
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::StrDb
+}	// namespace JC::Console

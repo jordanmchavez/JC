@@ -291,7 +291,7 @@ static Res<Str> ParseStr(Ctx* ctx) {
 		iter++;
 	}
 
-	return StrDb::Get(Str(data, (U32)(dataIter - data)));
+	return StrDb::Intern(Str(data, (U32)(dataIter - data)));
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -314,7 +314,7 @@ static Res<Str> ParseName(Ctx* ctx) {
 		iter++;
 	}
 	if (begin == iter || IsNormal(*iter)) { return Err_BadName("pos", begin - ctx->json); }
-	return StrDb::Get(Str(begin, (U32)(iter - begin)));
+	return StrDb::Intern(Str(begin, (U32)(iter - begin)));
 }
 
 //--------------------------------------------------------------------------------------------------

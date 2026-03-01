@@ -341,7 +341,7 @@ Res<> LoadSprites(Str imagePath, Str spritesPath) {
 	F32 const imageWidth  = (F32)Gpu::GetImageWidth(image);
 	F32 const imageHeight = (F32)Gpu::GetImageHeight(image);
 	spriteImages[spriteImagesLen++] = {
-		.path     = StrDb::Get(imagePath),
+		.path     = StrDb::Intern(imagePath),
 		.image    = image,
 		.imageIdx = imageIdx,
 	};
@@ -402,7 +402,7 @@ Res<Font> LoadFont(Str fontPath, Str imagePath) {
 	FontFile fontFile; Try(Json::ToObj(tempMem, tempMem, json.data, (U32)json.len, &fontFile));
 
 	FontObj* const fontObj = &fontObjs[fontObjsLen++];
-	fontObj->path       = StrDb::Get(fontPath);
+	fontObj->path       = StrDb::Intern(fontPath);
 	fontObj->image      = image;
 	fontObj->imageIdx   = imageIdx;
 	fontObj->lineHeight = (F32)fontFile.lineHeight;

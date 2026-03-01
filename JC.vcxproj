@@ -122,7 +122,9 @@
     <ClInclude Include="JC\BattleMap.h" />
     <ClInclude Include="JC\Bit.h" />
     <ClInclude Include="JC\Cfg.h" />
+    <ClInclude Include="JC\Cmd.h" />
     <ClInclude Include="JC\Common.h" />
+    <ClInclude Include="JC\Console.h" />
     <ClInclude Include="JC\Draw.h" />
     <ClInclude Include="JC\Effect.h" />
     <ClInclude Include="JC\Event.h" />
@@ -150,6 +152,7 @@
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
     <ClCompile Include="Cfg.cpp" />
+    <ClCompile Include="Cmd.cpp" />
     <ClCompile Include="JC\App.cpp" />
     <ClCompile Include="JC\App_Battle.cpp" />
     <ClCompile Include="JC\BattleMap.cpp" />
@@ -158,6 +161,7 @@
     <ClCompile Include="JC\Common_Err.cpp" />
     <ClCompile Include="JC\Common_Fmt.cpp" />
     <ClCompile Include="JC\Common_Mem.cpp" />
+    <ClCompile Include="JC\Console.cpp" />
     <ClCompile Include="JC\Draw.cpp" />
     <ClCompile Include="JC\Effect.cpp" />
     <ClCompile Include="JC\Event.cpp" />
