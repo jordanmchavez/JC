@@ -47,6 +47,9 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 	Mem permMem = Mem::Create(16 * GB);
 	Mem tempMem = Mem::Create(16 * GB);
 
+	constexpr U64 MaxActionIds = 1024;
+	U64* actionIds = Mem::AllocT<U64>(permMem, MaxActionIds);
+
 	Err::SetBreakOnErr(true);
 	Time::Init();
 	FS::Init(tempMem);
@@ -68,6 +71,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 	Try(app->PreInit(permMem, tempMem));
 
 	Window::InitDef const windowInitDef = {
+		.permMem    = permMem,
 		.tempMem    = tempMem,
 		.title      = Cfg::GetStr(Cfg_Title, "Untitled"),
 		.style      = (Window::Style)Cfg::GetU32(Cfg_WindowStyle, (U32)Window::Style::BorderedResizable),
@@ -116,7 +120,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 		Window::State const prevWindowState = windowState;	// TODO: this could be rolled into Events as part of the return val from Window::Frame()
 		windowState = Window::GetState();
 
-		Span<U64 const> const actions = Input::ProcessKeyEvents(windowEvents.keyDownEvents, windowEvents.keyUpEvents);
+		Span<U64 const> const actions = Input::ProcessKeyEvents(windowEvents.keyEvents, actionIds, MaxActionIds);
 
 		FrameData const appFrameData = {
 			.ticks       = deltaTicks,

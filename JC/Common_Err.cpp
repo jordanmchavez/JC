@@ -73,7 +73,7 @@ Err const* Err::Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, 
 		};
 	}
 
-	if (errBreakOnErr && Sys::DbgPresent()) {
+	if (errBreakOnErr && Sys::DbgPresent() && err->ns != "App" && err->sCode != "Exit") {
 		DbgBreak;
 	}
 

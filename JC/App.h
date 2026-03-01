@@ -10,7 +10,7 @@ namespace JC::App {
 
 //--------------------------------------------------------------------------------------------------
 
-DefErr(App, Exit);	// Return Err_Exit from Update() to tell exit the game
+DefErr(App, Exit);
 
 constexpr Str Cfg_Title            = "App.Title";
 constexpr Str Cfg_WindowStyle      = "App.WindowStyle";
@@ -34,7 +34,7 @@ struct App {
 	Res<> (*PreInit)(Mem permMem, Mem tempMem);
 	Res<> (*Init)(Window::State const* windowState);
 	void  (*Shutdown)();
-	Res<> (*Frame)(FrameData const* appFrameData);
+	Res<> (*Frame)(FrameData const* appFrameData);	// Err_Exit = exit program
 	Res<> (*Draw)(Gpu::FrameData const* gpuFrameData);
 	Res<> (*ResizeWindow)(U32 width, U32 height);
 };

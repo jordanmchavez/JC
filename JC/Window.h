@@ -31,6 +31,7 @@ enum CursorMode {
 };
 
 struct InitDef {
+	Mem   permMem;
 	Mem   tempMem;
 	Str   title;
 	Style style;
@@ -57,9 +58,13 @@ struct PlatformDef {
 	#endif	// Platform
 };
 
+struct KeyEvent {
+	Key::Key key;
+	bool     down;
+};
+
 struct Events {
-	Span<Key::Key const> keyDownEvents;
-	Span<Key::Key const> keyUpEvents;
+	Span<KeyEvent const> keyEvents;
 	I32                  mouseX = 0;
 	I32                  mouseY = 0;
 	I64                  mouseDeltaX = 0;

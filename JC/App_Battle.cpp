@@ -37,6 +37,15 @@ static constexpr F32 Z_UnitSelected = 4.f;
 static constexpr F32 Z_UiBackground = 5.f;
 static constexpr F32 Z_Ui           = 6.f;
 
+static constexpr U64 Action_Exit           = 1;
+static constexpr U64 Action_Click          = 2;
+static constexpr U64 Action_ZoomInCanvas   = 3;
+static constexpr U64 Action_ZoomOutCanvas  = 4;
+static constexpr U64 Action_ScrollMapLeft  = 5;
+static constexpr U64 Action_ScrollMapRight = 6;
+static constexpr U64 Action_ScrollMapUp    = 7;
+static constexpr U64 Action_ScrollMapDown  = 8;
+
 struct HexCoord {
 	I16 x = 0;
 	I16 y = 0;
@@ -137,38 +146,38 @@ struct Order {
 	AttackOrder attackOrder;
 };
 
-static Mem          permMem;
-static Mem          tempMem;
-static U8           hexLut[(HexSize / 2) * (HexSize * 3 / 8)];
-static HexCoord     hexCoordLut[(HexSize / 2) * (HexSize / 2)];
-static U32          hexCoordLutLen;
-static Draw::Canvas canvas;
-static F32          canvasAreaWidth;
-static F32          canvasAreaHeight;
-static Vec2         canvasSize(MapCols * HexSize + (HexSize / 2), MapRows * (HexSize * 3 / 4) + (HexSize / 4));
-static F32          canvasScale = 3.f;
-static Vec2         canvasPos;
-static Vec2         canvasMinPos;
-static Vec2         canvasMaxPos;
-static MapTile      mapTiles[MapCols * MapRows];
-static Vec2         mousePos;
-static MapCoord     mouseMapCoord;
-static UnitDef      unitDefs[MaxUnitDefs];
-static U32          unitDefsLen;
-static U64          nextUnitId = 1;
-static UnitDef*     spearmenUnitDef;
-static Unit         units[MaxUnits];
-static U32          unitsLen;
-static State        state;
-static Draw::Sprite hexBorderSprite;
-static Draw::Sprite terrainSprites[(U32)TerrainType::Max];
-static Unit*        selectedUnit;
-static MapTile*     selectedMapTile;
-static MapTile*     hoverMapTile;
-static Order        order;
-static Draw::Font   font;
-static F32          fontLineHeight;
-static Vec2         windowSize;
+static Mem               permMem;
+static Mem               tempMem;
+static U8                hexLut[(HexSize / 2) * (HexSize * 3 / 8)];
+static HexCoord          hexCoordLut[(HexSize / 2) * (HexSize / 2)];
+static U32               hexCoordLutLen;
+static Draw::Canvas      canvas;
+static F32               canvasAreaWidth;
+static F32               canvasAreaHeight;
+static Vec2              canvasSize(MapCols * HexSize + (HexSize / 2), MapRows * (HexSize * 3 / 4) + (HexSize / 4));
+static F32               canvasScale = 3.f;
+static Vec2              canvasPos;
+static Vec2              canvasMinPos;
+static Vec2              canvasMaxPos;
+static MapTile           mapTiles[MapCols * MapRows];
+static MapCoord          mouseMapCoord;
+static UnitDef           unitDefs[MaxUnitDefs];
+static U32               unitDefsLen;
+static U64               nextUnitId = 1;
+static UnitDef*          spearmenUnitDef;
+static Unit              units[MaxUnits];
+static U32               unitsLen;
+static State             state;
+static Draw::Sprite      hexBorderSprite;
+static Draw::Sprite      terrainSprites[(U32)TerrainType::Max];
+static Unit*             selectedUnit;
+static MapTile*          selectedMapTile;
+static MapTile*          hoverMapTile;
+static Order             order;
+static Draw::Font        font;
+static F32               fontLineHeight;
+static Vec2              windowSize;
+static Input::BindingSet mainBindingSet;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -361,9 +370,19 @@ Res<> Init(Window::State const* windowState) {
 	// TODO: this needs to be in all gpu resource load functions...I've forgotten to add this and it's repeatedly cost me lotsa debugging time
 	Try(Gpu::ImmediateWait());
 
-	mousePos = Vec2(0.f, 0.f);
 	mouseMapCoord = MapCoord(0, 0);
 
+	mainBindingSet = Input::CreateBindingSet("Main");
+	Input::Bind(mainBindingSet, Key::Key::Escape,         Input::BindingType::OnKeyDown,  Action_Exit,           "Exit");
+	Input::Bind(mainBindingSet, Key::Key::Mouse1,         Input::BindingType::OnKeyUp,    Action_Click,          "Click");
+	Input::Bind(mainBindingSet, Key::Key::MouseWheelUp,   Input::BindingType::OnKeyDown,  Action_ZoomInCanvas,   "ZoomInCanvas");
+	Input::Bind(mainBindingSet, Key::Key::MouseWheelDown, Input::BindingType::OnKeyDown,  Action_ZoomOutCanvas,  "ZoomOutCanvas");
+	Input::Bind(mainBindingSet, Key::Key::W,              Input::BindingType::Continuous, Action_ScrollMapUp,    "ScrollMapUp");
+	Input::Bind(mainBindingSet, Key::Key::S,              Input::BindingType::Continuous, Action_ScrollMapDown,  "ScrollMapDown");
+	Input::Bind(mainBindingSet, Key::Key::A,              Input::BindingType::Continuous, Action_ScrollMapLeft,  "ScrollMapLeft");
+	Input::Bind(mainBindingSet, Key::Key::D,              Input::BindingType::Continuous, Action_ScrollMapRight, "ScrollMapRight");
+	Input::SetBindingSetStack({ mainBindingSet });
+												          
 	state = State::WaitingOrder;
 
 	return Ok();
@@ -552,49 +571,32 @@ Res<> Frame(App::FrameData const* frameData) {
 
 	const F32 secs = (F32)Time::Secs(frameData->ticks);
 
+	constexpr float CanvasScrollPixelsPerSec = 1000.f;
 	for (U64 i = 0; i < frameData->actions.len; i++) {
 		U64 const actionId = frameData->actions[i];
-	}
+		Logf("actionId %u", actionId);
+		switch (actionId) {
+			case Action_Exit: return App::Err_Exit();
+			case Action_Click: HandleLeftClick(); break;
 
-/*				switch (event.key.key) {
-					case Key::Key::Escape:
-						App::RequestExit();
-						break;
+			case Action_ZoomInCanvas:  canvasScale += 0.25f; Logf("canvasScale=%.2f", canvasScale); RecalcCanvasBounds(); break;
+			case Action_ZoomOutCanvas: canvasScale -= 0.25f; Logf("canvasScale=%.2f", canvasScale); RecalcCanvasBounds(); break;
 
-					case Key::Key::Mouse1:
-						if (!event.key.down) {
-							break;
-						}
-						HandleLeftClick();
-						break;
+			case Action_ScrollMapLeft:  { canvasPos.x = Min(canvasMaxPos.x, canvasPos.x + (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); }; break;
+			case Action_ScrollMapRight: { canvasPos.x = Max(canvasMinPos.x, canvasPos.x - (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); }; break;
+			case Action_ScrollMapUp:    { canvasPos.y = Min(canvasMaxPos.y, canvasPos.y + (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); }; break;
+			case Action_ScrollMapDown:  { canvasPos.y = Max(canvasMinPos.y, canvasPos.y - (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); }; break;
 
-					case Key::Key::MouseWheelUp:   canvasScale -= 0.25f; Logf("canvasScale=%.2f", canvasScale); RecalcCanvasBounds(); break;
-					case Key::Key::MouseWheelDown: canvasScale += 0.25f; Logf("canvasScale=%.2f", canvasScale); RecalcCanvasBounds(); break;
-				}
-				break;
-
-			case Window::EventType::MouseMove: {
-				mousePos.x = (F32)event.mouseMove.x;
-				mousePos.y = (F32)event.mouseMove.y;
-				break;
-			}
+			default: Panic("Unhandled actionId %u", actionId);
 		}
 	}
-
-	constexpr float CanvasScrollPixelsPerSec = 1000.f;
-	/*
-	if (Window::IsKeyDown(Key::Key::Left))  { canvasPos.x = Min(canvasMaxPos.x, canvasPos.x + (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); };
-	if (Window::IsKeyDown(Key::Key::Right)) { canvasPos.x = Max(canvasMinPos.x, canvasPos.x - (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); };
-	if (Window::IsKeyDown(Key::Key::Up))    { canvasPos.y = Min(canvasMaxPos.y, canvasPos.y + (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); };
-	if (Window::IsKeyDown(Key::Key::Down))  { canvasPos.y = Max(canvasMinPos.y, canvasPos.y - (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); };
-
-	*/
 
 	Vec2 const canvasTopLeft = Vec2(
 		canvasPos.x - (canvasSize.x * canvasScale) / 2.f,
 		canvasPos.y - (canvasSize.y * canvasScale) / 2.f
 	);
 	
+	Vec2 const mousePos((F32)frameData->mouseX, (F32)frameData->mouseY);
 	Vec2 const canvasMousePos = Math::Scale(Math::Sub(mousePos, canvasTopLeft), 1.f / canvasScale);
 	mouseMapCoord = PixelToMapCoord(canvasMousePos);
 	if (mouseMapCoord.col >= 0 && mouseMapCoord.col < MapCols && mouseMapCoord.row >= 0 && mouseMapCoord.row < MapRows) {

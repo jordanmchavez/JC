@@ -3,6 +3,7 @@
 #include "JC/Common.h"
 
 namespace JC::Key { enum struct Key : U16; }
+namespace JC::Window { struct KeyEvent; }
 
 namespace JC::Input {
 
@@ -22,7 +23,7 @@ BindingSet      CreateBindingSet(Str name);
 void            Bind(BindingSet bindingSet, Key::Key key, BindingType bindType, U64 actionId, Str actionStr);	// 0 actionId reserved for invalid
 void            Unbind(BindingSet bindingSet, Key::Key key);
 void            SetBindingSetStack(Span<BindingSet const> bindingSets);
-Span<U64 const> ProcessKeyEvents(Span<Key::Key const> keyDownEvents, Span<Key::Key const> keyUpEvents);
+Span<U64 const> ProcessKeyEvents(Span<Window::KeyEvent const> keyEvents, U64* outActionIds, U64 outActionIdsMaxLen);	// returns all actionIds for the passed key events
 
 //--------------------------------------------------------------------------------------------------
 

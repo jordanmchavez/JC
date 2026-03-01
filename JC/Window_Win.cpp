@@ -39,31 +39,114 @@ static Display*  displays;
 static U16       displaysLen;
 static Window    window;
 static bool      inSizeMove;
-static Key::Key* keyDownEvents;
-static U16       keyDownEventsLen;
-static Key::Key* keyUpEvents;
-static U16       keyUpEventsLen;
+static KeyEvent* keyEvents;
+static U16       keyEventsLen;
 static I64       mouseDeltaX;
 static I64       mouseDeltaY;
 static bool      exitEvent;
 
 //----------------------------------------------------------------------------------------------
 
-static void AddKeyDownEvent(Key::Key key) {
-	if (keyDownEventsLen >= MaxKeyEvents) {
-		Errorf("Dropping key %s down event", Key::GetKeyStr(key));
-		return;
+constexpr Key::Key ScanCodeToKey(U32 scanCode, bool e0) {
+	switch (scanCode) {
+		case 0x01: return Key::Key::Escape;
+		case 0x02: return Key::Key::One;
+		case 0x03: return Key::Key::Two;
+		case 0x04: return Key::Key::Three;
+		case 0x05: return Key::Key::Four;
+		case 0x06: return Key::Key::Five;
+		case 0x07: return Key::Key::Six;
+		case 0x08: return Key::Key::Seven;
+		case 0x09: return Key::Key::Eight;
+		case 0x0A: return Key::Key::Nine;
+		case 0x0B: return Key::Key::Zero;
+		case 0x0C: return Key::Key::Minus;
+		case 0x0D: return Key::Key::Equals;
+		case 0x0E: return Key::Key::Backspace;
+		case 0x0F: return Key::Key::Tab;
+		case 0x10: return Key::Key::Q;
+		case 0x11: return Key::Key::W;
+		case 0x12: return Key::Key::E;
+		case 0x13: return Key::Key::R;
+		case 0x14: return Key::Key::T;
+		case 0x15: return Key::Key::Y;
+		case 0x16: return Key::Key::U;
+		case 0x17: return Key::Key::I;
+		case 0x18: return Key::Key::O;
+		case 0x19: return Key::Key::P;
+		case 0x1A: return Key::Key::LeftBracket;
+		case 0x1B: return Key::Key::RightBracket;
+		case 0x1C: return e0 ? Key::Key::NumpadEnter : Key::Key::Enter;
+		case 0x1D: return e0 ? Key::Key::CtrlRight   : Key::Key::CtrlLeft;
+		case 0x1E: return Key::Key::A;
+		case 0x1F: return Key::Key::S;
+		case 0x20: return Key::Key::D;
+		case 0x21: return Key::Key::F;
+		case 0x22: return Key::Key::G;
+		case 0x23: return Key::Key::H;
+		case 0x24: return Key::Key::J;
+		case 0x25: return Key::Key::K;
+		case 0x26: return Key::Key::L;
+		case 0x27: return Key::Key::Semicolon;
+		case 0x28: return Key::Key::Quote;
+		case 0x29: return Key::Key::BackQuote;
+		case 0x2A: return Key::Key::ShiftLeft;
+		case 0x2B: return Key::Key::Backslash;
+		case 0x2C: return Key::Key::Z;
+		case 0x2D: return Key::Key::X;
+		case 0x2E: return Key::Key::C;
+		case 0x2F: return Key::Key::V;
+		case 0x30: return Key::Key::B;
+		case 0x31: return Key::Key::N;
+		case 0x32: return Key::Key::M;
+		case 0x33: return Key::Key::Comma;
+		case 0x34: return Key::Key::Dot;
+		case 0x35: return e0 ? Key::Key::Slash : Key::Key::Slash; // numpad / vs main /; both map to Slash: add NumpadSlash to enum if needed
+		case 0x36: return Key::Key::ShiftRight;
+		case 0x37: return e0 ? Key::Key::PrintScreen : Key::Key::NumpadStar;
+		case 0x38: return e0 ? Key::Key::AltRight : Key::Key::AltLeft;
+		case 0x39: return Key::Key::Space;
+		case 0x3A: return Key::Key::CapsLock;
+		case 0x3B: return Key::Key::F1;
+		case 0x3C: return Key::Key::F2;
+		case 0x3D: return Key::Key::F3;
+		case 0x3E: return Key::Key::F4;
+		case 0x3F: return Key::Key::F5;
+		case 0x40: return Key::Key::F6;
+		case 0x41: return Key::Key::F7;
+		case 0x42: return Key::Key::F8;
+		case 0x43: return Key::Key::F9;
+		case 0x44: return Key::Key::F10;
+		case 0x45: return Key::Key::ScrollLock; // 0x45 without E0/E1 = ScrollLock 
+		case 0x46: return Key::Key::ScrollLock; // some boards send 0x46 (Pause's second byte also 0x45 but handled above)
+		case 0x47: return e0 ? Key::Key::Home : Key::Key::NumPad7;
+		case 0x48: return e0 ? Key::Key::Up : Key::Key::NumPad8;
+		case 0x49: return e0 ? Key::Key::PageUp : Key::Key::NumPad9;
+		case 0x4A: return Key::Key::NumpadMinus;
+		case 0x4B: return e0 ? Key::Key::Left : Key::Key::NumPad4;
+		case 0x4C: return Key::Key::NumPad5;
+		case 0x4D: return e0 ? Key::Key::Right : Key::Key::NumPad6;
+		case 0x4E: return Key::Key::NumpadPlus;
+		case 0x4F: return e0 ? Key::Key::End : Key::Key::NumPad1;
+		case 0x50: return e0 ? Key::Key::Down : Key::Key::NumPad2;
+		case 0x51: return e0 ? Key::Key::PageDown : Key::Key::NumPad3;
+		case 0x52: return e0 ? Key::Key::Insert : Key::Key::NumPad0;
+		case 0x53: return e0 ? Key::Key::Delete : Key::Key::NumpadDot;
+		case 0x57: return Key::Key::F11;
+		case 0x58: return Key::Key::F12;
+		case 0x5B: return Key::Key::Winleft;   // always E0
+		case 0x5C: return Key::Key::WinRight;  // always E0
+		case 0x5D: return Key::Key::Menu;      // always E0
 	}
-	keyDownEvents[keyDownEventsLen++] = key;
+	return Key::Key::Invalid;
 }
 
-
-static void AddKeyUpEvent(Key::Key key) {
-	if (keyUpEventsLen >= MaxKeyEvents) {
-		Errorf("Dropping key %s up event", Key::GetKeyStr(key));
+static void AddKeyEvent(Key::Key key, bool down) {
+	if (keyEventsLen >= MaxKeyEvents) {
+		Errorf("Dropping key '%s' %s event", Key::GetKeyStr(key), down ? "down" : "up");
 		return;
 	}
-	keyUpEvents[keyUpEventsLen++] = key;
+	keyEvents[keyEventsLen++] = { .key = key, .down = down };
 }
 
 //----------------------------------------------------------------------------------------------
@@ -125,19 +208,22 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 					Key::Key const key = (wheelDelta > 0) ? Key::Key::MouseWheelUp : Key::Key::MouseWheelDown;
 					const U32 numEvents =  (U32)(wheelDelta > 0 ? wheelDelta : -wheelDelta) / 120;
 					for (U32 i = 0; i < numEvents; i++) {
-						AddKeyDownEvent(key);
+						// Both an up and down event are necessary to make Key::MouseWheelUp/Down behavior like a normal key.
+						// See the key event processing code in Input.cpp for where this matters.
+						AddKeyEvent(key, true);
+						AddKeyEvent(key, false);
 					}
 				}
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) { AddKeyDownEvent(Key::Key::Mouse1); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) { AddKeyDownEvent(Key::Key::Mouse2); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) { AddKeyDownEvent(Key::Key::Mouse3); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) { AddKeyDownEvent(Key::Key::Mouse4); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) { AddKeyDownEvent(Key::Key::Mouse5); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_1_UP  ) { AddKeyUpEvent  (Key::Key::Mouse1); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_2_UP  ) { AddKeyUpEvent  (Key::Key::Mouse2); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_3_UP  ) { AddKeyUpEvent  (Key::Key::Mouse3); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_4_UP  ) { AddKeyUpEvent  (Key::Key::Mouse4); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_5_UP  ) { AddKeyUpEvent  (Key::Key::Mouse5); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) { AddKeyEvent(Key::Key::Mouse1, true); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) { AddKeyEvent(Key::Key::Mouse2, true); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) { AddKeyEvent(Key::Key::Mouse3, true); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) { AddKeyEvent(Key::Key::Mouse4, true); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) { AddKeyEvent(Key::Key::Mouse5, true); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_1_UP  ) { AddKeyEvent(Key::Key::Mouse1, false); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_2_UP  ) { AddKeyEvent(Key::Key::Mouse2, false); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_3_UP  ) { AddKeyEvent(Key::Key::Mouse3, false); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_4_UP  ) { AddKeyEvent(Key::Key::Mouse4, false); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_5_UP  ) { AddKeyEvent(Key::Key::Mouse5, false); }
 
 				mouseDeltaX += (I64)rawMouse->lLastX;
 				mouseDeltaY += (I64)rawMouse->lLastY;
@@ -148,111 +234,20 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 				bool const e1      = rawKeyboard->Flags & RI_KEY_E1;
 				U32 const scanCode = rawKeyboard->MakeCode;
 
-
 				Key::Key key = Key::Key::Invalid;
 				if (e1 && scanCode == 0x1D)
 				{
 					key = Key::Key::Pause;
 				} else {
-					switch (scanCode) {
-						case 0x01: key = Key::Key::Escape;
-						case 0x02: key = Key::Key::One;
-						case 0x03: key = Key::Key::Two;
-						case 0x04: key = Key::Key::Three;
-						case 0x05: key = Key::Key::Four;
-						case 0x06: key = Key::Key::Five;
-						case 0x07: key = Key::Key::Six;
-						case 0x08: key = Key::Key::Seven;
-						case 0x09: key = Key::Key::Eight;
-						case 0x0A: key = Key::Key::Nine;
-						case 0x0B: key = Key::Key::Zero;
-						case 0x0C: key = Key::Key::Minus;
-						case 0x0D: key = Key::Key::Equals;
-						case 0x0E: key = Key::Key::Backspace;
-						case 0x0F: key = Key::Key::Tab;
-						case 0x10: key = Key::Key::Q;
-						case 0x11: key = Key::Key::W;
-						case 0x12: key = Key::Key::E;
-						case 0x13: key = Key::Key::R;
-						case 0x14: key = Key::Key::T;
-						case 0x15: key = Key::Key::Y;
-						case 0x16: key = Key::Key::U;
-						case 0x17: key = Key::Key::I;
-						case 0x18: key = Key::Key::O;
-						case 0x19: key = Key::Key::P;
-						case 0x1A: key = Key::Key::LeftBracket;
-						case 0x1B: key = Key::Key::RightBracket;
-						case 0x1C: key = e0 ? Key::Key::NumpadEnter : Key::Key::Enter;
-						case 0x1D: key = e0 ? Key::Key::CtrlRight   : Key::Key::CtrlLeft;
-						case 0x1E: key = Key::Key::A;
-						case 0x1F: key = Key::Key::S;
-						case 0x20: key = Key::Key::D;
-						case 0x21: key = Key::Key::F;
-						case 0x22: key = Key::Key::G;
-						case 0x23: key = Key::Key::H;
-						case 0x24: key = Key::Key::J;
-						case 0x25: key = Key::Key::K;
-						case 0x26: key = Key::Key::L;
-						case 0x27: key = Key::Key::Semicolon;
-						case 0x28: key = Key::Key::Quote;
-						case 0x29: key = Key::Key::BackQuote;
-						case 0x2A: key = Key::Key::ShiftLeft;
-						case 0x2B: key = Key::Key::Backslash;
-						case 0x2C: key = Key::Key::Z;
-						case 0x2D: key = Key::Key::X;
-						case 0x2E: key = Key::Key::C;
-						case 0x2F: key = Key::Key::V;
-						case 0x30: key = Key::Key::B;
-						case 0x31: key = Key::Key::N;
-						case 0x32: key = Key::Key::M;
-						case 0x33: key = Key::Key::Comma;
-						case 0x34: key = Key::Key::Dot;
-						case 0x35: key = e0 ? Key::Key::Slash : Key::Key::Slash; // numpad / vs main /; both map to Slash: add NumpadSlash to enum if needed
-						case 0x36: key = Key::Key::ShiftRight;
-						case 0x37: key = e0 ? Key::Key::PrintScreen : Key::Key::NumpadStar;
-						case 0x38: key = e0 ? Key::Key::AltRight : Key::Key::AltLeft;
-						case 0x39: key = Key::Key::Space;
-						case 0x3A: key = Key::Key::CapsLock;
-						case 0x3B: key = Key::Key::F1;
-						case 0x3C: key = Key::Key::F2;
-						case 0x3D: key = Key::Key::F3;
-						case 0x3E: key = Key::Key::F4;
-						case 0x3F: key = Key::Key::F5;
-						case 0x40: key = Key::Key::F6;
-						case 0x41: key = Key::Key::F7;
-						case 0x42: key = Key::Key::F8;
-						case 0x43: key = Key::Key::F9;
-						case 0x44: key = Key::Key::F10;
-						case 0x45: key = Key::Key::ScrollLock; // 0x45 without E0/E1 = ScrollLock
-						// (Pause's secon byte also 0x45 but handled above)
-						case 0x46: key = Key::Key::ScrollLock; // some boards send 0x46
-						case 0x47: key = e0 ? Key::Key::Home : Key::Key::NumPad7;
-						case 0x48: key = e0 ? Key::Key::Up : Key::Key::NumPad8;
-						case 0x49: key = e0 ? Key::Key::PageUp : Key::Key::NumPad9;
-						case 0x4A: key = Key::Key::NumpadMinus;
-						case 0x4B: key = e0 ? Key::Key::Left : Key::Key::NumPad4;
-						case 0x4C: key = Key::Key::NumPad5;
-						case 0x4D: key = e0 ? Key::Key::Right : Key::Key::NumPad6;
-						case 0x4E: key = Key::Key::NumpadPlus;
-						case 0x4F: key = e0 ? Key::Key::End : Key::Key::NumPad1;
-						case 0x50: key = e0 ? Key::Key::Down : Key::Key::NumPad2;
-						case 0x51: key = e0 ? Key::Key::PageDown : Key::Key::NumPad3;
-						case 0x52: key = e0 ? Key::Key::Insert : Key::Key::NumPad0;
-						case 0x53: key = e0 ? Key::Key::Delete : Key::Key::NumpadDot;
-						case 0x57: key = Key::Key::F11;
-						case 0x58: key = Key::Key::F12;
-						case 0x5B: key = Key::Key::Winleft;   // always E0
-						case 0x5C: key = Key::Key::WinRight;  // always E0
-						case 0x5D: key = Key::Key::Menu;      // always E0
-					}
+					key = ScanCodeToKey(scanCode, e0);
 				}
+				Logf("scan code %x -> key %s", scanCode, Key::GetKeyStr(key));
 
 				if (key == Key::Key::Invalid) {
 					Errorf("Unrecognized scan code: %u", scanCode);
-				} else if (!(rawKeyboard->Flags & RI_KEY_BREAK)) {	// down
-					AddKeyDownEvent(key);
 				} else {
-					AddKeyUpEvent(key);
+					bool const down = !(rawKeyboard->Flags & RI_KEY_BREAK);
+					AddKeyEvent(key, down);
 				}
 			}
 			break;
@@ -352,7 +347,11 @@ static BOOL MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
 //----------------------------------------------------------------------------------------------
 
 Res<> Init(const InitDef* initDef) {
+
 	tempMem = initDef->tempMem;
+
+	displays = Mem::AllocT<Display>(initDef->permMem, MaxDisplays);
+	keyEvents = Mem::AllocT<KeyEvent>(initDef->permMem, MaxKeyEvents);
 
 	if (EnumDisplayMonitors(0, 0, MonitorEnumFn, 0) == FALSE) {
 		return Win_LastErr("EnumDisplayMonitors");
@@ -540,11 +539,10 @@ void SetCursorMode(CursorMode newCursorMode) {
 //----------------------------------------------------------------------------------------------
 
 Events Frame() {
-	keyDownEventsLen = 0;
-	keyUpEventsLen   = 0;
-	mouseDeltaX      = 0;
-	mouseDeltaY      = 0;
-	exitEvent        = false;
+	keyEventsLen = 0;
+	mouseDeltaX  = 0;
+	mouseDeltaY  = 0;
+	exitEvent    = false;
 
 	MSG msg;
 	while (PeekMessageW(&msg, 0, 0, 0, PM_REMOVE)) {
@@ -556,13 +554,12 @@ Events Frame() {
 	::GetCursorPos(&mousePos);
 	::ScreenToClient(window.hwnd, &mousePos);
 	return Events {
-		.keyDownEvents = Span<Key::Key const>(keyDownEvents, keyDownEventsLen),
-		.keyUpEvents   = Span<Key::Key const>(keyDownEvents, keyDownEventsLen),
-		.mouseX        = (I32)mousePos.x,
-		.mouseY        = (I32)mousePos.y,
-		.mouseDeltaX   = mouseDeltaX,
-		.mouseDeltaY   = mouseDeltaY,
-		.exitEvent     = exitEvent,
+		.keyEvents   = Span<KeyEvent const>(keyEvents, keyEventsLen),
+		.mouseX      = (I32)mousePos.x,
+		.mouseY      = (I32)mousePos.y,
+		.mouseDeltaX = mouseDeltaX,
+		.mouseDeltaY = mouseDeltaY,
+		.exitEvent   = exitEvent,
 	};
 }
 

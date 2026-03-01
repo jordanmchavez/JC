@@ -1,7 +1,9 @@
 #include "JC/Input.h"
 
 #include "JC/Key.h"
+#include "JC/Log.h"
 #include "JC/StrDb.h"
+#include "JC/Window.h"
 
 namespace JC::Input {
 
@@ -23,8 +25,6 @@ static Key::Key downKeys[(U16)Key::Key::Max];
 static U16      downKeysLen;
 static U16      activeBindSets[MaxBindingSets];
 static U16      activeBindingSetsLen;
-static U64*     continuousActions;
-static U16      continuousActionsLen;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -32,7 +32,6 @@ void Init(Mem permMem) {
 	bindingSetNames   = Mem::AllocT<Str>(permMem, MaxBindingSets);
 	bindingSetsLen    = 1; // reserve 0 for invalid
 	bindings          = Mem::AllocT<Binding>(permMem, (U64)Key::Key::Max * MaxBindingSets);
-	continuousActions = Mem::AllocT<U64>(permMem, (U64)Key::Key::Max);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -68,7 +67,7 @@ void Unbind(BindingSet bindingSet, Key::Key key) {
 
 //--------------------------------------------------------------------------------------------------
 
-void ActivateBindingSets(Span<BindingSet> bindingSets) {
+void SetBindingSetStack(Span<BindingSet const> bindingSets) {
 	Assert(bindingSets.len <= MaxBindingSets);
 	activeBindingSetsLen = 0;
 	for (U64 i = 0; i < bindingSets.len; i++) {
@@ -79,54 +78,71 @@ void ActivateBindingSets(Span<BindingSet> bindingSets) {
 
 //--------------------------------------------------------------------------------------------------
 
-U64 KeyEvent(Key::Key key, bool down) {
-	Assert(key > Key::Key::Invalid && key < Key::Key::Max);
-	if (down) {
-		if (!keyDown[(U16)key]) {
-			Assert(downKeysLen < (U16)Key::Key::Max);
-			downKeys[downKeysLen++] = key;
-		}
-		keyDown[(U16)key] = true;
-	} else {	// key up
-		if (keyDown[(U16)key]) {
-			for (U32 i = 0; i < downKeysLen; i++) {
-				if (downKeys[i] == key) {
-					downKeys[i] = downKeys[downKeysLen - 1];
-					downKeysLen--;
-					break;
+Span<U64 const> ProcessKeyEvents(Span<Window::KeyEvent const> keyEvents, U64* outActionIds, U64 outActionIdsMaxLen) {
+	U64 outActionIdsLen = 0;
+	for (U64 i = 0; i < keyEvents.len; i++) {
+		Key::Key const key = keyEvents[i].key;
+		Assert(key > Key::Key::Invalid && key < Key::Key::Max);
+
+		bool const down    = keyEvents[i].down;
+		bool const changed = keyDown[(U16)key] != down;
+		if (down) {
+			if (changed) {
+				Assert(downKeysLen < (U16)Key::Key::Max);
+				downKeys[downKeysLen++] = key;
+				Logf("Key up -> down: %s", Key::GetKeyStr(key));
+			}
+			keyDown[(U16)key] = true;
+		} else {	// key up
+			if (changed) {
+				// O(n) okay, few keys down at a time
+				for (U16 j = 0; j < downKeysLen; j++) {
+					if (downKeys[j] == key) {
+						downKeys[j] = downKeys[downKeysLen - 1];
+						downKeysLen--;
+						break;
+					}
 				}
+				Logf("Key down -> up: %s", Key::GetKeyStr(key));
+			}
+			keyDown[(U16)key] = false;
+		}
+
+		if (!changed) { continue; }
+
+		Binding* const keyBindings = bindings + (U64)key * MaxBindingSets;
+		BindingType const targetBindingType = down ? BindingType::OnKeyDown : BindingType::OnKeyUp;
+		for (I16 j = (I16)activeBindingSetsLen - 1; j >= 0; j--) {
+			Binding const* const binding = &keyBindings[activeBindSets[j]];
+			if (binding->actionId && (binding->bindingType == targetBindingType)) {
+				if (outActionIdsLen >= outActionIdsMaxLen) {
+					Errorf("Dropped action ID %u", binding->actionId);
+					return Span<U64 const>(outActionIds, outActionIdsLen);
+				}
+				outActionIds[outActionIdsLen++] = binding->actionId;
+				break;
 			}
 		}
-		keyDown[(U16)key] = false;
 	}
 
-	Binding* const keyBindings = bindings + (U64)key * MaxBindingSets;
-	BindingType const targetBindingType = down ? BindingType::OnKeyDown : BindingType::OnKeyUp;
-	for (I16 i = (I16)activeBindingSetsLen - 1; i >= 0; i--) {
-		Binding const* const binding = &keyBindings[activeBindSets[i]];
-		if (binding->actionId && (binding->bindingType == targetBindingType)) {
-			return binding->actionId;
-		}
-	}
-
-	return 0;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-Span<U64> GetContinuousActions() {
-	continuousActionsLen = 0;
 	for (U16 i = 0; i < downKeysLen; i++) {
 		Binding* const keyBindings = bindings + (U64)downKeys[i] * MaxBindingSets;
 		for (I16 j = (I16)activeBindingSetsLen - 1; j >= 0; j--) {
 			Binding const* const binding = &keyBindings[activeBindSets[j]];
 			if (binding->actionId && binding->bindingType == BindingType::Continuous) {
-				continuousActions[continuousActionsLen++] = binding->actionId;
+				if (outActionIdsLen >= outActionIdsMaxLen) {
+					Errorf("Dropped action ID %u", binding->actionId);
+					return Span<U64 const>(outActionIds, outActionIdsLen);
+				}
+				// This binding set wins for this key
+				// break and go to next down key
+				outActionIds[outActionIdsLen++] = binding->actionId;
 				break;
 			}
 		}
 	}
-	return Span<U64>(continuousActions, continuousActionsLen);
+
+	return Span<U64 const>(outActionIds, outActionIdsLen);
 }
 
 //--------------------------------------------------------------------------------------------------
