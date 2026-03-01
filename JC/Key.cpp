@@ -4,7 +4,7 @@ namespace JC::Key {
 
 //--------------------------------------------------------------------------------------------------
 
-Str KeyStr(Key key) {
+Str GetKeyStr(Key key) {
 	switch (key) {
 		case Key::Mouse1: return "Mouse1";
 		case Key::Mouse2: return "Mouse2";

@@ -17,13 +17,12 @@ enum struct BindingType {
 
 DefHandle(BindingSet);
 
-void       Init(Mem permMem);
-BindingSet CreateBindingSet(Str name);
-void       Bind(BindingSet bindingSet, Key::Key key, BindingType bindType, U64 actionId, Str actionStr);	// 0 actionId reserved for invalid
-void       Unbind(BindingSet bindingSet, Key::Key key);
-void       ActivateBindingSets(Span<BindingSet> bindingSets);
-U64        KeyEvent(Key::Key key, bool down);	// returns corresponding action ID, or 0 if none
-Span<U64>  GetContinuousActions();
+void            Init(Mem permMem);
+BindingSet      CreateBindingSet(Str name);
+void            Bind(BindingSet bindingSet, Key::Key key, BindingType bindType, U64 actionId, Str actionStr);	// 0 actionId reserved for invalid
+void            Unbind(BindingSet bindingSet, Key::Key key);
+void            SetBindingSetStack(Span<BindingSet const> bindingSets);
+Span<U64 const> ProcessKeyEvents(Span<Key::Key const> keyDownEvents, Span<Key::Key const> keyUpEvents);
 
 //--------------------------------------------------------------------------------------------------
 

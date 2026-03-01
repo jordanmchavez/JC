@@ -57,53 +57,23 @@ struct PlatformDef {
 	#endif	// Platform
 };
 
-enum struct EventType {
-	Invalid = 0,
-	Key,
-	MouseMove,
-	WindowResized,
-	WindowMinimized,
-	WindowRestored,
-	WindowFocused,
-	WindowUnfocused,
-	ExitRequest,
+struct Events {
+	Span<Key::Key const> keyDownEvents;
+	Span<Key::Key const> keyUpEvents;
+	I32                  mouseX = 0;
+	I32                  mouseY = 0;
+	I64                  mouseDeltaX = 0;
+	I64                  mouseDeltaY = 0;
+	bool                 exitEvent = false;
 };
 
-// No default values for events since they're used in a union
-struct KeyEvent {
-	bool down;
-	Key::Key  key;
-};
-
-struct MouseMoveEvent {
-	I32 x;
-	I32 y;
-	I32 dx;
-	I32 dy;
-};
-
-struct WindowResizedEvent {
-	U32 width;
-	U32 height;
-};
-
-struct Event {
-	EventType eventType = EventType::Invalid;
-	union {
-		KeyEvent           key;
-		MouseMoveEvent     mouseMove;
-		WindowResizedEvent windowResized;
-	};
-};
-
-Res<>               Init(const InitDef* initDef);
+Res<>               Init(InitDef const* initDef);
 void                Shutdown();
-Span<const Display> GetDisplays();
-void                Frame();
+Span<Display const> GetDisplays();
 PlatformDef         GetPlatformDef();
 State               GetState();
-void                AddEvent(Event event);
-bool                GetEvent(Event* event);
+void                SetCursorMode(CursorMode cursorMode);
+Events              Frame();
 
 //--------------------------------------------------------------------------------------------------
 

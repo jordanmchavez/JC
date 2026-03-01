@@ -482,10 +482,10 @@ void DestroyCanvas(Canvas canvas) {
 
 static U64 frameIdx;
 
-void BeginFrame(const Gpu::Frame* frame) {
-	frameIdx = frame->frameIdx;
+void BeginFrame(const Gpu::FrameData* gpuFrameData) {
+	frameIdx = gpuFrameData->frameIdx;
 	CanvasObj* const canvasObj = canvasObjs.Get(swapchainCanvas);
-	canvasObj->colorImage = frame->swapchainImage;
+	canvasObj->colorImage = gpuFrameData->swapchainImage;
 
 	drawCmds = (DrawCmd*)drawCmdBufferPtrs[frameIdx];
 	drawCmdCount = 0;

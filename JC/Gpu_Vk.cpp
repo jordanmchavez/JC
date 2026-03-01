@@ -1980,7 +1980,7 @@ Res<> ImmediateCopyToImage(void const* data, Image image, BarrierStage::Flags fi
 
 //-------------------------------------------------------------------------------------------------
 
-Res<Frame> BeginFrame() {
+Res<FrameData> BeginFrame() {
 	VkSemaphoreWaitInfo const vkSemaphoreWaitInfo = {
 		.sType          = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
 		.pNext          = 0,
@@ -2022,7 +2022,7 @@ Res<Frame> BeginFrame() {
 		VK_IMAGE_ASPECT_COLOR_BIT
 	);
 
-	return Frame {
+	return FrameData {
 		.frameNum       = frameNum,
 		.frameIdx       = frameIdx,
 		.swapchainImage = swapchainImages[swapchainImageIdx],

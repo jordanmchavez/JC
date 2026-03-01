@@ -16,15 +16,15 @@ struct Binding {
 };
 
 static Str*     bindingSetNames;
-static U64      bindingSetsLen; 
+static U16      bindingSetsLen;
 static Binding* bindings;	// [key * MaxBindingSets + bindSetIdx] -> bind for this key+bindset
 static bool     keyDown[(U16)Key::Key::Max];
 static Key::Key downKeys[(U16)Key::Key::Max];
-static U32      downKeysLen;
-static U32      activeBindSets[MaxBindingSets];
-static U32      activeBindingSetsLen;
+static U16      downKeysLen;
+static U16      activeBindSets[MaxBindingSets];
+static U16      activeBindingSetsLen;
 static U64*     continuousActions;
-static U64      continuousActionsLen;
+static U16      continuousActionsLen;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -52,9 +52,9 @@ void Bind(BindingSet bindingSet, Key::Key key, BindingType bindingType, U64 acti
 	Assert(actionId != 0);
 	Assert(bindingType != BindingType::Invalid);
 	bindings[((U64)key * MaxBindingSets) + bindingSet.handle] = {
-		.bindingType  = bindingType,
-		.actionId  = actionId,
-		.actionStr = StrDb::Intern(actionStr),
+		.bindingType = bindingType,
+		.actionId    = actionId,
+		.actionStr   = StrDb::Intern(actionStr),
 	};
 }
 
@@ -80,8 +80,10 @@ void ActivateBindingSets(Span<BindingSet> bindingSets) {
 //--------------------------------------------------------------------------------------------------
 
 U64 KeyEvent(Key::Key key, bool down) {
+	Assert(key > Key::Key::Invalid && key < Key::Key::Max);
 	if (down) {
 		if (!keyDown[(U16)key]) {
+			Assert(downKeysLen < (U16)Key::Key::Max);
 			downKeys[downKeysLen++] = key;
 		}
 		keyDown[(U16)key] = true;
@@ -98,11 +100,8 @@ U64 KeyEvent(Key::Key key, bool down) {
 		keyDown[(U16)key] = false;
 	}
 
-	// All bindings for this key: keyBinds[i] = bind for bindingSet i
-	Binding* const keyBindings = bindings + (U32)key * MaxBindingSets;
-
+	Binding* const keyBindings = bindings + (U64)key * MaxBindingSets;
 	BindingType const targetBindingType = down ? BindingType::OnKeyDown : BindingType::OnKeyUp;
-	// Use the first BindingSet that binds this key
 	for (I16 i = (I16)activeBindingSetsLen - 1; i >= 0; i--) {
 		Binding const* const binding = &keyBindings[activeBindSets[i]];
 		if (binding->actionId && (binding->bindingType == targetBindingType)) {
@@ -116,14 +115,14 @@ U64 KeyEvent(Key::Key key, bool down) {
 //--------------------------------------------------------------------------------------------------
 
 Span<U64> GetContinuousActions() {
-	// Dynamically recalcs continuousActions
 	continuousActionsLen = 0;
 	for (U16 i = 0; i < downKeysLen; i++) {
-		Binding* const keyBindings = bindings + (U32)downKeys[i] * MaxBindingSets;
+		Binding* const keyBindings = bindings + (U64)downKeys[i] * MaxBindingSets;
 		for (I16 j = (I16)activeBindingSetsLen - 1; j >= 0; j--) {
-			Binding const* const binding = &keyBindings[activeBindSets[i]];
+			Binding const* const binding = &keyBindings[activeBindSets[j]];
 			if (binding->actionId && binding->bindingType == BindingType::Continuous) {
-				continuousActions[continuousActionsLen++] = bindings->actionId;
+				continuousActions[continuousActionsLen++] = binding->actionId;
+				break;
 			}
 		}
 	}

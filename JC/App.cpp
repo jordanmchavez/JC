@@ -17,14 +17,6 @@ namespace JC::App {
 
 //--------------------------------------------------------------------------------------------------
 
-static bool exitRequested = false;
-
-void RequestExit() {
-	exitRequested = true;
-}
-
-//--------------------------------------------------------------------------------------------------
-
 static void PanicFn(SrcLoc sl, char const* expr, char const* msg) {
 	char buf[1024];
 	char* iter = buf;
@@ -110,8 +102,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 
 	U64 frame = 0;
 	U64 lastTicks = Time::Now();
-	exitRequested = false;
-	while (!exitRequested) {
+	for (;;) {
 		frame++;
 
 		Mem::Reset(tempMem, MemMark());
@@ -121,24 +112,36 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 		U64 const deltaTicks = nowTicks - lastTicks;
 		lastTicks = nowTicks;
 
-		Window::Frame();
-		Window::State const prevWindowState = windowState;
+		Window::Events const windowEvents = Window::Frame();
+		Window::State const prevWindowState = windowState;	// TODO: this could be rolled into Events as part of the return val from Window::Frame()
 		windowState = Window::GetState();
 
-		Try(app->Update(deltaTicks));
+		Span<U64 const> const actions = Input::ProcessKeyEvents(windowEvents.keyDownEvents, windowEvents.keyUpEvents);
+
+		FrameData const appFrameData = {
+			.ticks       = deltaTicks,
+			.actions     = actions,
+			.mouseX      = windowEvents.mouseX,
+			.mouseY      = windowEvents.mouseY,
+			.mouseDeltaX = windowEvents.mouseDeltaX,
+			.mouseDeltaY = windowEvents.mouseDeltaY,
+			.exit        = windowEvents.exitEvent,
+		};
+
+		if (Res<> r = app->Frame(&appFrameData); !r) {
+			if (r.err == Err_Exit) {
+				return Ok();
+			}
+			return r.err;
+		}
 
 		bool recreatedSwapChain = false;
 		if (prevWindowState.width != windowState.width || prevWindowState.height != windowState.height) {
+			Logf("Window size changed: %ux%u -> %ux%u", prevWindowState.width, prevWindowState.height, windowState.width, windowState.height);
 			Try(Gpu::RecreateSwapchain(windowState.width, windowState.height));
 			recreatedSwapChain = true;
-			Window::AddEvent({
-				.eventType = Window::EventType::WindowResized,
-				.windowResized = {
-					.width  = windowState.width,
-					.height = windowState.height,
-				},
-			});
-			Logf("Window size changed: %ux%u -> %ux%u", prevWindowState.width, prevWindowState.height, windowState.width, windowState.height);
+			Try(Draw::ResizeWindow(windowState.width, windowState.height));
+			Try(app->ResizeWindow(windowState.width, windowState.height));
 			continue;
 		}
 
@@ -146,8 +149,8 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 			continue;
 		}
 
-		Gpu::Frame gpuFrame;
-		if (Res<> r = Gpu::BeginFrame().To(gpuFrame); !r) {
+		Gpu::FrameData gpuFrameData;
+		if (Res<> r = Gpu::BeginFrame().To(gpuFrameData); !r) {
 			if (r.err != Gpu::Err_RecreateSwapchain) {
 				return r;
 			}
@@ -156,7 +159,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 			continue;
 		}
 
-		Try(app->Draw(&gpuFrame));
+		Try(app->Draw(&gpuFrameData));
 		
 		if (Res<> r = Gpu::EndFrame(); !r) {
 			if (r.err != Gpu::Err_RecreateSwapchain) {
@@ -166,8 +169,6 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 			Logf("Recreated swapchain after EndFrame() with w=%u, h=%u", windowState.width, windowState.height);
 		}
 	}
-
-	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------

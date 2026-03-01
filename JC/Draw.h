@@ -2,7 +2,7 @@
 
 #include "JC/Common.h"
 
-namespace JC::Gpu { struct Frame; };
+namespace JC::Gpu { struct FrameData; };
 
 namespace JC::Draw {
 
@@ -81,7 +81,7 @@ Res<Font>   LoadFont(Str fontPath, Str imagePath);
 F32         GetFontLineHeight(Font font);
 Res<Canvas> CreateCanvas(U32 width, U32 height);
 void        DestroyCanvas(Canvas canvas);
-void        BeginFrame(Gpu::Frame const* frame);
+void        BeginFrame(Gpu::FrameData const* gpuFrameData);
 void        EndFrame();
 void        SetDefaultCanvas();
 void        SetCanvas(Canvas canvas);

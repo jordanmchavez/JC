@@ -545,21 +545,18 @@ static void RecalcCanvasBounds() {
 	Logf("canvasMaxPos=(%.2f, %.2f)", canvasMaxPos.x, canvasMaxPos.y);
 }
 
-Res<> Update(U64 ticks) {
-	const F32 secs = (F32)Time::Secs(ticks);
+Res<> Frame(App::FrameData const* frameData) {
+	if (frameData->exit) {
+		return App::Err_Exit();
+	}
 
-	for (Window::Event event; Window::GetEvent(&event);) {
-		switch (event.eventType) {
-			case Window::EventType::ExitRequest:
-				App::RequestExit();
-				break;
+	const F32 secs = (F32)Time::Secs(frameData->ticks);
 
-			case Window::EventType::WindowResized:
-				Try(Draw::ResizeWindow(event.windowResized.width, event.windowResized.height));
-				break;
+	for (U64 i = 0; i < frameData->actions.len; i++) {
+		U64 const actionId = frameData->actions[i];
+	}
 
-			case Window::EventType::Key:
-				switch (event.key.key) {
+/*				switch (event.key.key) {
 					case Key::Key::Escape:
 						App::RequestExit();
 						break;
@@ -569,10 +566,6 @@ Res<> Update(U64 ticks) {
 							break;
 						}
 						HandleLeftClick();
-						break;
-
-					case Key::Key::Mouse2:
-						//if (state == State::WaitingOrder && selectedMapTile
 						break;
 
 					case Key::Key::MouseWheelUp:   canvasScale -= 0.25f; Logf("canvasScale=%.2f", canvasScale); RecalcCanvasBounds(); break;
@@ -623,8 +616,8 @@ Res<> Update(U64 ticks) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Draw(Gpu::Frame const* gpuFrame) {
-	Draw::BeginFrame(gpuFrame);
+Res<> Draw(Gpu::FrameData const* gpuFrameData) {
+	Draw::BeginFrame(gpuFrameData);	// TODO: move to App.cpp
 
 	Draw::SetCanvas(canvas);
 	Draw::DrawRect({
@@ -748,6 +741,14 @@ Res<> Draw(Gpu::Frame const* gpuFrame) {
 
 //--------------------------------------------------------------------------------------------------
 
+Res<> ResizeWindow(U32 windowWidth, U32 windowHeight) {
+	windowWidth;
+	windowHeight;
+	return Ok();
+}
+
+//--------------------------------------------------------------------------------------------------
+
 void Shutdown() {
 	Draw::DestroyCanvas(canvas);
 }
@@ -755,11 +756,12 @@ void Shutdown() {
 //--------------------------------------------------------------------------------------------------
 
 App::App app = {
-	.PreInit  = PreInit,
-	.Init     = Init,
-	.Shutdown = Shutdown,
-	.Update   = Update,
-	.Draw     = Draw,
+	.PreInit      = PreInit,
+	.Init         = Init,
+	.Shutdown     = Shutdown,
+	.Frame        = Frame,
+	.Draw         = Draw,
+	.ResizeWindow = ResizeWindow,
 };
 
 App::App* GetApp() { return &app; }

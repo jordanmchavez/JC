@@ -266,3 +266,4 @@ WM_ENTERSIZEMOVE freezes processing and fills up the buffer. options:
 	just overwrite the event buffer events; don't panic on full
 Verify json parsing fails if negative value is present when expecint U32
 namespace FS -> Fs
+make all perm arrays use the perm allocator

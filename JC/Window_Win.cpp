@@ -19,7 +19,7 @@ namespace JC::Window {
 //--------------------------------------------------------------------------------------------------
 
 static constexpr U32 MaxDisplays = 32;
-static constexpr U32 MaxEvents = 1024;
+static constexpr U32 MaxKeyEvents = 1024;
 
 struct Window {
 	HWND        hwnd;
@@ -34,14 +34,37 @@ struct Window {
 	bool        focused;
 };
 
-static Mem     tempMem;
-static Display displays[MaxDisplays];
-static U32     displaysLen;
-static Window  window;
-static bool    inSizeMove;
-static Event   events[MaxEvents];
-static U32     eventsHead;
-static U32     eventsTail;
+static Mem       tempMem;
+static Display*  displays;
+static U16       displaysLen;
+static Window    window;
+static bool      inSizeMove;
+static Key::Key* keyDownEvents;
+static U16       keyDownEventsLen;
+static Key::Key* keyUpEvents;
+static U16       keyUpEventsLen;
+static I64       mouseDeltaX;
+static I64       mouseDeltaY;
+static bool      exitEvent;
+
+//----------------------------------------------------------------------------------------------
+
+static void AddKeyDownEvent(Key::Key key) {
+	if (keyDownEventsLen >= MaxKeyEvents) {
+		Errorf("Dropping key %s down event", Key::GetKeyStr(key));
+		return;
+	}
+	keyDownEvents[keyDownEventsLen++] = key;
+}
+
+
+static void AddKeyUpEvent(Key::Key key) {
+	if (keyUpEventsLen >= MaxKeyEvents) {
+		Errorf("Dropping key %s up event", Key::GetKeyStr(key));
+		return;
+	}
+	keyUpEvents[keyUpEventsLen++] = key;
+}
 
 //----------------------------------------------------------------------------------------------
 
@@ -64,7 +87,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 			break;
 
 		case WM_CLOSE:
-			AddEvent({ .eventType = EventType::ExitRequest });
+			exitEvent = true;
 			break;
 
 		case WM_DPICHANGED:
@@ -96,39 +119,29 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 			RAWINPUT* rawInput = (RAWINPUT*)Mem::Alloc(tempMem, size);
 			GetRawInputData(hrawInput, RID_INPUT, rawInput, &size, sizeof(RAWINPUTHEADER));
 			if (rawInput->header.dwType == RIM_TYPEMOUSE) {
-				const RAWMOUSE* const m = &rawInput->data.mouse;
-				if (m->usButtonFlags & RI_MOUSE_WHEEL) {
-					I16 const wheelDelta = (I16)m->usButtonData;
+				const RAWMOUSE* const rawMouse = &rawInput->data.mouse;
+				if (rawMouse->usButtonFlags & RI_MOUSE_WHEEL) {
+					I16 const wheelDelta = (I16)rawMouse->usButtonData;
 					Key::Key const key = (wheelDelta > 0) ? Key::Key::MouseWheelUp : Key::Key::MouseWheelDown;
 					const U32 numEvents =  (U32)(wheelDelta > 0 ? wheelDelta : -wheelDelta) / 120;
 					for (U32 i = 0; i < numEvents; i++) {
-						AddEvent({ .eventType = EventType::Key, .key = { .down = true, .key = key } });
+						AddKeyDownEvent(key);
 					}
 				}
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) { AddEvent({ .eventType = EventType::Key, .key = { .down = true,  .key  = Key::Key::Mouse1} }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_1_UP  ) { AddEvent({ .eventType = EventType::Key, .key = { .down = false, .key  = Key::Key::Mouse1} }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) { AddEvent({ .eventType = EventType::Key, .key = { .down = true,  .key  = Key::Key::Mouse2} }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_2_UP  ) { AddEvent({ .eventType = EventType::Key, .key = { .down = false, .key  = Key::Key::Mouse2} }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) { AddEvent({ .eventType = EventType::Key, .key = { .down = true,  .key  = Key::Key::Mouse3} }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_3_UP  ) { AddEvent({ .eventType = EventType::Key, .key = { .down = false, .key  = Key::Key::Mouse3} }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) { AddEvent({ .eventType = EventType::Key, .key = { .down = true,  .key  = Key::Key::Mouse4 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_4_UP  ) { AddEvent({ .eventType = EventType::Key, .key = { .down = false, .key  = Key::Key::Mouse4 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) { AddEvent({ .eventType = EventType::Key, .key = { .down = true,  .key  = Key::Key::Mouse5 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_5_UP  ) { AddEvent({ .eventType = EventType::Key, .key = { .down = false, .key  = Key::Key::Mouse5 } }); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) { AddKeyDownEvent(Key::Key::Mouse1); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) { AddKeyDownEvent(Key::Key::Mouse2); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) { AddKeyDownEvent(Key::Key::Mouse3); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) { AddKeyDownEvent(Key::Key::Mouse4); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) { AddKeyDownEvent(Key::Key::Mouse5); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_1_UP  ) { AddKeyUpEvent  (Key::Key::Mouse1); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_2_UP  ) { AddKeyUpEvent  (Key::Key::Mouse2); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_3_UP  ) { AddKeyUpEvent  (Key::Key::Mouse3); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_4_UP  ) { AddKeyUpEvent  (Key::Key::Mouse4); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_5_UP  ) { AddKeyUpEvent  (Key::Key::Mouse5); }
 
-				::POINT mousePos;
-				::GetCursorPos(&mousePos);
-				::ScreenToClient(hwnd, &mousePos);
-				AddEvent({
-					.eventType = EventType::MouseMove,
-					.mouseMove = {
-						.x  = (I32)mousePos.x,
-						.y  = (I32)mousePos.y,
-						.dx = (I32)m->lLastX,
-						.dy = (I32)m->lLastY,
-					},
-				});
-					
+				mouseDeltaX += (I64)rawMouse->lLastX;
+				mouseDeltaY += (I64)rawMouse->lLastY;
+
 			} else if (rawInput->header.dwType == RIM_TYPEKEYBOARD) {
 				const RAWKEYBOARD* const rawKeyboard = &rawInput->data.keyboard;
 				bool const e0      = rawKeyboard->Flags & RI_KEY_E0;
@@ -236,14 +249,10 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 
 				if (key == Key::Key::Invalid) {
 					Errorf("Unrecognized scan code: %u", scanCode);
+				} else if (!(rawKeyboard->Flags & RI_KEY_BREAK)) {	// down
+					AddKeyDownEvent(key);
 				} else {
-					AddEvent({
-						.eventType = EventType::Key,
-						.key = {
-							.down = !(rawKeyboard->Flags & RI_KEY_BREAK),
-							.key  = key,
-						}
-					});
+					AddKeyUpEvent(key);
 				}
 			}
 			break;
@@ -270,7 +279,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 				break;
 			}
 			if (wparam == SC_CLOSE) {
-				AddEvent({ .eventType = EventType::ExitRequest });
+				exitEvent = true;
 				return 0;
 			}
 			break;
@@ -492,65 +501,6 @@ Span<Display const> GetDisplays() {
 
 //----------------------------------------------------------------------------------------------
 
-void Frame() {
-	const bool prevMinimized = window.minimized;
-	const bool prevFocused   = window.focused;
-	U32 const  prevWidth     = window.windowRect.width;
-	U32 const  prevHeight    = window.windowRect.height;
-
-
-	MSG msg;
-	while (PeekMessageW(&msg, 0, 0, 0, PM_REMOVE)) {
-		TranslateMessage(&msg);
-		DispatchMessageW(&msg);
-	}
-
-	if (!prevMinimized && window.minimized) {
-		AddEvent({ .eventType = EventType::WindowMinimized });
-	} else if (prevMinimized && !window.minimized) {
-		AddEvent({ .eventType = EventType::WindowRestored });
-	}
-	if (!prevFocused && window.focused) {
-		AddEvent({ .eventType = EventType::WindowFocused });
-	} else if (prevFocused && !window.focused) {
-		AddEvent({ .eventType = EventType::WindowUnfocused });
-	}
-	if (prevWidth != window.windowRect.width || prevHeight != window.windowRect.height) {
-		AddEvent({
-			.eventType = EventType::WindowResized,
-			.windowResized = {
-				.width  = window.windowRect.width,
-				.height = window.windowRect.height
-			},
-		});
-	}
-}
-
-//----------------------------------------------------------------------------------------------
-
-void SetRect(IRect newRect) {
-	RECT r;
-	::SetRect(&r, newRect.x, newRect.y, newRect.x + newRect.width, newRect.y + newRect.height);
-	AdjustWindowRectExForDpi(&r, window.winStyle, FALSE, 0, window.dpi);
-	SetWindowPos(window.hwnd, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_NOZORDER | SWP_NOACTIVATE);
-}
-
-//----------------------------------------------------------------------------------------------
-
-void SetCursorMode(CursorMode newCursorMode) {
-	if (window.cursorMode != CursorMode::VisibleFree) {
-		ClipCursor(0);
-	}
-	if (newCursorMode != CursorMode::VisibleFree) {
-		RECT r;
-		GetWindowRect(window.hwnd, &r);
-		ClipCursor(&r);
-	}
-	window.cursorMode = newCursorMode;
-}
-
-//----------------------------------------------------------------------------------------------
-
 PlatformDef GetPlatformDef() {
 	return PlatformDef {
 		.hinstance = GetModuleHandleW(0),
@@ -575,28 +525,45 @@ State GetState() {
 
 //----------------------------------------------------------------------------------------------
 
-static_assert(Bit::IsPow2(MaxEvents));
-
-void AddEvent(Event event) {
-
-	U32 const nextHead = (eventsHead + 1) & (MaxEvents - 1);
-	if (nextHead == eventsTail) {
-		Errorf("Overwrote event");
-		eventsTail = (eventsTail + 1) & (MaxEvents - 1);
+void SetCursorMode(CursorMode newCursorMode) {
+	if (window.cursorMode != CursorMode::VisibleFree) {
+		ClipCursor(0);
 	}
-	events[eventsHead] = event;
-	eventsHead = nextHead;
+	if (newCursorMode != CursorMode::VisibleFree) {
+		RECT r;
+		GetWindowRect(window.hwnd, &r);
+		ClipCursor(&r);
+	}
+	window.cursorMode = newCursorMode;
 }
 
 //----------------------------------------------------------------------------------------------
 
-bool GetEvent(Event* eventOut) {
-	if (eventsHead == eventsTail) {
-		return false;
+Events Frame() {
+	keyDownEventsLen = 0;
+	keyUpEventsLen   = 0;
+	mouseDeltaX      = 0;
+	mouseDeltaY      = 0;
+	exitEvent        = false;
+
+	MSG msg;
+	while (PeekMessageW(&msg, 0, 0, 0, PM_REMOVE)) {
+		TranslateMessage(&msg);
+		DispatchMessageW(&msg);
 	}
-	*eventOut = events[eventsTail];
-	eventsTail = (eventsTail + 1) & (MaxEvents - 1);
-	return true;
+
+	::POINT mousePos;
+	::GetCursorPos(&mousePos);
+	::ScreenToClient(window.hwnd, &mousePos);
+	return Events {
+		.keyDownEvents = Span<Key::Key const>(keyDownEvents, keyDownEventsLen),
+		.keyUpEvents   = Span<Key::Key const>(keyDownEvents, keyDownEventsLen),
+		.mouseX        = (I32)mousePos.x,
+		.mouseY        = (I32)mousePos.y,
+		.mouseDeltaX   = mouseDeltaX,
+		.mouseDeltaY   = mouseDeltaY,
+		.exitEvent     = exitEvent,
+	};
 }
 
 //----------------------------------------------------------------------------------------------
