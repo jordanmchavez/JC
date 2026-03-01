@@ -2,9 +2,9 @@
 
 #include "JC/Cfg.h"
 #include "JC/Draw.h"
-#include "JC/Event.h"
 #include "JC/FS.h"
 #include "JC/Gpu.h"
+#include "JC/Input.h"
 #include "JC/Log.h"
 #include "JC/Rng.h"
 #include "JC/StrDb.h"
@@ -55,6 +55,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 	Mem permMem = Mem::Create(16 * GB);
 	Mem tempMem = Mem::Create(16 * GB);
 
+	Err::SetBreakOnErr(true);
 	Time::Init();
 	FS::Init(tempMem);
 	StrDb::Init();
@@ -69,6 +70,8 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 			Sys::DbgPrint(msg->line);
 		}
 	});
+
+	Input::Init(permMem);
 
 	Try(app->PreInit(permMem, tempMem));
 
@@ -128,8 +131,8 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 		if (prevWindowState.width != windowState.width || prevWindowState.height != windowState.height) {
 			Try(Gpu::RecreateSwapchain(windowState.width, windowState.height));
 			recreatedSwapChain = true;
-			Event::AddEvent({
-				.type = Event::Type::WindowResized,
+			Window::AddEvent({
+				.eventType = Window::EventType::WindowResized,
 				.windowResized = {
 					.width  = windowState.width,
 					.height = windowState.height,
@@ -180,6 +183,10 @@ void Shutdown(App* app) {
 //--------------------------------------------------------------------------------------------------
 
 bool Run(App* app, int argc, char const* const* argv) {
+	if (argc == 2 && argv[1] == Str("test")) {
+		Unit::Run(); return 0;
+	}
+
 	Res<> r = RunImpl(app, argc, argv);
 	if (!r) {
 		LogErr(r);

@@ -5,8 +5,9 @@
 #include "JC/Cfg.h"
 #include "JC/Draw.h"
 #include "JC/Effect.h"
-#include "JC/Event.h"
 #include "JC/Gpu.h"
+#include "JC/Input.h"
+#include "JC/Key.h"
 #include "JC/Log.h"
 #include "JC/Math.h"
 #include "JC/Rng.h"
@@ -350,14 +351,14 @@ Res<> Init(Window::State const* windowState) {
 		}
 	}
 
-	constexpr Str fontName = "13_Lief";
+	constexpr Str fontName = "20_Kingdom";
 	TryTo(Draw::LoadFont(
 		SPrintf(tempMem, "Assets/Fonts/%s.fontjson", fontName),
 		SPrintf(tempMem, "Assets/Fonts/%s.png", fontName)
 	), font);
 	fontLineHeight = Draw::GetFontLineHeight(font);
 	
-	// TODO: this needs to be in all gpu resource load functions...it costs us so much time
+	// TODO: this needs to be in all gpu resource load functions...I've forgotten to add this and it's repeatedly cost me lotsa debugging time
 	Try(Gpu::ImmediateWait());
 
 	mousePos = Vec2(0.f, 0.f);
@@ -523,87 +524,84 @@ static void ExecuteAttackOrder(F32 secs) {
 
 //--------------------------------------------------------------------------------------------------
 
+static void RecalcCanvasBounds() {
+	F32 const canvasScaledWidth  = canvasSize.x * canvasScale;
+	F32 const canvasScaledHeight = canvasSize.y * canvasScale;
+	canvasMaxPos.x = (canvasAreaWidth  / 2.f) - (canvasAreaWidth  - canvasScaledWidth) / 2.f;
+	canvasMaxPos.y = (canvasAreaHeight / 2.f) - (canvasAreaHeight - canvasScaledHeight) / 2.f;
+	if (canvasScaledWidth > canvasAreaWidth) {
+		canvasMinPos.x = canvasAreaWidth - canvasMaxPos.x;
+	} else {
+		canvasMinPos.x = canvasMaxPos.x;
+	}
+	if (canvasScaledHeight > canvasAreaHeight) {
+		canvasMinPos.y = canvasAreaHeight - canvasMaxPos.y;
+	} else {
+		canvasMinPos.y = canvasMaxPos.y;
+	}
+	canvasPos.x = Clamp(canvasPos.x, canvasMinPos.x, canvasMaxPos.x);
+	canvasPos.y = Clamp(canvasPos.y, canvasMinPos.y, canvasMaxPos.y);
+	Logf("canvasMinPos=(%.2f, %.2f)", canvasMinPos.x, canvasMinPos.y);
+	Logf("canvasMaxPos=(%.2f, %.2f)", canvasMaxPos.x, canvasMaxPos.y);
+}
+
 Res<> Update(U64 ticks) {
 	const F32 secs = (F32)Time::Secs(ticks);
 
-	for (Event::Event event; Event::GetEvent(&event);) {
-
-		switch (event.type) {
-			case Event::Type::ExitRequest:
+	for (Window::Event event; Window::GetEvent(&event);) {
+		switch (event.eventType) {
+			case Window::EventType::ExitRequest:
 				App::RequestExit();
 				break;
 
-			case Event::Type::WindowResized:
+			case Window::EventType::WindowResized:
 				Try(Draw::ResizeWindow(event.windowResized.width, event.windowResized.height));
 				break;
 
-			case Event::Type::Key:
+			case Window::EventType::Key:
 				switch (event.key.key) {
-					case Event::Key::Escape:
+					case Key::Key::Escape:
 						App::RequestExit();
 						break;
 
-					case Event::Key::MouseLeft:
+					case Key::Key::Mouse1:
 						if (!event.key.down) {
 							break;
 						}
 						HandleLeftClick();
 						break;
 
-					case Event::Key::MouseRight:
+					case Key::Key::Mouse2:
 						//if (state == State::WaitingOrder && selectedMapTile
 						break;
+
+					case Key::Key::MouseWheelUp:   canvasScale -= 0.25f; Logf("canvasScale=%.2f", canvasScale); RecalcCanvasBounds(); break;
+					case Key::Key::MouseWheelDown: canvasScale += 0.25f; Logf("canvasScale=%.2f", canvasScale); RecalcCanvasBounds(); break;
 				}
 				break;
 
-			case Event::Type::MouseMove: {
+			case Window::EventType::MouseMove: {
 				mousePos.x = (F32)event.mouseMove.x;
 				mousePos.y = (F32)event.mouseMove.y;
 				break;
 			}
-
-			case Event::Type::MouseWheel:
-			    if (event.mouseWheel.delta < 0.f && canvasScale > 1.f) {
-					canvasScale-= 0.25f;
-				} else if (event.mouseWheel.delta > 0.f && canvasScale < 10.f) {
-					canvasScale+= 0.25f;
-				}
-				Logf("canvasScale=%.2f", canvasScale);
-
-				F32 const canvasScaledWidth  = canvasSize.x * canvasScale;
-				F32 const canvasScaledHeight = canvasSize.y * canvasScale;
-				canvasMaxPos.x = (canvasAreaWidth  / 2.f) - (canvasAreaWidth  - canvasScaledWidth) / 2.f;
-				canvasMaxPos.y = (canvasAreaHeight / 2.f) - (canvasAreaHeight - canvasScaledHeight) / 2.f;
-				if (canvasScaledWidth > canvasAreaWidth) {
-					canvasMinPos.x = canvasAreaWidth - canvasMaxPos.x;
-				} else {
-					canvasMinPos.x = canvasMaxPos.x;
-				}
-				if (canvasScaledHeight > canvasAreaHeight) {
-					canvasMinPos.y = canvasAreaHeight - canvasMaxPos.y;
-				} else {
-					canvasMinPos.y = canvasMaxPos.y;
-				}
-				canvasPos.x = Clamp(canvasPos.x, canvasMinPos.x, canvasMaxPos.x);
-				canvasPos.y = Clamp(canvasPos.y, canvasMinPos.y, canvasMaxPos.y);
-				Logf("canvasMinPos=(%.2f, %.2f)", canvasMinPos.x, canvasMinPos.y);
-				Logf("canvasMaxPos=(%.2f, %.2f)", canvasMaxPos.x, canvasMaxPos.y);
-				break;
 		}
 	}
 
 	constexpr float CanvasScrollPixelsPerSec = 1000.f;
-	
-	if (Event::IsKeyDown(Event::Key::Left))  { canvasPos.x = Min(canvasMaxPos.x, canvasPos.x + (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); };
-	if (Event::IsKeyDown(Event::Key::Right)) { canvasPos.x = Max(canvasMinPos.x, canvasPos.x - (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); };
-	if (Event::IsKeyDown(Event::Key::Up))    { canvasPos.y = Min(canvasMaxPos.y, canvasPos.y + (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); };
-	if (Event::IsKeyDown(Event::Key::Down))  { canvasPos.y = Max(canvasMinPos.y, canvasPos.y - (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); };
+	/*
+	if (Window::IsKeyDown(Key::Key::Left))  { canvasPos.x = Min(canvasMaxPos.x, canvasPos.x + (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); };
+	if (Window::IsKeyDown(Key::Key::Right)) { canvasPos.x = Max(canvasMinPos.x, canvasPos.x - (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); };
+	if (Window::IsKeyDown(Key::Key::Up))    { canvasPos.y = Min(canvasMaxPos.y, canvasPos.y + (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); };
+	if (Window::IsKeyDown(Key::Key::Down))  { canvasPos.y = Max(canvasMinPos.y, canvasPos.y - (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); };
 
+	*/
 
 	Vec2 const canvasTopLeft = Vec2(
 		canvasPos.x - (canvasSize.x * canvasScale) / 2.f,
 		canvasPos.y - (canvasSize.y * canvasScale) / 2.f
 	);
+	
 	Vec2 const canvasMousePos = Math::Scale(Math::Sub(mousePos, canvasTopLeft), 1.f / canvasScale);
 	mouseMapCoord = PixelToMapCoord(canvasMousePos);
 	if (mouseMapCoord.col >= 0 && mouseMapCoord.col < MapCols && mouseMapCoord.row >= 0 && mouseMapCoord.row < MapRows) {

@@ -1,0 +1,137 @@
+#pragma once
+
+#include "JC/Common.h"
+
+namespace JC::Key {
+
+//--------------------------------------------------------------------------------------------------
+
+enum struct Key : U16 {
+	Invalid = 0x00,
+
+	Mouse1,
+	Mouse2,
+	Mouse3,
+	Mouse4,
+	Mouse5,
+	MouseWheelUp,
+	MouseWheelDown,
+
+	A,
+	B,
+	C,
+	D,
+	E,
+	F,
+	G,
+	H,
+	I,
+	J,
+	K,
+	L,
+	M,
+	N,
+	O,
+	P,
+	Q,
+	R,
+	S,
+	T,
+	U,
+	V,
+	W,
+	X,
+	Y,
+	Z,
+
+	Zero,
+	One,
+	Two,
+	Three,
+	Four,
+	Five,
+	Six,
+	Seven,
+	Eight,
+	Nine,
+
+	Escape,
+	F1,
+	F2,
+	F3,
+	F4,
+	F5,
+	F6,
+	F7,
+	F8,
+	F9,
+	F10,
+	F11,
+	F12,
+	PrintScreen,
+	ScrollLock,
+	Pause,
+
+	BackQuote,
+	Minus,
+	Equals,
+	Backspace,
+	LeftBracket,
+	RightBracket,
+	Backslash,
+	Semicolon,
+	Quote,
+	Comma,
+	Dot,
+	Slash,
+
+	Tab,
+	CapsLock,
+	Space,
+	Enter,
+
+	Insert,
+	Delete,
+	Home,
+	End,
+	PageUp,
+	PageDown,
+	Left,
+	Right,
+	Up,
+	Down,
+
+	ShiftLeft,
+	ShiftRight,
+	CtrlLeft,
+	CtrlRight,
+	AltLeft,
+	AltRight,
+	Winleft,
+	WinRight,
+	Menu,
+
+	NumPad0,
+	NumPad1,
+	NumPad2,
+	NumPad3,
+	NumPad4,
+	NumPad5,
+	NumPad6,
+	NumPad7,
+	NumPad8,
+	NumPad9,
+	NumpadStar,
+	NumpadPlus,
+	NumpadEnter,
+	NumpadMinus,
+	NumpadDot,
+
+	Max,
+};
+
+Str GetKeyStr(Key key);
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Key

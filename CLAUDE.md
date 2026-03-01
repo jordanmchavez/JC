@@ -48,7 +48,7 @@ A C++ game engine and game (working title "JC"). Currently building toward a 4X/
 **Error handling:**
 - `Res<T>` result type (monadic). Functions that can fail return `Res<T>` or `Res<void>`.
 - `Try(expr)` macro propagates errors up the call stack
-- `TryTo(var, expr)` extracts value from `Res<T>` or propagates
+- `TryTo(expr, var)` extracts value from `Res<T>` or propagates
 - Define error codes with `DefErr(Namespace, Code)`
 - No exceptions anywhere
 

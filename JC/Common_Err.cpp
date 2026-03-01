@@ -1,5 +1,7 @@
 #include "JC/Common.h"
 
+#include "JC/Sys.h"
+
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
@@ -12,6 +14,7 @@ static U32  errsLen = 1;	// reserve index 0 for invalid
 static U64  errFrame;
 static char errStrBuf[MaxStrBuf];
 static U64  errStrBufLen;
+static bool errBreakOnErr = false;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -70,7 +73,17 @@ Err const* Err::Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, 
 		};
 	}
 
+	if (errBreakOnErr && Sys::DbgPresent()) {
+		DbgBreak;
+	}
+
 	return err;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void Err::SetBreakOnErr(bool breakOnErr) {
+	errBreakOnErr = breakOnErr;
 }
 
 //--------------------------------------------------------------------------------------------------

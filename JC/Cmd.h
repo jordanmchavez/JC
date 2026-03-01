@@ -6,7 +6,7 @@ namespace JC::Cmd {
 
 //--------------------------------------------------------------------------------------------------
 
-using CmdFn = void (Span<Str> args);
+using CmdFn = Res<> (Span<Str> args);
 
 void Init(Mem permMem);
 void AddCmd(Str name, CmdFn* cmdFn);

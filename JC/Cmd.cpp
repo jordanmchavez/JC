@@ -58,9 +58,6 @@ struct ParseCtx {
 	bool Eof() const { return iter >= end; }
 };
 
-// TODO:
-// escape chars, especially escaped quotes inside strings
-// comments // and /*
 static Res<ParseCtx> ParseLine(ParseCtx parseCtx) {
 	for (;;) {
 		// Skip whitespace
@@ -114,14 +111,15 @@ static Res<ParseCtx> ParseLine(ParseCtx parseCtx) {
 				Assert(!parseCtx.Eof());
 				char const c = *parseCtx.iter;
 				if (c == '\n') {
-					parseCtx.line++;
 					if (parseCtx.argsLen >= MaxArgs) {
 						return Err_MaxArgs("line", parseCtx.line, "pos", (U32)(argBegin - parseCtx.begin));
 					}
+					parseCtx.line++;
 					parseCtx.args[parseCtx.argsLen++] = Str(argBegin, (U32)(parseCtx.iter - argBegin));
 					parseCtx.iter++;
 					return parseCtx;
 				}
+				// Intentional that quote delimits tokens: `abc"def"` produces ["abc", "def" ].
 				if (c == '"' || c == ' ' || c == '\t' || c == '\r') {
 					if (parseCtx.argsLen >= MaxArgs) {
 						return Err_MaxArgs("line", parseCtx.line, "pos", (U32)(argBegin - parseCtx.begin));
@@ -160,11 +158,11 @@ Res<> Exec(Str buf) {
 		parseCtx.argsLen = 0;
 		TryTo(ParseLine(parseCtx), parseCtx);
 		if (parseCtx.argsLen > 0) {
-			CmdObj** cmdObjPtr = cmdObjMap.FindOrNull(args[0]);
+			CmdObj** cmdObjPtr = cmdObjMap.FindOrNull(parseCtx.args[0]);
 			if (!cmdObjPtr) {
-				return Err_UnknownCmd("cmd", args[0]);
+				return Err_UnknownCmd("cmd", parseCtx.args[0]);
 			}
-			(*cmdObjPtr)->cmdFn(Span<Str>(args, (U64)parseCtx.argsLen));
+			Try((*cmdObjPtr)->cmdFn(Span<Str>(parseCtx.args, (U64)parseCtx.argsLen)));
 		}
 	} while (!parseCtx.Eof());
 
@@ -174,7 +172,157 @@ Res<> Exec(Str buf) {
 //--------------------------------------------------------------------------------------------------
 
 Unit_Test("Cmd") {
-	// TODO: add unit tests
+	static U32 callCount;
+	static Str lastArgs[MaxArgs];
+	static U32 lastArgsLen;
+	callCount   = 0;
+	lastArgsLen = 0;
+
+	Init(testMem);
+
+	static auto const recordFn = [](Span<Str> args) -> Res<> {
+		callCount++;
+		lastArgsLen = (U32)args.len;
+		for (U32 i = 0; i < args.len; i++) { lastArgs[i] = args[i]; }
+		return Ok();
+	};
+	static auto const failFn = [](Span<Str>) -> Res<> {
+		return Err_UnmatchedQuote();
+	};
+
+	AddCmd("cmd",  recordFn);
+	AddCmd("fail", failFn);
+
+	Unit_SubTest("Empty input") {
+		Unit_CheckRes(Exec(""));
+		Unit_CheckEq(callCount, 0u);
+	}
+
+	Unit_SubTest("Whitespace only") {
+		Unit_CheckRes(Exec("   \t  "));
+		Unit_CheckEq(callCount, 0u);
+	}
+
+	Unit_SubTest("Newlines only") {
+		Unit_CheckRes(Exec("\n\n\n"));
+		Unit_CheckEq(callCount, 0u);
+	}
+
+	Unit_SubTest("Single command") {
+		Unit_CheckRes(Exec("cmd"));
+		Unit_CheckEq(callCount,   1u);
+		Unit_CheckEq(lastArgsLen, 1u);
+		Unit_CheckEq(lastArgs[0], "cmd");
+	}
+
+	Unit_SubTest("Single command with args") {
+		Unit_CheckRes(Exec("cmd a b c"));
+		Unit_CheckEq(callCount,   1u);
+		Unit_CheckEq(lastArgsLen, 4u);
+		Unit_CheckEq(lastArgs[0], "cmd");
+		Unit_CheckEq(lastArgs[1], "a");
+		Unit_CheckEq(lastArgs[2], "b");
+		Unit_CheckEq(lastArgs[3], "c");
+	}
+
+	Unit_SubTest("Trailing whitespace") {
+		Unit_CheckRes(Exec("cmd a   "));
+		Unit_CheckEq(lastArgsLen, 2u);
+		Unit_CheckEq(lastArgs[1], "a");
+	}
+
+	Unit_SubTest("Multiple spaces between args") {
+		Unit_CheckRes(Exec("cmd  a  b"));
+		Unit_CheckEq(lastArgsLen, 3u);
+	}
+
+	Unit_SubTest("Newline terminated") {
+		Unit_CheckRes(Exec("cmd a\n"));
+		Unit_CheckEq(lastArgsLen, 2u);
+		Unit_CheckEq(lastArgs[1], "a");
+	}
+
+	Unit_SubTest("CRLF line ending") {
+		Unit_CheckRes(Exec("cmd a\r\n"));
+		Unit_CheckEq(lastArgsLen, 2u);
+		Unit_CheckEq(lastArgs[1], "a");
+	}
+
+	Unit_SubTest("Multiple commands") {
+		Unit_CheckRes(Exec("cmd\ncmd\ncmd"));
+		Unit_CheckEq(callCount, 3u);
+	}
+
+	Unit_SubTest("Blank lines between commands") {
+		Unit_CheckRes(Exec("cmd\n\ncmd"));
+		Unit_CheckEq(callCount, 2u);
+	}
+
+	Unit_SubTest("Quoted arg") {
+		Unit_CheckRes(Exec("cmd \"hello world\""));
+		Unit_CheckEq(lastArgsLen, 2u);
+		Unit_CheckEq(lastArgs[1], "hello world");
+	}
+
+	Unit_SubTest("Empty quoted arg") {
+		Unit_CheckRes(Exec("cmd \"\""));
+		Unit_CheckEq(lastArgsLen, 2u);
+		Unit_CheckEq(lastArgs[1], "");
+	}
+
+	Unit_SubTest("Adjacent quote") {
+		Unit_CheckRes(Exec("cmd abc\"def\""));
+		Unit_CheckEq(lastArgsLen, 3u);
+		Unit_CheckEq(lastArgs[1], "abc");
+		Unit_CheckEq(lastArgs[2], "def");
+	}
+
+	Unit_SubTest("Exactly max args") {
+		StrBuf sb(testMem);
+		sb.Printf("cmd");
+		for (U32 i = 0; i < MaxArgs - 1; i++) { sb.Printf(" a"); }
+		Unit_CheckRes(Exec(sb.ToStr()));
+		Unit_CheckEq(callCount,   1u);
+		Unit_CheckEq(lastArgsLen, MaxArgs);
+	}
+
+	Unit_SubTest("Command error propagates") {
+		Res<> r = Exec("fail");
+		Unit_CheckFalse(r);
+	}
+
+	Unit_SubTest("Error stops further processing") {
+		Res<> r = Exec("cmd\nnotacmd\ncmd");
+		Unit_CheckFalse(r);
+		Unit_CheckEq(callCount, 1u);
+	}
+
+	Unit_SubTest("Unknown command") {
+		Res<> r = Exec("notacmd");
+		Unit_CheckFalse(r);
+		Unit_Check(r.err == Err_UnknownCmd);
+	}
+
+	Unit_SubTest("Unmatched quote - EOF") {
+		Res<> r = Exec("cmd \"hello");
+		Unit_CheckFalse(r);
+		Unit_Check(r.err == Err_UnmatchedQuote);
+	}
+
+	Unit_SubTest("Unmatched quote - newline") {
+		Res<> r = Exec("cmd \"hello\n");
+		Unit_CheckFalse(r);
+		Unit_Check(r.err == Err_UnmatchedQuote);
+	}
+
+	Unit_SubTest("Max args exceeded") {
+		StrBuf sb(testMem);
+		sb.Printf("cmd");
+		for (U32 i = 0; i < MaxArgs; i++) { sb.Printf(" a"); }
+		Res<> r = Exec(sb.ToStr());
+		Unit_CheckFalse(r);
+		Unit_Check(r.err == Err_MaxArgs);
+	}
 }
 
 //--------------------------------------------------------------------------------------------------

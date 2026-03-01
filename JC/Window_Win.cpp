@@ -1,6 +1,7 @@
 #include "JC/Window.h"
 
-#include "JC/Event.h"
+#include "JC/Bit.h"
+#include "JC/Key.h"
 #include "JC/Log.h"
 #include "JC/Sys_Win.h"
 #include "JC/Unicode.h"
@@ -18,6 +19,7 @@ namespace JC::Window {
 //--------------------------------------------------------------------------------------------------
 
 static constexpr U32 MaxDisplays = 32;
+static constexpr U32 MaxEvents = 1024;
 
 struct Window {
 	HWND        hwnd;
@@ -37,6 +39,9 @@ static Display displays[MaxDisplays];
 static U32     displaysLen;
 static Window  window;
 static bool    inSizeMove;
+static Event   events[MaxEvents];
+static U32     eventsHead;
+static U32     eventsTail;
 
 //----------------------------------------------------------------------------------------------
 
@@ -59,7 +64,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 			break;
 
 		case WM_CLOSE:
-			Event::AddEvent({ .type = Event::Type::ExitRequest });
+			AddEvent({ .eventType = EventType::ExitRequest });
 			break;
 
 		case WM_DPICHANGED:
@@ -93,27 +98,29 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 			if (rawInput->header.dwType == RIM_TYPEMOUSE) {
 				const RAWMOUSE* const m = &rawInput->data.mouse;
 				if (m->usButtonFlags & RI_MOUSE_WHEEL) {
-					Event::AddEvent({
-						.type = Event::Type::MouseWheel,
-						.mouseWheel = { .delta = (float)((signed short)m->usButtonData) / 120.0f },
-					});
+					I16 const wheelDelta = (I16)m->usButtonData;
+					Key::Key const key = (wheelDelta > 0) ? Key::Key::MouseWheelUp : Key::Key::MouseWheelDown;
+					const U32 numEvents =  (U32)(wheelDelta > 0 ? wheelDelta : -wheelDelta) / 120;
+					for (U32 i = 0; i < numEvents; i++) {
+						AddEvent({ .eventType = EventType::Key, .key = { .down = true, .key = key } });
+					}
 				}
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::MouseLeft } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_1_UP  ) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::MouseLeft } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::MouseRight } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_2_UP  ) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::MouseRight } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::MouseMiddle } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_3_UP  ) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::MouseMiddle } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::Mouse4 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_4_UP  ) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::Mouse4 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = true,  .key  = Event::Key::Mouse5 } }); }
-				if (m->usButtonFlags & RI_MOUSE_BUTTON_5_UP  ) { Event::AddEvent({ .type = Event::Type::Key, .key = { .down = false, .key  = Event::Key::Mouse5 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) { AddEvent({ .eventType = EventType::Key, .key = { .down = true,  .key  = Key::Key::Mouse1} }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_1_UP  ) { AddEvent({ .eventType = EventType::Key, .key = { .down = false, .key  = Key::Key::Mouse1} }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) { AddEvent({ .eventType = EventType::Key, .key = { .down = true,  .key  = Key::Key::Mouse2} }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_2_UP  ) { AddEvent({ .eventType = EventType::Key, .key = { .down = false, .key  = Key::Key::Mouse2} }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) { AddEvent({ .eventType = EventType::Key, .key = { .down = true,  .key  = Key::Key::Mouse3} }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_3_UP  ) { AddEvent({ .eventType = EventType::Key, .key = { .down = false, .key  = Key::Key::Mouse3} }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) { AddEvent({ .eventType = EventType::Key, .key = { .down = true,  .key  = Key::Key::Mouse4 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_4_UP  ) { AddEvent({ .eventType = EventType::Key, .key = { .down = false, .key  = Key::Key::Mouse4 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) { AddEvent({ .eventType = EventType::Key, .key = { .down = true,  .key  = Key::Key::Mouse5 } }); }
+				if (m->usButtonFlags & RI_MOUSE_BUTTON_5_UP  ) { AddEvent({ .eventType = EventType::Key, .key = { .down = false, .key  = Key::Key::Mouse5 } }); }
 
 				::POINT mousePos;
 				::GetCursorPos(&mousePos);
 				::ScreenToClient(hwnd, &mousePos);
-				Event::AddEvent({
-					.type = Event::Type::MouseMove,
+				AddEvent({
+					.eventType = EventType::MouseMove,
 					.mouseMove = {
 						.x  = (I32)mousePos.x,
 						.y  = (I32)mousePos.y,
@@ -123,39 +130,121 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 				});
 					
 			} else if (rawInput->header.dwType == RIM_TYPEKEYBOARD) {
-				const RAWKEYBOARD* const k = &rawInput->data.keyboard;
-				U32 scanCode   = k->MakeCode;
-				U32 virtualKey = k->VKey;
-				const bool e0  = k->Flags & RI_KEY_E0;
-				const bool e1  = k->Flags & RI_KEY_E1;
-				if (virtualKey == 255) {
-					break;
-				} else if (virtualKey == VK_SHIFT) {
-					virtualKey = MapVirtualKey(scanCode, MAPVK_VSC_TO_VK_EX);
-				} else if (virtualKey == VK_NUMLOCK) {
-					scanCode = MapVirtualKey(virtualKey, MAPVK_VK_TO_VSC) | 0x100;
+				const RAWKEYBOARD* const rawKeyboard = &rawInput->data.keyboard;
+				bool const e0      = rawKeyboard->Flags & RI_KEY_E0;
+				bool const e1      = rawKeyboard->Flags & RI_KEY_E1;
+				U32 const scanCode = rawKeyboard->MakeCode;
+
+
+				Key::Key key = Key::Key::Invalid;
+				if (e1 && scanCode == 0x1D)
+				{
+					key = Key::Key::Pause;
+				} else {
+					switch (scanCode) {
+						case 0x01: key = Key::Key::Escape;
+						case 0x02: key = Key::Key::One;
+						case 0x03: key = Key::Key::Two;
+						case 0x04: key = Key::Key::Three;
+						case 0x05: key = Key::Key::Four;
+						case 0x06: key = Key::Key::Five;
+						case 0x07: key = Key::Key::Six;
+						case 0x08: key = Key::Key::Seven;
+						case 0x09: key = Key::Key::Eight;
+						case 0x0A: key = Key::Key::Nine;
+						case 0x0B: key = Key::Key::Zero;
+						case 0x0C: key = Key::Key::Minus;
+						case 0x0D: key = Key::Key::Equals;
+						case 0x0E: key = Key::Key::Backspace;
+						case 0x0F: key = Key::Key::Tab;
+						case 0x10: key = Key::Key::Q;
+						case 0x11: key = Key::Key::W;
+						case 0x12: key = Key::Key::E;
+						case 0x13: key = Key::Key::R;
+						case 0x14: key = Key::Key::T;
+						case 0x15: key = Key::Key::Y;
+						case 0x16: key = Key::Key::U;
+						case 0x17: key = Key::Key::I;
+						case 0x18: key = Key::Key::O;
+						case 0x19: key = Key::Key::P;
+						case 0x1A: key = Key::Key::LeftBracket;
+						case 0x1B: key = Key::Key::RightBracket;
+						case 0x1C: key = e0 ? Key::Key::NumpadEnter : Key::Key::Enter;
+						case 0x1D: key = e0 ? Key::Key::CtrlRight   : Key::Key::CtrlLeft;
+						case 0x1E: key = Key::Key::A;
+						case 0x1F: key = Key::Key::S;
+						case 0x20: key = Key::Key::D;
+						case 0x21: key = Key::Key::F;
+						case 0x22: key = Key::Key::G;
+						case 0x23: key = Key::Key::H;
+						case 0x24: key = Key::Key::J;
+						case 0x25: key = Key::Key::K;
+						case 0x26: key = Key::Key::L;
+						case 0x27: key = Key::Key::Semicolon;
+						case 0x28: key = Key::Key::Quote;
+						case 0x29: key = Key::Key::BackQuote;
+						case 0x2A: key = Key::Key::ShiftLeft;
+						case 0x2B: key = Key::Key::Backslash;
+						case 0x2C: key = Key::Key::Z;
+						case 0x2D: key = Key::Key::X;
+						case 0x2E: key = Key::Key::C;
+						case 0x2F: key = Key::Key::V;
+						case 0x30: key = Key::Key::B;
+						case 0x31: key = Key::Key::N;
+						case 0x32: key = Key::Key::M;
+						case 0x33: key = Key::Key::Comma;
+						case 0x34: key = Key::Key::Dot;
+						case 0x35: key = e0 ? Key::Key::Slash : Key::Key::Slash; // numpad / vs main /; both map to Slash: add NumpadSlash to enum if needed
+						case 0x36: key = Key::Key::ShiftRight;
+						case 0x37: key = e0 ? Key::Key::PrintScreen : Key::Key::NumpadStar;
+						case 0x38: key = e0 ? Key::Key::AltRight : Key::Key::AltLeft;
+						case 0x39: key = Key::Key::Space;
+						case 0x3A: key = Key::Key::CapsLock;
+						case 0x3B: key = Key::Key::F1;
+						case 0x3C: key = Key::Key::F2;
+						case 0x3D: key = Key::Key::F3;
+						case 0x3E: key = Key::Key::F4;
+						case 0x3F: key = Key::Key::F5;
+						case 0x40: key = Key::Key::F6;
+						case 0x41: key = Key::Key::F7;
+						case 0x42: key = Key::Key::F8;
+						case 0x43: key = Key::Key::F9;
+						case 0x44: key = Key::Key::F10;
+						case 0x45: key = Key::Key::ScrollLock; // 0x45 without E0/E1 = ScrollLock
+						// (Pause's secon byte also 0x45 but handled above)
+						case 0x46: key = Key::Key::ScrollLock; // some boards send 0x46
+						case 0x47: key = e0 ? Key::Key::Home : Key::Key::NumPad7;
+						case 0x48: key = e0 ? Key::Key::Up : Key::Key::NumPad8;
+						case 0x49: key = e0 ? Key::Key::PageUp : Key::Key::NumPad9;
+						case 0x4A: key = Key::Key::NumpadMinus;
+						case 0x4B: key = e0 ? Key::Key::Left : Key::Key::NumPad4;
+						case 0x4C: key = Key::Key::NumPad5;
+						case 0x4D: key = e0 ? Key::Key::Right : Key::Key::NumPad6;
+						case 0x4E: key = Key::Key::NumpadPlus;
+						case 0x4F: key = e0 ? Key::Key::End : Key::Key::NumPad1;
+						case 0x50: key = e0 ? Key::Key::Down : Key::Key::NumPad2;
+						case 0x51: key = e0 ? Key::Key::PageDown : Key::Key::NumPad3;
+						case 0x52: key = e0 ? Key::Key::Insert : Key::Key::NumPad0;
+						case 0x53: key = e0 ? Key::Key::Delete : Key::Key::NumpadDot;
+						case 0x57: key = Key::Key::F11;
+						case 0x58: key = Key::Key::F12;
+						case 0x5B: key = Key::Key::Winleft;   // always E0
+						case 0x5C: key = Key::Key::WinRight;  // always E0
+						case 0x5D: key = Key::Key::Menu;      // always E0
+					}
 				}
-				if (e0 || e1) {
-					scanCode = (virtualKey == VK_PAUSE) ? 0x45 : MapVirtualKey(virtualKey, MAPVK_VK_TO_VSC);
+
+				if (key == Key::Key::Invalid) {
+					Errorf("Unrecognized scan code: %u", scanCode);
+				} else {
+					AddEvent({
+						.eventType = EventType::Key,
+						.key = {
+							.down = !(rawKeyboard->Flags & RI_KEY_BREAK),
+							.key  = key,
+						}
+					});
 				}
-				switch (virtualKey) {
-					case VK_CONTROL: virtualKey = e0 ? VK_RCONTROL  : VK_LCONTROL; break;
-					case VK_MENU:    virtualKey = e0 ? VK_RMENU     : VK_LMENU;    break;
-					case VK_RETURN:  virtualKey = e0 ? VK_SEPARATOR : VK_RETURN;   break;
-					case VK_INSERT:  virtualKey = e0 ? VK_INSERT    : VK_NUMPAD0;  break;
-					case VK_DELETE:  virtualKey = e0 ? VK_DELETE    : VK_DECIMAL;  break;
-					case VK_HOME:    virtualKey = e0 ? VK_HOME      : VK_NUMPAD7;  break;
-					case VK_END:     virtualKey = e0 ? VK_END       : VK_NUMPAD1;  break;
-					case VK_PRIOR:   virtualKey = e0 ? VK_PRIOR     : VK_NUMPAD9;  break;
-					case VK_NEXT:    virtualKey = e0 ? VK_NEXT      : VK_NUMPAD3;  break;
-					case VK_LEFT:    virtualKey = e0 ? VK_LEFT      : VK_NUMPAD4;  break;
-					case VK_RIGHT:   virtualKey = e0 ? VK_RIGHT     : VK_NUMPAD6;  break;
-					case VK_UP:      virtualKey = e0 ? VK_UP        : VK_NUMPAD8;  break;
-					case VK_DOWN:    virtualKey = e0 ? VK_DOWN      : VK_NUMPAD2;  break;
-					case VK_CLEAR:   virtualKey = e0 ? VK_CLEAR     : VK_NUMPAD5;  break;
-				}
-				const bool down = !(k->Flags & RI_KEY_BREAK);
-				Event::AddEvent({ .type = Event::Type::Key, .key = { .down = down, .key  = (Event::Key)virtualKey } });
 			}
 			break;
 		}
@@ -181,7 +270,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 				break;
 			}
 			if (wparam == SC_CLOSE) {
-				Event::AddEvent({ .type = Event::Type::ExitRequest });
+				AddEvent({ .eventType = EventType::ExitRequest });
 				return 0;
 			}
 			break;
@@ -417,18 +506,18 @@ void Frame() {
 	}
 
 	if (!prevMinimized && window.minimized) {
-		Event::AddEvent({ .type = Event::Type::WindowMinimized });
+		AddEvent({ .eventType = EventType::WindowMinimized });
 	} else if (prevMinimized && !window.minimized) {
-		Event::AddEvent({ .type = Event::Type::WindowRestored });
+		AddEvent({ .eventType = EventType::WindowRestored });
 	}
 	if (!prevFocused && window.focused) {
-		Event::AddEvent({ .type = Event::Type::WindowFocused });
+		AddEvent({ .eventType = EventType::WindowFocused });
 	} else if (prevFocused && !window.focused) {
-		Event::AddEvent({ .type = Event::Type::WindowUnfocused });
+		AddEvent({ .eventType = EventType::WindowUnfocused });
 	}
 	if (prevWidth != window.windowRect.width || prevHeight != window.windowRect.height) {
-		Event::AddEvent({
-			.type = Event::Type::WindowResized,
+		AddEvent({
+			.eventType = EventType::WindowResized,
 			.windowResized = {
 				.width  = window.windowRect.width,
 				.height = window.windowRect.height
@@ -482,6 +571,32 @@ State GetState() {
 		.minimized  = window.minimized,
 		.focused    = window.focused,
 	};
+}
+
+//----------------------------------------------------------------------------------------------
+
+static_assert(Bit::IsPow2(MaxEvents));
+
+void AddEvent(Event event) {
+
+	U32 const nextHead = (eventsHead + 1) & (MaxEvents - 1);
+	if (nextHead == eventsTail) {
+		Errorf("Overwrote event");
+		eventsTail = (eventsTail + 1) & (MaxEvents - 1);
+	}
+	events[eventsHead] = event;
+	eventsHead = nextHead;
+}
+
+//----------------------------------------------------------------------------------------------
+
+bool GetEvent(Event* eventOut) {
+	if (eventsHead == eventsTail) {
+		return false;
+	}
+	*eventOut = events[eventsTail];
+	eventsTail = (eventsTail + 1) & (MaxEvents - 1);
+	return true;
 }
 
 //----------------------------------------------------------------------------------------------

@@ -2,6 +2,8 @@
 
 #include "JC/Common.h"
 
+namespace JC::Key { enum struct Key : U16; }
+
 namespace JC::Window {
 
 //--------------------------------------------------------------------------------------------------
@@ -55,12 +57,53 @@ struct PlatformDef {
 	#endif	// Platform
 };
 
+enum struct EventType {
+	Invalid = 0,
+	Key,
+	MouseMove,
+	WindowResized,
+	WindowMinimized,
+	WindowRestored,
+	WindowFocused,
+	WindowUnfocused,
+	ExitRequest,
+};
+
+// No default values for events since they're used in a union
+struct KeyEvent {
+	bool down;
+	Key::Key  key;
+};
+
+struct MouseMoveEvent {
+	I32 x;
+	I32 y;
+	I32 dx;
+	I32 dy;
+};
+
+struct WindowResizedEvent {
+	U32 width;
+	U32 height;
+};
+
+struct Event {
+	EventType eventType = EventType::Invalid;
+	union {
+		KeyEvent           key;
+		MouseMoveEvent     mouseMove;
+		WindowResizedEvent windowResized;
+	};
+};
+
 Res<>               Init(const InitDef* initDef);
 void                Shutdown();
 Span<const Display> GetDisplays();
 void                Frame();
 PlatformDef         GetPlatformDef();
 State               GetState();
+void                AddEvent(Event event);
+bool                GetEvent(Event* event);
 
 //--------------------------------------------------------------------------------------------------
 

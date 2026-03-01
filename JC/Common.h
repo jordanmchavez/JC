@@ -300,15 +300,12 @@ struct [[nodiscard]] Err {
 		static_assert(NamedArgsLen < MaxNamedArgs);
 		static_assert((sizeof...(A) & 1) == 0);
 
-		//#if defined Cfg_BreakOnErr
-			DbgBreak;
-		//#endif	// Cfg_BreakOnErr
-
 		NamedArg namedArgs[NamedArgsLen + 1];	// + 1 to allow zero args
 		FillNamedArgs(namedArgs, args...);
 		return Makev(prev, sl, ns, sCode, uCode, Span<NamedArg const>(namedArgs, NamedArgsLen));
 	}
 
+	static void SetBreakOnErr(bool breakOnErr);
 	static void Frame(U64 frame);
 };
 
