@@ -1,3 +1,3 @@
 git add --all
-git commit -m .
+git commit --allow-empty-message -m "%~1"
 git push

@@ -2,7 +2,7 @@
 
 #include "JC/Cfg.h"
 #include "JC/Draw.h"
-#include "JC/FS.h"
+#include "JC/File.h"
 #include "JC/Gpu.h"
 #include "JC/Input.h"
 #include "JC/Log.h"
@@ -52,7 +52,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 
 	Err::SetBreakOnErr(true);
 	Time::Init();
-	FS::Init(tempMem);
+	File::Init(tempMem);
 	StrDb::Init();
 	Rng::Seed(Time::Now());
 

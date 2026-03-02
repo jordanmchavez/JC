@@ -590,10 +590,7 @@ Res<> Frame(App::FrameData const* frameData) {
 			default: Panic("Unhandled actionId %u", actionId);
 		}
 	}
-	//combine up/down key shizzle in window_win
-	//remove need to combine up/down shizzle in input.cpp
-	//add input tests
-
+	
 	Vec2 const canvasTopLeft = Vec2(
 		canvasPos.x - (canvasSize.x * canvasScale) / 2.f,
 		canvasPos.y - (canvasSize.y * canvasScale) / 2.f

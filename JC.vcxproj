@@ -127,7 +127,7 @@
     <ClInclude Include="JC\Console.h" />
     <ClInclude Include="JC\Draw.h" />
     <ClInclude Include="JC\Effect.h" />
-    <ClInclude Include="JC\FS.h" />
+    <ClInclude Include="JC\File.h" />
     <ClInclude Include="JC\Gpu.h" />
     <ClInclude Include="JC\Gpu_Vk.h" />
     <ClInclude Include="JC\HandlePool.h" />
@@ -165,7 +165,7 @@
     <ClCompile Include="JC\Console.cpp" />
     <ClCompile Include="JC\Draw.cpp" />
     <ClCompile Include="JC\Effect.cpp" />
-    <ClCompile Include="JC\FS.cpp" />
+    <ClCompile Include="JC\File_Win.cpp" />
     <ClCompile Include="JC\Gpu_Vk.cpp" />
     <ClCompile Include="JC\Gpu_Vk_Util.cpp" />
     <ClCompile Include="JC\Gpu_Vk_Win.cpp" />

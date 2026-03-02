@@ -1,4 +1,5 @@
-- easy to change
+# General
+ - easy to change
 	- most important
 	- easy to understand structure and flow
 	- easy to understand how to fix a bug / add a feature
@@ -43,3 +44,13 @@
 	- it's not sufficient to just fix a bug. figure out how the bug got there and how we can prevent similar bugs. can we make the bug impossible? can we add preventative measure in the code? can we add telemtry?
 - readability > writability
 	- don't be cute
+
+
+# Specific
+- minimal runtime allocations
+- upfront allocations on init
+- mem tracking
+- clear memory ownership, handles
+- prefer continguous arrays and walkthroughs to complex data structure
+- error telemetry matters: use Res<>/Err system to provide
+- 

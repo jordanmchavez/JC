@@ -1,3 +1,4 @@
+update claude.md/guidebook.md
 Desc -> Def
 
 console / cvar system
@@ -267,3 +268,35 @@ WM_ENTERSIZEMOVE freezes processing and fills up the buffer. options:
 Verify json parsing fails if negative value is present when expecint U32
 namespace FS -> Fs
 make all perm arrays use the perm allocator
+- Consider accumulating/combining input events in Window_Win.cpp instead of in Innput.cpp. Have the keyDown state trackers and such live in Window_Win, and have it only emit a key event if the state actually changed.
+- Unit.cpp: verify that Log::Init(tempMem) does not persist any state into tempMem, since Mem::Reset(tempMem, MemMark()) is called each test iteration and would invalidate it.
+
+# Gpu review
+
+- ! swapchainImages leaks permMem on every RecreateSwapchain: InitSwapchain calls Mem::AllocSpan<Image>(permMem) each time, stranding the old allocation
+- FreeFns() never called in Shutdown() — vulkan-1.dll not unloaded
+- Per-resource vkAllocateMemory (no suballocator) — can hit maxMemoryAllocationCount limit at scale
+- CreateGraphicsPipeline: blend state hardcoded to alpha-blend on all color attachments, no way to create non-blending or additive pipelines
+- CreateGraphicsPipeline: depth test LESS + depth write always ON, breaks 2D/UI passes that want depth disabled
+- BeginPass: depth attachment always uses VK_ATTACHMENT_LOAD_OP_CLEAR even when pass->clear is false — pass->clear only controls color attachments
+- BarrierStage flags start at 1<<1, skipping bit 0 (None=0 is correct but first real flag could be 1<<0)
+- DrawIndexedIndirect: indirect buffer offset hardcoded to 0, can't draw a subset of the buffer
+- Dead code: empty `struct VPrinter : Printer {}` inside InitInstance() (Gpu_Vk.cpp:302)
+- Validation warnings silently dropped in DebugCallback (line 179 commented out)
+- enableDebug hardcoded to true — expose via cfg
+- Gpu_Vk_Util.cpp has #pragma once at line 1 but is compiled as a separate TU, so it has no effect
+- CLAUDE.md documents pool sizes as 4096/4096/1024/128 but code has all four at 128
+- CreateBufferImpl sets queueFamilyIndexCount=1 with VK_SHARING_MODE_EXCLUSIVE (field is ignored by spec but misleading)
+- No pipeline cache passed to vkCreateGraphicsPipelines — consider for faster subsequent startups
+
+# Draw review
+
+- ! DrawFont: signed char indexing into glyphs[256] — str[i] is signed on MSVC x64, chars >= 128 produce negative indices; cast to U8
+- ! origin silently ignored for DrawSprite, DrawCanvas, DrawRect — only DrawFont applies it; either implement or remove origin from those DrawDef structs
+- Shutdown destroys fontObjs[0].image which is never initialized (fontObjsLen starts at 1); safe only if Mem::AllocT zero-inits and DestroyImage is no-op for null handles
+- Canvas layout ordering is an invisible invariant — DrawCanvas will sample in Undefined layout if the canvas hasn't been rendered to yet this frame; add assert or doc
+- SetDefaultCanvas is redundant with SetCanvas({}) since SetCanvas already falls back to swapchainCanvas when handle == 0
+- No z-sorting of draw commands — transparency requires painter's order; add comment or assert that callers are responsible
+- static frameIdx declared mid-file, not grouped with other module globals
+- Recreated depth image in ResizeWindow is not named (no Gpu_Name after recreate)
+- MaxSprites = 1MB (~48MB permanent allocation); add comment justifying size or reduce to realistic cap

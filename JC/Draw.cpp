@@ -2,7 +2,7 @@
 
 #include "JC/Array.h"
 #include "JC/Bit.h"
-#include "JC/FS.h"
+#include "JC/File.h"
 #include "JC/HandlePool.h"
 #include "JC/Hash.h"
 #include "JC/Gpu.h"
@@ -197,7 +197,7 @@ static U32           passesLen;
 
 static Res<Gpu::Shader> LoadShader(Str path) {
 	Span<U8> data;
-	if (Res<> r = FS::ReadAll(tempMem, path).To(data); !r) { return r.err; }
+	if (Res<> r = File::ReadAll(tempMem, path).To(data); !r) { return r.err; }
 	return Gpu::CreateShader(data.data, data.len);
 }
 
@@ -313,7 +313,7 @@ Res<> ResizeWindow(U32 windowWidthIn, U32 windowHeightIn) {
 //--------------------------------------------------------------------------------------------------
 
 static Res<Gpu::Image> LoadImage(Str path) {
-	Span<U8> data; TryTo(FS::ReadAll(tempMem, path), data);
+	Span<U8> data; TryTo(File::ReadAll(tempMem, path), data);
 
 	int width = 0;
 	int height = 0;
@@ -346,7 +346,7 @@ Res<> LoadSprites(Str imagePath, Str spritesPath) {
 		.imageIdx = imageIdx,
 	};
 
-	Span<char> json; TryTo(FS::ReadAllZ(tempMem, spritesPath), json);
+	Span<char> json; TryTo(File::ReadAllZ(tempMem, spritesPath), json);
 	Span<SpriteFileEntry> entries; Try(Json::ToArray(tempMem, tempMem, json.data, (U32)json.len, &entries));
 	Assert(spriteObjsLen + entries.len <= MaxSprites);
 	for (U64 i = 0; i < entries.len; i++) {
@@ -398,7 +398,7 @@ Res<Font> LoadFont(Str fontPath, Str imagePath) {
 	F32 const imageWidth  = (F32)Gpu::GetImageWidth(image);
 	F32 const imageHeight = (F32)Gpu::GetImageHeight(image);
 
-	Span<char> json; TryTo(FS::ReadAllZ(tempMem, fontPath), json);
+	Span<char> json; TryTo(File::ReadAllZ(tempMem, fontPath), json);
 	FontFile fontFile; Try(Json::ToObj(tempMem, tempMem, json.data, (U32)json.len, &fontFile));
 
 	FontObj* const fontObj = &fontObjs[fontObjsLen++];

@@ -1,8 +1,8 @@
-#include "JC/FS.h"
+#include "JC/File.h"
 #include "JC/Sys_Win.h"
 #include "JC/Unicode.h"
 
-namespace JC::FS {
+namespace JC::File {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -38,6 +38,17 @@ Res<File> Open(Str path) {
 	}
 	fileObj->hfile = h;
 	return File { .handle = (U64)(fileObj - fileObjs) };
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void Close(File file) {
+	if (file) {
+		Assert(file.handle < MaxFiles);
+		FileObj* const fileObj = &fileObjs[file.handle];
+		CloseHandle(fileObj->hfile);
+		fileObj->hfile = 0;
+	}
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -107,15 +118,4 @@ Res<Span<char>> ReadAllZ(Mem mem, Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Close(File file) {
-	if (file) {
-		Assert(file.handle < MaxFiles);
-		FileObj* const fileObj = &fileObjs[file.handle];
-		CloseHandle(fileObj->hfile);
-		fileObj->hfile = 0;
-	}
-}
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC::FS
+}	// namespace JC::File

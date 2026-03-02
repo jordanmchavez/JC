@@ -1,6 +1,3 @@
-# CLAUDE.md
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project
 A C++ game engine and game (working title "JC"). Currently building toward a 4X/trading/mercenary roguelike with hex-grid combat (see `Notes/Game Design.md`). The engine targets Windows + Vulkan.
 
