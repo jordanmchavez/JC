@@ -14,31 +14,22 @@ layout (location = 5) flat out vec2  uv1Out;
 layout (location = 6) flat out vec2  uv2Out;
 
 vec2 offsets[6] = vec2[6](
-	vec2(-0.5, -0.5),
-	vec2(-0.5,  0.5),
-	vec2( 0.5,  0.5),
-	vec2( 0.5,  0.5),
-	vec2( 0.5, -0.5),
-	vec2(-0.5, -0.5)
+	vec2(0.0, 0.0),
+	vec2(1.0, 1.0),
+	vec2(0.0, 1.0),
+	vec2(0.0, 0.0),
+	vec2(1.0, 1.0),
+	vec2(1.0, 0.0)
 );
 
 void main() {
 	DrawCmd drawCmd = pushConstants.drawCmdBuffer.drawCmds[gl_InstanceIndex + pushConstants.drawCmdStart];
 	vec2 offset = offsets[gl_VertexIndex];	// no need to % 6 since we're always called with 6 vertices
-	float s = sin(drawCmd.rotation);
-	float c = cos(drawCmd.rotation);
-	vec2 local = drawCmd.size * offset;
-	vec3 worldPos = drawCmd.pos + vec3(
-		local.x * c - local.y * s,
-		local.x * s + local.y * c,
-		0.0
-	);
+	vec3 worldPos = drawCmd.pos + vec3(drawCmd.size * offset, 0.0);
 	gl_Position = pushConstants.sceneBuffer.projViews[pushConstants.sceneBufferIdx] * vec4(worldPos, 1.0);
-
-	offset += 0.5;
 	uvOut = vec2(
-		drawCmd.uv1.x * (1.0 - offset.x) + (drawCmd.uv2.x * offset.x),
-		drawCmd.uv1.y * (1.0 - offset.y) + (drawCmd.uv2.y * offset.y)
+		(drawCmd.uv1.x * (1.0 - offset.x)) + (drawCmd.uv2.x * offset.x),
+		(drawCmd.uv1.y * (1.0 - offset.y)) + (drawCmd.uv2.y * offset.y)
 	);
 	colorOut         = drawCmd.color;
 	textureIdxOut    = drawCmd.textureIdx;

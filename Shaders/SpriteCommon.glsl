@@ -11,7 +11,6 @@ struct DrawCmd {
 	vec4  color;
 	vec4  outlineColor;
 	float outlineWidth;
-	float rotation;
 };
 
 layout (buffer_reference, scalar) readonly buffer DrawCmdBuffer {

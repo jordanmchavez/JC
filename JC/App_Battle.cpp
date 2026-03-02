@@ -30,6 +30,7 @@ static constexpr Vec4 SelectedColor = Vec4(0.f, 1.f, 0.f, 1.f);
 static constexpr Vec4 HoverColor = Vec4(1.f, 1.f, 1.f, 0.75f);
 static constexpr F32  UiPanelWidth = 300.f;
 static constexpr Vec4 UiBackgroundColor = Vec4(0.2f, 0.3f, 0.4f, 1.f);
+static constexpr F32  CamSpeedPixelsPerSec = 1000.f;
 
 static constexpr F32 Z_Background   = 0.f;
 static constexpr F32 Z_Map          = 1.f;
@@ -41,8 +42,8 @@ static constexpr F32 Z_Ui           = 6.f;
 
 static constexpr U64 Action_Exit            = 1;
 static constexpr U64 Action_Click           = 2;
-static constexpr U64 Action_ZoomInCanvas    = 3;
-static constexpr U64 Action_ZoomOutCanvas   = 4;
+static constexpr U64 Action_ZoomIn          = 3;
+static constexpr U64 Action_ZoomOut         = 4;
 static constexpr U64 Action_ScrollMapLeft   = 5;
 static constexpr U64 Action_ScrollMapRight  = 6;
 static constexpr U64 Action_ScrollMapUp     = 7;
@@ -150,19 +151,17 @@ struct Order {
 	AttackOrder attackOrder;
 };
 
+struct Camera {
+	Vec2 pos;
+	F32  scale;
+};
+
 static Mem               permMem;
 static Mem               tempMem;
 static U8                hexLut[(HexSize / 2) * (HexSize * 3 / 8)];
 static HexCoord          hexCoordLut[(HexSize / 2) * (HexSize / 2)];
 static U32               hexCoordLutLen;
-static Draw::Canvas      canvas;
-static F32               canvasAreaWidth;
-static F32               canvasAreaHeight;
-static Vec2              canvasSize(MapCols * HexSize + (HexSize / 2), MapRows * (HexSize * 3 / 4) + (HexSize / 4));
-static F32               canvasScale = 3.f;
-static Vec2              canvasPos;
-static Vec2              canvasMinPos;
-static Vec2              canvasMaxPos;
+static Camera            cam;
 static MapTile           mapTiles[MapCols * MapRows];
 static MapCoord          mouseMapCoord;
 static UnitDef           unitDefs[MaxUnitDefs];
@@ -234,7 +233,7 @@ static HexCoord RngHexCoord() {
 
 //--------------------------------------------------------------------------------------------------
 
-static Vec2 MapCoordToCenterPixel(MapCoord mc) {
+static Vec2 MapCoordToCenterScreenPos(MapCoord mc) {
 	return {
 		(F32)((HexSize / 2) + mc.col * HexSize + (mc.row & 1) * (HexSize / 2)),
 		(F32)((HexSize / 2) + mc.row * (HexSize * 3 / 4)),
@@ -243,7 +242,7 @@ static Vec2 MapCoordToCenterPixel(MapCoord mc) {
 
 //---------------------------------------------------------------------------------------------
 
-static MapCoord PixelToMapCoord(Vec2 p) {
+static MapCoord ScreenPosToMapCoord(Vec2 p) {
 	I32 iy = (I32)p.y;
 	I32 row = iy / (HexSize * 3 / 4);
 	const U8 parity = (row & 1);
@@ -295,29 +294,8 @@ Res<> Init(Window::State const* windowState) {
 
 	windowSize = Vec2((F32)windowState->width, (F32)windowState->height);
 
-	TryTo(Draw::CreateCanvas((U32)canvasSize.x, (U32)canvasSize.y), canvas);
-
-	canvasAreaWidth  = windowSize.x - UiPanelWidth;
-	canvasAreaHeight = windowSize.y - 100.f;
-
-	F32 const canvasScaledWidth  = canvasSize.x * canvasScale;
-	F32 const canvasScaledHeight = canvasSize.y * canvasScale;
-	canvasMaxPos.x = (canvasAreaWidth  / 2.f) - (canvasAreaWidth  - canvasScaledWidth) / 2.f;
-	canvasMaxPos.y = (canvasAreaHeight / 2.f) - (canvasAreaHeight - canvasScaledHeight) / 2.f;
-	if (canvasScaledWidth > canvasAreaWidth) {
-		canvasMinPos.x = canvasAreaWidth - canvasMaxPos.x;
-	} else {
-		canvasMinPos.x = canvasMaxPos.x;
-	}
-	if (canvasScaledHeight > canvasAreaHeight) {
-		canvasMinPos.y = canvasAreaHeight - canvasMaxPos.y;
-	} else {
-		canvasMinPos.y = canvasMaxPos.y;
-	}
-	canvasPos = canvasMaxPos;
-	Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y);
-	Logf("canvasMinPos=(%.2f, %.2f)", canvasMinPos.x, canvasMinPos.y);
-	Logf("canvasMaxPos=(%.2f, %.2f)", canvasMaxPos.x, canvasMaxPos.y);
+	cam.pos = { 0.f, 0.f };
+	cam.scale = 3.f;
 
 	Try(Draw::LoadSprites("Assets/Terrain.png", "Assets/Terrain.spritejson"));
 	Try(Draw::LoadSprites("Assets/Units.png", "Assets/Units.spritejson"));
@@ -360,7 +338,7 @@ Res<> Init(Window::State const* windowState) {
 			Unit* const unit = AllocUnit();
 			unit->alive   = true;
 			unit->unitDef = spearmenUnitDef;
-			unit->pos     = MapCoordToCenterPixel(mapTile->mapCoord);
+			unit->pos     = MapCoordToCenterScreenPos(mapTile->mapCoord);
 			unit->z       = Z_Unit;
 			unit->hp      = spearmenUnitDef->maxHp;
 			mapTile->unit = unit;
@@ -370,7 +348,7 @@ Res<> Init(Window::State const* windowState) {
 	Span<Str const> BattleFonts = {
 		"6_EverydayStandard",
 		"16_Bitpotion",
-		"16_CelticTime_Grid",
+		"16_CelticTime",
 	};
 
 	for (U64 i = 0; i < BattleFonts.len; i++) {
@@ -391,7 +369,7 @@ Res<> Init(Window::State const* windowState) {
 	}
 	*/
 	Assert(fontsLen > 0);
-	activeFontIdx = 0;
+	activeFontIdx = 2;
 	activeFontLineHeight = Draw::GetFontLineHeight(fonts[activeFontIdx]);
 	Logf("Selected font %u/%u %s with lineHeight = %f", activeFontIdx, fontsLen, Draw::GetFontPath(fonts[activeFontIdx]), activeFontLineHeight);
 
@@ -403,8 +381,8 @@ Res<> Init(Window::State const* windowState) {
 	mainBindingSet = Input::CreateBindingSet("Main");
 	Input::Bind(mainBindingSet, Key::Key::Escape,         Input::BindingType::OnKeyDown,  Action_Exit,            "");
 	Input::Bind(mainBindingSet, Key::Key::Mouse1,         Input::BindingType::OnKeyUp,    Action_Click,           "");
-	Input::Bind(mainBindingSet, Key::Key::MouseWheelUp,   Input::BindingType::OnKeyDown,  Action_ZoomInCanvas,    "");
-	Input::Bind(mainBindingSet, Key::Key::MouseWheelDown, Input::BindingType::OnKeyDown,  Action_ZoomOutCanvas,   "");
+	Input::Bind(mainBindingSet, Key::Key::MouseWheelUp,   Input::BindingType::OnKeyDown,  Action_ZoomIn,    "");
+	Input::Bind(mainBindingSet, Key::Key::MouseWheelDown, Input::BindingType::OnKeyDown,  Action_ZoomOut,   "");
 	Input::Bind(mainBindingSet, Key::Key::W,              Input::BindingType::Continuous, Action_ScrollMapUp,     "");
 	Input::Bind(mainBindingSet, Key::Key::S,              Input::BindingType::Continuous, Action_ScrollMapDown,   "");
 	Input::Bind(mainBindingSet, Key::Key::A,              Input::BindingType::Continuous, Action_ScrollMapLeft,   "");
@@ -476,7 +454,7 @@ static void HandleLeftClick() {
 
 			order.orderType              = OrderType::Move;
 			order.moveOrder.elapsedSecs  = 0.f;
-			order.moveOrder.durSecs      = 0.5f;
+			order.moveOrder.durSecs      = 1.f;
 			order.moveOrder.unit         = selectedUnit;
 			order.moveOrder.startMapTile = selectedMapTile;
 			order.moveOrder.endMapTile   = clickedMapTile;
@@ -496,8 +474,8 @@ static void ExecuteMoveOrder(F32 secs) {
 	MoveOrder* const moveOrder = &order.moveOrder;
 	moveOrder->elapsedSecs += secs;
 	if (moveOrder->elapsedSecs < moveOrder->durSecs) {
-		Vec2 const startPos = MapCoordToCenterPixel(moveOrder->startMapTile->mapCoord);
-		Vec2 const endPos   = MapCoordToCenterPixel(moveOrder->endMapTile->mapCoord);
+		Vec2 const startPos = MapCoordToCenterScreenPos(moveOrder->startMapTile->mapCoord);
+		Vec2 const endPos   = MapCoordToCenterScreenPos(moveOrder->endMapTile->mapCoord);
 		F32 const t         = moveOrder->elapsedSecs / moveOrder->durSecs;
 		moveOrder->unit->pos = Math::Lerp(startPos, endPos, t);
 	} else {
@@ -517,7 +495,7 @@ static void ExecuteAttackOrder(F32 secs) {
 		case AttackOrderState::MovingTo: {
 			attackOrder->elapsedSecs += secs;
 			if (attackOrder->elapsedSecs < attackOrder->durSecs) {
-				Vec2 const startPos = MapCoordToCenterPixel(attackOrder->unitMapTile->mapCoord);
+				Vec2 const startPos = MapCoordToCenterScreenPos(attackOrder->unitMapTile->mapCoord);
 				Vec2 const endPos   = attackOrder->targetPos;
 				F32 const t         = attackOrder->elapsedSecs / attackOrder->durSecs;
 				unit->pos = Math::Lerp(startPos, endPos, t);
@@ -553,11 +531,11 @@ static void ExecuteAttackOrder(F32 secs) {
 			attackOrder->elapsedSecs += secs;
 			if (attackOrder->elapsedSecs < attackOrder->durSecs) {
 				Vec2 const startPos = attackOrder->targetPos;
-				Vec2 const endPos   = MapCoordToCenterPixel(attackOrder->unitMapTile->mapCoord);
+				Vec2 const endPos   = MapCoordToCenterScreenPos(attackOrder->unitMapTile->mapCoord);
 				F32 const t         = attackOrder->elapsedSecs / attackOrder->durSecs;
 				unit->pos = Math::Lerp(startPos, endPos, t);
 			} else {
-				unit->pos = MapCoordToCenterPixel(attackOrder->unitMapTile->mapCoord);
+				unit->pos = MapCoordToCenterScreenPos(attackOrder->unitMapTile->mapCoord);
 				unit->z = Z_Unit;
 				memset(&order, 0, sizeof(order));
 				selectedMapTile = nullptr;
@@ -573,27 +551,6 @@ static void ExecuteAttackOrder(F32 secs) {
 
 //--------------------------------------------------------------------------------------------------
 
-static void RecalcCanvasBounds() {
-	F32 const canvasScaledWidth  = canvasSize.x * canvasScale;
-	F32 const canvasScaledHeight = canvasSize.y * canvasScale;
-	canvasMaxPos.x = (canvasAreaWidth  / 2.f) - (canvasAreaWidth  - canvasScaledWidth) / 2.f;
-	canvasMaxPos.y = (canvasAreaHeight / 2.f) - (canvasAreaHeight - canvasScaledHeight) / 2.f;
-	if (canvasScaledWidth > canvasAreaWidth) {
-		canvasMinPos.x = canvasAreaWidth - canvasMaxPos.x;
-	} else {
-		canvasMinPos.x = canvasMaxPos.x;
-	}
-	if (canvasScaledHeight > canvasAreaHeight) {
-		canvasMinPos.y = canvasAreaHeight - canvasMaxPos.y;
-	} else {
-		canvasMinPos.y = canvasMaxPos.y;
-	}
-	canvasPos.x = Clamp(canvasPos.x, canvasMinPos.x, canvasMaxPos.x);
-	canvasPos.y = Clamp(canvasPos.y, canvasMinPos.y, canvasMaxPos.y);
-	Logf("canvasMinPos=(%.2f, %.2f)", canvasMinPos.x, canvasMinPos.y);
-	Logf("canvasMaxPos=(%.2f, %.2f)", canvasMaxPos.x, canvasMaxPos.y);
-}
-
 Res<> Frame(App::FrameData const* frameData) {
 	if (frameData->exit) {
 		return App::Err_Exit();
@@ -601,7 +558,6 @@ Res<> Frame(App::FrameData const* frameData) {
 
 	const F32 secs = (F32)Time::Secs(frameData->ticks);
 
-	constexpr float CanvasScrollPixelsPerSec = 1000.f;
 	for (U64 i = 0; i < frameData->actions.len; i++) {
 		U64 const actionId = frameData->actions[i];
 
@@ -609,13 +565,13 @@ Res<> Frame(App::FrameData const* frameData) {
 			case Action_Exit: return App::Err_Exit();
 			case Action_Click: HandleLeftClick(); break;
 
-			case Action_ZoomInCanvas:  canvasScale += 0.25f; Logf("canvasScale=%.2f", canvasScale); RecalcCanvasBounds(); break;
-			case Action_ZoomOutCanvas: canvasScale -= 0.25f; Logf("canvasScale=%.2f", canvasScale); RecalcCanvasBounds(); break;
+			case Action_ZoomIn: cam.scale += 1.f; Logf("cam.scale = %f", cam.scale); break;
+			case Action_ZoomOut: if (cam.scale > 1.f) { cam.scale -= 1.f; } Logf("cam.scale = %f", cam.scale); break;
 
-			case Action_ScrollMapLeft:  { canvasPos.x = Min(canvasMaxPos.x, canvasPos.x + (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); }; break;
-			case Action_ScrollMapRight: { canvasPos.x = Max(canvasMinPos.x, canvasPos.x - (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); }; break;
-			case Action_ScrollMapUp:    { canvasPos.y = Min(canvasMaxPos.y, canvasPos.y + (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); }; break;
-			case Action_ScrollMapDown:  { canvasPos.y = Max(canvasMinPos.y, canvasPos.y - (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); }; break;
+			case Action_ScrollMapLeft:  cam.pos.x -= (CamSpeedPixelsPerSec * secs) / cam.scale; Logf("cam.pos=(%f, %f)", cam.pos.x, cam.pos.y); break;
+			case Action_ScrollMapRight: cam.pos.x += (CamSpeedPixelsPerSec * secs) / cam.scale; Logf("cam.pos=(%f, %f)", cam.pos.x, cam.pos.y); break;
+			case Action_ScrollMapUp:    cam.pos.y -= (CamSpeedPixelsPerSec * secs) / cam.scale; Logf("cam.pos=(%f, %f)", cam.pos.x, cam.pos.y); break;
+			case Action_ScrollMapDown:  cam.pos.y += (CamSpeedPixelsPerSec * secs) / cam.scale; Logf("cam.pos=(%f, %f)", cam.pos.x, cam.pos.y); break;
 
 			case Action_NextFont: {
 				activeFontIdx++;
@@ -642,14 +598,13 @@ Res<> Frame(App::FrameData const* frameData) {
 		}
 	}
 	
-	Vec2 const canvasTopLeft = Vec2(
-		canvasPos.x - (canvasSize.x * canvasScale) / 2.f,
-		canvasPos.y - (canvasSize.y * canvasScale) / 2.f
-	);
-	
 	Vec2 const mousePos((F32)frameData->mouseX, (F32)frameData->mouseY);
-	Vec2 const canvasMousePos = Math::Scale(Math::Sub(mousePos, canvasTopLeft), 1.f / canvasScale);
-	mouseMapCoord = PixelToMapCoord(canvasMousePos);
+
+	Vec2 const canvasMousePos = {
+		(mousePos.x / cam.scale) + cam.pos.x,
+		(mousePos.y / cam.scale) + cam.pos.y,
+	};
+	mouseMapCoord = ScreenPosToMapCoord(canvasMousePos);
 	if (mouseMapCoord.col >= 0 && mouseMapCoord.col < MapCols && mouseMapCoord.row >= 0 && mouseMapCoord.row < MapRows) {
 		hoverMapTile = &mapTiles[mouseMapCoord.col + mouseMapCoord.row * MapCols];
 	} else {
@@ -672,24 +627,26 @@ Res<> Frame(App::FrameData const* frameData) {
 Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 	Draw::BeginFrame(gpuFrameData);	// TODO: move to App.cpp
 
-	Draw::SetCanvas(canvas);
-
 	Draw::DrawRect({
-		.pos   = Vec2(canvasSize.x / 2.f, canvasSize.y / 2.f),
+		.pos   = { 0.f, 0.f },
 		.z     = Z_Background,
-		.size  = canvasSize,
+		.origin = Draw::Origin::TopLeft,
+		.size  = { 1920.f, 1080.f },
 		.color = MapBackgroundColor,
 	});
+
+	Draw::SetCamera(cam.pos, cam.scale);
 
 	for (I32 col = 0; col < MapCols; col++) {
 		for (I32 row = 0; row < MapRows; row++) {
 			MapTile const* const mapTile = &mapTiles[col + row * MapCols];
-			Vec2 const centerPos = MapCoordToCenterPixel(mapTile->mapCoord);
+			Vec2 const centerPos = MapCoordToCenterScreenPos(mapTile->mapCoord);
 			Draw::DrawSprite({
 				.sprite = terrainSprites[(U32)mapTile->terrainType],
 				.pos    = centerPos,
 				.z      = Z_Map,
 			});
+
 			if (mapTile == selectedMapTile) {
 				Draw::DrawSprite({
 					.sprite = hexBorderSprite,
@@ -704,7 +661,7 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 	if (hoverMapTile && hoverMapTile != selectedMapTile) {
 		Draw::DrawSprite({
 			.sprite = hexBorderSprite,
-			.pos    = MapCoordToCenterPixel(mouseMapCoord),
+			.pos    = MapCoordToCenterScreenPos(mouseMapCoord),
 			.z      = Z_MapHighlight,
 			.color  = HoverColor
 		});
@@ -733,37 +690,32 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 		constexpr F32 HpBarHeight = 2.f;
 		F32 y = unit->pos.y - (unit->unitDef->size.y / 2.f) - (HpBarHeight / 2.f);
 		Draw::DrawRect({
-			.pos   = Vec2(unit->pos.x, y),
+			.pos   = { unit->pos.x, y },
 			.z     = unit->z,
-			.size  = Vec2(unit->unitDef->size.x, HpBarHeight),
-			.color = Vec4(1.f, 0.f, 0.f, 1.f),
+			.size  = { unit->unitDef->size.x, HpBarHeight },
+			.color = { 1.f, 0.f, 0.f, 1.f },
 		});
 
 		y -= (HpBarHeight / 2.f);
-		Draw::DrawFont({
+		Draw::DrawText({
 			.font   = fonts[activeFontIdx],
 			.str    = SPrintf(tempMem, "%u", unit->id),
-			.pos    = Vec2(unit->pos.x, y),
+			.pos    = { unit->pos.x, y },
 			.z      = unit->z,
 			.origin = Draw::Origin::BottomCenter,
-			.scale  = Vec2(1.f, 1.f),
-			.color  = Vec4(0.8f, 0.8f, 1.f, 1.f),
+			.color  = { 0.8f, 0.8f, 1.f, 1.f },
 		});
 	}
 
-	Draw::SetDefaultCanvas();
-	Draw::DrawCanvas({
-		.canvas = canvas,
-		.pos    = canvasPos,
-		.scale  = Vec2(canvasScale, canvasScale),
-	});
+	Draw::SetCamera(Vec2(), 1.f);
+
 	Draw::DrawRect({
 		.pos   = Vec2(windowSize.x - UiPanelWidth / 2.f, windowSize.y / 2.f),
 		.z     = Z_UiBackground,
 		.size  = Vec2(UiPanelWidth, windowSize.y),
 		.color = UiBackgroundColor,
 	});
-	constexpr F32 UiScale = 2.f;
+	constexpr F32 UiScale = 3.f;
 	constexpr Str lines[] = {
 		"Spearman",
 		"HP: 10",
@@ -779,18 +731,18 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 		"<>/?-=,.",
 	};
 
-	Draw::FontDrawDef fontDrawDef = {
+	Draw::TextDrawDef textDrawDef = {
 		.font   = fonts[activeFontIdx],
-		.pos    = Vec2(canvasAreaWidth + 10.f, 10.f + (activeFontLineHeight * UiScale)),
+		.pos    = { windowSize.x - UiPanelWidth + 10.f, 10.f },
 		.z      = Z_Ui,
 		.origin = Draw::Origin::TopLeft,
-		.scale  = Vec2(UiScale, UiScale),
-		.color  = Vec4(1.f, 1.f, 1.f, 1.f),
+		.scale  = { UiScale, UiScale },
+		.color  = { 1.f, 1.f, 1.f, 1.f },
 	};
 	for (U32 i = 0; i < LenOf(lines); i++) {
-		fontDrawDef.str = lines[i];
-		Draw::DrawFont(fontDrawDef);
-		fontDrawDef.pos.y += activeFontLineHeight * UiScale;
+		textDrawDef.str = lines[i];
+		Draw::DrawText(textDrawDef);
+		textDrawDef.pos.y += activeFontLineHeight * UiScale;
 	}
 
 	Draw::EndFrame();
@@ -809,7 +761,6 @@ Res<> ResizeWindow(U32 windowWidth, U32 windowHeight) {
 //--------------------------------------------------------------------------------------------------
 
 void Shutdown() {
-	Draw::DestroyCanvas(canvas);
 }
 
 //--------------------------------------------------------------------------------------------------

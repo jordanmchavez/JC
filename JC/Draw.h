@@ -31,6 +31,14 @@ enum struct Origin {
 	BottomRight,
 };
 
+struct RectDrawDef {
+	Vec2   pos;
+	F32    z;
+	Origin origin = Origin::Center;
+	Vec2   size;
+	Vec4   color = Vec4(1.f, 1.f, 1.f, 1.f);
+};
+
 struct SpriteDrawDef {
 	Sprite sprite;
 	Vec2   pos;
@@ -43,7 +51,7 @@ struct SpriteDrawDef {
 	F32    rotation = 0.f;
 };
 
-struct FontDrawDef {
+struct TextDrawDef {
 	Font   font;
 	Str    str;
 	Vec2   pos;
@@ -63,14 +71,6 @@ struct CanvasDrawDef {
 	F32    rotation = 0.f;
 };
 
-struct RectDrawDef {
-	Vec2   pos;
-	F32    z;
-	Origin origin = Origin::Center;
-	Vec2   size;
-	Vec4   color = Vec4(1.f, 1.f, 1.f, 1.f);
-};
-
 Res<>       Init(InitDef const* initDef);
 void        Shutdown();
 Res<>       ResizeWindow(U32 width, U32 height);
@@ -86,10 +86,11 @@ void        BeginFrame(Gpu::FrameData const* gpuFrameData);
 void        EndFrame();
 void        SetDefaultCanvas();
 void        SetCanvas(Canvas canvas);
-void        DrawSprite(SpriteDrawDef drawDef);
-void        DrawFont(FontDrawDef drawDef);
-void        DrawCanvas(CanvasDrawDef drawDef);
+void        SetCamera(Vec2 pos, F32 scale);
 void        DrawRect(RectDrawDef drawDef);
+void        DrawSprite(SpriteDrawDef drawDef);
+void        DrawText(TextDrawDef drawDef);
+void        DrawCanvas(CanvasDrawDef drawDef);
 
 //--------------------------------------------------------------------------------------------------
 

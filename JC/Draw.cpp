@@ -142,10 +142,10 @@ struct Scene {
 };
 
 struct PushConstants {
-	U64 sceneBufferAddr;
-	U64 drawCmdBufferAddr;
-	U32 sceneBufferIdx;
-	U32 drawCmdStart;
+	U64 sceneBufferAddr = 0;
+	U64 drawCmdBufferAddr = 0;
+	U32 sceneBufferIdx = 0;
+	U32 drawCmdStart = 0;
 };
 
 struct DrawCmd {
@@ -157,7 +157,6 @@ struct DrawCmd {
 	Vec4 color = Vec4(1.f, 1.f, 1.f, 1.f);
 	Vec4 outlineColor;
 	F32  outlineWidth = 0.f;
-	F32  rotation = 0.f;
 };
 
 struct Pass {
@@ -198,6 +197,8 @@ static U32           drawCmdCount;
 static Canvas        swapchainCanvas;
 static Pass*         passes;
 static U32           passesLen;
+static Vec2          camPos;
+static F32           camScale;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -278,6 +279,9 @@ Res<> Init(InitDef const* initDef) {
 		windowSize.y, 0.0f,
 		-100.0f, 100.0f
 	);
+
+	camPos   = Vec2(0.f, 0.f);
+	camScale = 1.f;
 
 	return Ok();
 }
@@ -638,6 +642,13 @@ void SetCanvas(Canvas canvas) {
 
 //--------------------------------------------------------------------------------------------------
 
+void SetCamera(Vec2 pos, F32 scale) {
+	camPos   = pos;
+	camScale = scale;
+}
+
+//--------------------------------------------------------------------------------------------------
+
 static DrawCmd* AllocDrawCmds(U32 n) {
 	Assert(drawCmdCount + n <= MaxDrawCmds);
 	DrawCmd* ptr = drawCmds + drawCmdCount;
@@ -647,25 +658,101 @@ static DrawCmd* AllocDrawCmds(U32 n) {
 
 //--------------------------------------------------------------------------------------------------
 
-void  DrawSprite(SpriteDrawDef drawDef) {
+static inline Vec3 MakePos(F32 x, F32 y, F32 z) {
+	return Vec3(Math::Round((x - camPos.x) * camScale), Math::Round((y - camPos.y) * camScale), z);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void DrawRect(RectDrawDef drawDef) {
+	F32 x = drawDef.pos.x;
+	F32 y = drawDef.pos.y;
+
+	switch (drawDef.origin) {
+		case Origin::BottomLeft:
+		case Origin::BottomCenter:
+		case Origin::BottomRight:
+			y -= drawDef.size.y;
+			break;
+		case Origin::Left:
+		case Origin::Center:
+		case Origin::Right:
+			y -= drawDef.size.y * 0.5f;
+			break;
+	}
+	switch (drawDef.origin) {
+		case Origin::BottomCenter:
+		case Origin::Center:
+		case Origin::TopCenter:
+			x -= drawDef.size.x * 0.5f;
+			break;
+		case Origin::BottomRight:
+		case Origin::Right:
+		case Origin::TopRight:
+			x -= drawDef.size.x;
+			break;
+	}
+
+	DrawCmd* const drawCmd = AllocDrawCmds(1);
+	drawCmd->textureIdx   = 0;
+	drawCmd->pos          = MakePos(x, y, drawDef.z);
+	drawCmd->size         = Vec2(drawDef.size.x * camScale, drawDef.size.y * camScale);
+	drawCmd->uv1          = Vec2(0.f, 0.f);
+	drawCmd->uv2          = Vec2(0.f, 0.f);
+	drawCmd->color        = drawDef.color;
+	drawCmd->outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
+	drawCmd->outlineWidth = 0.f;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void DrawSprite(SpriteDrawDef drawDef) {
 	Assert(drawDef.sprite.handle > 0 && drawDef.sprite.handle < spriteObjsLen);
 	SpriteObj const* const spriteObj = &spriteObjs[drawDef.sprite.handle];
 
+	F32 x = drawDef.pos.x;
+	F32 y = drawDef.pos.y;
+	F32 const scaledSizeX = spriteObj->size.x * drawDef.scale.x;
+	F32 const scaledSizeY = spriteObj->size.y * drawDef.scale.y;
+	switch (drawDef.origin) {
+		case Origin::BottomLeft:
+		case Origin::BottomCenter:
+		case Origin::BottomRight:
+			y -= scaledSizeY;
+			break;
+		case Origin::Left:
+		case Origin::Center:
+		case Origin::Right:
+			y -= scaledSizeY * 0.5f;
+			break;
+	}
+	switch (drawDef.origin) {
+		case Origin::BottomCenter:
+		case Origin::Center:
+		case Origin::TopCenter:
+			x -= scaledSizeX * 0.5f;
+			break;
+		case Origin::BottomRight:
+		case Origin::Right:
+		case Origin::TopRight:
+			x -= scaledSizeX;
+			break;
+	}
+
 	DrawCmd* const drawCmd = AllocDrawCmds(1);
 	drawCmd->textureIdx   = spriteObj->imageIdx;
-	drawCmd->pos          = Vec3(drawDef.pos.x, drawDef.pos.y, drawDef.z);
-	drawCmd->size         = Math::Mul(spriteObj->size, drawDef.scale);
+	drawCmd->pos          = MakePos(x, y, drawDef.z);
+	drawCmd->size         = Vec2(scaledSizeX * camScale, scaledSizeY * camScale);
 	drawCmd->uv1          = spriteObj->uv1;
 	drawCmd->uv2          = spriteObj->uv2;
 	drawCmd->color        = drawDef.color;
 	drawCmd->outlineColor = drawDef.outlineColor;
 	drawCmd->outlineWidth = drawDef.outlineWidth;
-	drawCmd->rotation     = drawDef.rotation;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static F32 StrWidth(FontObj const* fontObj, Str str, Vec2 scale) {
+static F32 StrWidth(FontObj const* fontObj, Str str) {
 	if (str.len == 0) {
 		return 0;
 	}
@@ -673,19 +760,17 @@ static F32 StrWidth(FontObj const* fontObj, Str str, Vec2 scale) {
 	F32 width = 0;
 	for (U32 i = 0; i < str.len - 1; i++) {
 		Glyph const* const glyph = &fontObj->glyphs[str[i]];
-		width += glyph->xAdv * scale.x;
+		width += glyph->xAdv;
 	}
 	Glyph const* const lastGlyph = &fontObj->glyphs[str[str.len - 1]];
-	// This way gives the correct length but causes aliasing issues with pixel-perfect fonts using linear filtering
-	//width += (lastGlyph->off.x + lastGlyph->size.x) * scale.x;
-	// this line makes the center slightly offset but doesn't have aliasing problems
-	width += lastGlyph->xAdv * scale.x;
+	width += lastGlyph->off.x + lastGlyph->size.x;
+	//width += lastGlyph->xAdv;
 	return width;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void DrawFont(FontDrawDef drawDef) {
+void DrawText(TextDrawDef drawDef) {
 	Assert(drawDef.font.handle > 0 && drawDef.font.handle < fontObjsLen);
 	FontObj const* const fontObj = &fontObjs[drawDef.font.handle];
 
@@ -695,47 +780,37 @@ void DrawFont(FontDrawDef drawDef) {
 		case Origin::BottomLeft:
 		case Origin::BottomCenter:
 		case Origin::BottomRight:
-			y -= (fontObj->lineHeight - fontObj->base) * drawDef.scale.y;
+			y -= fontObj->lineHeight * drawDef.scale.y;
 			break;
-		case Origin::TopLeft:
-		case Origin::TopCenter:
-		case Origin::TopRight:
-			y += fontObj->base * drawDef.scale.y;
+		case Origin::Left:
+		case Origin::Center:
+		case Origin::Right:
+			y -= fontObj->base * drawDef.scale.y;
 			break;
 	}
 	switch (drawDef.origin) {
 		case Origin::BottomCenter:
 		case Origin::Center:
 		case Origin::TopCenter:
-			x -= StrWidth(fontObj, drawDef.str, drawDef.scale) * 0.5f;
+			x -= StrWidth(fontObj, drawDef.str) * drawDef.scale.x * 0.5f;
 			break;
 		case Origin::BottomRight:
 		case Origin::Right:
 		case Origin::TopRight:
-			x -= StrWidth(fontObj, drawDef.str, drawDef.scale);
+			x -= StrWidth(fontObj, drawDef.str) * drawDef.scale.y;
 			break;
 	}
-	F32 const lineTop = y - (fontObj->base * drawDef.scale.y);
 	for (U32 i = 0; i < drawDef.str.len; i++) {
 		Glyph const* glyph = &fontObj->glyphs[drawDef.str[i]];
-		Vec2 const drawTopLeft = Vec2(
-			x       + (glyph->off.x * drawDef.scale.x),
-			lineTop + (glyph->off.y * drawDef.scale.y)
-		);
-		Vec2 const drawCenter = Vec2(
-			drawTopLeft.x + (glyph->size.x * drawDef.scale.x * 0.5f),
-			drawTopLeft.y + (glyph->size.y * drawDef.scale.y * 0.5f)
-		);
 		DrawCmd* const drawCmd = AllocDrawCmds(1);
 		drawCmd->textureIdx   = glyph->imageIdx;
-		drawCmd->pos          = Vec3(drawCenter.x, drawCenter.y, drawDef.z);
-		drawCmd->size         = Math::Mul(glyph->size, drawDef.scale);
+		drawCmd->pos          = MakePos(x + (glyph->off.x * drawDef.scale.x), y + (glyph->off.y * drawDef.scale.y), drawDef.z);
+		drawCmd->size         = Vec2(glyph->size.x * drawDef.scale.x * camScale, glyph->size.y * drawDef.scale.y * camScale);
 		drawCmd->uv1          = glyph->uv1;
 		drawCmd->uv2          = glyph->uv2;
 		drawCmd->color        = drawDef.color;
 		drawCmd->outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
 		drawCmd->outlineWidth = 0.f;
-		drawCmd->rotation     = 0.f;
 		x += glyph->xAdv * drawDef.scale.x;
 	}
 }
@@ -747,29 +822,13 @@ void DrawCanvas(CanvasDrawDef drawDef) {
 
 	DrawCmd* const drawCmd = AllocDrawCmds(1);
 	drawCmd->textureIdx   = canvasObj->colorImageIdx;
-	drawCmd->pos          = Vec3(drawDef.pos.x, drawDef.pos.y, drawDef.z);
-	drawCmd->size         = Math::Mul(canvasObj->size, drawDef.scale);
+	drawCmd->pos          = Vec3(Math::Round(drawDef.pos.x), Math::Round(drawDef.pos.y), drawDef.z);
+	drawCmd->size         = Vec2(canvasObj->size.x * drawDef.scale.x * camScale, canvasObj->size.y * drawDef.scale.y * camScale);
 	drawCmd->uv1          = Vec2(0.f, 0.f);
 	drawCmd->uv2          = Vec2(1.f, 1.f);
 	drawCmd->color        = drawDef.color;
 	drawCmd->outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
 	drawCmd->outlineWidth = 0.f;
-	drawCmd->rotation     = drawDef.rotation;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-void DrawRect(RectDrawDef drawDef) {
-	DrawCmd* const drawCmd = AllocDrawCmds(1);
-	drawCmd->textureIdx   = 0;
-	drawCmd->pos          = Vec3(drawDef.pos.x, drawDef.pos.y, drawDef.z);
-	drawCmd->size         = drawDef.size;
-	drawCmd->uv1          = Vec2(0.f, 0.f);
-	drawCmd->uv2          = Vec2(0.f, 0.f);
-	drawCmd->color        = drawDef.color;
-	drawCmd->outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
-	drawCmd->outlineWidth = 0.f;
-	drawCmd->rotation     = 0.f;
 }
 
 //--------------------------------------------------------------------------------------------------
