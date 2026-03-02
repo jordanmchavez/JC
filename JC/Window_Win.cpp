@@ -452,7 +452,7 @@ Res<> Init(const InitDef* initDef) {
 		{
 			.usUsagePage = (USHORT)HID_USAGE_PAGE_GENERIC,
 			.usUsage     = (USHORT)HID_USAGE_GENERIC_KEYBOARD,
-			.dwFlags     = RIDEV_INPUTSINK,
+			.dwFlags     = 0,
 			.hwndTarget  = window.hwnd,
 		},
 		{

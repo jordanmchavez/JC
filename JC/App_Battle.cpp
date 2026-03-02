@@ -39,16 +39,21 @@ static constexpr F32 Z_UnitSelected = 4.f;
 static constexpr F32 Z_UiBackground = 5.f;
 static constexpr F32 Z_Ui           = 6.f;
 
-static constexpr U64 Action_Exit           = 1;
-static constexpr U64 Action_Click          = 2;
-static constexpr U64 Action_ZoomInCanvas   = 3;
-static constexpr U64 Action_ZoomOutCanvas  = 4;
-static constexpr U64 Action_ScrollMapLeft  = 5;
-static constexpr U64 Action_ScrollMapRight = 6;
-static constexpr U64 Action_ScrollMapUp    = 7;
-static constexpr U64 Action_ScrollMapDown  = 8;
-static constexpr U64 Action_NextFont       = 9;
-static constexpr U64 Action_PrevFont       = 10;
+static constexpr U64 Action_Exit            = 1;
+static constexpr U64 Action_Click           = 2;
+static constexpr U64 Action_ZoomInCanvas    = 3;
+static constexpr U64 Action_ZoomOutCanvas   = 4;
+static constexpr U64 Action_ScrollMapLeft   = 5;
+static constexpr U64 Action_ScrollMapRight  = 6;
+static constexpr U64 Action_ScrollMapUp     = 7;
+static constexpr U64 Action_ScrollMapDown   = 8;
+static constexpr U64 Action_NextFont        = 9;
+static constexpr U64 Action_PrevFont        = 10;
+static constexpr U64 Action_OriginLeft      = 11;
+static constexpr U64 Action_OriginCenter    = 12;
+static constexpr U64 Action_OriginRight     = 13;
+static constexpr U64 Action_OriginOffsetInc = 14;
+static constexpr U64 Action_OriginOffsetDec = 15;
 
 struct HexCoord {
 	I16 x = 0;
@@ -184,6 +189,8 @@ static U32               activeFontIdx;
 static F32               activeFontLineHeight;
 static Vec2              windowSize;
 static Input::BindingSet mainBindingSet;
+static Draw::Origin      unitIdOrigin = Draw::Origin::BottomCenter;
+static F32               unitIdXOffset;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -310,7 +317,7 @@ Res<> Init(Window::State const* windowState) {
 		canvasMinPos.x = canvasMaxPos.x;
 	}
 	if (canvasScaledHeight > canvasAreaHeight) {
-		canvasMinPos.y = canvasAreaWidth - canvasMaxPos.y;
+		canvasMinPos.y = canvasAreaHeight - canvasMaxPos.y;
 	} else {
 		canvasMinPos.y = canvasMaxPos.y;
 	}
@@ -323,7 +330,9 @@ Res<> Init(Window::State const* windowState) {
 	Try(Draw::LoadSprites("Assets/Units.png", "Assets/Units.spritejson"));
 
 	spearmenUnitDef = &unitDefs[unitDefsLen++];
-	TryTo(Draw::GetSprite("Unit_Spearmen"), spearmenUnitDef->sprite);
+	//TryTo(Draw::GetSprite("Unit_Spearmen"), spearmenUnitDef->sprite);
+	TryTo(Draw::GetSprite("Unit_GreenSquare"), spearmenUnitDef->sprite);
+
 	Draw::Sprite attackSprite; TryTo(Draw::GetSprite("Unit_Spearmen_Attack"), attackSprite);
 	spearmenUnitDef->maxHp = 10;
 	spearmenUnitDef->size = Draw::GetSpriteSize(spearmenUnitDef->sprite);
@@ -366,18 +375,33 @@ Res<> Init(Window::State const* windowState) {
 		}
 	}
 
+	Span<Str const> BattleFonts = {
+		"6_EverydayStandard",
+		"16_Bitpotion",
+		"16_CelticTime_Grid",
+	};
+
+	for (U64 i = 0; i < BattleFonts.len; i++) {
+		TryTo(Draw::LoadFont(SPrintf(tempMem, "Assets/Fonts/%s.fontjson", BattleFonts[i]), SPrintf(tempMem, "Assets/Fonts/%s.png", BattleFonts[i])), fonts[fontsLen]);
+		Logf("Loaded font [%u] %s with lineHeight=%f", i, BattleFonts[i], Draw::GetFontLineHeight(fonts[i]));
+		fontsLen++;
+	}
+
+	/*
 	Span<Str> fontjsonFileNames; TryTo(File::EnumFiles("Assets/Fonts", ".fontjson"), fontjsonFileNames);
 	for (U64 i = 0; i < fontjsonFileNames.len; i++) {
 		Str const fontjsonFileName = fontjsonFileNames[i];
 		Str const pngFileName = SPrintf(tempMem, "%s.png", File::RemoveExt(fontjsonFileName));
 		Assert(fontsLen < MaxFonts);
 		TryTo(Draw::LoadFont(fontjsonFileName, pngFileName), fonts[fontsLen]);
-		Logf("Loaded font %s", fontjsonFileName);
+		Logf("Loaded font [%u] %s", i, fontjsonFileName);
 		fontsLen++;
 	}
+	*/
 	Assert(fontsLen > 0);
-	activeFontIdx = 25;
+	activeFontIdx = 0;
 	activeFontLineHeight = Draw::GetFontLineHeight(fonts[activeFontIdx]);
+	Logf("Selected font %u/%u %s with lineHeight = %f", activeFontIdx, fontsLen, Draw::GetFontPath(fonts[activeFontIdx]), activeFontLineHeight);
 
 	// TODO: this needs to be in all gpu resource load functions...I've forgotten to add this and it's repeatedly cost me lotsa debugging time
 	Try(Gpu::ImmediateWait());
@@ -385,16 +409,21 @@ Res<> Init(Window::State const* windowState) {
 	mouseMapCoord = MapCoord(0, 0);
 
 	mainBindingSet = Input::CreateBindingSet("Main");
-	Input::Bind(mainBindingSet, Key::Key::Escape,         Input::BindingType::OnKeyDown,  Action_Exit,           "Exit");
-	Input::Bind(mainBindingSet, Key::Key::Mouse1,         Input::BindingType::OnKeyUp,    Action_Click,          "Click");
-	Input::Bind(mainBindingSet, Key::Key::MouseWheelUp,   Input::BindingType::OnKeyDown,  Action_ZoomInCanvas,   "ZoomInCanvas");
-	Input::Bind(mainBindingSet, Key::Key::MouseWheelDown, Input::BindingType::OnKeyDown,  Action_ZoomOutCanvas,  "ZoomOutCanvas");
-	Input::Bind(mainBindingSet, Key::Key::W,              Input::BindingType::Continuous, Action_ScrollMapUp,    "ScrollMapUp");
-	Input::Bind(mainBindingSet, Key::Key::S,              Input::BindingType::Continuous, Action_ScrollMapDown,  "ScrollMapDown");
-	Input::Bind(mainBindingSet, Key::Key::A,              Input::BindingType::Continuous, Action_ScrollMapLeft,  "ScrollMapLeft");
-	Input::Bind(mainBindingSet, Key::Key::D,              Input::BindingType::Continuous, Action_ScrollMapRight, "ScrollMapRight");
-	Input::Bind(mainBindingSet, Key::Key::Dot,            Input::BindingType::OnKeyDown,  Action_NextFont,       "NextFont");
-	Input::Bind(mainBindingSet, Key::Key::Comma,          Input::BindingType::OnKeyDown,  Action_PrevFont,       "PrevFont");
+	Input::Bind(mainBindingSet, Key::Key::Escape,         Input::BindingType::OnKeyDown,  Action_Exit,            "");
+	Input::Bind(mainBindingSet, Key::Key::Mouse1,         Input::BindingType::OnKeyUp,    Action_Click,           "");
+	Input::Bind(mainBindingSet, Key::Key::MouseWheelUp,   Input::BindingType::OnKeyDown,  Action_ZoomInCanvas,    "");
+	Input::Bind(mainBindingSet, Key::Key::MouseWheelDown, Input::BindingType::OnKeyDown,  Action_ZoomOutCanvas,   "");
+	Input::Bind(mainBindingSet, Key::Key::W,              Input::BindingType::Continuous, Action_ScrollMapUp,     "");
+	Input::Bind(mainBindingSet, Key::Key::S,              Input::BindingType::Continuous, Action_ScrollMapDown,   "");
+	Input::Bind(mainBindingSet, Key::Key::A,              Input::BindingType::Continuous, Action_ScrollMapLeft,   "");
+	Input::Bind(mainBindingSet, Key::Key::D,              Input::BindingType::Continuous, Action_ScrollMapRight,  "");
+	Input::Bind(mainBindingSet, Key::Key::Dot,            Input::BindingType::OnKeyDown,  Action_NextFont,        "");
+	Input::Bind(mainBindingSet, Key::Key::Comma,          Input::BindingType::OnKeyDown,  Action_PrevFont,        "");
+	Input::Bind(mainBindingSet, Key::Key::One,            Input::BindingType::OnKeyDown,  Action_OriginLeft,      "");
+	Input::Bind(mainBindingSet, Key::Key::Two,            Input::BindingType::OnKeyDown,  Action_OriginCenter,    "");
+	Input::Bind(mainBindingSet, Key::Key::Three,          Input::BindingType::OnKeyDown,  Action_OriginRight,     "");
+	Input::Bind(mainBindingSet, Key::Key::Equals,         Input::BindingType::OnKeyDown,  Action_OriginOffsetInc, "");
+	Input::Bind(mainBindingSet, Key::Key::Minus,          Input::BindingType::OnKeyDown,  Action_OriginOffsetDec, "");
 	Input::SetBindingSetStack({ mainBindingSet });
 												          
 	state = State::WaitingOrder;
@@ -622,6 +651,13 @@ Res<> Frame(App::FrameData const* frameData) {
 				break;
 			}
 
+			case Action_OriginLeft:   unitIdOrigin = Draw::Origin::BottomLeft;   break;
+			case Action_OriginCenter: unitIdOrigin = Draw::Origin::BottomCenter; break;
+			case Action_OriginRight:  unitIdOrigin = Draw::Origin::BottomRight;  break;
+
+			case Action_OriginOffsetInc: unitIdXOffset += 0.25f; Logf("xOffset=%f", unitIdXOffset); break;
+			case Action_OriginOffsetDec: unitIdXOffset -= 0.25f; Logf("xOffset=%f", unitIdXOffset); break;
+
 			default: Panic("Unhandled actionId %u", actionId);
 		}
 	}
@@ -655,15 +691,16 @@ Res<> Frame(App::FrameData const* frameData) {
 
 Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 	Draw::BeginFrame(gpuFrameData);	// TODO: move to App.cpp
-
+	/*
 	Draw::SetCanvas(canvas);
+
 	Draw::DrawRect({
 		.pos   = Vec2(canvasSize.x / 2.f, canvasSize.y / 2.f),
 		.z     = Z_Background,
 		.size  = canvasSize,
 		.color = MapBackgroundColor,
 	});
-
+/*
 	for (I32 col = 0; col < MapCols; col++) {
 		for (I32 row = 0; row < MapRows; row++) {
 			MapTile const* const mapTile = &mapTiles[col + row * MapCols];
@@ -683,6 +720,7 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 			}
 		}
 	}
+
 	if (hoverMapTile && hoverMapTile != selectedMapTile) {
 		Draw::DrawSprite({
 			.sprite = hexBorderSprite,
@@ -691,6 +729,7 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 			.color  = HoverColor
 		});
 	}
+	*/
 	for (U32 i = 0; i < unitsLen; i++) {
 		Unit const* const unit = &units[i];
 		if (!unit->alive) { continue; }
@@ -702,15 +741,20 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 		if (unit->activeAnimationDef) {
 			sprite = unit->activeAnimationDef->frameSprites[unit->animationFrame];
 		}
+		/*
+		if (unit->id == 8)
 		Draw::DrawSprite({
 			.sprite       = sprite,
-			.pos          = unit->pos,
+			//.pos          = unit->pos,
+.pos = Vec2(unit->pos.x+unitIdXOffset, unit->pos.y),
 			.z            = unit->z,
 			.outlineColor = SelectedColor,
 			.outlineWidth = outlineWidth,
 		});
+		*/
 		constexpr F32 HpBarHeight = 2.f;
 		F32 y = unit->pos.y - (unit->unitDef->size.y / 2.f) - (HpBarHeight / 2.f);
+/*
 		Draw::DrawRect({
 			.pos   = Vec2(unit->pos.x, y),
 			.z     = unit->z,
@@ -719,24 +763,69 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 		});
 
 		y -= (HpBarHeight / 2.f);
-		Draw::DrawFont({
-			.font   = fonts[activeFontIdx],
-			.str    = SPrintf(tempMem, "%u", unit->id),
-			.pos    = Vec2(unit->pos.x, y),
-			.z      = unit->z,
-			.origin = Draw::Origin::BottomCenter,
-			.scale  = Vec2(1.f, 1.f),
-			.color  = Vec4(0.8f, 0.8f, 1.f, 1.f),
+		if (unit->id==8) {
+			Draw::DrawFont({
+				.font   = fonts[activeFontIdx],
+				//.str    = "0123456789",//SPrintf(tempMem, "%u", unit->id),
+				.str    = "abcdefghijklmnopqrstuvwxyz",//SPrintf(tempMem, "%u", unit->id),
+				.pos    = Vec2(unitIdXOffset, 0.f),
+				.z      = unit->z,
+				//.origin = unitIdOrigin,
+				.origin = Draw::Origin::TopLeft,
+				.scale  = Vec2(1.f, 1.f),
+				.color  = Vec4(0.8f, 0.8f, 1.f, 1.f),
+			});
+
+		Draw::DrawSprite({
+			.sprite       = sprite,
+			.pos          = Vec2(unitIdXOffset + 10.f, 20.f),
+			.z            = unit->z,
 		});
+		}
+		*/
 	}
 
+	Draw::DrawRect({
+		.pos   = Vec2(960.f, 540.f),
+		.z     = Z_Background,
+		.size  = Vec2(1920.f, 1080.f),
+		.color = MapBackgroundColor,
+	});
+
+	Draw::DrawFont({
+		.font   = fonts[activeFontIdx],
+		.str    = "m",
+		.pos    = Vec2(unitIdXOffset, 50.f),
+		.z      = 100.f,
+		.origin = Draw::Origin::TopLeft,
+		.scale  = Vec2(10.f, 10.f),
+		.color  = Vec4(0.8f, 0.8f, 1.f, 1.f),
+	});
+
+	Draw::DrawFont({
+		.font   = fonts[activeFontIdx],
+		.str    = "n",
+		.pos    = Vec2(unitIdXOffset, 200.f),
+		.z      = 100.f,
+		.origin = Draw::Origin::TopLeft,
+		.scale  = Vec2(10.f, 10.f),
+		.color  = Vec4(0.8f, 0.8f, 1.f, 1.f),
+	});
+
+		Draw::DrawSprite({
+			.sprite       = spearmenUnitDef->sprite,
+			.pos          = Vec2(unitIdXOffset + 100.f, 400.f),
+			.z            = 100.f,
+			.scale  = Vec2(10.f, 10.f),
+		});
+	/*
 	Draw::SetDefaultCanvas();
 	Draw::DrawCanvas({
 		.canvas = canvas,
 		.pos    = canvasPos,
 		.scale  = Vec2(canvasScale, canvasScale),
 	});
-	
+	/*
 	Draw::DrawRect({
 		.pos   = Vec2(windowSize.x - UiPanelWidth / 2.f, windowSize.y / 2.f),
 		.z     = Z_UiBackground,
@@ -754,12 +843,11 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 		"ABCDEFGHJIKLM",
 		"NOPQRSTUVWXYZ",
 		"0123456789",
-		"66",
-		"66666666",
 		"`!@#$%^&*()",
 		"_+[]{};':\"",
 		"<>/?-=,.",
 	};
+	/*
 	Draw::FontDrawDef fontDrawDef = {
 		.font   = fonts[activeFontIdx],
 		.pos    = Vec2(canvasAreaWidth + 10.f, 10.f + (activeFontLineHeight * UiScale)),
@@ -773,7 +861,7 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 		Draw::DrawFont(fontDrawDef);
 		fontDrawDef.pos.y += activeFontLineHeight * UiScale;
 	}
-
+	*/
 	Draw::EndFrame();
 
 	return Ok();

@@ -1,3 +1,5 @@
+#pragma warning (disable: 4505)
+
 #include "JC/Draw.h"
 
 #include "JC/Array.h"
@@ -689,7 +691,6 @@ void DrawFont(FontDrawDef drawDef) {
 
 	F32 x = drawDef.pos.x;
 	F32 y = drawDef.pos.y;
-
 	switch (drawDef.origin) {
 		case Origin::BottomLeft:
 		case Origin::BottomCenter:
@@ -714,7 +715,6 @@ void DrawFont(FontDrawDef drawDef) {
 			x -= StrWidth(fontObj, drawDef.str, drawDef.scale);
 			break;
 	}
-
 	F32 const lineTop = y - (fontObj->base * drawDef.scale.y);
 	for (U32 i = 0; i < drawDef.str.len; i++) {
 		Glyph const* glyph = &fontObj->glyphs[drawDef.str[i]];
@@ -726,10 +726,13 @@ void DrawFont(FontDrawDef drawDef) {
 			drawTopLeft.x + (glyph->size.x * drawDef.scale.x * 0.5f),
 			drawTopLeft.y + (glyph->size.y * drawDef.scale.y * 0.5f)
 		);
+	//Logf("%c: x=%f, size=(%f,%f)", drawDef.str[i], drawCenter.x, glyph->size.x, glyph->size.y);
 		DrawCmd* const drawCmd = AllocDrawCmds(1);
 		drawCmd->textureIdx   = glyph->imageIdx;
 		drawCmd->pos          = Vec3(drawCenter.x, drawCenter.y, drawDef.z);
+		//drawCmd->pos          = Vec3(x + 5.f, y + 5.f, drawDef.z);
 		drawCmd->size         = Math::Mul(glyph->size, drawDef.scale);
+		//drawCmd->size         = Vec2(glyph->size.x, 10.f);
 		drawCmd->uv1          = glyph->uv1;
 		drawCmd->uv2          = glyph->uv2;
 		drawCmd->color        = drawDef.color;
