@@ -34,6 +34,7 @@ static constexpr U32 MaxSprites      = 1 * MB;
 static constexpr U32 MaxFonts        = 256;
 static constexpr U32 MaxCanvases     = 64;
 static constexpr U32 MaxPasses       = 64;
+static constexpr U32 ErrorImageSize  = 64;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -110,13 +111,14 @@ struct Glyph {
 	F32  xAdv = 0.f;
 };
 
+static constexpr U16 MaxGlyphs = 127; // Exclude 128=DEL
 struct FontObj {
 	Str        path;
 	Gpu::Image image;
 	U32        imageIdx;
 	F32        lineHeight;
 	F32        base;	// pixels from top of line to baseline
-	Glyph      glyphs[256];
+	Glyph      glyphs[MaxGlyphs];
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -168,6 +170,8 @@ static Mem           permMem;
 static Mem           tempMem;
 static U32           windowWidth;
 static U32           windowHeight;
+static Gpu::Image    errorImage;
+static U32           errorImageIdx;
 static SpriteImage*  spriteImages;
 static U32           spriteImagesLen;
 static SpriteObj*    spriteObjs;
@@ -220,7 +224,17 @@ Res<> Init(InitDef const* initDef) {
 	spriteObjsByName.Init(permMem, MaxSprites);
 	canvasObjs.Init(permMem, MaxCanvases);
 
-	Try(Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(depthImage));
+	TryTo(Gpu::CreateImage(ErrorImageSize, ErrorImageSize, Gpu::ImageFormat::B8G8R8A8_UNorm, Gpu::ImageUsage::Sampled | Gpu::ImageUsage::Copy), errorImage);
+	errorImageIdx = Gpu::GetImageBindIdx(errorImage);
+	Gpu_Name(errorImage);
+	U8* errorImageData = Mem::AllocT<U8>(tempMem, ErrorImageSize * ErrorImageSize * 4);
+	for (U32 i = 0; i < ErrorImageSize * ErrorImageSize * 4; i++) {
+		errorImageData[i] = 0xff;
+	}
+	Try(Gpu::ImmediateCopyToImage(errorImageData, errorImage, Gpu::BarrierStage::VertexShader_SamplerRead, Gpu::ImageLayout::ShaderRead));
+	Try(Gpu::ImmediateWait());
+
+	TryTo(Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth), depthImage);
 	Gpu_Name(depthImage);
 
 	Try(LoadShader("Shaders/SpriteVert.spv").To(vertexShader));
@@ -283,6 +297,7 @@ void Shutdown() {
 	Gpu::DestroyShader(vertexShader);
 	Gpu::DestroyShader(fragmentShader);
 	Gpu::DestroyImage(depthImage);
+	Gpu::DestroyImage(errorImage);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -411,7 +426,9 @@ Res<Font> LoadFont(Str fontPath, Str imagePath) {
 	for (U64 i = 0; i < fontFile.glyphs.len; i++) {
 		FontFileGlyph const* const fontFileGlyph = &fontFile.glyphs[i];
 		// TODO: more validation, here and in sprite
-		if (fontFileGlyph->ch >= 256) { return Err_BadFontChar("fontPath", fontPath, "ch", fontFileGlyph->ch); }
+		if (fontFileGlyph->ch >= MaxGlyphs) {
+			//Errorf("Ignoring out-of-range font character '%c' (%u) in %s", (char)fontFileGlyph->ch, fontFileGlyph->ch, fontPath);
+		}
 		F32 const x = (F32)fontFileGlyph->x;
 		F32 const y = (F32)fontFileGlyph->y;
 		F32 const w = (F32)fontFileGlyph->w;
@@ -421,15 +438,44 @@ Res<Font> LoadFont(Str fontPath, Str imagePath) {
 			.uv1      = { x / imageWidth, y / imageHeight },
 			.uv2      = { (x + w) / imageWidth, (y + h) / imageHeight },
 			.size     = { w, h },
-			.off      = Vec2((F32)fontFileGlyph->xOff, (F32)fontFileGlyph->yOff),
+			.off      = { (F32)fontFileGlyph->xOff, (F32)fontFileGlyph->yOff },
 			.xAdv     = (F32)fontFileGlyph->xAdv,
 		};
 	}
+	for (U16 i = 0; i < 32; i++) {
+		fontObj->glyphs[i] = {
+			.imageIdx = errorImageIdx,
+			.uv1      = { 0.f, 0.f },
+			.uv2      = { 1.f, 1.f },
+			.size     = { fontObj->lineHeight, fontObj->lineHeight },
+			.off      = { 0.f, 0.f },
+			.xAdv     = fontObj->lineHeight,
+		};
+	}
+	for (U16 i = 32; i < MaxGlyphs; i++) {
+		if (!fontObj->glyphs[i].imageIdx) {
+			Logf("Using error image for missing ascii char '%c' in %s", (char)i, fontPath);
+			fontObj->glyphs[i] = {
+				.imageIdx = errorImageIdx,
+				.uv1      = { 0.f, 0.f },
+				.uv2      = { 1.f, 1.f },
+				.size     = { fontObj->lineHeight, fontObj->lineHeight },
+				.off      = { 0.f, 0.f },
+				.xAdv     = fontObj->lineHeight,
+			};
+		}
+	}
+
 
 	return Font { .handle = (U64)(fontObj - fontObjs) };
 }
 
 //--------------------------------------------------------------------------------------------------
+
+Str GetFontPath(Font font) {
+	Assert(font.handle > 0 && font.handle < fontObjsLen);
+	return fontObjs[font.handle].path;
+}
 
 F32 GetFontLineHeight(Font font) {
 	Assert(font.handle > 0 && font.handle < fontObjsLen);
@@ -680,8 +726,6 @@ void DrawFont(FontDrawDef drawDef) {
 			drawTopLeft.x + (glyph->size.x * drawDef.scale.x * 0.5f),
 			drawTopLeft.y + (glyph->size.y * drawDef.scale.y * 0.5f)
 		);
-
-		Assert(glyph->imageIdx);	// TODO: filled squares for chars without glyphs
 		DrawCmd* const drawCmd = AllocDrawCmds(1);
 		drawCmd->textureIdx   = glyph->imageIdx;
 		drawCmd->pos          = Vec3(drawCenter.x, drawCenter.y, drawDef.z);

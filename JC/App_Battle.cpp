@@ -47,6 +47,8 @@ static constexpr U64 Action_ScrollMapLeft  = 5;
 static constexpr U64 Action_ScrollMapRight = 6;
 static constexpr U64 Action_ScrollMapUp    = 7;
 static constexpr U64 Action_ScrollMapDown  = 8;
+static constexpr U64 Action_NextFont       = 9;
+static constexpr U64 Action_PrevFont       = 10;
 
 struct HexCoord {
 	I16 x = 0;
@@ -178,7 +180,7 @@ static MapTile*          hoverMapTile;
 static Order             order;
 static Draw::Font        fonts[MaxFonts];
 static U32               fontsLen;
-static Draw::Font        activeFont;
+static U32               activeFontIdx;
 static F32               activeFontLineHeight;
 static Vec2              windowSize;
 static Input::BindingSet mainBindingSet;
@@ -374,8 +376,8 @@ Res<> Init(Window::State const* windowState) {
 		fontsLen++;
 	}
 	Assert(fontsLen > 0);
-	activeFont = fonts[0];
-	activeFontLineHeight = Draw::GetFontLineHeight(activeFont);
+	activeFontIdx = 25;
+	activeFontLineHeight = Draw::GetFontLineHeight(fonts[activeFontIdx]);
 
 	// TODO: this needs to be in all gpu resource load functions...I've forgotten to add this and it's repeatedly cost me lotsa debugging time
 	Try(Gpu::ImmediateWait());
@@ -391,6 +393,8 @@ Res<> Init(Window::State const* windowState) {
 	Input::Bind(mainBindingSet, Key::Key::S,              Input::BindingType::Continuous, Action_ScrollMapDown,  "ScrollMapDown");
 	Input::Bind(mainBindingSet, Key::Key::A,              Input::BindingType::Continuous, Action_ScrollMapLeft,  "ScrollMapLeft");
 	Input::Bind(mainBindingSet, Key::Key::D,              Input::BindingType::Continuous, Action_ScrollMapRight, "ScrollMapRight");
+	Input::Bind(mainBindingSet, Key::Key::Dot,            Input::BindingType::OnKeyDown,  Action_NextFont,       "NextFont");
+	Input::Bind(mainBindingSet, Key::Key::Comma,          Input::BindingType::OnKeyDown,  Action_PrevFont,       "PrevFont");
 	Input::SetBindingSetStack({ mainBindingSet });
 												          
 	state = State::WaitingOrder;
@@ -597,6 +601,27 @@ Res<> Frame(App::FrameData const* frameData) {
 			case Action_ScrollMapUp:    { canvasPos.y = Min(canvasMaxPos.y, canvasPos.y + (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); }; break;
 			case Action_ScrollMapDown:  { canvasPos.y = Max(canvasMinPos.y, canvasPos.y - (CanvasScrollPixelsPerSec * secs)); Logf("canvasPos=(%.2f, %.2f)", canvasPos.x, canvasPos.y); }; break;
 
+			case Action_NextFont: {
+				activeFontIdx++;
+				if (activeFontIdx >= fontsLen) {
+					activeFontIdx = 0;
+				}
+				activeFontLineHeight = Draw::GetFontLineHeight(fonts[activeFontIdx]);
+				Logf("Selected font %u/%u %s with lineHeight = %f", activeFontIdx, fontsLen, Draw::GetFontPath(fonts[activeFontIdx]), activeFontLineHeight);
+				break;
+			}
+
+			case Action_PrevFont: {
+				if (activeFontIdx == 0) {
+					activeFontIdx = fontsLen - 1;
+				} else {
+					activeFontIdx--;
+				}
+				activeFontLineHeight = Draw::GetFontLineHeight(fonts[activeFontIdx]);
+				Logf("Selected font %u/%u %s with lineHeight = %f", activeFontIdx, fontsLen, Draw::GetFontPath(fonts[activeFontIdx]), activeFontLineHeight);
+				break;
+			}
+
 			default: Panic("Unhandled actionId %u", actionId);
 		}
 	}
@@ -695,7 +720,7 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 
 		y -= (HpBarHeight / 2.f);
 		Draw::DrawFont({
-			.font   = activeFont,
+			.font   = fonts[activeFontIdx],
 			.str    = SPrintf(tempMem, "%u", unit->id),
 			.pos    = Vec2(unit->pos.x, y),
 			.z      = unit->z,
@@ -731,9 +756,12 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 		"0123456789",
 		"66",
 		"66666666",
+		"`!@#$%^&*()",
+		"_+[]{};':\"",
+		"<>/?-=,.",
 	};
 	Draw::FontDrawDef fontDrawDef = {
-		.font   = activeFont,
+		.font   = fonts[activeFontIdx],
 		.pos    = Vec2(canvasAreaWidth + 10.f, 10.f + (activeFontLineHeight * UiScale)),
 		.z      = Z_Ui,
 		.origin = Draw::Origin::TopLeft,

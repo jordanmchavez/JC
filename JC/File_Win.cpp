@@ -117,32 +117,27 @@ Res<Span<char>> ReadAllZ(Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
-static Str PathCombine(Str s1, Str s2) {
-	if (s1.len == 0) {
-		return s2;
-	}
-	char const last = s1[s1.len - 1];
-	if (last != '/' && last != '\\') {
-		return SPrintf(tempMem, "%s/%s", s1, s2);
-	} else {
-		return SPrintf(tempMem, "%s%s", s1, s2);
-	}
-}
-
 Res<Span<Str>> EnumFiles(Str dir, Str ext) {
-	Str pattern;
-	if (ext.len) { 
-		if (ext[0] == '.') {
-			pattern = SPrintf(tempMem, "%s/*%s", dir, ext);
-		} else {
-			pattern = SPrintf(tempMem, "%s/*.%s", dir, ext);
+	// Strip dir of any trailing slash
+	if (dir.len > 0 && (dir[dir.len - 1] == '/' || dir[dir.len - 1] == '\\')) {
+		dir.len--;
+	}
+
+	StrBuf sb(tempMem);
+	if (dir.len) {
+		sb.Add(dir);
+		sb.Add('/');
+	}
+	sb.Add('*');
+	if (ext.len) {
+		if (ext[0] != '.') {
+			sb.Add('.');
 		}
-	} else {
-		pattern = SPrintf(tempMem, "%s/*", dir);
+		sb.Add(ext);
 	}
 
 	WIN32_FIND_DATAW findData;
-	HANDLE hFind = FindFirstFileW(Unicode::Utf8ToWtf16z(tempMem, pattern).data, &findData);
+	HANDLE hFind = FindFirstFileW(Unicode::Utf8ToWtf16z(tempMem, sb.ToStr()).data, &findData);
 	if (!Sys::IsValidHandle(hFind)) {
 		if (GetLastError() == ERROR_FILE_NOT_FOUND) {
 			return Span<Str>();
@@ -151,15 +146,15 @@ Res<Span<Str>> EnumFiles(Str dir, Str ext) {
 	}
 	Defer { FindClose(hFind); };
 
-	Array<Str> fileNames(tempMem, 512);
+	Array<Str> resultPaths(tempMem, 128);
 	do {
 		if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
 			continue;
 		}
-		fileNames.Add(Unicode::Wtf16zToUtf8(tempMem, findData.cFileName));
+		resultPaths.Add(SPrintf(tempMem, "%s/%s", dir, Unicode::Wtf16zToUtf8(tempMem, findData.cFileName)));
 	} while (FindNextFileW(hFind, &findData));
 
-	return Span<Str>(fileNames.data, fileNames.len);
+	return Span<Str>(resultPaths.data, resultPaths.len);
 }
 
 //--------------------------------------------------------------------------------------------------

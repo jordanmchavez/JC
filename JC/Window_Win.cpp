@@ -241,7 +241,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 				} else {
 					key = ScanCodeToKey(scanCode, e0);
 				}
-				Logf("scan code %x -> key %s", scanCode, Key::GetKeyStr(key));
 
 				if (key == Key::Key::Invalid) {
 					Errorf("Unrecognized scan code: %u", scanCode);

@@ -78,6 +78,7 @@ Res<>       LoadSprites(Str imagePath, Str spritesPath);
 Res<Sprite> GetSprite(Str name);
 Vec2        GetSpriteSize(Sprite sprite);
 Res<Font>   LoadFont(Str fontPath, Str imagePath);
+Str         GetFontPath(Font font);
 F32         GetFontLineHeight(Font font);
 Res<Canvas> CreateCanvas(U32 width, U32 height);
 void        DestroyCanvas(Canvas canvas);
