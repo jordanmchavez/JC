@@ -574,7 +574,7 @@ Res<> Frame(App::FrameData const* frameData) {
 	constexpr float CanvasScrollPixelsPerSec = 1000.f;
 	for (U64 i = 0; i < frameData->actions.len; i++) {
 		U64 const actionId = frameData->actions[i];
-		Logf("actionId %u", actionId);
+
 		switch (actionId) {
 			case Action_Exit: return App::Err_Exit();
 			case Action_Click: HandleLeftClick(); break;
