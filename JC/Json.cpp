@@ -70,7 +70,8 @@ static void AddStructPos(Ctx* ctx, U32 pos) {
 	U32 const len = (U32)(ctx->structPosEnd - ctx->structPos);
 	if (ctx->structPosEnd == ctx->structPosEndCap) {
 		U32 const newCap     = cap ? cap * 2 : 256;
-		ctx->structPos       = Mem::ExtendT<U32>(ctx->tempMem, ctx->structPos, newCap);
+		// TODO: replace this whole thing with Array
+		ctx->structPos       = Mem::ReallocT<U32>(ctx->tempMem, ctx->structPos, cap, newCap);
 		ctx->structPosEnd    = ctx->structPos + len;	// bleh
 		ctx->structPosEndCap = ctx->structPos + newCap;
 		ctx->structPosIter   = ctx->structPos;	// bleh

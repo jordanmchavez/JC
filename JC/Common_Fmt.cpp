@@ -516,7 +516,7 @@ void StrBuf::Init(Mem memIn) {
 
 void GrowPrintBuf(StrBuf* sb, U32 n, SrcLoc sl) {
 	U32 const newCap = Max(sb->cap * 2, sb->len + n);
-	sb->data = Mem::ExtendT<char>(sb->mem, sb->data, newCap, sl);
+	sb->data = Mem::ReallocT<char>(sb->mem, sb->data, sb->cap, newCap, sl);
 	sb->cap = newCap;
 }
 

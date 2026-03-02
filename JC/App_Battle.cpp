@@ -5,6 +5,7 @@
 #include "JC/Cfg.h"
 #include "JC/Draw.h"
 #include "JC/Effect.h"
+#include "JC/File.h"
 #include "JC/Gpu.h"
 #include "JC/Input.h"
 #include "JC/Key.h"
@@ -23,6 +24,7 @@ static constexpr I32  MapCols = 16;
 static constexpr I32  MapRows = 14;
 static constexpr U32  MaxUnitDefs = 64;
 static constexpr U32  MaxUnits = 256;
+static constexpr U32  MaxFonts = 1024;
 static constexpr Vec4 MapBackgroundColor = Vec4(13.f/255.f, 30.f/255.f, 22.f/255.f, 1.f);
 static constexpr Vec4 SelectedColor = Vec4(0.f, 1.f, 0.f, 1.f);
 static constexpr Vec4 HoverColor = Vec4(1.f, 1.f, 1.f, 0.75f);
@@ -174,8 +176,10 @@ static Unit*             selectedUnit;
 static MapTile*          selectedMapTile;
 static MapTile*          hoverMapTile;
 static Order             order;
-static Draw::Font        font;
-static F32               fontLineHeight;
+static Draw::Font        fonts[MaxFonts];
+static U32               fontsLen;
+static Draw::Font        activeFont;
+static F32               activeFontLineHeight;
 static Vec2              windowSize;
 static Input::BindingSet mainBindingSet;
 
@@ -360,13 +364,19 @@ Res<> Init(Window::State const* windowState) {
 		}
 	}
 
-	constexpr Str fontName = "20_Kingdom";
-	TryTo(Draw::LoadFont(
-		SPrintf(tempMem, "Assets/Fonts/%s.fontjson", fontName),
-		SPrintf(tempMem, "Assets/Fonts/%s.png", fontName)
-	), font);
-	fontLineHeight = Draw::GetFontLineHeight(font);
-	
+	Span<Str> fontjsonFileNames; TryTo(File::EnumFiles("Assets/Fonts", ".fontjson"), fontjsonFileNames);
+	for (U64 i = 0; i < fontjsonFileNames.len; i++) {
+		Str const fontjsonFileName = fontjsonFileNames[i];
+		Str const pngFileName = SPrintf(tempMem, "%s.png", File::RemoveExt(fontjsonFileName));
+		Assert(fontsLen < MaxFonts);
+		TryTo(Draw::LoadFont(fontjsonFileName, pngFileName), fonts[fontsLen]);
+		Logf("Loaded font %s", fontjsonFileName);
+		fontsLen++;
+	}
+	Assert(fontsLen > 0);
+	activeFont = fonts[0];
+	activeFontLineHeight = Draw::GetFontLineHeight(activeFont);
+
 	// TODO: this needs to be in all gpu resource load functions...I've forgotten to add this and it's repeatedly cost me lotsa debugging time
 	Try(Gpu::ImmediateWait());
 
@@ -685,7 +695,7 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 
 		y -= (HpBarHeight / 2.f);
 		Draw::DrawFont({
-			.font   = font,
+			.font   = activeFont,
 			.str    = SPrintf(tempMem, "%u", unit->id),
 			.pos    = Vec2(unit->pos.x, y),
 			.z      = unit->z,
@@ -723,8 +733,8 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 		"66666666",
 	};
 	Draw::FontDrawDef fontDrawDef = {
-		.font   = font,
-		.pos    = Vec2(canvasAreaWidth + 10.f, 10.f + (fontLineHeight * UiScale)),
+		.font   = activeFont,
+		.pos    = Vec2(canvasAreaWidth + 10.f, 10.f + (activeFontLineHeight * UiScale)),
 		.z      = Z_Ui,
 		.origin = Draw::Origin::TopLeft,
 		.scale  = Vec2(UiScale, UiScale),
@@ -733,7 +743,7 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 	for (U32 i = 0; i < LenOf(lines); i++) {
 		fontDrawDef.str = lines[i];
 		Draw::DrawFont(fontDrawDef);
-		fontDrawDef.pos.y += fontLineHeight * UiScale;
+		fontDrawDef.pos.y += activeFontLineHeight * UiScale;
 	}
 
 	Draw::EndFrame();

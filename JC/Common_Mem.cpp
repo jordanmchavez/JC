@@ -1,10 +1,13 @@
 #include "JC/Common.h"
+
 #include "JC/Bit.h"
 #include "JC/Sys.h"
 
 namespace JC {
 
 //--------------------------------------------------------------------------------------------------
+
+static_assert(Bit::IsPow2(Sys::VirtualPageSize));
 
 static constexpr U64 Align              = 8;
 static constexpr U32 MaxMemObjs         = 64;
@@ -26,7 +29,7 @@ Mem Mem::Create(U64 reserveSize) {
 	Assert(Bit::IsPow2(reserveSize));
 
 	MemObj* memObj = 0;
-	for (U32 i = 1; i < MaxMemObjs; i++) {	// reserver zero
+	for (U32 i = 1; i < MaxMemObjs; i++) {	// reserve zero
 		if (!memObjs[i].begin)
 		{
 			memObj = &memObjs[i];
@@ -35,11 +38,12 @@ Mem Mem::Create(U64 reserveSize) {
 	}
 	Assert(memObj);
 
-	memObj->begin      = (U8*)Sys::VirtualReserve(reserveSize);
-	memObj->end        = memObj->begin;
-	memObj->endCommit  = memObj->begin;
-	memObj->endReserve = memObj->begin + reserveSize;
+	memObj->begin       = (U8*)Sys::VirtualReserve(reserveSize);
+	memObj->end         = memObj->begin;
+	memObj->endCommit   = memObj->begin;
+	memObj->endReserve  = memObj->begin + reserveSize;
 	memObj->lastAlloc   = 0;
+	memObj->lastAllocSl = { .file = "", .line = 0 };
 
 	return Mem { .handle = (U64)(memObj - memObjs) };
 }
@@ -81,42 +85,45 @@ void* Mem::Alloc(Mem mem, U64 size, SrcLoc sl) {
 
 //--------------------------------------------------------------------------------------------------
 
-void* Mem::Extend(Mem mem, void* ptr, U64 size, SrcLoc sl) {
+void* Mem::Realloc(Mem mem, void* oldPtr, U64 oldSize, U64 newSize, SrcLoc sl) {
 	Assert(mem);
 	Assert(mem.handle < MaxMemObjs);
 	MemObj* const memObj = &memObjs[mem.handle];
 
-	if (!ptr) {
-		return Alloc(mem, size, sl);
+	if (!oldPtr || memObj->lastAlloc != (U8*)oldPtr) {
+		if (newSize <= oldSize) {
+			return oldPtr;
+		}
+		void* const newPtr = Alloc(mem, newSize, sl);
+		if (oldPtr) {
+			memcpy(newPtr, oldPtr, oldSize);
+		}
+		return newPtr;
 	}
-	
-	Assert(
-		memObj->lastAlloc == (U8*)ptr,
-		"Last stack alloc %p at %s(%u)",
-		memObj->lastAlloc,
-		memObj->lastAllocSl.file,
-		memObj->lastAllocSl.line
-	);
 
-	size = Bit::AlignUp(size, Align);
-	memObj->end = (U8*)ptr;
+	U64 const alignedNewSize = Bit::AlignUp(newSize, Align);
+	memObj->end = (U8*)oldPtr;
 	Assert(memObj->endCommit >= memObj->end);
 	U64 const avail = (U64)(memObj->endCommit - memObj->end);
-	if (size > avail) {
+	if (alignedNewSize > avail) {
 		U64 const curCommit = (U64)(memObj->endCommit - memObj->begin);
-		U64 nextCommit = Max((U64)4096, curCommit);
-		while (avail + (nextCommit - curCommit) < size) {
+		U64 nextCommit = Max(Sys::VirtualPageSize, curCommit);
+		while (avail + (nextCommit - curCommit) < alignedNewSize) {
 			nextCommit *= 2;
 		}
 		Assert(memObj->begin + nextCommit <= memObj->endReserve);
 		Sys::VirtualCommit(memObj->endCommit, nextCommit - curCommit);
 		memObj->endCommit  = memObj->begin + nextCommit;
 	}
-	memObj->end += size;
+	memObj->end += alignedNewSize;
 	Assert(memObj->end <= memObj->endCommit);
 	Assert(Bit::IsPow2(memObj->endCommit - memObj->begin));
+	memObj->lastAllocSl = sl;
 
-	return ptr;
+	if (newSize > oldSize) {
+		memset((U8*)oldPtr + oldSize, 0, newSize - oldSize);
+	}
+	return oldPtr;
 }
 
 //--------------------------------------------------------------------------------------------------

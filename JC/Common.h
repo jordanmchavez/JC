@@ -252,12 +252,12 @@ struct Mem {
 
 	static Mem                        Create(U64 reserveSize);
 	static void*                      Alloc(Mem mem, U64 size, SrcLoc sl = SrcLoc::Here());
-	static void*                      Extend(Mem mem, void* ptr, U64 newSize, SrcLoc sl = SrcLoc::Here());
+	static void*                      Realloc(Mem mem, void* oldPtr, U64 oldSize, U64 newSize, SrcLoc sl = SrcLoc::Here());
 	static MemMark                    Mark(Mem mem);
 	static void                       Reset(Mem mem, MemMark mark);
 	template <class T> static T*      AllocT(Mem mem, U64 n, SrcLoc sl = SrcLoc::Here()) { return (T*)Mem::Alloc(mem, n * sizeof(T), sl); }
 	template <class T> static Span<T> AllocSpan(Mem mem, U64 n, SrcLoc sl = SrcLoc::Here()) { return Span<T>((T*)Mem::Alloc(mem, n * sizeof(T), sl), n); }
-	template <class T> static T*      ExtendT(Mem mem, T* ptr, U64 newN, SrcLoc sl = SrcLoc::Here()) { return (T*)Mem::Extend(mem, ptr , newN * sizeof(T), sl); }
+	template <class T> static T*      ReallocT(Mem mem, T* oldPtr, U64 oldN, U64 newN, SrcLoc sl = SrcLoc::Here()) { return (T*)Mem::Realloc(mem, oldPtr, oldN * sizeof(T), newN * sizeof(T), sl); }
 };
 
 struct MemScope {
@@ -265,6 +265,8 @@ struct MemScope {
 	MemMark mark;
 	MemScope(Mem memIn) { mem = memIn; mark = Mem::Mark(mem); }
 	~MemScope() { Mem::Reset(mem, mark); }
+	MemScope(MemScope const&) = delete;
+	MemScope& operator=(MemScope const&) = delete;
 };
 
 //--------------------------------------------------------------------------------------------------

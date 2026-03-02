@@ -1,6 +1,9 @@
 #include "JC/File.h"
+
+#include "JC/Array.h"
 #include "JC/Sys_Win.h"
 #include "JC/Unicode.h"
+#include "JC/Unit.h"
 
 namespace JC::File {
 
@@ -87,14 +90,12 @@ Res<> Read(File file, void* out, U64 outLen) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Span<U8>> ReadAll(Mem mem, Str path) {
+Res<Span<U8>> ReadAll(Str path) {
 	File file; TryTo(Open(path), file);
 	Defer { Close(file); };
 	U64 len = 0; TryTo(Len(file), len);
-	MemMark mark = Mem::Mark(mem);
-	U8* buf = (U8*)Mem::Alloc(mem, len);
+	U8* buf = (U8*)Mem::Alloc(tempMem, len);
 	if (Res<> r = Read(file, buf, len); !r) {
-		Mem::Reset(mem, mark);
 		return r.err;
 	}
 	return Span<U8>(buf, len);
@@ -102,18 +103,100 @@ Res<Span<U8>> ReadAll(Mem mem, Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Span<char>> ReadAllZ(Mem mem, Str path) {
+Res<Span<char>> ReadAllZ(Str path) {
 	File file; TryTo(Open(path), file);
 	Defer { Close(file); };
 	U64 len = 0; TryTo(Len(file), len);
-	MemMark mark = Mem::Mark(mem);
-	char* buf = (char*)Mem::Alloc(mem, len + 1);
+	char* buf = (char*)Mem::Alloc(tempMem, len + 1);
 	if (Res<> r = Read(file, buf, len); !r) {
-		Mem::Reset(mem, mark);
 		return r.err;
 	}
 	buf[len] = '\0';
 	return Span<char>(buf, len);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static Str PathCombine(Str s1, Str s2) {
+	if (s1.len == 0) {
+		return s2;
+	}
+	char const last = s1[s1.len - 1];
+	if (last != '/' && last != '\\') {
+		return SPrintf(tempMem, "%s/%s", s1, s2);
+	} else {
+		return SPrintf(tempMem, "%s%s", s1, s2);
+	}
+}
+
+Res<Span<Str>> EnumFiles(Str dir, Str ext) {
+	Str pattern;
+	if (ext.len) { 
+		if (ext[0] == '.') {
+			pattern = SPrintf(tempMem, "%s/*%s", dir, ext);
+		} else {
+			pattern = SPrintf(tempMem, "%s/*.%s", dir, ext);
+		}
+	} else {
+		pattern = SPrintf(tempMem, "%s/*", dir);
+	}
+
+	WIN32_FIND_DATAW findData;
+	HANDLE hFind = FindFirstFileW(Unicode::Utf8ToWtf16z(tempMem, pattern).data, &findData);
+	if (!Sys::IsValidHandle(hFind)) {
+		if (GetLastError() == ERROR_FILE_NOT_FOUND) {
+			return Span<Str>();
+		}
+		return Win_LastErr("FindFirstFileW", "dir", dir, "ext", ext);
+	}
+	Defer { FindClose(hFind); };
+
+	Array<Str> fileNames(tempMem, 512);
+	do {
+		if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+			continue;
+		}
+		fileNames.Add(Unicode::Wtf16zToUtf8(tempMem, findData.cFileName));
+	} while (FindNextFileW(hFind, &findData));
+
+	return Span<Str>(fileNames.data, fileNames.len);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+// Takes a file path and removes the extension, including the dot, if any
+Str RemoveExt(Str path) {
+	if (path.len == 0) {
+		return path;
+	}
+	char const* iter = path.data + path.len - 1;
+	char const* const begin = path.data;
+	while (iter >= begin && *iter != '/' && *iter != '\\') {
+		if (*iter == '.') {
+			return Str(begin, (U32)(iter - begin));
+		}
+		iter--;
+	}
+	return path;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Unit_Test("File") {
+	Unit_SubTest("RemoveExt") {
+		Unit_CheckEq(RemoveExt(""), "");
+		Unit_CheckEq(RemoveExt("a"), "a");
+		Unit_CheckEq(RemoveExt("a."), "a");
+		Unit_CheckEq(RemoveExt("a.a"), "a");
+		Unit_CheckEq(RemoveExt("a.abc123"), "a");
+		Unit_CheckEq(RemoveExt("a.foo/b.bar/c.qux/d"), "a.foo/b.bar/c.qux/d");
+		Unit_CheckEq(RemoveExt("a.foo/b.bar/c.qux/d.bat"), "a.foo/b.bar/c.qux/d");
+		Unit_CheckEq(RemoveExt("a.foo\\b.bar\\c.qux\\d"), "a.foo\\b.bar\\c.qux\\d");
+		Unit_CheckEq(RemoveExt("a.foo\\b.bar\\c.qux\\d.bat"), "a.foo\\b.bar\\c.qux\\d");
+		Unit_CheckEq(RemoveExt("file.tar.gz"), "file.tar");
+		Unit_CheckEq(RemoveExt(".hidden"), "");
+		Unit_CheckEq(RemoveExt("path/.hidden"), "path/");
+	}
 }
 
 //--------------------------------------------------------------------------------------------------

@@ -40,7 +40,7 @@ A C++ game engine and game (working title "JC"). Currently building toward a 4X/
 - Two allocators: `permMem` (permanent) and `tempMem` (reset each frame)
 - Linear allocators only — no `new`/`delete`, no `malloc`/`free`
 - Use `MemScope` / `Mem::Mark` + `Mem::Reset` for scoped temp allocations
-- Last allocation can be extended via `Mem::Extend()`
+- Realloc `Mem::Realloc()` with fast-path extend for allocation-at-the-end
 
 **Error handling:**
 - `Res<T>` result type (monadic). Functions that can fail return `Res<T>` or `Res<void>`.

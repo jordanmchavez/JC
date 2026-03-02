@@ -1,3 +1,6 @@
+everything trivially copyable/pod
+dont fret about duplicted code until it becomes a real problem (claude.md)
+
 # General
  - easy to change
 	- most important
