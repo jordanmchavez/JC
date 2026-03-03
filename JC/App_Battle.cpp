@@ -50,6 +50,9 @@ static constexpr U64 Action_ScrollMapUp     = 7;
 static constexpr U64 Action_ScrollMapDown   = 8;
 static constexpr U64 Action_NextFont        = 9;
 static constexpr U64 Action_PrevFont        = 10;
+static constexpr U64 Action_UiFontScale1    = 11;
+static constexpr U64 Action_UiFontScale2    = 12;
+static constexpr U64 Action_UiFontScale3    = 13;
 
 struct HexCoord {
 	I16 x = 0;
@@ -183,6 +186,8 @@ static U32               activeFontIdx;
 static F32               activeFontLineHeight;
 static Vec2              windowSize;
 static Input::BindingSet mainBindingSet;
+static F32               uiFontScale = 3.f;
+
 
 //--------------------------------------------------------------------------------------------------
 
@@ -344,20 +349,19 @@ Res<> Init(Window::State const* windowState) {
 			mapTile->unit = unit;
 		}
 	}
-
+	/*
 	Span<Str const> BattleFonts = {
 		"6_EverydayStandard",
 		"16_Bitpotion",
 		"16_CelticTime",
 	};
-
 	for (U64 i = 0; i < BattleFonts.len; i++) {
 		TryTo(Draw::LoadFont(SPrintf(tempMem, "Assets/Fonts/%s.fontjson", BattleFonts[i]), SPrintf(tempMem, "Assets/Fonts/%s.png", BattleFonts[i])), fonts[fontsLen]);
 		Logf("Loaded font [%u] %s with lineHeight=%f", i, BattleFonts[i], Draw::GetFontLineHeight(fonts[i]));
 		fontsLen++;
 	}
+*/
 
-	/*
 	Span<Str> fontjsonFileNames; TryTo(File::EnumFiles("Assets/Fonts", ".fontjson"), fontjsonFileNames);
 	for (U64 i = 0; i < fontjsonFileNames.len; i++) {
 		Str const fontjsonFileName = fontjsonFileNames[i];
@@ -367,9 +371,9 @@ Res<> Init(Window::State const* windowState) {
 		Logf("Loaded font [%u] %s", i, fontjsonFileName);
 		fontsLen++;
 	}
-	*/
+
 	Assert(fontsLen > 0);
-	activeFontIdx = 2;
+	activeFontIdx = 0;
 	activeFontLineHeight = Draw::GetFontLineHeight(fonts[activeFontIdx]);
 	Logf("Selected font %u/%u %s with lineHeight = %f", activeFontIdx, fontsLen, Draw::GetFontPath(fonts[activeFontIdx]), activeFontLineHeight);
 
@@ -389,6 +393,9 @@ Res<> Init(Window::State const* windowState) {
 	Input::Bind(mainBindingSet, Key::Key::D,              Input::BindingType::Continuous, Action_ScrollMapRight,  "");
 	Input::Bind(mainBindingSet, Key::Key::Dot,            Input::BindingType::OnKeyDown,  Action_NextFont,        "");
 	Input::Bind(mainBindingSet, Key::Key::Comma,          Input::BindingType::OnKeyDown,  Action_PrevFont,        "");
+	Input::Bind(mainBindingSet, Key::Key::One,            Input::BindingType::OnKeyDown,  Action_UiFontScale1,        "");
+	Input::Bind(mainBindingSet, Key::Key::Two,            Input::BindingType::OnKeyDown,  Action_UiFontScale2,        "");
+	Input::Bind(mainBindingSet, Key::Key::Three,          Input::BindingType::OnKeyDown,  Action_UiFontScale3,        "");
 	Input::SetBindingSetStack({ mainBindingSet });
 												          
 	state = State::WaitingOrder;
@@ -614,6 +621,10 @@ Res<> Frame(App::FrameData const* frameData) {
 				break;
 			}
 
+			case Action_UiFontScale1: uiFontScale = 1.f; break;
+			case Action_UiFontScale2: uiFontScale = 2.f; break;
+			case Action_UiFontScale3: uiFontScale = 3.f; break;
+
 			default: Panic("Unhandled actionId %u", actionId);
 		}
 	}
@@ -735,7 +746,6 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 		.size  = Vec2(UiPanelWidth, windowSize.y),
 		.color = UiBackgroundColor,
 	});
-	constexpr F32 UiScale = 3.f;
 	constexpr Str lines[] = {
 		"Spearman",
 		"HP: 10",
@@ -749,6 +759,13 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 		"`!@#$%^&*()",
 		"_+[]{};':\"",
 		"<>/?-=,.",
+		"Armoury",
+		"129 GP",
+		"-43 Mana",
+		"1/2 food",
+		"+3% production",
+		"Reduces normal",
+		"unit cost by 5%",
 	};
 
 	Draw::TextDrawDef textDrawDef = {
@@ -756,13 +773,13 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 		.pos    = { windowSize.x - UiPanelWidth + 10.f, 10.f },
 		.z      = Z_Ui,
 		.origin = Draw::Origin::TopLeft,
-		.scale  = { UiScale, UiScale },
+		.scale  = { uiFontScale, uiFontScale },
 		.color  = { 1.f, 1.f, 1.f, 1.f },
 	};
 	for (U32 i = 0; i < LenOf(lines); i++) {
 		textDrawDef.str = lines[i];
 		Draw::DrawText(textDrawDef);
-		textDrawDef.pos.y += activeFontLineHeight * UiScale;
+		textDrawDef.pos.y += (activeFontLineHeight + 2) * uiFontScale;
 	}
 
 	Draw::EndFrame();

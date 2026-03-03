@@ -460,7 +460,7 @@ Res<Font> LoadFont(Str fontPath, Str imagePath) {
 	}
 	for (U16 i = 32; i < MaxGlyphs; i++) {
 		if (!fontObj->glyphs[i].imageIdx) {
-			Logf("Using error image for missing ascii char '%c' in %s", (char)i, fontPath);
+			//Logf("Using error image for missing ascii char '%c' in %s", (char)i, fontPath);
 			fontObj->glyphs[i] = {
 				.imageIdx = errorImageIdx,
 				.uv1      = { 0.f, 0.f },
