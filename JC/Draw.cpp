@@ -32,8 +32,8 @@ DefErr(Draw, Ttf);
 
 static constexpr U32 MaxDrawCmds     = 128 * 1024;
 static constexpr U32 MaxSpriteImages = 256;
-static constexpr U32 MaxSprites      = 1 * MB;
-static constexpr U32 MaxFonts        = 256;
+static constexpr U32 MaxSprites      = 1024;
+static constexpr U32 MaxFonts        = 64;
 static constexpr U32 MaxCanvases     = 64;
 static constexpr U32 MaxPasses       = 64;
 static constexpr U32 ErrorImageSize  = 64;
@@ -292,7 +292,7 @@ void Shutdown() {
 	for (U32 i = 0; i < spriteImagesLen; i++) {
 		Gpu::DestroyImage(spriteImages[i].image);
 	}
-	for (U32 i = 0; i < fontObjsLen; i++) {
+	for (U32 i = 1; i < fontObjsLen; i++) {	// 0 reserved for invalid
 		Gpu::DestroyImage(fontObjs[i].image);
 	}
 	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
@@ -536,6 +536,7 @@ static U64 frameIdx;
 
 void BeginFrame(const Gpu::FrameData* gpuFrameData) {
 	frameIdx = gpuFrameData->frameIdx;
+
 	CanvasObj* const canvasObj = canvasObjs.Get(swapchainCanvas);
 	canvasObj->colorImage = gpuFrameData->swapchainImage;
 
@@ -549,6 +550,8 @@ void BeginFrame(const Gpu::FrameData* gpuFrameData) {
 		.drawCmdEnd   = U32Max,
 	};
 
+	camPos = Vec2(0.f, 0.f);
+	camScale = 1.f;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -623,6 +626,7 @@ void EndFrame() {
 //--------------------------------------------------------------------------------------------------
 
 void SetDefaultCanvas() {
+	Assert(passesLen < MaxPasses);
 	passes[passesLen - 1].drawCmdEnd = drawCmdCount;
 	passes[passesLen++] = {
 		.canvas       = swapchainCanvas,
@@ -632,6 +636,7 @@ void SetDefaultCanvas() {
 }
 
 void SetCanvas(Canvas canvas) {
+	Assert(passesLen < MaxPasses);
 	passes[passesLen - 1].drawCmdEnd = drawCmdCount;
 	passes[passesLen++] = {
 		.canvas       = canvas.handle ? canvas : swapchainCanvas,
@@ -659,7 +664,11 @@ static DrawCmd* AllocDrawCmds(U32 n) {
 //--------------------------------------------------------------------------------------------------
 
 static inline Vec3 MakePos(F32 x, F32 y, F32 z) {
-	return Vec3(Math::Round((x - camPos.x) * camScale), Math::Round((y - camPos.y) * camScale), z);
+	return Vec3(
+		Math::Round((x - camPos.x) * camScale),
+		Math::Round((y - camPos.y) * camScale),
+		z
+	);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -797,7 +806,7 @@ void DrawText(TextDrawDef drawDef) {
 		case Origin::BottomRight:
 		case Origin::Right:
 		case Origin::TopRight:
-			x -= StrWidth(fontObj, drawDef.str) * drawDef.scale.y;
+			x -= StrWidth(fontObj, drawDef.str) * drawDef.scale.x;
 			break;
 	}
 	for (U32 i = 0; i < drawDef.str.len; i++) {

@@ -565,8 +565,28 @@ Res<> Frame(App::FrameData const* frameData) {
 			case Action_Exit: return App::Err_Exit();
 			case Action_Click: HandleLeftClick(); break;
 
-			case Action_ZoomIn: cam.scale += 1.f; Logf("cam.scale = %f", cam.scale); break;
-			case Action_ZoomOut: if (cam.scale > 1.f) { cam.scale -= 1.f; } Logf("cam.scale = %f", cam.scale); break;
+			case Action_ZoomIn: {
+				F32 const oldScale = cam.scale;
+				cam.scale += 1.f;
+				F32 const windowCenterX = windowSize.x * 0.5f;
+				F32 const windowCenterY = windowSize.y * 0.5f;
+				cam.pos.x -= windowCenterX / cam.scale - windowCenterX / oldScale;
+				cam.pos.y -= windowCenterY / cam.scale - windowCenterY / oldScale;
+				Logf("cam.scale = %f", cam.scale);
+				break;
+			}
+			case Action_ZoomOut: {
+				if (cam.scale > 1.f) {
+					F32 const oldScale = cam.scale;
+					cam.scale -= 1.f;
+					F32 const windowCenterX = windowSize.x * 0.5f;
+					F32 const windowCenterY = windowSize.y * 0.5f;
+					cam.pos.x -= windowCenterX / cam.scale - windowCenterX / oldScale;
+					cam.pos.y -= windowCenterY / cam.scale - windowCenterY / oldScale;
+					Logf("cam.scale = %f", cam.scale);
+				}
+				break;
+			}
 
 			case Action_ScrollMapLeft:  cam.pos.x -= (CamSpeedPixelsPerSec * secs) / cam.scale; Logf("cam.pos=(%f, %f)", cam.pos.x, cam.pos.y); break;
 			case Action_ScrollMapRight: cam.pos.x += (CamSpeedPixelsPerSec * secs) / cam.scale; Logf("cam.pos=(%f, %f)", cam.pos.x, cam.pos.y); break;
@@ -775,5 +795,7 @@ App::App app = {
 };
 
 App::App* GetApp() { return &app; }
+
+//--------------------------------------------------------------------------------------------------
 
 }	// namespace JC::Battle

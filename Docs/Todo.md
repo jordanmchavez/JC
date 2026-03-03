@@ -300,3 +300,16 @@ make all perm arrays use the perm allocator
 - static frameIdx declared mid-file, not grouped with other module globals
 - Recreated depth image in ResizeWindow is not named (no Gpu_Name after recreate)
 - MaxSprites = 1MB (~48MB permanent allocation); add comment justifying size or reduce to realistic cap
+- DrawCanvas ignores origin
+- outlineWidth is treated as bool in shader
+- ImmediateWait is caller responsibility. LoadImage calls ImmediateCopyToImage but doesn't wait. App_Battle.cpp has a comment acknowledging this has caused multiple debugging sessions. The risk is someone calling LoadSprites/LoadFont without a subsequent ImmediateWait and getting GPU hazards. The cleanup in LoadImage releases CPU memory before the copy is guaranteed complete, which relies on the fact that stbi_image_free in the Defer block is fine because ImmediateCopyToImage presumably starts the copy synchronously (or it would be a double bug). Worth documenting the contract explicitly.
+10. Scene::projViews[MaxCanvases + 1] comment is stale (Draw.cpp:141)
+  The +1 for the no-canvas pass comment doesn't match the current design where the swapchain canvas occupies a real pool slot. The +1 may just be a safety margin now.
+
+  11. StrWidth uses two different metrics depending on position (Draw.cpp:766)
+  Interior chars use xAdv, last char uses off.x + size.x. This gives true visual width for the last glyph but is inconsistent with cursor-advance semantics. The commented-out xAdv line
+  suggests this was a deliberate choice — worth a comment explaining why.
+
+  12. SetCanvas(nullHandle) vs SetDefaultCanvas redundancy (Draw.cpp:638)
+  SetCanvas with a null handle silently routes to the swapchain canvas. SetDefaultCanvas does the same explicitly. Consider removing the null-handle fallback from SetCanvas and requiring
+  callers to use SetDefaultCanvas.

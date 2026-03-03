@@ -174,7 +174,6 @@ void Draw() {
 				.pos      = p->pos,
 				.scale    = Vec2(p->size, p->size),
 				.color    = p->color,
-				.rotation = p->rotation,
 			});
 		}
 	}

@@ -152,7 +152,7 @@
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
-    <ClCompile Include="Cfg.cpp" />
+    <ClCompile Include="JC\Cfg.cpp" />
     <ClCompile Include="JC\Cmd.cpp" />
     <ClCompile Include="JC\App.cpp" />
     <ClCompile Include="JC\App_Battle.cpp" />
@@ -200,9 +200,6 @@
     <None Include="Docs\Guidebook.md" />
     <None Include="Docs\Todo.md" />
     <None Include="Rules.ruleset" />
-    <None Include="Shaders\MeshCommon.glsl" />
-    <None Include="Shaders\MeshFrag.glsl" />
-    <None Include="Shaders\MeshVert.glsl" />
     <None Include="Shaders\sprite.common.glsl" />
     <None Include="Shaders\sprite.frag.glsl" />
     <None Include="Shaders\sprite.vert.glsl" />

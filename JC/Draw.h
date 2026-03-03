@@ -48,7 +48,6 @@ struct SpriteDrawDef {
 	Vec4   color = Vec4(1.f, 1.f, 1.f, 1.f);
 	Vec4   outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
 	F32    outlineWidth = 0.f;
-	F32    rotation = 0.f;
 };
 
 struct TextDrawDef {
@@ -68,7 +67,6 @@ struct CanvasDrawDef {
 	Origin origin = Origin::Center;
 	Vec2   scale = Vec2(1.f, 1.f);
 	Vec4   color = Vec4(1.f, 1.f, 1.f, 1.f);
-	F32    rotation = 0.f;
 };
 
 Res<>       Init(InitDef const* initDef);
