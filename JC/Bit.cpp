@@ -1,7 +1,7 @@
 #pragma once
 
 #include "JC/Bit.h"
-#include "JC/Unit.h"
+#include "JC/UnitTest.h"
 
 #if defined Compiler_Msvc
 	#include <intrin.h>

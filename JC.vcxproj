@@ -146,7 +146,7 @@
     <ClInclude Include="JC\Time.h" />
     <ClInclude Include="JC\Ui.h" />
     <ClInclude Include="JC\Unicode.h" />
-    <ClInclude Include="JC\Unit.h" />
+    <ClInclude Include="JC\UnitTest.h" />
     <ClInclude Include="JC\Window.h" />
   </ItemGroup>
   <ItemGroup>
@@ -186,6 +186,7 @@
     <ClCompile Include="JC\Ui.cpp" />
     <ClCompile Include="JC\Unicode.cpp" />
     <ClCompile Include="JC\Unit.cpp" />
+    <ClCompile Include="JC\UnitTest.cpp" />
     <ClCompile Include="JC\Window_Win.cpp" />
   </ItemGroup>
   <ItemGroup>

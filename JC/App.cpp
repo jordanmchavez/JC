@@ -11,7 +11,7 @@
 #include "JC/StrDb.h"
 #include "JC/Sys.h"
 #include "JC/Time.h"
-#include "JC/Unit.h"
+#include "JC/UnitTest.h"
 #include "JC/Window.h"
 
 namespace JC::App {
@@ -201,7 +201,7 @@ void Shutdown(App* app) {
 
 bool Run(App* app, int argc, char const* const* argv) {
 	if (argc == 2 && argv[1] == Str("test")) {
-		Unit::Run(); return 0;
+		UnitTest::Run(); return 0;
 	}
 
 	Res<> r = RunImpl(app, argc, argv);

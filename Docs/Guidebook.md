@@ -56,4 +56,4 @@ dont fret about duplicted code until it becomes a real problem (claude.md)
 - clear memory ownership, handles
 - prefer continguous arrays and walkthroughs to complex data structure
 - error telemetry matters: use Res<>/Err system to provide
-- 
+- defer deferrable decisions

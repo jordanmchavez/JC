@@ -3,7 +3,7 @@
 #include "JC/Key.h"
 #include "JC/Log.h"
 #include "JC/StrDb.h"
-#include "JC/Unit.h"
+#include "JC/UnitTest.h"
 #include "JC/Window.h"
 
 namespace JC::Input {

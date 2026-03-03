@@ -1,6 +1,6 @@
 #include "JC/Json.h"
 #include "JC/StrDb.h"
-#include "JC/Unit.h"
+#include "JC/UnitTest.h"
 #include <math.h>
 
 namespace JC::Json {
@@ -368,6 +368,10 @@ static Res<> ParseArray(Ctx* ctx, const Traits* traits, U8* out) {
 			}
 		}
 	}
+	// Optional trailing comma before ']'
+	if (ctx->structPosIter < ctx->structPosEnd && ctx->json[*ctx->structPosIter] == ',') {
+		ctx->structPosIter++;
+	}
 	Try(Expect(ctx, ']'));
 
 	*(Span<U8>*)out = Span<U8>(elemData, elemCount);
@@ -391,6 +395,10 @@ static Res<> ParseObj(Ctx* ctx, Span<const Member> members, U8* out) {
 		if (i < members.len - 1) {
 			Try(Expect(ctx, ','));
 		}
+	}
+	// Optional trailing comma before '}'
+	if (ctx->structPosIter < ctx->structPosEnd && ctx->json[*ctx->structPosIter] == ',') {
+		ctx->structPosIter++;
 	}
 	return Expect(ctx, '}');
 }
@@ -417,7 +425,7 @@ static Res<> ParseVal(Ctx* ctx, const Traits* traits, U8* out) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> ToObj(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, Span<const Member> members, U8* out) {
+Res<> ToObject(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, Span<const Member> members, U8* out) {
 	MemMark mark = Mem::Mark(tempMem);
 	Defer { if (permMem != tempMem) { Mem::Reset(tempMem, mark); } };
 	Ctx ctx = {
@@ -593,14 +601,14 @@ Unit_Test("Json") {
 
 	Unit_SubTest("Object with quoted keys") {
 		Point p;
-		Unit_CheckRes(ToObj(testMem, testMem, "{ \"x\": 10, \"y\": -5 }", StrLen("{ \"x\": 10, \"y\": -5 }"), &p));
+		Unit_CheckRes(ToObject(testMem, testMem, "{ \"x\": 10, \"y\": -5 }", StrLen("{ \"x\": 10, \"y\": -5 }"), &p));
 		Unit_CheckEq(p.x, 10);
 		Unit_CheckEq(p.y, -5);
 	}
 
 	Unit_SubTest("Object with unquoted keys") {
 		Point p;
-		Unit_CheckRes(ToObj(testMem, testMem, "{ x: 10, y: -5 }", StrLen("{ x: 10, y: -5 }"), &p));
+		Unit_CheckRes(ToObject(testMem, testMem, "{ x: 10, y: -5 }", StrLen("{ x: 10, y: -5 }"), &p));
 		Unit_CheckEq(p.x, 10);
 		Unit_CheckEq(p.y, -5);
 	}
@@ -624,16 +632,60 @@ Unit_Test("Json") {
 			"\t\"y\" :\t-5\n"
 			"}";
 		Point ps;
-		Unit_CheckRes(ToObj(testMem, testMem, spacious, StrLen(spacious), &ps));
+		Unit_CheckRes(ToObject(testMem, testMem, spacious, StrLen(spacious), &ps));
 		Unit_CheckEq(ps.x, 10);
 		Unit_CheckEq(ps.y, -5);
 
 		// Same data, minified — must produce identical result.
 		constexpr char const* minified = "{\"x\":10,\"y\":-5}";
 		Point pm;
-		Unit_CheckRes(ToObj(testMem, testMem, minified, StrLen(minified), &pm));
+		Unit_CheckRes(ToObject(testMem, testMem, minified, StrLen(minified), &pm));
 		Unit_CheckEq(pm.x, 10);
 		Unit_CheckEq(pm.y, -5);
+	}
+
+	Unit_SubTest("Trailing commas") {
+		// Array with trailing comma
+		{
+			Span<I32> vals;
+			Unit_CheckRes(ToArray(testMem, testMem, "[ 1, 2, 3, ]", StrLen("[ 1, 2, 3, ]"), &vals));
+			Unit_CheckEq(vals.len, 3u);
+			Unit_CheckEq(vals[0], 1);
+			Unit_CheckEq(vals[1], 2);
+			Unit_CheckEq(vals[2], 3);
+		}
+		// Single-element array with trailing comma
+		{
+			Span<I32> vals;
+			Unit_CheckRes(ToArray(testMem, testMem, "[ 42, ]", StrLen("[ 42, ]"), &vals));
+			Unit_CheckEq(vals.len, 1u);
+			Unit_CheckEq(vals[0], 42);
+		}
+		// Object with trailing comma (unquoted keys)
+		{
+			Point p;
+			Unit_CheckRes(ToObject(testMem, testMem, "{ x: 10, y: -5, }", StrLen("{ x: 10, y: -5, }"), &p));
+			Unit_CheckEq(p.x, 10);
+			Unit_CheckEq(p.y, -5);
+		}
+		// Object with trailing comma (quoted keys)
+		{
+			Point p;
+			Unit_CheckRes(ToObject(testMem, testMem, "{ \"x\": 10, \"y\": -5, }", StrLen("{ \"x\": 10, \"y\": -5, }"), &p));
+			Unit_CheckEq(p.x, 10);
+			Unit_CheckEq(p.y, -5);
+		}
+		// Array of objects, trailing comma in both inner objects and outer array
+		{
+			Span<Point> pts;
+			constexpr char const* json = "[ { x: 1, y: 2, }, { x: -3, y: 0, }, ]";
+			Unit_CheckRes(ToArray(testMem, testMem, json, StrLen(json), &pts));
+			Unit_CheckEq(pts.len, 2u);
+			Unit_CheckEq(pts[0].x, 1);
+			Unit_CheckEq(pts[0].y, 2);
+			Unit_CheckEq(pts[1].x, -3);
+			Unit_CheckEq(pts[1].y, 0);
+		}
 	}
 
 	Unit_SubTest("Complex") {
@@ -653,7 +705,7 @@ Unit_Test("Json") {
 				"{ \"name\": \"potion\", \"count\": 10, \"values\": [ 0.25, 0.5, 0.75 ] }"
 			" ] }";
 		Catalog cat;
-		Unit_CheckRes(ToObj(testMem, testMem, json, StrLen(json), &cat));
+		Unit_CheckRes(ToObject(testMem, testMem, json, StrLen(json), &cat));
 		Unit_CheckEq(cat.active,  true);
 		Unit_CheckEq(cat.version, 3u);
 		Unit_CheckEq(cat.offset,  -100);

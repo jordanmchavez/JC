@@ -17,14 +17,13 @@ layout (location = 0)      out vec4  colorOut;
 void main() {
 	uint samplerId = SamplerId_Nearest;
 
-	vec4 tempColorOut;
 	if (textureIdxIn != 0) {
-		tempColorOut = texture(nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[samplerId])), uvIn);
+		colorOut = texture(nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[samplerId])), uvIn);
 	} else {
-		tempColorOut = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+		colorOut = vec4(1.0f, 1.0f, 1.0f, 1.0f);
 	}
 
-	if (outlineWidthIn > 0.0 && tempColorOut.a < 0.5) {
+	if (outlineWidthIn > 0.0 && colorOut.a < 0.5) {
 		vec2 texelStep = 1.0 / vec2(textureSize(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[samplerId]), 0));
 		vec2 halfTexelStep = texelStep * 0.5;
 
@@ -38,12 +37,11 @@ void main() {
 		maxNeighborAlpha = max(maxNeighborAlpha, texture(nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[samplerId])), vec2(uvIn.x, br.y  )).a);
 
 		if (maxNeighborAlpha > 0.0) {
-			tempColorOut = outlineColorIn;
+			colorOut = outlineColorIn;
 		}
 	} else {
-		tempColorOut *= colorIn;
+		colorOut *= colorIn;
 	}
 
-	if (tempColorOut.a < 0.01) discard;
-	colorOut = tempColorOut;
+	if (colorOut.a < 0.01) discard;
 }

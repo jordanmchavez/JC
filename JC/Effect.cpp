@@ -74,11 +74,11 @@ void Draw() {
 			.z   = Z_Effect,
 			.origin = Draw::Origin::Center,
 			.scale = Vec2(1.f, 1.f),
-			.color = Vec4(1.f, 0.f, 0.f, 1.f - fs->t),
+			.color = Vec4(1.f, 0.f, 0.f, 1.f - (fs->t * fs->t)),
 			.outlineWidth = 0.f,
 			.outlineColor = Vec4(0.f, 0.f, 0.f, 0.f),
 		});
-		Logf("text %s at (%.1f, %.1f) (%.2f=%.2f/%.2f)", fs->str, fs->x, y, fs->t, fs->sec, fs->durSec);
+		//Logf("text %s at (%.1f, %.1f) (%.2f=%.2f/%.2f)", fs->str, fs->x, y, fs->t, fs->sec, fs->durSec);
 	}
 }
 

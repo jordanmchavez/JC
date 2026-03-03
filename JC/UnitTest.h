@@ -2,7 +2,7 @@
 
 #include "JC/Common.h"
 
-namespace JC::Unit {
+namespace JC::UnitTest {
 
 //--------------------------------------------------------------------------------------------------
 
@@ -58,24 +58,24 @@ struct Subtest {
 
 #define Unit_TestImpl(name, fn, registrarVar) \
 	static void fn([[maybe_unused]] Mem testMem); \
-	static Unit::TestRegistrar registrarVar = Unit::TestRegistrar(name, SrcLoc::Here(), fn); \
+	static UnitTest::TestRegistrar registrarVar = UnitTest::TestRegistrar(name, SrcLoc::Here(), fn); \
 	static void fn([[maybe_unused]] Mem testMem)
 
 #define Unit_Test(name) \
 	Unit_TestImpl(name, MacroUniqueName(Unit_TestFn_), MacroUniqueName(Unit_TestRegistrar_))
 
 #define Unit_SubTestImpl(name, subtestVar) \
-	if (Unit::Subtest subtestVar = Unit::Subtest(name, SrcLoc::Here()); subtestVar.shouldRun)
+	if (UnitTest::Subtest subtestVar = UnitTest::Subtest(name, SrcLoc::Here()); subtestVar.shouldRun)
 
 #define Unit_SubTest(name) Unit_SubTestImpl(name, MacroUniqueName(UnitSubUnit_))
 
-#define Unit_CheckFailAt(sl)         (Unit::CheckFailImpl(sl) || Unit_DbgBreak)
-#define Unit_CheckAt(sl, x)          ((x) || Unit::CheckExprFail(sl, #x) || Unit_DbgBreak)
-#define Unit_CheckFalseAt(sl, x)     (!(x) || Unit::CheckExprFail(sl, "NOT " #x) || Unit_DbgBreak)
-#define Unit_CheckEqAt(sl, x, y)     (Unit::CheckEq(sl, #x " == " #y, (x), (y)) || Unit_DbgBreak)
-#define Unit_CheckNeqAt(sl, x, y)    (Unit::CheckNeq(sl, #x " != " #y, (x), (y)) || Unit_DbgBreak)
-#define Unit_CheckSpanEqAt(sl, x, y) (Unit::CheckSpanEq(sl, #x " == " #y, (x), (y)) || Unit_DbgBreak)
-#define Unit_CheckResAt(sl, expr)    (Unit::CheckResImpl(sl, (expr)) || Unit_DbgBreak);
+#define Unit_CheckFailAt(sl)         (UnitTest::CheckFailImpl(sl) || Unit_DbgBreak)
+#define Unit_CheckAt(sl, x)          ((x) || UnitTest::CheckExprFail(sl, #x) || Unit_DbgBreak)
+#define Unit_CheckFalseAt(sl, x)     (!(x) || UnitTest::CheckExprFail(sl, "NOT " #x) || Unit_DbgBreak)
+#define Unit_CheckEqAt(sl, x, y)     (UnitTest::CheckEq(sl, #x " == " #y, (x), (y)) || Unit_DbgBreak)
+#define Unit_CheckNeqAt(sl, x, y)    (UnitTest::CheckNeq(sl, #x " != " #y, (x), (y)) || Unit_DbgBreak)
+#define Unit_CheckSpanEqAt(sl, x, y) (UnitTest::CheckSpanEq(sl, #x " == " #y, (x), (y)) || Unit_DbgBreak)
+#define Unit_CheckResAt(sl, expr)    (UnitTest::CheckResImpl(sl, (expr)) || Unit_DbgBreak);
 
 #define Unit_CheckFail()             Unit_CheckFailAt(  SrcLoc::Here())
 #define Unit_Check(x)                Unit_CheckAt(      SrcLoc::Here(), x)
@@ -87,4 +87,4 @@ struct Subtest {
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Unit
+}	// namespace JC::UnitTest

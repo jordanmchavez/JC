@@ -2,6 +2,7 @@
 #pragma warning(disable: 4189)
 
 #include "JC/App.h"
+#include "JC/BattleMap.h"
 #include "JC/Cfg.h"
 #include "JC/Draw.h"
 #include "JC/Effect.h"
@@ -19,15 +20,12 @@ namespace JC::Battle {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr I16  HexSize = 32;
 static constexpr I32  MapCols = 16;
 static constexpr I32  MapRows = 14;
 static constexpr U32  MaxUnitDefs = 64;
 static constexpr U32  MaxUnits = 256;
 static constexpr U32  MaxFonts = 1024;
 static constexpr Vec4 MapBackgroundColor = Vec4(13.f/255.f, 30.f/255.f, 22.f/255.f, 1.f);
-static constexpr Vec4 SelectedColor = Vec4(0.f, 1.f, 0.f, 1.f);
-static constexpr Vec4 HoverColor = Vec4(1.f, 1.f, 1.f, 0.75f);
 static constexpr F32  UiPanelWidth = 500.f;
 static constexpr Vec4 UiBackgroundColor = Vec4(0.2f, 0.3f, 0.4f, 1.f);
 static constexpr F32  CamSpeedPixelsPerSec = 1000.f;
@@ -48,16 +46,6 @@ static constexpr U64 Action_ScrollMapLeft   = 5;
 static constexpr U64 Action_ScrollMapRight  = 6;
 static constexpr U64 Action_ScrollMapUp     = 7;
 static constexpr U64 Action_ScrollMapDown   = 8;
-
-struct HexCoord {
-	I16 x = 0;
-	I16 y = 0;
-};
-
-struct MapCoord {
-	I16 col = 0;
-	I16 row = 0;
-};
 
 static constexpr U32 MaxSpriteAnimationFrames = 16;
 struct AnimationDef {
@@ -85,28 +73,6 @@ struct Unit {
 	F32                 animationFrameElapsedSecs = 0.f;
 };
 
-enum struct TerrainType {
-	Invalid  = 0,
-	Grass,
-	Forest,
-	Mountain,
-	Hill,
-	Swamp,
-	Water,
-	Max,
-};
-
-struct TerrainFeature {
-	Draw::Sprite sprite;
-	HexCoord     hexCoord;
-};
-
-struct MapTile {
-	MapCoord       mapCoord;
-	TerrainType    terrainType = TerrainType::Invalid;
-	Unit*          unit = nullptr;
-};
-
 enum struct State {
 	WaitingOrder,
 	ExecutingOrder,
@@ -126,20 +92,20 @@ enum struct AttackOrderState {
 };
 
 struct MoveOrder {
-	F32      elapsedSecs = 0.f;
-	F32      durSecs = 0.f;
-	Unit*    unit = nullptr;
-	MapTile* startMapTile = nullptr;
-	MapTile* endMapTile = nullptr;
+	F32      elapsedSecs;
+	F32      durSecs;
+	Unit*    unit;
+	BMap::Hex startMapTile;
+	BMap::Hex endMapTile;
 };
 
 struct AttackOrder {
-	AttackOrderState attackOrderState = AttackOrderState::Invalid;
-	F32              elapsedSecs = 0.f;
-	F32              durSecs = 0.f;
-	MapTile*         unitMapTile = nullptr;
-	Unit*            unit = nullptr;
-	Unit*            targetUnit = nullptr;
+	AttackOrderState attackOrderState;
+	F32              elapsedSecs;
+	F32              durSecs;
+	BMap::Hex        unitMapTile;
+	Unit*            unit;
+	Unit*            targetUnit;
 	Vec2             targetPos;
 };
 
@@ -151,11 +117,6 @@ struct Order {
 
 static Mem               permMem;
 static Mem               tempMem;
-static U8                hexLut[(HexSize / 2) * (HexSize * 3 / 8)];
-static HexCoord          hexCoordLut[(HexSize / 2) * (HexSize / 2)];
-static U32               hexCoordLutLen;
-static MapTile           mapTiles[MapCols * MapRows];
-static MapCoord          mouseMapCoord;
 static UnitDef           unitDefs[MaxUnitDefs];
 static U32               unitDefsLen;
 static U64               nextUnitId = 1;
@@ -163,11 +124,7 @@ static UnitDef*          spearmenUnitDef;
 static Unit              units[MaxUnits];
 static U32               unitsLen;
 static State             state;
-static Draw::Sprite      hexBorderSprite;
-static Draw::Sprite      terrainSprites[(U32)TerrainType::Max];
 static Unit*             selectedUnit;
-static MapTile*          selectedMapTile;
-static MapTile*          hoverMapTile;
 static Order             order;
 static Vec2              windowSize;
 static Input::BindingSet mainBindingSet;
@@ -178,88 +135,6 @@ static F32               uiFontLineHeight;
 static Draw::Font        fancyFont;
 static F32               fancyFontScale = 2.f;
 static Draw::Camera      camera;
-
-
-//--------------------------------------------------------------------------------------------------
-
-static void InitLuts() {
-	memset(hexLut, 0, sizeof(hexLut));
-	U8 start = (HexSize / 2) - 1;
-	U8 end   = HexSize / 2;
-	for (U8 y = 0; y < HexSize / 4; y++) {
-		for (U8 x = 0; x < start; x++) {
-			hexLut[((y / 2) * (HexSize / 2)) + (x / 2)] |= (1 << ((x & 1) * 4));
-		}
-		for (U8 x = end + 1; x < HexSize; x++) {
-			hexLut[((y / 2) * (HexSize / 2)) + (x / 2)] |= (2 << ((x & 1) * 4));
-		}
-		start -= 2;
-		end   += 2;
-	}
-
-	hexCoordLutLen = 0;
-	I16 xStart = (HexSize / 2) - 1;
-	I16 y = 0;
-	for (; y <= (HexSize / 4) - 1; y++) {
-		for (I16 x = xStart; x < (HexSize / 2); x++) {
-			hexCoordLut[hexCoordLutLen++] = {
-				.x = x,
-				.y = y,
-			};
-		}
-		xStart -= 2;
-	}
-	for (; y < (HexSize / 2); y++) {
-		for (I16 x = 0; x < (HexSize / 2); x++) {
-			hexCoordLut[hexCoordLutLen++] = {
-				.x = x,
-				.y = y,
-			};
-		}
-	}
-}
-
-static HexCoord RngHexCoord() {
-	HexCoord hc = hexCoordLut[Rng::NextU32(0, hexCoordLutLen)];
-	const U32 flip = Rng::NextU32(0, 4);
-    if (flip & 1) { hc.x = HexSize - hc.x; }
-    if (flip & 2) { hc.y = HexSize - hc.y; }
-	return hc;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static Vec2 MapCoordToCenterScreenPos(MapCoord mc) {
-	return {
-		(F32)((HexSize / 2) + mc.col * HexSize + (mc.row & 1) * (HexSize / 2)),
-		(F32)((HexSize / 2) + mc.row * (HexSize * 3 / 4)),
-	};
-}
-
-//---------------------------------------------------------------------------------------------
-
-static MapCoord ScreenPosToMapCoord(Vec2 p) {
-	I32 iy = (I32)p.y;
-	I32 row = iy / (HexSize * 3 / 4);
-	const U8 parity = (row & 1);
-
-	I32 ix = (I32)p.x - parity * (HexSize / 2);
-	I32 col = ix / HexSize;
-	if (ix < 0 || iy < 0) {
-		return MapCoord { .col = -1, .row = -1 };
-	}
-
-	I32 lx = ix - (col * HexSize);
-	I32 ly = iy - (row * (HexSize * 3 / 4));
-	Assert(lx >= 0 && ly >= 0);
-
-	const U8 l = (hexLut[(ly / 2) * (HexSize / 2) + (lx / 2)] >> ((lx & 1) * 4)) & 0xf;
-	switch (l) {
-		case 1: col -= 1 * (1 - parity); row -= 1; break;
-		case 2: col += 1 * parity;       row -= 1; break;
-	}
-	return MapCoord { .col = (I16)col, .row = (I16)row };
-}
 
 
 //--------------------------------------------------------------------------------------------------
@@ -286,69 +161,16 @@ Res<> PreInit(Mem permMemIn, Mem tempMemIn) {
 //--------------------------------------------------------------------------------------------------
 
 Res<> Init(Window::State const* windowState) {
-	InitLuts();
-
 	windowSize = Vec2((F32)windowState->width, (F32)windowState->height);
 
 	camera.pos = { 0.f, 0.f };
 	camera.scale = 3.f;
 
-	Try(Draw::LoadSprites("Assets/Terrain.png", "Assets/Terrain.spritejson"));
-	Try(Draw::LoadSprites("Assets/Units.png", "Assets/Units.spritejson"));
 
-	spearmenUnitDef = &unitDefs[unitDefsLen++];
-	TryTo(Draw::GetSprite("Unit_Spearmen"), spearmenUnitDef->sprite);
-
-	Draw::Sprite attackSprite; TryTo(Draw::GetSprite("Unit_Spearmen_Attack"), attackSprite);
-	spearmenUnitDef->maxHp = 10;
-	spearmenUnitDef->size = Draw::GetSpriteSize(spearmenUnitDef->sprite);
-	U32 frameLen = 0;
-	spearmenUnitDef->attackAnimationDef.frameSprites[frameLen] = attackSprite;
-	spearmenUnitDef->attackAnimationDef.frameDurSecs[frameLen] = 0.2f;
-	frameLen++;
-	spearmenUnitDef->attackAnimationDef.frameSprites[frameLen] = spearmenUnitDef->sprite;
-	spearmenUnitDef->attackAnimationDef.frameDurSecs[frameLen] = 0.2f;
-	frameLen++;
-	spearmenUnitDef->attackAnimationDef.frameSprites[frameLen] = attackSprite;
-	spearmenUnitDef->attackAnimationDef.frameDurSecs[frameLen] = 0.2f;
-	frameLen++;
-	spearmenUnitDef->attackAnimationDef.frameSprites[frameLen] = spearmenUnitDef->sprite;
-	spearmenUnitDef->attackAnimationDef.frameDurSecs[frameLen] = 0.2f;
-	frameLen++;
-	spearmenUnitDef->attackAnimationDef.frameLen = frameLen;
-
-	TryTo(Draw::GetSprite("Hex_Border_32"), hexBorderSprite);
-	TryTo(Draw::GetSprite("Hex_Grass_32"), terrainSprites[(U32)TerrainType::Grass]);
-	TryTo(Draw::GetSprite("Hex_Forest_32"), terrainSprites[(U32)TerrainType::Forest]);
-	TryTo(Draw::GetSprite("Hex_Hill_32"), terrainSprites[(U32)TerrainType::Hill]);
-	TryTo(Draw::GetSprite("Hex_Mountain_32"), terrainSprites[(U32)TerrainType::Mountain]);
-	TryTo(Draw::GetSprite("Hex_Swamp_32"), terrainSprites[(U32)TerrainType::Swamp]);
-	TryTo(Draw::GetSprite("Hex_Water_32"), terrainSprites[(U32)TerrainType::Water]);
-
-	for (I16 c = 0; c < MapCols; c++) {
-		for (I16 r = 0; r < MapRows; r++) {
-			MapTile* const mapTile = &mapTiles[c + r * MapCols];
-			mapTile->mapCoord    = { .col = c, .row = r };
-			mapTile->terrainType = (TerrainType)Rng::NextU32(1, (U32)TerrainType::Max);
-			if (Rng::NextU32(0, 100) < 50) { continue; }
-
-			Unit* const unit = AllocUnit();
-			unit->alive   = true;
-			unit->unitDef = spearmenUnitDef;
-			unit->pos     = MapCoordToCenterScreenPos(mapTile->mapCoord);
-			unit->z       = Z_Unit;
-			unit->hp      = spearmenUnitDef->maxHp;
-			mapTile->unit = unit;
-		}
-	}
-
-	TryTo(Draw::LoadFont("Assets/Fonts/8_EverydayStandard.fontjson", "Assets/Fonts/8_EverydayStandard.png"), numberFont);
-	TryTo(Draw::LoadFont("Assets/Fonts/10_CelticTime.fontjson",      "Assets/Fonts/10_CelticTime.png"),      uiFont);
-	TryTo(Draw::LoadFont("Assets/Fonts/21_OldeTome.fontjson",        "Assets/Fonts/21_OldeTome.png"),        fancyFont);
-
+	TryTo(Draw::LoadFontDef("Assets/Fonts/8_EverydayStandard.fontDef"), numberFont);
+	TryTo(Draw::LoadFontDef("Assets/Fonts/10_CelticTime.fontDef"),      uiFont);
+	TryTo(Draw::LoadFontDef("Assets/Fonts/21_OldeTome.fontDef"),        fancyFont);
 	uiFontLineHeight = Draw::GetFontLineHeight(uiFont);
-
-	mouseMapCoord = MapCoord(0, 0);
 
 	mainBindingSet = Input::CreateBindingSet("Main");
 	Input::Bind(mainBindingSet, Key::Key::Escape,         Input::BindingType::OnKeyDown,  Action_Exit,            "");
@@ -369,7 +191,7 @@ Res<> Init(Window::State const* windowState) {
 }
 
 //--------------------------------------------------------------------------------------------------
-
+/*
 static void HandleLeftClick() {
 	if (mouseMapCoord.col < 0 || mouseMapCoord.col >= MapCols || mouseMapCoord.row < 0 || mouseMapCoord.row >= MapRows) {
 		return;
@@ -532,7 +354,7 @@ static void ExecuteAttackOrder(F32 secs) {
 		default: Panic("Unhandled AttackOrderState %u", (U32)attackOrder->attackOrderState);
 	}
 }
-
+*/
 //--------------------------------------------------------------------------------------------------
 
 Res<> Frame(App::FrameData const* frameData, Draw::Camera* cameraOut) {
@@ -599,7 +421,7 @@ Res<> Frame(App::FrameData const* frameData, Draw::Camera* cameraOut) {
 			default: Panic("Unhandled OrderType %u", (U32)order.orderType);
 		}
 	}
-
+	*/
 	*cameraOut = camera;
 
 	return Ok();
@@ -616,38 +438,8 @@ Res<> Draw() {
 		.size  = { 1920.f, 1080.f },
 		.color = MapBackgroundColor,
 	});
-
+	/*
 	Draw::SetCamera(camera);
-
-	for (I32 col = 0; col < MapCols; col++) {
-		for (I32 row = 0; row < MapRows; row++) {
-			MapTile const* const mapTile = &mapTiles[col + row * MapCols];
-			Vec2 const centerPos = MapCoordToCenterScreenPos(mapTile->mapCoord);
-			Draw::DrawSprite({
-				.sprite = terrainSprites[(U32)mapTile->terrainType],
-				.pos    = centerPos,
-				.z      = Z_Map,
-			});
-
-			if (mapTile == selectedMapTile) {
-				Draw::DrawSprite({
-					.sprite = hexBorderSprite,
-					.pos    = centerPos,
-					.z      = Z_MapHighlight,
-					.color  = SelectedColor
-				});
-			}
-		}
-	}
-
-	if (hoverMapTile && hoverMapTile != selectedMapTile) {
-		Draw::DrawSprite({
-			.sprite = hexBorderSprite,
-			.pos    = MapCoordToCenterScreenPos(mouseMapCoord),
-			.z      = Z_MapHighlight,
-			.color  = HoverColor
-		});
-	}
 
 	for (U32 i = 0; i < unitsLen; i++) {
 		Unit const* const unit = &units[i];
@@ -671,19 +463,21 @@ Res<> Draw() {
 
 		constexpr F32 HpBarHeight = 2.f;
 		F32 y = unit->pos.y - (unit->unitDef->size.y / 2.f);
+		F32 const hpFrac = (F32)unit->hp / (F32)unit->unitDef->maxHp;
+		F32 const x = unit->pos.x - (unit->unitDef->size.x / 2.f);
 		Draw::DrawRect({
-			.pos    = { unit->pos.x - (unit->unitDef->size.x / 2.f), y },
-			.z      = unit->z,
-			.origin = Draw::Origin::BottomLeft,
-			.size   = { unit->unitDef->size.x, HpBarHeight },
-			.color  = { 1.f, 0.f, 0.f, 0.5f },
-		});
-		Draw::DrawRect({
-			.pos    = { unit->pos.x - (unit->unitDef->size.x / 2.f), y },
+			.pos    = { x, y },
 			.z      = unit->z + 1,
 			.origin = Draw::Origin::BottomLeft,
-			.size   = { ((F32)unit->hp / (F32)unit->unitDef->maxHp) * unit->unitDef->size.x, HpBarHeight },
+			.size   = { hpFrac * unit->unitDef->size.x, HpBarHeight },
 			.color  = { 1.f, 0.f, 0.f, 1.f },
+		});
+		Draw::DrawRect({
+			.pos    = { x + hpFrac * unit->unitDef->size.x, y },
+			.z      = unit->z,
+			.origin = Draw::Origin::BottomLeft,
+			.size   = { (1.f - hpFrac) * unit->unitDef->size.x, HpBarHeight },
+			.color  = { 1.f, 0.f, 0.f, 0.5f },
 		});
 
 		y -= HpBarHeight;
@@ -743,7 +537,7 @@ Res<> Draw() {
 		Draw::DrawStr(strDrawDef);
 		strDrawDef.pos.y += (uiFontLineHeight + 2) * uiFontScale;
 	}
-
+	*/
 	return Ok();
 }
 

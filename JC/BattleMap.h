@@ -2,13 +2,36 @@
 
 #include "JC/Common.h"
 
-namespace JC::BattleMap {
+namespace JC::Draw { DefHandle(Sprite); }
+
+namespace JC::BMap {
 
 //--------------------------------------------------------------------------------------------------
 
-void Init(Mem permMem);
-void Draw();
+DefHandle(Terrain);
+DefHandle(Hex);
+
+struct HexPos {
+	I32 col;
+	I32 row;
+};
+
+struct HexDef {
+	Terrain terrain;
+	HexPos  pos;
+};
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::BattleMap
+void    Init(Mem permMem);
+Res<>   LoadBattleMapDef(Str battleMapDefPath);
+Terrain GetTerrain(Str name);
+Hex     CreateHex(HexDef hexDef);
+void    DestroyHex(Hex hex);
+void    HighlightHex(Hex hex);
+void    SelectHex(Hex hex);
+void    Draw();
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::BMap
