@@ -149,17 +149,11 @@ struct Order {
 	AttackOrder attackOrder;
 };
 
-struct Camera {
-	Vec2 pos;
-	F32  scale;
-};
-
 static Mem               permMem;
 static Mem               tempMem;
 static U8                hexLut[(HexSize / 2) * (HexSize * 3 / 8)];
 static HexCoord          hexCoordLut[(HexSize / 2) * (HexSize / 2)];
 static U32               hexCoordLutLen;
-static Camera            cam;
 static MapTile           mapTiles[MapCols * MapRows];
 static MapCoord          mouseMapCoord;
 static UnitDef           unitDefs[MaxUnitDefs];
@@ -183,6 +177,7 @@ static F32               uiFontScale = 2.f;
 static F32               uiFontLineHeight;
 static Draw::Font        fancyFont;
 static F32               fancyFontScale = 2.f;
+static Draw::Camera      camera;
 
 
 //--------------------------------------------------------------------------------------------------
@@ -295,8 +290,8 @@ Res<> Init(Window::State const* windowState) {
 
 	windowSize = Vec2((F32)windowState->width, (F32)windowState->height);
 
-	cam.pos = { 0.f, 0.f };
-	cam.scale = 3.f;
+	camera.pos = { 0.f, 0.f };
+	camera.scale = 3.f;
 
 	Try(Draw::LoadSprites("Assets/Terrain.png", "Assets/Terrain.spritejson"));
 	Try(Draw::LoadSprites("Assets/Units.png", "Assets/Units.spritejson"));
@@ -307,19 +302,20 @@ Res<> Init(Window::State const* windowState) {
 	Draw::Sprite attackSprite; TryTo(Draw::GetSprite("Unit_Spearmen_Attack"), attackSprite);
 	spearmenUnitDef->maxHp = 10;
 	spearmenUnitDef->size = Draw::GetSpriteSize(spearmenUnitDef->sprite);
-	spearmenUnitDef->attackAnimationDef.frameLen = 6;
-	spearmenUnitDef->attackAnimationDef.frameDurSecs[0] = 0.2f;
-	spearmenUnitDef->attackAnimationDef.frameDurSecs[1] = 0.2f;
-	spearmenUnitDef->attackAnimationDef.frameDurSecs[2] = 0.2f;
-	spearmenUnitDef->attackAnimationDef.frameDurSecs[3] = 0.2f;
-	spearmenUnitDef->attackAnimationDef.frameDurSecs[4] = 0.2f;
-	spearmenUnitDef->attackAnimationDef.frameDurSecs[5] = 0.2f;
-	spearmenUnitDef->attackAnimationDef.frameSprites[0] = attackSprite;
-	spearmenUnitDef->attackAnimationDef.frameSprites[1] = spearmenUnitDef->sprite;
-	spearmenUnitDef->attackAnimationDef.frameSprites[2] = attackSprite;
-	spearmenUnitDef->attackAnimationDef.frameSprites[3] = spearmenUnitDef->sprite;
-	spearmenUnitDef->attackAnimationDef.frameSprites[4] = attackSprite;
-	spearmenUnitDef->attackAnimationDef.frameSprites[5] = spearmenUnitDef->sprite;
+	U32 frameLen = 0;
+	spearmenUnitDef->attackAnimationDef.frameSprites[frameLen] = attackSprite;
+	spearmenUnitDef->attackAnimationDef.frameDurSecs[frameLen] = 0.2f;
+	frameLen++;
+	spearmenUnitDef->attackAnimationDef.frameSprites[frameLen] = spearmenUnitDef->sprite;
+	spearmenUnitDef->attackAnimationDef.frameDurSecs[frameLen] = 0.2f;
+	frameLen++;
+	spearmenUnitDef->attackAnimationDef.frameSprites[frameLen] = attackSprite;
+	spearmenUnitDef->attackAnimationDef.frameDurSecs[frameLen] = 0.2f;
+	frameLen++;
+	spearmenUnitDef->attackAnimationDef.frameSprites[frameLen] = spearmenUnitDef->sprite;
+	spearmenUnitDef->attackAnimationDef.frameDurSecs[frameLen] = 0.2f;
+	frameLen++;
+	spearmenUnitDef->attackAnimationDef.frameLen = frameLen;
 
 	TryTo(Draw::GetSprite("Hex_Border_32"), hexBorderSprite);
 	TryTo(Draw::GetSprite("Hex_Grass_32"), terrainSprites[(U32)TerrainType::Grass]);
@@ -357,8 +353,8 @@ Res<> Init(Window::State const* windowState) {
 	mainBindingSet = Input::CreateBindingSet("Main");
 	Input::Bind(mainBindingSet, Key::Key::Escape,         Input::BindingType::OnKeyDown,  Action_Exit,            "");
 	Input::Bind(mainBindingSet, Key::Key::Mouse1,         Input::BindingType::OnKeyUp,    Action_Click,           "");
-	Input::Bind(mainBindingSet, Key::Key::MouseWheelUp,   Input::BindingType::OnKeyDown,  Action_ZoomIn,    "");
-	Input::Bind(mainBindingSet, Key::Key::MouseWheelDown, Input::BindingType::OnKeyDown,  Action_ZoomOut,   "");
+	Input::Bind(mainBindingSet, Key::Key::MouseWheelUp,   Input::BindingType::OnKeyDown,  Action_ZoomIn,          "");
+	Input::Bind(mainBindingSet, Key::Key::MouseWheelDown, Input::BindingType::OnKeyDown,  Action_ZoomOut,         "");
 	Input::Bind(mainBindingSet, Key::Key::W,              Input::BindingType::Continuous, Action_ScrollMapUp,     "");
 	Input::Bind(mainBindingSet, Key::Key::S,              Input::BindingType::Continuous, Action_ScrollMapDown,   "");
 	Input::Bind(mainBindingSet, Key::Key::A,              Input::BindingType::Continuous, Action_ScrollMapLeft,   "");
@@ -480,6 +476,18 @@ static void ExecuteAttackOrder(F32 secs) {
 				unit->activeAnimationDef        = &unit->unitDef->attackAnimationDef;
 				unit->animationFrame            = 0;
 				unit->animationFrameElapsedSecs = 0.f;
+				Unit* const targetUnit = attackOrder->targetUnit;
+				if (targetUnit->hp > 0) {
+					targetUnit->hp--;
+				}
+				Effect::CreateFloatingStr({
+					.font   = numberFont,
+					.str    = "-1",
+					.durSec = 2.f,
+					.x      = targetUnit->pos.x,
+					.yStart = targetUnit->pos.y - targetUnit->unitDef->size.y,
+					.yEnd   = targetUnit->pos.y - targetUnit->unitDef->size.y * 2,
+				});
 			}
 			break;
 		}
@@ -527,12 +535,10 @@ static void ExecuteAttackOrder(F32 secs) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Frame(App::FrameData const* frameData) {
+Res<> Frame(App::FrameData const* frameData, Draw::Camera* cameraOut) {
 	if (frameData->exit) {
 		return App::Err_Exit();
 	}
-
-	const F32 secs = (F32)Time::Secs(frameData->ticks);
 
 	for (U64 i = 0; i < frameData->actions.len; i++) {
 		U64 const actionId = frameData->actions[i];
@@ -542,32 +548,32 @@ Res<> Frame(App::FrameData const* frameData) {
 			case Action_Click: HandleLeftClick(); break;
 
 			case Action_ZoomIn: {
-				F32 const oldScale = cam.scale;
-				cam.scale += 1.f;
+				F32 const oldScale = camera.scale;
+				camera.scale += 1.f;
 				F32 const windowCenterX = windowSize.x * 0.5f;
 				F32 const windowCenterY = windowSize.y * 0.5f;
-				cam.pos.x -= windowCenterX / cam.scale - windowCenterX / oldScale;
-				cam.pos.y -= windowCenterY / cam.scale - windowCenterY / oldScale;
-				Logf("cam.scale = %f", cam.scale);
+				camera.pos.x -= windowCenterX / camera.scale - windowCenterX / oldScale;
+				camera.pos.y -= windowCenterY / camera.scale - windowCenterY / oldScale;
+				Logf("camera.scale = %f", camera.scale);
 				break;
 			}
 			case Action_ZoomOut: {
-				if (cam.scale > 1.f) {
-					F32 const oldScale = cam.scale;
-					cam.scale -= 1.f;
+				if (camera.scale > 1.f) {
+					F32 const oldScale = camera.scale;
+					camera.scale -= 1.f;
 					F32 const windowCenterX = windowSize.x * 0.5f;
 					F32 const windowCenterY = windowSize.y * 0.5f;
-					cam.pos.x -= windowCenterX / cam.scale - windowCenterX / oldScale;
-					cam.pos.y -= windowCenterY / cam.scale - windowCenterY / oldScale;
-					Logf("cam.scale = %f", cam.scale);
+					camera.pos.x -= windowCenterX / camera.scale - windowCenterX / oldScale;
+					camera.pos.y -= windowCenterY / camera.scale - windowCenterY / oldScale;
+					Logf("camera.scale = %f", camera.scale);
 				}
 				break;
 			}
 
-			case Action_ScrollMapLeft:  cam.pos.x -= (CamSpeedPixelsPerSec * secs) / cam.scale; Logf("cam.pos=(%f, %f)", cam.pos.x, cam.pos.y); break;
-			case Action_ScrollMapRight: cam.pos.x += (CamSpeedPixelsPerSec * secs) / cam.scale; Logf("cam.pos=(%f, %f)", cam.pos.x, cam.pos.y); break;
-			case Action_ScrollMapUp:    cam.pos.y -= (CamSpeedPixelsPerSec * secs) / cam.scale; Logf("cam.pos=(%f, %f)", cam.pos.x, cam.pos.y); break;
-			case Action_ScrollMapDown:  cam.pos.y += (CamSpeedPixelsPerSec * secs) / cam.scale; Logf("cam.pos=(%f, %f)", cam.pos.x, cam.pos.y); break;
+			case Action_ScrollMapLeft:  camera.pos.x -= (CamSpeedPixelsPerSec * frameData->secs) / camera.scale; break;
+			case Action_ScrollMapRight: camera.pos.x += (CamSpeedPixelsPerSec * frameData->secs) / camera.scale; break;
+			case Action_ScrollMapUp:    camera.pos.y -= (CamSpeedPixelsPerSec * frameData->secs) / camera.scale; break;
+			case Action_ScrollMapDown:  camera.pos.y += (CamSpeedPixelsPerSec * frameData->secs) / camera.scale; break;
 
 			default: Panic("Unhandled actionId %u", actionId);
 		}
@@ -576,8 +582,8 @@ Res<> Frame(App::FrameData const* frameData) {
 	Vec2 const mousePos((F32)frameData->mouseX, (F32)frameData->mouseY);
 
 	Vec2 const canvasMousePos = {
-		(mousePos.x / cam.scale) + cam.pos.x,
-		(mousePos.y / cam.scale) + cam.pos.y,
+		(mousePos.x / camera.scale) + camera.pos.x,
+		(mousePos.y / camera.scale) + camera.pos.y,
 	};
 	mouseMapCoord = ScreenPosToMapCoord(canvasMousePos);
 	if (mouseMapCoord.col >= 0 && mouseMapCoord.col < MapCols && mouseMapCoord.row >= 0 && mouseMapCoord.row < MapRows) {
@@ -588,19 +594,20 @@ Res<> Frame(App::FrameData const* frameData) {
 
 	if (state == State::ExecutingOrder) {
 		switch (order.orderType) {
-			case OrderType::Move:   ExecuteMoveOrder(secs);   break;
-			case OrderType::Attack: ExecuteAttackOrder(secs); break;
+			case OrderType::Move:   ExecuteMoveOrder(frameData->secs);   break;
+			case OrderType::Attack: ExecuteAttackOrder(frameData->secs); break;
 			default: Panic("Unhandled OrderType %u", (U32)order.orderType);
 		}
 	}
+
+	*cameraOut = camera;
 
 	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Draw(Gpu::FrameData const* gpuFrameData) {
-	Draw::BeginFrame(gpuFrameData);	// TODO: move to App.cpp
+Res<> Draw() {
 
 	Draw::DrawRect({
 		.pos   = { 0.f, 0.f },
@@ -610,7 +617,7 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 		.color = MapBackgroundColor,
 	});
 
-	Draw::SetCamera(cam.pos, cam.scale);
+	Draw::SetCamera(camera);
 
 	for (I32 col = 0; col < MapCols; col++) {
 		for (I32 row = 0; row < MapRows; row++) {
@@ -663,16 +670,24 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 		});
 
 		constexpr F32 HpBarHeight = 2.f;
-		F32 y = unit->pos.y - (unit->unitDef->size.y / 2.f) - (HpBarHeight / 2.f);
+		F32 y = unit->pos.y - (unit->unitDef->size.y / 2.f);
 		Draw::DrawRect({
-			.pos   = { unit->pos.x, y },
-			.z     = unit->z,
-			.size  = { unit->unitDef->size.x, HpBarHeight },
-			.color = { 1.f, 0.f, 0.f, 1.f },
+			.pos    = { unit->pos.x - (unit->unitDef->size.x / 2.f), y },
+			.z      = unit->z,
+			.origin = Draw::Origin::BottomLeft,
+			.size   = { unit->unitDef->size.x, HpBarHeight },
+			.color  = { 1.f, 0.f, 0.f, 0.5f },
+		});
+		Draw::DrawRect({
+			.pos    = { unit->pos.x - (unit->unitDef->size.x / 2.f), y },
+			.z      = unit->z + 1,
+			.origin = Draw::Origin::BottomLeft,
+			.size   = { ((F32)unit->hp / (F32)unit->unitDef->maxHp) * unit->unitDef->size.x, HpBarHeight },
+			.color  = { 1.f, 0.f, 0.f, 1.f },
 		});
 
-		y -= (HpBarHeight / 2.f);
-		Draw::DrawText({
+		y -= HpBarHeight;
+		Draw::DrawStr({
 			.font         = numberFont,
 			.str          = SPrintf(tempMem, "%u", unit->id),
 			.pos          = { unit->pos.x, y },
@@ -684,7 +699,7 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 		});
 	}
 
-	Draw::SetCamera(Vec2(), 1.f);
+	Draw::ClearCamera();
 
 	Draw::DrawRect({
 		.pos   = Vec2(windowSize.x - UiPanelWidth / 2.f, windowSize.y / 2.f),
@@ -714,7 +729,7 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 		"unit cost by 5%",
 	};
 
-	Draw::TextDrawDef textDrawDef = {
+	Draw::StrDrawDef strDrawDef = {
 		.font   = uiFont,
 		.pos    = { windowSize.x - UiPanelWidth + 10.f, 10.f },
 		.z      = Z_Ui,
@@ -724,12 +739,10 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 
 	};
 	for (U32 i = 0; i < LenOf(lines); i++) {
-		textDrawDef.str = lines[i];
-		Draw::DrawText(textDrawDef);
-		textDrawDef.pos.y += (uiFontLineHeight + 2) * uiFontScale;
+		strDrawDef.str = lines[i];
+		Draw::DrawStr(strDrawDef);
+		strDrawDef.pos.y += (uiFontLineHeight + 2) * uiFontScale;
 	}
-
-	Draw::EndFrame();
 
 	return Ok();
 }

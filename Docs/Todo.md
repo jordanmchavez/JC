@@ -313,3 +313,6 @@ make all perm arrays use the perm allocator
   12. SetCanvas(nullHandle) vs SetDefaultCanvas redundancy (Draw.cpp:638)
   SetCanvas with a null handle silently routes to the swapchain canvas. SetDefaultCanvas does the same explicitly. Consider removing the null-handle fallback from SetCanvas and requiring
   callers to use SetDefaultCanvas.
+
+- Use u32 for all Max sizes instead of U16. if we ever change max size to exceed a u16 boundary, we have to change teh corresponding *Len field as well, error prone. Same problem for loop indexes.
+- explicitly initialize static local vars to zero?

@@ -19,6 +19,11 @@ struct InitDef {
 	U32 windowHeight;
 };
 
+struct Camera {
+	Vec2 pos;
+	F32  scale;
+};
+
 enum struct Origin {
 	TopLeft,
 	TopCenter,
@@ -50,7 +55,7 @@ struct SpriteDrawDef {
 	Vec4   outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
 };
 
-struct TextDrawDef {
+struct StrDrawDef {
 	Font   font;
 	Str    str;
 	Vec2   pos;
@@ -86,10 +91,11 @@ void        BeginFrame(Gpu::FrameData const* gpuFrameData);
 void        EndFrame();
 void        SetDefaultCanvas();
 void        SetCanvas(Canvas canvas);
-void        SetCamera(Vec2 pos, F32 scale);
+void        SetCamera(Camera camera);
+void        ClearCamera();
 void        DrawRect(RectDrawDef drawDef);
 void        DrawSprite(SpriteDrawDef drawDef);
-void        DrawText(TextDrawDef drawDef);
+void        DrawStr(StrDrawDef drawDef);
 void        DrawCanvas(CanvasDrawDef drawDef);
 
 //--------------------------------------------------------------------------------------------------

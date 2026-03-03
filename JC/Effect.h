@@ -2,18 +2,24 @@
 
 #include "JC/Common.h"
 
-namespace JC::Draw { DefHandle(Sprite); }
+namespace JC::Draw { DefHandle(Font); }
 
 namespace JC::Effect {
 
 //--------------------------------------------------------------------------------------------------
 
-struct EffectDef {
-	// ?? fill me in
+struct FloatingStrDef {
+	Draw::Font font;
+	Str        str;
+	F32        durSec;
+	F32        x;
+	F32        yStart;
+	F32        yEnd;
 };
 
-void Create(const EffectDef* effectDef);
-void Update(U64 ticks);
+void Init(Mem permMem);
+void CreateFloatingStr(FloatingStrDef def);
+void Frame(F32 sec);
 void Draw();
 
 //--------------------------------------------------------------------------------------------------

@@ -2,6 +2,7 @@
 
 #include "JC/Cfg.h"
 #include "JC/Draw.h"
+#include "JC/Effect.h"
 #include "JC/File.h"
 #include "JC/Gpu.h"
 #include "JC/Input.h"
@@ -102,6 +103,8 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 	};
 	Try(Draw::Init(&drawInitDef));
 
+	Effect::Init(permMem);
+
 	Try(app->Init(&windowState));
 
 	U64 frame = 0;
@@ -113,8 +116,10 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 		Err::Frame(frame);
 
 		U64 const nowTicks = Time::Now();
-		U64 const deltaTicks = nowTicks - lastTicks;
+		F32 const secs = (F32)Time::Secs(nowTicks - lastTicks);
 		lastTicks = nowTicks;
+
+		Effect::Frame(secs);
 
 		Window::Events const windowEvents = Window::Frame();
 		Window::State const prevWindowState = windowState;	// TODO: this could be rolled into Events as part of the return val from Window::Frame()
@@ -123,7 +128,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 		Span<U64 const> const actions = Input::ProcessKeyEvents(windowEvents.keyEvents, actionIds, MaxActionIds);
 
 		FrameData const appFrameData = {
-			.ticks       = deltaTicks,
+			.secs        = secs,
 			.actions     = actions,
 			.mouseX      = windowEvents.mouseX,
 			.mouseY      = windowEvents.mouseY,
@@ -131,8 +136,8 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 			.mouseDeltaY = windowEvents.mouseDeltaY,
 			.exit        = windowEvents.exitEvent,
 		};
-
-		if (Res<> r = app->Frame(&appFrameData); !r) {
+		Draw::Camera camera;
+		if (Res<> r = app->Frame(&appFrameData, &camera); !r) {
 			if (r.err == Err_Exit) {
 				return Ok();
 			}
@@ -163,7 +168,14 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 			continue;
 		}
 
-		Try(app->Draw(&gpuFrameData));
+		Draw::BeginFrame(&gpuFrameData);	// TODO: move to App.cpp
+
+		Try(app->Draw());
+
+		Draw::SetCamera(camera);
+		Effect::Draw();
+
+		Draw::EndFrame();
 		
 		if (Res<> r = Gpu::EndFrame(); !r) {
 			if (r.err != Gpu::Err_RecreateSwapchain) {

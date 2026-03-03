@@ -2,7 +2,7 @@
 
 #include "JC/Common.h"
 
-namespace JC::Event  { struct Event; }
+namespace JC::Draw   { struct Camera; }
 namespace JC::Gpu    { struct FrameData; }
 namespace JC::Window { struct State; }
 
@@ -21,21 +21,21 @@ constexpr Str Cfg_WindowDisplayIdx = "App.WindowDisplayIdx";
 //--------------------------------------------------------------------------------------------------
 
 struct FrameData {
-	U64             ticks = 0;
+	F32             secs;
 	Span<U64 const> actions;
-	I32             mouseX = 0;
-	I32             mouseY = 0;
-	I64             mouseDeltaX = 0;
-	I64             mouseDeltaY = 0;
-	bool            exit = false;
+	I32             mouseX;
+	I32             mouseY;
+	I64             mouseDeltaX;
+	I64             mouseDeltaY;
+	bool            exit;
 };
 
 struct App {
 	Res<> (*PreInit)(Mem permMem, Mem tempMem);
 	Res<> (*Init)(Window::State const* windowState);
 	void  (*Shutdown)();
-	Res<> (*Frame)(FrameData const* appFrameData);	// Err_Exit = exit program
-	Res<> (*Draw)(Gpu::FrameData const* gpuFrameData);
+	Res<> (*Frame)(FrameData const* appFrameData, Draw::Camera* cameraOut);	// Err_Exit = exit program
+	Res<> (*Draw)();
 	Res<> (*ResizeWindow)(U32 width, U32 height);
 };
 

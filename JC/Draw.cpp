@@ -199,8 +199,7 @@ static U32           drawCmdCount;
 static Canvas        swapchainCanvas;
 static Pass*         passes;
 static U32           passesLen;
-static Vec2          camPos;
-static F32           camScale;
+static Camera        camera;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -282,8 +281,8 @@ Res<> Init(InitDef const* initDef) {
 		-100.0f, 100.0f
 	);
 
-	camPos   = Vec2(0.f, 0.f);
-	camScale = 1.f;
+	camera.pos   = Vec2(0.f, 0.f);
+	camera.scale = 1.f;
 
 	return Ok();
 }
@@ -554,8 +553,8 @@ void BeginFrame(const Gpu::FrameData* gpuFrameData) {
 		.drawCmdEnd   = U32Max,
 	};
 
-	camPos = Vec2(0.f, 0.f);
-	camScale = 1.f;
+	camera.pos = Vec2(0.f, 0.f);
+	camera.scale = 1.f;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -651,10 +650,9 @@ void SetCanvas(Canvas canvas) {
 
 //--------------------------------------------------------------------------------------------------
 
-void SetCamera(Vec2 pos, F32 scale) {
-	camPos   = pos;
-	camScale = scale;
-}
+void SetCamera(Camera cameraIn) { camera = cameraIn; }
+
+void ClearCamera() { camera = { .pos = Vec2(0.f, 0.f), .scale = 1.f }; }
 
 //--------------------------------------------------------------------------------------------------
 
@@ -669,8 +667,8 @@ static DrawCmd* AllocDrawCmds(U32 n) {
 
 static inline Vec3 MakePos(F32 x, F32 y, F32 z) {
 	return Vec3(
-		Math::Round((x - camPos.x) * camScale),
-		Math::Round((y - camPos.y) * camScale),
+		Math::Round((x - camera.pos.x) * camera.scale),
+		Math::Round((y - camera.pos.y) * camera.scale),
 		z
 	);
 }
@@ -709,7 +707,7 @@ void DrawRect(RectDrawDef drawDef) {
 	DrawCmd* const drawCmd = AllocDrawCmds(1);
 	drawCmd->textureIdx   = 0;
 	drawCmd->pos          = MakePos(x, y, drawDef.z);
-	drawCmd->size         = Vec2(drawDef.size.x * camScale, drawDef.size.y * camScale);
+	drawCmd->size         = Vec2(drawDef.size.x * camera.scale, drawDef.size.y * camera.scale);
 	drawCmd->uv1          = Vec2(0.f, 0.f);
 	drawCmd->uv2          = Vec2(0.f, 0.f);
 	drawCmd->color        = drawDef.color;
@@ -755,7 +753,7 @@ void DrawSprite(SpriteDrawDef drawDef) {
 	DrawCmd* const drawCmd = AllocDrawCmds(1);
 	drawCmd->textureIdx   = spriteObj->imageIdx;
 	drawCmd->pos          = MakePos(x, y, drawDef.z);
-	drawCmd->size         = Vec2(scaledSizeX * camScale, scaledSizeY * camScale);
+	drawCmd->size         = Vec2(scaledSizeX * camera.scale, scaledSizeY * camera.scale);
 	drawCmd->uv1          = spriteObj->uv1;
 	drawCmd->uv2          = spriteObj->uv2;
 	drawCmd->color        = drawDef.color;
@@ -763,10 +761,10 @@ void DrawSprite(SpriteDrawDef drawDef) {
 	drawCmd->outlineColor = drawDef.outlineColor;
 
 	if (drawDef.outlineWidth > 0.f) {
-		drawCmd->pos.x -= 1 * camScale;
-		drawCmd->pos.y -= 1 * camScale;
-		drawCmd->size.x += 2 * camScale;
-		drawCmd->size.y += 2 * camScale;
+		drawCmd->pos.x -= 1 * camera.scale;
+		drawCmd->pos.y -= 1 * camera.scale;
+		drawCmd->size.x += 2 * camera.scale;
+		drawCmd->size.y += 2 * camera.scale;
 		drawCmd->uv1.x -= spriteObj->texelSize.x;
 		drawCmd->uv1.y -= spriteObj->texelSize.y;
 		drawCmd->uv2.x += spriteObj->texelSize.x;
@@ -794,7 +792,7 @@ static F32 StrWidth(FontObj const* fontObj, Str str) {
 
 //--------------------------------------------------------------------------------------------------
 
-void DrawText(TextDrawDef drawDef) {
+void DrawStr(StrDrawDef drawDef) {
 	Assert(drawDef.font.handle > 0 && drawDef.font.handle < fontObjsLen);
 	FontObj const* const fontObj = &fontObjs[drawDef.font.handle];
 
@@ -829,17 +827,17 @@ void DrawText(TextDrawDef drawDef) {
 		DrawCmd* const drawCmd = AllocDrawCmds(1);
 		drawCmd->textureIdx   = glyph->imageIdx;
 		drawCmd->pos          = MakePos(x + (glyph->off.x * drawDef.scale.x), y + (glyph->off.y * drawDef.scale.y), drawDef.z);
-		drawCmd->size         = Vec2(glyph->size.x * drawDef.scale.x * camScale, glyph->size.y * drawDef.scale.y * camScale);
+		drawCmd->size         = Vec2(glyph->size.x * drawDef.scale.x * camera.scale, glyph->size.y * drawDef.scale.y * camera.scale);
 		drawCmd->uv1          = glyph->uv1;
 		drawCmd->uv2          = glyph->uv2;
 		drawCmd->color        = drawDef.color;
 		drawCmd->outlineWidth = drawDef.outlineWidth;
 		drawCmd->outlineColor = drawDef.outlineColor;
 		if (drawDef.outlineWidth > 0.f) {
-			drawCmd->pos.x -= 1 * camScale;
-			drawCmd->pos.y -= 1 * camScale;
-			drawCmd->size.x += 2 * camScale;
-			drawCmd->size.y += 2 * camScale;
+			drawCmd->pos.x -= 1 * camera.scale;
+			drawCmd->pos.y -= 1 * camera.scale;
+			drawCmd->size.x += 2 * camera.scale;
+			drawCmd->size.y += 2 * camera.scale;
 			drawCmd->uv1.x -= fontObj->texelSize.x;
 			drawCmd->uv1.y -= fontObj->texelSize.y;
 			drawCmd->uv2.x += fontObj->texelSize.x;
@@ -857,7 +855,7 @@ void DrawCanvas(CanvasDrawDef drawDef) {
 	DrawCmd* const drawCmd = AllocDrawCmds(1);
 	drawCmd->textureIdx   = canvasObj->colorImageIdx;
 	drawCmd->pos          = Vec3(Math::Round(drawDef.pos.x), Math::Round(drawDef.pos.y), drawDef.z);
-	drawCmd->size         = Vec2(canvasObj->size.x * drawDef.scale.x * camScale, canvasObj->size.y * drawDef.scale.y * camScale);
+	drawCmd->size         = Vec2(canvasObj->size.x * drawDef.scale.x * camera.scale, canvasObj->size.y * drawDef.scale.y * camera.scale);
 	drawCmd->uv1          = Vec2(0.f, 0.f);
 	drawCmd->uv2          = Vec2(1.f, 1.f);
 	drawCmd->color        = drawDef.color;
