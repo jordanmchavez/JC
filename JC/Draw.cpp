@@ -66,6 +66,7 @@ struct SpriteObj {
 	Vec2 uv1;
 	Vec2 uv2;
 	Vec2 size;
+	Vec2 texelSize;
 	Str  name;
 };
 
@@ -120,6 +121,7 @@ struct FontObj {
 	U32        imageIdx;
 	F32        lineHeight;
 	F32        base;	// pixels from top of line to baseline
+	Vec2       texelSize;
 	Glyph      glyphs[MaxGlyphs];
 };
 
@@ -382,11 +384,12 @@ Res<> LoadSprites(Str imagePath, Str spritesPath) {
 
 		spriteObjsByName.Put(entry->name, spriteObjsLen);
 		spriteObjs[spriteObjsLen++] = {
-			.imageIdx = imageIdx,
-			.uv1      = { x / imageWidth, y / imageHeight },
-			.uv2      = { (x + w) / imageWidth, (y + h) / imageHeight },
-			.size     = { w, h },
-			.name     = entry->name,
+			.imageIdx  = imageIdx,
+			.uv1       = { x / imageWidth, y / imageHeight },
+			.uv2       = { (x + w) / imageWidth, (y + h) / imageHeight },
+			.size      = { w, h },
+			.texelSize = { 1.f / imageWidth, 1.f / imageHeight },
+			.name      = entry->name,
 		};
 	}
 	return Ok();
@@ -428,6 +431,7 @@ Res<Font> LoadFont(Str fontPath, Str imagePath) {
 	fontObj->imageIdx   = imageIdx;
 	fontObj->lineHeight = (F32)fontFile.lineHeight;
 	fontObj->base       = (F32)fontFile.base;
+	fontObj->texelSize  = { 1.f / imageWidth, 1.f / imageHeight };
 
 	for (U64 i = 0; i < fontFile.glyphs.len; i++) {
 		FontFileGlyph const* const fontFileGlyph = &fontFile.glyphs[i];
@@ -709,8 +713,8 @@ void DrawRect(RectDrawDef drawDef) {
 	drawCmd->uv1          = Vec2(0.f, 0.f);
 	drawCmd->uv2          = Vec2(0.f, 0.f);
 	drawCmd->color        = drawDef.color;
-	drawCmd->outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
 	drawCmd->outlineWidth = 0.f;
+	drawCmd->outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -755,8 +759,19 @@ void DrawSprite(SpriteDrawDef drawDef) {
 	drawCmd->uv1          = spriteObj->uv1;
 	drawCmd->uv2          = spriteObj->uv2;
 	drawCmd->color        = drawDef.color;
-	drawCmd->outlineColor = drawDef.outlineColor;
 	drawCmd->outlineWidth = drawDef.outlineWidth;
+	drawCmd->outlineColor = drawDef.outlineColor;
+
+	if (drawDef.outlineWidth > 0.f) {
+		drawCmd->pos.x -= 1 * camScale;
+		drawCmd->pos.y -= 1 * camScale;
+		drawCmd->size.x += 2 * camScale;
+		drawCmd->size.y += 2 * camScale;
+		drawCmd->uv1.x -= spriteObj->texelSize.x;
+		drawCmd->uv1.y -= spriteObj->texelSize.y;
+		drawCmd->uv2.x += spriteObj->texelSize.x;
+		drawCmd->uv2.y += spriteObj->texelSize.y;
+	}
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -818,8 +833,18 @@ void DrawText(TextDrawDef drawDef) {
 		drawCmd->uv1          = glyph->uv1;
 		drawCmd->uv2          = glyph->uv2;
 		drawCmd->color        = drawDef.color;
-		drawCmd->outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
-		drawCmd->outlineWidth = 0.f;
+		drawCmd->outlineWidth = drawDef.outlineWidth;
+		drawCmd->outlineColor = drawDef.outlineColor;
+		if (drawDef.outlineWidth > 0.f) {
+			drawCmd->pos.x -= 1 * camScale;
+			drawCmd->pos.y -= 1 * camScale;
+			drawCmd->size.x += 2 * camScale;
+			drawCmd->size.y += 2 * camScale;
+			drawCmd->uv1.x -= fontObj->texelSize.x;
+			drawCmd->uv1.y -= fontObj->texelSize.y;
+			drawCmd->uv2.x += fontObj->texelSize.x;
+			drawCmd->uv2.y += fontObj->texelSize.y;
+		}
 		x += glyph->xAdv * drawDef.scale.x;
 	}
 }

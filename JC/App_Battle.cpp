@@ -28,7 +28,7 @@ static constexpr U32  MaxFonts = 1024;
 static constexpr Vec4 MapBackgroundColor = Vec4(13.f/255.f, 30.f/255.f, 22.f/255.f, 1.f);
 static constexpr Vec4 SelectedColor = Vec4(0.f, 1.f, 0.f, 1.f);
 static constexpr Vec4 HoverColor = Vec4(1.f, 1.f, 1.f, 0.75f);
-static constexpr F32  UiPanelWidth = 300.f;
+static constexpr F32  UiPanelWidth = 500.f;
 static constexpr Vec4 UiBackgroundColor = Vec4(0.2f, 0.3f, 0.4f, 1.f);
 static constexpr F32  CamSpeedPixelsPerSec = 1000.f;
 
@@ -48,11 +48,6 @@ static constexpr U64 Action_ScrollMapLeft   = 5;
 static constexpr U64 Action_ScrollMapRight  = 6;
 static constexpr U64 Action_ScrollMapUp     = 7;
 static constexpr U64 Action_ScrollMapDown   = 8;
-static constexpr U64 Action_NextFont        = 9;
-static constexpr U64 Action_PrevFont        = 10;
-static constexpr U64 Action_UiFontScale1    = 11;
-static constexpr U64 Action_UiFontScale2    = 12;
-static constexpr U64 Action_UiFontScale3    = 13;
 
 struct HexCoord {
 	I16 x = 0;
@@ -180,13 +175,14 @@ static Unit*             selectedUnit;
 static MapTile*          selectedMapTile;
 static MapTile*          hoverMapTile;
 static Order             order;
-static Draw::Font        fonts[MaxFonts];
-static U32               fontsLen;
-static U32               activeFontIdx;
-static F32               activeFontLineHeight;
 static Vec2              windowSize;
 static Input::BindingSet mainBindingSet;
-static F32               uiFontScale = 3.f;
+static Draw::Font        numberFont;
+static Draw::Font        uiFont;
+static F32               uiFontScale = 2.f;
+static F32               uiFontLineHeight;
+static Draw::Font        fancyFont;
+static F32               fancyFontScale = 2.f;
 
 
 //--------------------------------------------------------------------------------------------------
@@ -349,36 +345,12 @@ Res<> Init(Window::State const* windowState) {
 			mapTile->unit = unit;
 		}
 	}
-	/*
-	Span<Str const> BattleFonts = {
-		"6_EverydayStandard",
-		"16_Bitpotion",
-		"16_CelticTime",
-	};
-	for (U64 i = 0; i < BattleFonts.len; i++) {
-		TryTo(Draw::LoadFont(SPrintf(tempMem, "Assets/Fonts/%s.fontjson", BattleFonts[i]), SPrintf(tempMem, "Assets/Fonts/%s.png", BattleFonts[i])), fonts[fontsLen]);
-		Logf("Loaded font [%u] %s with lineHeight=%f", i, BattleFonts[i], Draw::GetFontLineHeight(fonts[i]));
-		fontsLen++;
-	}
-*/
 
-	Span<Str> fontjsonFileNames; TryTo(File::EnumFiles("Assets/Fonts", ".fontjson"), fontjsonFileNames);
-	for (U64 i = 0; i < fontjsonFileNames.len; i++) {
-		Str const fontjsonFileName = fontjsonFileNames[i];
-		Str const pngFileName = SPrintf(tempMem, "%s.png", File::RemoveExt(fontjsonFileName));
-		Assert(fontsLen < MaxFonts);
-		TryTo(Draw::LoadFont(fontjsonFileName, pngFileName), fonts[fontsLen]);
-		Logf("Loaded font [%u] %s", i, fontjsonFileName);
-		fontsLen++;
-	}
+	TryTo(Draw::LoadFont("Assets/Fonts/8_EverydayStandard.fontjson", "Assets/Fonts/8_EverydayStandard.png"), numberFont);
+	TryTo(Draw::LoadFont("Assets/Fonts/10_CelticTime.fontjson",      "Assets/Fonts/10_CelticTime.png"),      uiFont);
+	TryTo(Draw::LoadFont("Assets/Fonts/21_OldeTome.fontjson",        "Assets/Fonts/21_OldeTome.png"),        fancyFont);
 
-	Assert(fontsLen > 0);
-	activeFontIdx = 0;
-	activeFontLineHeight = Draw::GetFontLineHeight(fonts[activeFontIdx]);
-	Logf("Selected font %u/%u %s with lineHeight = %f", activeFontIdx, fontsLen, Draw::GetFontPath(fonts[activeFontIdx]), activeFontLineHeight);
-
-	// TODO: this needs to be in all gpu resource load functions...I've forgotten to add this and it's repeatedly cost me lotsa debugging time
-	Try(Gpu::ImmediateWait());
+	uiFontLineHeight = Draw::GetFontLineHeight(uiFont);
 
 	mouseMapCoord = MapCoord(0, 0);
 
@@ -391,14 +363,11 @@ Res<> Init(Window::State const* windowState) {
 	Input::Bind(mainBindingSet, Key::Key::S,              Input::BindingType::Continuous, Action_ScrollMapDown,   "");
 	Input::Bind(mainBindingSet, Key::Key::A,              Input::BindingType::Continuous, Action_ScrollMapLeft,   "");
 	Input::Bind(mainBindingSet, Key::Key::D,              Input::BindingType::Continuous, Action_ScrollMapRight,  "");
-	Input::Bind(mainBindingSet, Key::Key::Dot,            Input::BindingType::OnKeyDown,  Action_NextFont,        "");
-	Input::Bind(mainBindingSet, Key::Key::Comma,          Input::BindingType::OnKeyDown,  Action_PrevFont,        "");
-	Input::Bind(mainBindingSet, Key::Key::One,            Input::BindingType::OnKeyDown,  Action_UiFontScale1,        "");
-	Input::Bind(mainBindingSet, Key::Key::Two,            Input::BindingType::OnKeyDown,  Action_UiFontScale2,        "");
-	Input::Bind(mainBindingSet, Key::Key::Three,          Input::BindingType::OnKeyDown,  Action_UiFontScale3,        "");
 	Input::SetBindingSetStack({ mainBindingSet });
 												          
 	state = State::WaitingOrder;
+
+	Try(Gpu::ImmediateWait());
 
 	return Ok();
 }
@@ -600,31 +569,6 @@ Res<> Frame(App::FrameData const* frameData) {
 			case Action_ScrollMapUp:    cam.pos.y -= (CamSpeedPixelsPerSec * secs) / cam.scale; Logf("cam.pos=(%f, %f)", cam.pos.x, cam.pos.y); break;
 			case Action_ScrollMapDown:  cam.pos.y += (CamSpeedPixelsPerSec * secs) / cam.scale; Logf("cam.pos=(%f, %f)", cam.pos.x, cam.pos.y); break;
 
-			case Action_NextFont: {
-				activeFontIdx++;
-				if (activeFontIdx >= fontsLen) {
-					activeFontIdx = 0;
-				}
-				activeFontLineHeight = Draw::GetFontLineHeight(fonts[activeFontIdx]);
-				Logf("Selected font %u/%u %s with lineHeight = %f", activeFontIdx, fontsLen, Draw::GetFontPath(fonts[activeFontIdx]), activeFontLineHeight);
-				break;
-			}
-
-			case Action_PrevFont: {
-				if (activeFontIdx == 0) {
-					activeFontIdx = fontsLen - 1;
-				} else {
-					activeFontIdx--;
-				}
-				activeFontLineHeight = Draw::GetFontLineHeight(fonts[activeFontIdx]);
-				Logf("Selected font %u/%u %s with lineHeight = %f", activeFontIdx, fontsLen, Draw::GetFontPath(fonts[activeFontIdx]), activeFontLineHeight);
-				break;
-			}
-
-			case Action_UiFontScale1: uiFontScale = 1.f; break;
-			case Action_UiFontScale2: uiFontScale = 2.f; break;
-			case Action_UiFontScale3: uiFontScale = 3.f; break;
-
 			default: Panic("Unhandled actionId %u", actionId);
 		}
 	}
@@ -714,8 +658,8 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 			.sprite       = sprite,
 			.pos          = unit->pos,
 			.z            = unit->z,
-			.outlineColor = SelectedColor,
 			.outlineWidth = outlineWidth,
+			.outlineColor = SelectedColor,
 		});
 
 		constexpr F32 HpBarHeight = 2.f;
@@ -729,12 +673,14 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 
 		y -= (HpBarHeight / 2.f);
 		Draw::DrawText({
-			.font   = fonts[activeFontIdx],
-			.str    = SPrintf(tempMem, "%u", unit->id),
-			.pos    = { unit->pos.x, y },
-			.z      = unit->z,
-			.origin = Draw::Origin::BottomCenter,
-			.color  = { 0.8f, 0.8f, 1.f, 1.f },
+			.font         = numberFont,
+			.str          = SPrintf(tempMem, "%u", unit->id),
+			.pos          = { unit->pos.x, y },
+			.z            = unit->z,
+			.origin       = Draw::Origin::BottomCenter,
+			.color        = { 0.8f, 0.8f, 1.f, 1.f },
+			.outlineWidth = 1.f,
+			.outlineColor = { 0.f, 0.f, 0.f, 1.f },
 		});
 	}
 
@@ -769,17 +715,18 @@ Res<> Draw(Gpu::FrameData const* gpuFrameData) {
 	};
 
 	Draw::TextDrawDef textDrawDef = {
-		.font   = fonts[activeFontIdx],
+		.font   = uiFont,
 		.pos    = { windowSize.x - UiPanelWidth + 10.f, 10.f },
 		.z      = Z_Ui,
 		.origin = Draw::Origin::TopLeft,
 		.scale  = { uiFontScale, uiFontScale },
 		.color  = { 1.f, 1.f, 1.f, 1.f },
+
 	};
 	for (U32 i = 0; i < LenOf(lines); i++) {
 		textDrawDef.str = lines[i];
 		Draw::DrawText(textDrawDef);
-		textDrawDef.pos.y += (activeFontLineHeight + 2) * uiFontScale;
+		textDrawDef.pos.y += (uiFontLineHeight + 2) * uiFontScale;
 	}
 
 	Draw::EndFrame();

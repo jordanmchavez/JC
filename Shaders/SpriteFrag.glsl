@@ -16,7 +16,6 @@ layout (location = 0)      out vec4  colorOut;
 
 void main() {
 	uint samplerId = SamplerId_Nearest;
-	//uint samplerId = SamplerId_Linear;
 
 	vec4 tempColorOut;
 	if (textureIdxIn != 0) {
@@ -27,17 +26,16 @@ void main() {
 
 	if (outlineWidthIn > 0.0 && tempColorOut.a < 0.5) {
 		vec2 texelStep = 1.0 / vec2(textureSize(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[samplerId]), 0));
+		vec2 halfTexelStep = texelStep * 0.5;
+
+		vec2 tl = max(uvIn - texelStep, uv1In + halfTexelStep);
+		vec2 br = min(uvIn + texelStep, uv2In - halfTexelStep);
 
 		float maxNeighborAlpha = 0.0;
-		vec2 neighborUV;
-		neighborUV = clamp(uvIn + texelStep * vec2(-1, 0), uv1In, uv2In);
-		maxNeighborAlpha = max(maxNeighborAlpha, texture(nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[samplerId])), neighborUV).a);
-		neighborUV = clamp(uvIn + texelStep * vec2(1, 0), uv1In, uv2In);
-		maxNeighborAlpha = max(maxNeighborAlpha, texture(nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[samplerId])), neighborUV).a);
-		neighborUV = clamp(uvIn + texelStep * vec2(0, -1), uv1In, uv2In);
-		maxNeighborAlpha = max(maxNeighborAlpha, texture(nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[samplerId])), neighborUV).a);
-		neighborUV = clamp(uvIn + texelStep * vec2(0, 1), uv1In, uv2In);
-		maxNeighborAlpha = max(maxNeighborAlpha, texture(nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[samplerId])), neighborUV).a);
+		maxNeighborAlpha = max(maxNeighborAlpha, texture(nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[samplerId])), vec2(tl.x,   uvIn.y)).a);
+		maxNeighborAlpha = max(maxNeighborAlpha, texture(nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[samplerId])), vec2(uvIn.x, tl.y  )).a);
+		maxNeighborAlpha = max(maxNeighborAlpha, texture(nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[samplerId])), vec2(br.x,   uvIn.y)).a);
+		maxNeighborAlpha = max(maxNeighborAlpha, texture(nonuniformEXT(sampler2D(bindlessTextures[textureIdxIn], bindlessSamplers[samplerId])), vec2(uvIn.x, br.y  )).a);
 
 		if (maxNeighborAlpha > 0.0) {
 			tempColorOut = outlineColorIn;
