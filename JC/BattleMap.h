@@ -28,6 +28,8 @@ Res<>   LoadBattleMapDef(Str battleMapDefPath);
 Terrain GetTerrain(Str name);
 Hex     CreateHex(HexDef hexDef);
 void    DestroyHex(Hex hex);
+Hex     GetHexByWorldPos(Vec2 worldPos);
+HexPos  GetHexPos(Hex hex);
 void    HighlightHex(Hex hex);
 void    SelectHex(Hex hex);
 void    Draw();

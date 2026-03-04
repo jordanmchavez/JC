@@ -14,6 +14,7 @@
 #include "JC/Math.h"
 #include "JC/Rng.h"
 #include "JC/Time.h"
+#include "JC/Unit.h"
 #include "JC/Window.h"
 
 namespace JC::Battle {
@@ -22,21 +23,11 @@ namespace JC::Battle {
 
 static constexpr I32  MapCols = 16;
 static constexpr I32  MapRows = 14;
-static constexpr U32  MaxUnitDefs = 64;
-static constexpr U32  MaxUnits = 256;
 static constexpr U32  MaxFonts = 1024;
 static constexpr Vec4 MapBackgroundColor = Vec4(13.f/255.f, 30.f/255.f, 22.f/255.f, 1.f);
 static constexpr F32  UiPanelWidth = 500.f;
 static constexpr Vec4 UiBackgroundColor = Vec4(0.2f, 0.3f, 0.4f, 1.f);
 static constexpr F32  CamSpeedPixelsPerSec = 1000.f;
-
-static constexpr F32 Z_Background   = 0.f;
-static constexpr F32 Z_Map          = 1.f;
-static constexpr F32 Z_MapHighlight = 2.f;
-static constexpr F32 Z_Unit         = 3.f;
-static constexpr F32 Z_UnitSelected = 4.f;
-static constexpr F32 Z_UiBackground = 5.f;
-static constexpr F32 Z_Ui           = 6.f;
 
 static constexpr U64 Action_Exit            = 1;
 static constexpr U64 Action_Click           = 2;
@@ -46,32 +37,6 @@ static constexpr U64 Action_ScrollMapLeft   = 5;
 static constexpr U64 Action_ScrollMapRight  = 6;
 static constexpr U64 Action_ScrollMapUp     = 7;
 static constexpr U64 Action_ScrollMapDown   = 8;
-
-static constexpr U32 MaxSpriteAnimationFrames = 16;
-struct AnimationDef {
-	Draw::Sprite frameSprites[MaxSpriteAnimationFrames];
-	F32          frameDurSecs[MaxSpriteAnimationFrames];
-	U32          frameLen = 0;
-};
-
-struct UnitDef {
-	Draw::Sprite sprite;
-	Vec2         size;
-	U32          maxHp = 0;
-	AnimationDef attackAnimationDef;
-};
-
-struct Unit {
-	U64                 id = 0;
-	bool                alive = false;
-	UnitDef const*      unitDef = nullptr;
-	Vec2                pos;
-	F32                 z = Z_Unit;
-	U32                 hp = 0;
-	AnimationDef const* activeAnimationDef;
-	U16                 animationFrame = 0;
-	F32                 animationFrameElapsedSecs = 0.f;
-};
 
 enum struct State {
 	WaitingOrder,
@@ -91,21 +56,26 @@ enum struct AttackOrderState {
 	MovingBack,
 };
 
+struct MapTile {
+	BMap::Hex   hex;
+	Unit::Unit* unit;
+};
+
 struct MoveOrder {
-	F32      elapsedSecs;
-	F32      durSecs;
-	Unit*    unit;
-	BMap::Hex startMapTile;
-	BMap::Hex endMapTile;
+	F32         elapsedSecs;
+	F32         durSecs;
+	Unit::Unit* unit;
+	MapTile*    startMapTile;
+	MapTile*    endMapTile;
 };
 
 struct AttackOrder {
 	AttackOrderState attackOrderState;
 	F32              elapsedSecs;
 	F32              durSecs;
-	BMap::Hex        unitMapTile;
-	Unit*            unit;
-	Unit*            targetUnit;
+	MapTile*         unitMapTile;
+	Unit::Unit*      unit;
+	Unit::Unit*      targetUnit;
 	Vec2             targetPos;
 };
 
@@ -117,14 +87,7 @@ struct Order {
 
 static Mem               permMem;
 static Mem               tempMem;
-static UnitDef           unitDefs[MaxUnitDefs];
-static U32               unitDefsLen;
-static U64               nextUnitId = 1;
-static UnitDef*          spearmenUnitDef;
-static Unit              units[MaxUnits];
-static U32               unitsLen;
 static State             state;
-static Unit*             selectedUnit;
 static Order             order;
 static Vec2              windowSize;
 static Input::BindingSet mainBindingSet;
@@ -136,16 +99,6 @@ static Draw::Font        fancyFont;
 static F32               fancyFontScale = 2.f;
 static Draw::Camera      camera;
 
-
-//--------------------------------------------------------------------------------------------------
-
-static Unit* AllocUnit() {
-	Assert(unitsLen < MaxUnits);
-	Unit* const unit = &units[unitsLen++];
-	unit->id = nextUnitId;
-	nextUnitId++;
-	return unit;
-}
 
 //--------------------------------------------------------------------------------------------------
 
@@ -165,7 +118,6 @@ Res<> Init(Window::State const* windowState) {
 
 	camera.pos = { 0.f, 0.f };
 	camera.scale = 3.f;
-
 
 	TryTo(Draw::LoadFontDef("Assets/Fonts/8_EverydayStandard.fontDef"), numberFont);
 	TryTo(Draw::LoadFontDef("Assets/Fonts/10_CelticTime.fontDef"),      uiFont);
@@ -191,58 +143,58 @@ Res<> Init(Window::State const* windowState) {
 }
 
 //--------------------------------------------------------------------------------------------------
-/*
+
+static BMap::HexPos mouseHexPos;
+static MapTile mapTiles[MapCols * MapRows];
+static Vec2        mouseWorldPos;
+static MapTile*    selectedMapTile;
+
 static void HandleLeftClick() {
-	if (mouseMapCoord.col < 0 || mouseMapCoord.col >= MapCols || mouseMapCoord.row < 0 || mouseMapCoord.row >= MapRows) {
+	BMap::Hex const clickedHex = BMap::GetHexByWorldPos(mouseWorldPos);
+	if (!clickedHex) {
 		return;
 	}
+	BMap::HexPos clickedHexPos = BMap::GetHexPos(clickedHex);
+	MapTile* const clickedMapTile = &mapTiles[clickedHexPos.col + clickedHexPos.row * MapCols];
 
-	MapTile* const clickedMapTile = &mapTiles[mouseMapCoord.col + mouseMapCoord.row * MapCols];
 	if (state == State::WaitingOrder) {
-		if (!selectedUnit) {
-			Assert(!selectedMapTile);
+		if (!selectedMapTile) {
 			if (clickedMapTile->unit) {
-				selectedUnit = clickedMapTile->unit;
-				selectedUnit->z = Z_UnitSelected;
 				selectedMapTile = clickedMapTile;
-				Logf("Selected unit (%i, %i)", clickedMapTile->mapCoord.col, clickedMapTile->mapCoord.row);
+				Logf("Selected map tile (%i, %i)", clickedHexPos.col, clickedHexPos.row);
 			} else {
 				Logf("Ignoring click on empty map tile");
 			}
 			return;
 		}
 
-		if (selectedUnit) {
-			Assert(selectedMapTile);
-			if (clickedMapTile->unit == selectedUnit) {
-				Logf("Deselected unit");
-				selectedUnit = nullptr;
-				selectedMapTile = nullptr;
-				return;
+		Assert(selectedMapTile->unit);
+		if (clickedMapTile == selectedMapTile) {
+			Logf("Deselected map tile");
+			selectedMapTile = nullptr;
+			return;
+		}
+		if (clickedMapTile->unit) {
+			Vec2 const targetUnitPos  = clickedMapTile->unit->pos;
+			Vec2 const targetUnitSize = Math::Scale(clickedMapTile->unit->unitDef->size, 0.5f);
+
+			order.orderType = OrderType::Attack;
+			order.attackOrder.attackOrderState = AttackOrderState::MovingTo;
+			order.attackOrder.elapsedSecs      = 0.f;
+			order.attackOrder.durSecs          = 0.5f;
+			order.attackOrder.unitMapTile      = selectedMapTile;
+			order.attackOrder.unit             = selectedUnit;
+			order.attackOrder.targetUnit       = clickedHex->unit;
+			bool intersected = Math::IntersectLineSegmentAabb(selectedUnit->pos, targetUnitPos, Math::Sub(targetUnitPos, targetUnitSize), Math::Add(targetUnitPos, targetUnitSize), &order.attackOrder.targetPos);
+			Assert(intersected);
+			if (!intersected) {
+				order.attackOrder.targetPos = targetUnitPos;
 			}
-			if (clickedMapTile->unit) {
-				Vec2 const targetUnitPos  = clickedMapTile->unit->pos;
-				Vec2 const targetUnitSize = Math::Scale(clickedMapTile->unit->unitDef->size, 0.5f);
 
-				order.orderType = OrderType::Attack;
-				order.attackOrder.attackOrderState = AttackOrderState::MovingTo;
-				order.attackOrder.elapsedSecs      = 0.f;
-				order.attackOrder.durSecs          = 0.5f;
-				order.attackOrder.unitMapTile      = selectedMapTile;
-				order.attackOrder.unit             = selectedUnit;
-				order.attackOrder.targetUnit       = clickedMapTile->unit;
-				bool intersected = Math::IntersectLineSegmentAabb(selectedUnit->pos, targetUnitPos, Math::Sub(targetUnitPos, targetUnitSize), Math::Add(targetUnitPos, targetUnitSize), &order.attackOrder.targetPos);
-				Assert(intersected);
-				if (!intersected) {
-					order.attackOrder.targetPos = targetUnitPos;
-				}
+			state = State::ExecutingOrder;
 
-				state = State::ExecutingOrder;
-
-				Logf("Executing attack order");
-
-				return;
-			}
+			Logf("Executing attack order");
+		} else {
 
 			selectedMapTile->unit = nullptr;
 
@@ -251,9 +203,9 @@ static void HandleLeftClick() {
 			order.moveOrder.durSecs      = 1.f;
 			order.moveOrder.unit         = selectedUnit;
 			order.moveOrder.startMapTile = selectedMapTile;
-			order.moveOrder.endMapTile   = clickedMapTile;
+			order.moveOrder.endMapTile   = clickedHex;
 
-			selectedMapTile = clickedMapTile;
+			selectedMapTile = clickedHex;
 
 			state = State::ExecutingOrder;
 
@@ -354,7 +306,7 @@ static void ExecuteAttackOrder(F32 secs) {
 		default: Panic("Unhandled AttackOrderState %u", (U32)attackOrder->attackOrderState);
 	}
 }
-*/
+
 //--------------------------------------------------------------------------------------------------
 
 Res<> Frame(App::FrameData const* frameData, Draw::Camera* cameraOut) {
@@ -407,12 +359,6 @@ Res<> Frame(App::FrameData const* frameData, Draw::Camera* cameraOut) {
 		(mousePos.x / camera.scale) + camera.pos.x,
 		(mousePos.y / camera.scale) + camera.pos.y,
 	};
-	mouseMapCoord = ScreenPosToMapCoord(canvasMousePos);
-	if (mouseMapCoord.col >= 0 && mouseMapCoord.col < MapCols && mouseMapCoord.row >= 0 && mouseMapCoord.row < MapRows) {
-		hoverMapTile = &mapTiles[mouseMapCoord.col + mouseMapCoord.row * MapCols];
-	} else {
-		hoverMapTile = nullptr;
-	}
 
 	if (state == State::ExecutingOrder) {
 		switch (order.orderType) {
@@ -421,7 +367,7 @@ Res<> Frame(App::FrameData const* frameData, Draw::Camera* cameraOut) {
 			default: Panic("Unhandled OrderType %u", (U32)order.orderType);
 		}
 	}
-	*/
+
 	*cameraOut = camera;
 
 	return Ok();
