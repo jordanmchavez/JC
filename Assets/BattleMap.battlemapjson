@@ -1,0 +1,39 @@
+{
+	spriteAtlasJsonPaths: [
+		"Assets/Terrain.spriteatlasjson",
+	],
+	borderSprite: "Hex32_Border",
+	highlightSprite: "Hex32_Highlight",
+	terrain: [
+		{
+			name: "Grassland",
+			sprite: "Hex32_Grassland",
+			moveCost: 1,
+		},
+		{
+			name: "Forest",
+			sprite: "Hex32_Forest",
+			moveCost: 2,
+		},
+		{
+			name: "Swamp",
+			sprite: "Hex32_Swamp",
+			moveCost: 3,
+		},
+		{
+			name: "Hill",
+			sprite: "Hex32_Hill",
+			moveCost: 2,
+		},
+		{
+			name: "Mountain",
+			sprite: "Hex32_Mountain",
+			moveCost: 0,
+		},
+		{
+			name: "Water",
+			sprite: "Hex32_Water",
+			moveCost: 0,
+		},
+	],
+}

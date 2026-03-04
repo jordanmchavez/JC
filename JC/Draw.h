@@ -79,10 +79,10 @@ struct CanvasDrawDef {
 Res<>       Init(InitDef const* initDef);
 void        Shutdown();
 Res<>       ResizeWindow(U32 width, U32 height);
-Res<>       LoadSpriteAtlasDef(Str spriteAtlasDefPath);
+Res<>       LoadSpriteAtlasJson(Str spriteAtlasJsonPath);
 Res<Sprite> GetSprite(Str name);
 Vec2        GetSpriteSize(Sprite sprite);
-Res<Font>   LoadFontDef(Str fontDefPath);
+Res<Font>   LoadFontJson(Str fontJsonPath);
 Str         GetFontPath(Font font);
 F32         GetFontLineHeight(Font font);
 Res<Canvas> CreateCanvas(U32 width, U32 height);

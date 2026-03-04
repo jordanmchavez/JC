@@ -41,7 +41,7 @@ static constexpr U32 ErrorImageSize   = 64;
 //--------------------------------------------------------------------------------------------------
 
 struct SpriteAtlas {
-	Str        defPath;
+	Str        path;
 	Gpu::Image image;
 	U32        imageIdx = 0;
 };
@@ -301,65 +301,70 @@ static Res<Gpu::Image> LoadImage(Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
-struct SpriteDef {
+struct SpriteJson {
 	U32 x = 0;
 	U32 y = 0;
 	U32 w = 0;
 	U32 h = 0;
 	Str name;
 };
-Json_Begin(SpriteDef)
+Json_Begin(SpriteJson)
 	Json_Member("x",    x)
 	Json_Member("y",    y)
 	Json_Member("w",    w)
 	Json_Member("h",    h)
 	Json_Member("name", name)
-Json_End(SpriteDef)
+Json_End(SpriteJson)
 
-struct SpriteAtlasDef {
-	Str             imagePath;
-	Span<SpriteDef> sprites;
+struct SpriteAtlasJson {
+	Str              imagePath;
+	Span<SpriteJson> sprites;
 };
-Json_Begin(SpriteAtlasDef)
+Json_Begin(SpriteAtlasJson)
 	Json_Member("imagePath", imagePath)
 	Json_Member("sprites",   sprites)
-Json_End(SpriteAtlasDef)
+Json_End(SpriteAtlasJson)
 
-Res<> LoadSpriteAtlasDef(Str spriteAtlasDefPath) {
+Res<> LoadSpriteAtlasJson(Str spriteAtlasJsonPath) {
+	for (U32 i = 0; i < spriteAtlasesLen; i++) {
+		if (File::PathsEq(spriteAtlasJsonPath, spriteAtlases[i].path)) {
+			return Ok();
+		}
+	}
 	Assert(spriteAtlasesLen < MaxSpriteAtlases);
 
-	Span<char> json; TryTo(File::ReadAllZ(spriteAtlasDefPath), json);
-	SpriteAtlasDef spriteAtlasDef; Try(Json::ToObject(tempMem, tempMem, json.data, (U32)json.len, &spriteAtlasDef));
+	Span<char> json; TryTo(File::ReadAllZ(spriteAtlasJsonPath), json);
+	SpriteAtlasJson spriteAtlasJson; Try(Json::ToObject(tempMem, tempMem, json.data, (U32)json.len, &spriteAtlasJson));
 
-	Gpu::Image image; TryTo(LoadImage(spriteAtlasDef.imagePath), image);
+	Gpu::Image image; TryTo(LoadImage(spriteAtlasJson.imagePath), image);
 	U32 const imageIdx    = Gpu::GetImageBindIdx(image);
 	F32 const imageWidth  = (F32)Gpu::GetImageWidth(image);
 	F32 const imageHeight = (F32)Gpu::GetImageHeight(image);
 	spriteAtlases[spriteAtlasesLen++] = {
-		.defPath  = StrDb::Intern(spriteAtlasDefPath),
+		.path     = StrDb::Intern(spriteAtlasJsonPath),
 		.image    = image,
 		.imageIdx = imageIdx,
 	};
 
-	Assert(spriteObjsLen + spriteAtlasDef.sprites.len <= MaxSprites);
-	for (U64 i = 0; i < spriteAtlasDef.sprites.len; i++) {
-		SpriteDef* const spriteDef = &spriteAtlasDef.sprites[i];
-		if (spriteObjsByName.FindOrNull(spriteDef->name)) {
-			return Err_DuplicateSpriteName("path", spriteAtlasDefPath, "name", spriteDef->name);
+	Assert(spriteObjsLen + spriteAtlasJson.sprites.len <= MaxSprites);
+	for (U64 i = 0; i < spriteAtlasJson.sprites.len; i++) {
+		SpriteJson* const spriteJson = &spriteAtlasJson.sprites[i];
+		if (spriteObjsByName.FindOrNull(spriteJson->name)) {
+			return Err_DuplicateSpriteName("path", spriteAtlasJsonPath, "name", spriteJson->name);
 		}
-		F32 const x = (F32)spriteDef->x;
-		F32 const y = (F32)spriteDef->y;
-		F32 const w = (F32)spriteDef->w;
-		F32 const h = (F32)spriteDef->h;
+		F32 const x = (F32)spriteJson->x;
+		F32 const y = (F32)spriteJson->y;
+		F32 const w = (F32)spriteJson->w;
+		F32 const h = (F32)spriteJson->h;
 
-		spriteObjsByName.Put(spriteDef->name, spriteObjsLen);
+		spriteObjsByName.Put(spriteJson->name, spriteObjsLen);
 		spriteObjs[spriteObjsLen++] = {
 			.imageIdx  = imageIdx,
 			.uv1       = { x / imageWidth, y / imageHeight },
 			.uv2       = { (x + w) / imageWidth, (y + h) / imageHeight },
 			.size      = { w, h },
 			.texelSize = { 1.f / imageWidth, 1.f / imageHeight },
-			.name      = spriteDef->name,
+			.name      = spriteJson->name,	// Json interns this for us
 		};
 	}
 	return Ok();
@@ -384,7 +389,7 @@ Vec2 GetSpriteSize(Sprite sprite) {
 
 //--------------------------------------------------------------------------------------------------
 
-struct GlyphDef {
+struct GlyphJson {
 	U32 x;
 	U32 y;
 	U32 w;
@@ -394,7 +399,7 @@ struct GlyphDef {
 	U32 xAdv;
 	U32 ch;
 };
-Json_Begin(GlyphDef)
+Json_Begin(GlyphJson)
 	Json_Member("x",    x)
 	Json_Member("y",    y)
 	Json_Member("w",    w)
@@ -403,57 +408,58 @@ Json_Begin(GlyphDef)
 	Json_Member("yOff", yOff)
 	Json_Member("xAdv", xAdv)
 	Json_Member("ch",   ch)
-Json_End(GlyphDef)
+Json_End(GlyphJson)
 
-struct FontDef {
-	Str            imagePath;
-	U32            lineHeight;
-	U32            base;
-	Span<GlyphDef> glyphs;
+struct FontJson {
+	Str             imagePath;
+	U32             lineHeight;
+	U32             base;
+	Span<GlyphJson> glyphs;
 };
-Json_Begin(FontDef)
+Json_Begin(FontJson)
+	Json_Member("imagePath",  imagePath)
 	Json_Member("lineHeight", lineHeight)
 	Json_Member("base",       base)
 	Json_Member("glyphs",     glyphs)
-Json_End(FontDef)
+Json_End(FontJson)
 
-Res<Font> LoadFontDef(Str fontDefPath) {
+Res<Font> LoadFontJson(Str fontJsonPath) {
 	Assert(fontObjsLen < MaxFonts);
 
-	Span<char> json; TryTo(File::ReadAllZ(fontDefPath), json);
-	FontDef fontDef; Try(Json::ToObject(tempMem, tempMem, json.data, (U32)json.len, &fontDef));
+	Span<char> json; TryTo(File::ReadAllZ(fontJsonPath), json);
+	FontJson fontJson; Try(Json::ToObject(tempMem, tempMem, json.data, (U32)json.len, &fontJson));
 
 
-	Gpu::Image image; TryTo(LoadImage(fontDef.imagePath), image);
+	Gpu::Image image; TryTo(LoadImage(fontJson.imagePath), image);
 	U32 const imageIdx    = Gpu::GetImageBindIdx(image);
 	F32 const imageWidth  = (F32)Gpu::GetImageWidth(image);
 	F32 const imageHeight = (F32)Gpu::GetImageHeight(image);
 
 	FontObj* const fontObj = &fontObjs[fontObjsLen++];
-	fontObj->path       = StrDb::Intern(fontDefPath);
+	fontObj->path       = StrDb::Intern(fontJsonPath);
 	fontObj->image      = image;
 	fontObj->imageIdx   = imageIdx;
-	fontObj->lineHeight = (F32)fontDef.lineHeight;
-	fontObj->base       = (F32)fontDef.base;
+	fontObj->lineHeight = (F32)fontJson.lineHeight;
+	fontObj->base       = (F32)fontJson.base;
 	fontObj->texelSize  = { 1.f / imageWidth, 1.f / imageHeight };
 
-	for (U64 i = 0; i < fontDef.glyphs.len; i++) {
-		GlyphDef const* const glyphDef = &fontDef.glyphs[i];
+	for (U64 i = 0; i < fontJson.glyphs.len; i++) {
+		GlyphJson const* const glyphJson = &fontJson.glyphs[i];
 		// TODO: more validation, here and in sprite
-		if (glyphDef->ch >= MaxGlyphs) {
-			//Errorf("Ignoring out-of-range font character '%c' (%u) in %s", (char)glyphDef->ch, glyphDef->ch, fontPath);
+		if (glyphJson->ch >= MaxGlyphs) {
+			//Errorf("Ignoring out-of-range font character '%c' (%u) in %s", (char)glyphJson->ch, glyphJson->ch, fontPath);
 		}
-		F32 const x = (F32)glyphDef->x;
-		F32 const y = (F32)glyphDef->y;
-		F32 const w = (F32)glyphDef->w;
-		F32 const h = (F32)glyphDef->h;
-		fontObj->glyphs[glyphDef->ch] = {
+		F32 const x = (F32)glyphJson->x;
+		F32 const y = (F32)glyphJson->y;
+		F32 const w = (F32)glyphJson->w;
+		F32 const h = (F32)glyphJson->h;
+		fontObj->glyphs[glyphJson->ch] = {
 			.imageIdx = imageIdx,
 			.uv1      = { x / imageWidth, y / imageHeight },
 			.uv2      = { (x + w) / imageWidth, (y + h) / imageHeight },
 			.size     = { w, h },
-			.off      = { (F32)glyphDef->xOff, (F32)glyphDef->yOff },
-			.xAdv     = (F32)glyphDef->xAdv,
+			.off      = { (F32)glyphJson->xOff, (F32)glyphJson->yOff },
+			.xAdv     = (F32)glyphJson->xAdv,
 		};
 	}
 	for (U16 i = 0; i < 32; i++) {

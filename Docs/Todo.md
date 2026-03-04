@@ -317,3 +317,9 @@ make all perm arrays use the perm allocator
 - Use u32 for all Max sizes instead of U16. if we ever change max size to exceed a u16 boundary, we have to change teh corresponding *Len field as well, error prone. Same problem for loop indexes.
 - explicitly initialize static local vars to zero?
 - rename forestwalk and friends
+- reorder vars in major .cpp files like Draw
+- Json errors are not useful because they don't include the path
+	- Either use Json::FileToObj and Json::FileToArray so we have the path, or stack the errors
+- Json missing close quote gives the END OF FILE as position. store opening quote in parse ctx
+- Log error on Err::MakeV break
+	- but be careful of recursion

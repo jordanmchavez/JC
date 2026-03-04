@@ -9,7 +9,16 @@ namespace JC::Unit {
 //--------------------------------------------------------------------------------------------------
 
 static constexpr U32 MaxUnitAnimationFrames = 16;
-static constexpr U32 MaxUnitAnimations = 16;
+static constexpr U32 MaxUnitAnimations      = 16;
+
+namespace Side {
+	enum Enum {
+		Invalid = 0,
+		Left,
+		Right,
+		Max
+	};
+};
 
 struct UnitAnimationFrame {
 	Draw::Sprite sprite;
@@ -26,24 +35,27 @@ struct UnitDef {
 	Draw::Sprite  sprite;
 	Vec2          size;
 	U32           maxHp;
+	U32           maxMove;
 	U32           damage;
 	UnitAnimation animations[MaxUnitAnimations];
 	U32           animationsLen;
 };
 
 struct Unit {
-	UnitDef const* unitDef;
-	U32            hp;
+	UnitDef const* def;
+	Side::Enum     side;
 	Vec2           pos;
+	U32            hp;
+	U32            move;
 	U32            activeAnimationIdx;
 	F32            activeAnimationSec;
-	U32            outlineSize;
-	Vec4           outlineColor;
+	bool           outline;
+	Unit*          next;
 };
 
 Res<>          LoadUnitFile(Str unitFilePath);
 UnitDef const* GetUnitDef(Str name);
-Unit*          CreateUnit(UnitDef unitDef);
+Unit*          CreateUnit(UnitDef unitDef, Side::Enum side, Vec2 pos);
 void           DestroyUnit(Unit* unit);
 void           Frame(F32 sec);
 void           Draw(F32 z);

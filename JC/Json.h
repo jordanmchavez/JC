@@ -2,6 +2,7 @@
 
 #include "JC/Common.h"
 
+// Json will automatically intern all strings in the sources file
 namespace JC::Json {
 
 //--------------------------------------------------------------------------------------------------

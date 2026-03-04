@@ -1,3 +1,19 @@
+unit movement points
+terrain move cost
+pathfinding
+auto next unit
+early turn done
+unit army-side facing / flags or colors
+
+
+
+
+
+
+
+
+
+
 # Battle Layer — Implementation Spec
 
 ## 1. Scope

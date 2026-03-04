@@ -1,5 +1,6 @@
 #include "JC/App.h"
 
+#include "JC/BattleMap.h"
 #include "JC/Cfg.h"
 #include "JC/Draw.h"
 #include "JC/Effect.h"
@@ -11,6 +12,7 @@
 #include "JC/StrDb.h"
 #include "JC/Sys.h"
 #include "JC/Time.h"
+#include "JC/Unit.h"
 #include "JC/UnitTest.h"
 #include "JC/Window.h"
 
@@ -103,6 +105,8 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 	};
 	Try(Draw::Init(&drawInitDef));
 
+	BMap::Init(permMem, tempMem);
+	//Unit::Init();
 	Effect::Init(permMem);
 
 	Try(app->Init(&windowState));
@@ -173,7 +177,8 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 		Try(app->Draw());
 
 		Draw::SetCamera(camera);
-		Effect::Draw();
+		BMap::Draw(1.f);
+		Effect::Draw(2.f);
 
 		Draw::EndFrame();
 		

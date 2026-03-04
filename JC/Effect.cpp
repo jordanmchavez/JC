@@ -9,7 +9,6 @@ namespace JC::Effect {
 //--------------------------------------------------------------------------------------------------
 
 static constexpr U32 MaxFloatingStrs = 256;
-static constexpr F32 Z_Effect = 6.f;
 
 struct FloatingStr {
 	Draw::Font font;
@@ -63,7 +62,7 @@ void Frame(F32 sec) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Draw() {
+void Draw(F32 z) {
 	for (U32 i = 0; i < floatingStrsLen; i++) {
 		FloatingStr* const fs = &floatingStrs[i];
 		F32 const y = fs->yStart - fs->t * (fs->yStart - fs->yEnd);
@@ -71,7 +70,7 @@ void Draw() {
 			.font = fs->font,
 			.str = fs->str,
 			.pos = Vec2(fs->x, y),
-			.z   = Z_Effect,
+			.z   = z,
 			.origin = Draw::Origin::Center,
 			.scale = Vec2(1.f, 1.f),
 			.color = Vec4(1.f, 0.f, 0.f, 1.f - (fs->t * fs->t)),

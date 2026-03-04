@@ -357,7 +357,7 @@ template <class T> struct [[nodiscard]] Res {
 	constexpr Res(T v) { val = v; hasVal = true;  }	// implicit
 	constexpr Res(Err const* e) { err = e; hasVal = false; }	// implicit
 	constexpr Res(const Res<T>&) = default;
-	constexpr operator bool() const { return hasVal; }
+	constexpr explicit operator bool() const { return hasVal; }
 	constexpr Res<> To(T& out) { if (hasVal) { out = val; return Res<>{}; } return Res<>(err); }
 	constexpr T Or(T def) { return hasVal ? val : def; }
 };

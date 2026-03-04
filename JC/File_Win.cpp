@@ -177,6 +177,39 @@ Str RemoveExt(Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
+// returns true if path1 and path2 are the same windows path
+// both can be relative
+// both can be absolute
+// if one is relative and the other is absolute, then always false
+bool PathsEq(Str path1, Str path2) {
+	auto IsAbsolute = [](Str p) -> bool {
+		if (p.len >= 3 && p[1] == ':' && (p[2] == '/' || p[2] == '\\')) {
+			return true;  // drive-letter: C:\ or C:/
+		}
+		if (p.len >= 2 && (p[0] == '\\' || p[0] == '/') && (p[1] == '\\' || p[1] == '/')) {
+			return true;  // UNC: \\ or //
+		}
+		return false;
+	};
+
+	if (IsAbsolute(path1) != IsAbsolute(path2)) {
+		return false;
+	}
+
+	wchar_t buf1[MAX_PATH];
+	wchar_t buf2[MAX_PATH];
+	DWORD const len1 = GetFullPathNameW(Unicode::Utf8ToWtf16z(tempMem, path1).data, MAX_PATH, buf1, nullptr);
+	DWORD const len2 = GetFullPathNameW(Unicode::Utf8ToWtf16z(tempMem, path2).data, MAX_PATH, buf2, nullptr);
+
+	if (len1 == 0 || len2 == 0 || len1 >= MAX_PATH || len2 >= MAX_PATH) {
+		return false;
+	}
+
+	return CompareStringOrdinal(buf1, (int)len1, buf2, (int)len2, TRUE) == CSTR_EQUAL;
+}
+
+//--------------------------------------------------------------------------------------------------
+
 Unit_Test("File") {
 	Unit_SubTest("RemoveExt") {
 		Unit_CheckEq(RemoveExt(""), "");
@@ -191,6 +224,20 @@ Unit_Test("File") {
 		Unit_CheckEq(RemoveExt("file.tar.gz"), "file.tar");
 		Unit_CheckEq(RemoveExt(".hidden"), "");
 		Unit_CheckEq(RemoveExt("path/.hidden"), "path/");
+	}
+
+	Unit_SubTest("PathsEq") {
+		Unit_CheckEq(PathsEq("foo/bar.txt",          "foo/bar.txt"),          true);
+		Unit_CheckEq(PathsEq("foo/bar.txt",          "foo\\bar.txt"),         true);
+		Unit_CheckEq(PathsEq("foo/./bar.txt",        "foo/bar.txt"),          true);
+		Unit_CheckEq(PathsEq("foo/baz/../bar.txt",   "foo/bar.txt"),          true);
+		Unit_CheckEq(PathsEq("foo/bar.txt",          "foo/BAR.TXT"),          true);
+		Unit_CheckEq(PathsEq("foo/bar.txt",          "foo/baz.txt"),          false);
+		Unit_CheckEq(PathsEq("C:/foo/bar.txt",       "C:\\foo\\bar.txt"),     true);
+		Unit_CheckEq(PathsEq("C:/foo/bar.txt",       "c:\fOo/BaR.TXT"),       true);
+		Unit_CheckEq(PathsEq("C:/foo/baz/../bar.txt","C:/foo/bar.txt"),       true);
+		Unit_CheckEq(PathsEq("C:/foo/bar.txt",       "foo/bar.txt"),          false);  // abs vs rel
+		Unit_CheckEq(PathsEq("C:",                   "c:/"),                  true); 
 	}
 }
 

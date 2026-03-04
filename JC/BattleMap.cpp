@@ -2,11 +2,16 @@
 
 #include "JC/Draw.h"
 #include "JC/File.h"
+#include "JC/Hash.h"
 #include "JC/Json.h"
+#include "JC/Log.h"
+#include "JC/Map.h"
 
 namespace JC::BMap {
 
 //--------------------------------------------------------------------------------------------------
+
+DefErr(BMap, UnknownTerrain);
 
 static constexpr U32 HexSize     = 32;
 static constexpr U32 MaxTerrains = 128;
@@ -15,30 +20,30 @@ static constexpr U32 MaxHexes    = 4096;	// 64x64
 struct TerrainObj {
 	Str          name;
 	Draw::Sprite sprite;
-	Vec4         color;
 	U32          moveCost;
 };
 
 struct HexObj {
 	TerrainObj const* terrainObj;
 	HexPos            pos;
+	bool              border;
+	Vec4              borderColor;
+	bool              highlight;
+	Vec4              highlightColor;
 };
 
-static Mem          tempMem;
-static U8           hexLut[(HexSize / 2) * (HexSize * 3 / 8)];
-static TerrainObj*  terrainObjs;
-static U32          terrainObjsLen;
-static HexObj*      hexObjs;
-static U32          hexObjsLen;
-static Draw::Sprite highlightedHexSprite;
-static Vec4         highlightedHexColor;
-static HexObj*      highlightedHexObj;
-static Draw::Sprite selectedHexSprite;
-static Vec4         selectedHexColor;
-static HexObj*      selectedHexObj;
+static Mem           tempMem;
+static U8            hexLut[(HexSize / 2) * (HexSize * 3 / 8)];
+static TerrainObj*   terrainObjs;
+static U32           terrainObjsLen;
+static Map<Str, U32> terrainMap;
+static HexObj*       hexObjs;
+static U32           hexObjsLen;
+static Draw::Sprite  borderSprite;
+static Draw::Sprite  highlightSprite;
 
 //--------------------------------------------------------------------------------------------------
-
+/*
 static HexPos ScreenPosToHexPos(Vec2 p) {
 	I32 iy = (I32)p.y;
 	I32 row = iy / (HexSize * 3 / 4);
@@ -61,7 +66,7 @@ static HexPos ScreenPosToHexPos(Vec2 p) {
 	}
 	return { .col = (I16)col, .row = (I16)row };
 }
-
+/*/
 
 //--------------------------------------------------------------------------------------------------
 
@@ -87,6 +92,7 @@ void Init(Mem permMem, Mem tempMemIn) {
 	tempMem        = tempMemIn;
 	terrainObjs    = Mem::AllocT<TerrainObj>(permMem, MaxTerrains);
 	terrainObjsLen = 1;	// reserve 0 for invalid
+	terrainMap.Init(permMem, MaxTerrains);
 	hexObjs        = Mem::AllocT<HexObj>    (permMem, MaxHexes);
 	hexObjsLen     = 1;	// reserve 0 for invalid
 	InitLut();
@@ -94,95 +100,126 @@ void Init(Mem permMem, Mem tempMemIn) {
 
 //--------------------------------------------------------------------------------------------------
 
-struct ColorDef { F32 r, g, b, a; };
-Json_Begin(ColorDef)
-	Json_Member("r", r)
-	Json_Member("g", g)
-	Json_Member("b", b)
-	Json_Member("a", a)
-Json_End(ColorDef)
-
-struct SpecialMoveCostDef {
-	Str ability;
+struct TerrainJson {
+	Str name;
+	Str sprite;
 	U32 moveCost;
 };
-Json_Begin(SpecialMoveCostDef)
-	Json_Member("ability",  ability)
+Json_Begin(TerrainJson)
+	Json_Member("name",     name)
+	Json_Member("sprite",   sprite)
 	Json_Member("moveCost", moveCost)
-Json_End(SpecialMoveCostDef)
+Json_End(TerrainJson)
 
-struct TerrainDef {
-	Str                      name;
-	Str                      sprite;
-	ColorDef                 color;
-	U32                      moveCost;
-	Span<SpecialMoveCostDef> specialMoveCosts;
+struct BattleMapJson {
+	Span<Str>         spriteAtlasJsonPaths;
+	Str               borderSprite;
+	Str               highlightSprite;
+	Span<TerrainJson> terrain;
 };
-Json_Begin(TerrainDef)
-	Json_Member("name",             name)
-	Json_Member("sprite",           sprite)
-	Json_Member("color",            color)
-	Json_Member("moveCost",         moveCost)
-	Json_Member("specialMoveCosts", specialMoveCosts)
-Json_End(TerrainDef)
-
-struct BattleMapDef {
-	Span<Str>        spriteAtlasDefPaths;
-	Str              highlightedHexSprite;
-	ColorDef         highlightedHexColor;
-	Str              selectedHexSprite;
-	ColorDef         selectedHexColor;
-	Span<TerrainDef> terrainDefs;
-};
-Json_Begin(BattleMapDef)
-	Json_Member("spriteAtlasDefPaths",  spriteAtlasDefPaths)
-	Json_Member("highlightedHexSprite", highlightedHexSprite)
-	Json_Member("highlightedHexColor",  highlightedHexColor)
-	Json_Member("selectedHexSprite",    selectedHexSprite)
-	Json_Member("selectedHexColor",     selectedHexColor)
-	Json_Member("terrainDefs",          terrainDefs)
-Json_End(BattleMapDef)
+Json_Begin(BattleMapJson)
+	Json_Member("spriteAtlasJsonPaths", spriteAtlasJsonPaths)
+	Json_Member("borderSprite",         borderSprite)
+	Json_Member("highlightSprite",      highlightSprite)
+	Json_Member("terrain",              terrain)
+Json_End(BattleMapJson)
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> LoadBattleMapDef(Str battleMapDefPath) {
-	Span<char> json; TryTo(File::ReadAllZ(battleMapDefPath), json);
-	BattleMapDef battleMapDef; Try(Json::ToObject(tempMem, tempMem, json.data, (U32)json.len, &battleMapDef));
+Res<> LoadBattleMapJson(Str battleMapJsonPath) {
+	Span<char> json; TryTo(File::ReadAllZ(battleMapJsonPath), json);
+	BattleMapJson battleMapJson; Try(Json::ToObject(tempMem, tempMem, json.data, (U32)json.len, &battleMapJson));
 
-	for (U64 i = 0; i < battleMapDef.spriteAtlasDefPaths.len; i++) {
-		Try(Draw::LoadSpriteAtlasDef(battleMapDef.spriteAtlasDefPaths[i]));
+	for (U64 i = 0; i < battleMapJson.spriteAtlasJsonPaths.len; i++) {
+		Try(Draw::LoadSpriteAtlasJson(battleMapJson.spriteAtlasJsonPaths[i]));
 	}
-	battleMapDef.highlightedHexSprite;
-	battleMapDef.highlightedHexColor;
-	battleMapDef.selectedHexSprite;
-	battleMapDef.selectedHexColor;
-	battleMapDef.terrainDefs;
+
+	TryTo(Draw::GetSprite(battleMapJson.borderSprite),    borderSprite);
+	TryTo(Draw::GetSprite(battleMapJson.highlightSprite), highlightSprite);
+
+	Assert(battleMapJson.terrain.len < MaxTerrains);
+	terrainObjsLen = 1;	// reserve 0 for invalid
+	for (U64 i = 0; i < battleMapJson.terrain.len; i++) {
+		TerrainJson const* const terrainJson = &battleMapJson.terrain[i];
+		Draw::Sprite sprite; TryTo(Draw::GetSprite(terrainJson->sprite), sprite);
+		terrainObjs[terrainObjsLen] = {
+			.name     = terrainJson->name,	// interned by Json
+			.sprite   = sprite,
+			.moveCost = terrainJson->moveCost,
+		};
+		terrainMap.Put(terrainJson->name, terrainObjsLen);
+		terrainObjsLen++;
+	}
 	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Terrain GetTerrain(Str name) {
+Res<Terrain> GetTerrain(Str name) {
+	U32 const* const idxPtr = terrainMap.FindOrNull(name);
+	if (!idxPtr) {
+		return Err_UnknownTerrain("name", name);
+	}
+
+	return Terrain { .handle = 	(U64)(*idxPtr) };
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Hex CreateHex(HexDef hexDef) {
+Hex CreateHex(Terrain terrain, HexPos pos) {
+	Assert(hexObjsLen < MaxHexes);
+	Assert(terrain.handle > 0 && terrain.handle < MaxTerrains);
+	HexObj* const hexObj = &hexObjs[hexObjsLen++];
+	memset(hexObj, 0, sizeof(HexObj));
+	hexObj->terrainObj = &terrainObjs[terrain.handle];
+	hexObj->pos        = pos;
+	Logf("Created terrain '%s' at %ix%i", hexObj->terrainObj->name, pos.c, pos.r);
+	return { .handle = (U64)(hexObjsLen - 1) };
 }
 
 //--------------------------------------------------------------------------------------------------
 
+// TODO: consider using a handle pool here since we fail to handle use-after-destroy
 void DestroyHex(Hex hex) {
+	Assert(hex.handle > 0 && hex.handle < hexObjsLen);
+	hexObjs[hex.handle] = hexObjs[hexObjsLen - 1];
+	hexObjsLen--;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void HighlightHex(Hex hex) {
+void ShowHexBorder(Hex hex, Vec4 color) {
+	Assert(hex.handle > 0 && hex.handle < hexObjsLen);
+	HexObj* const hexObj = &hexObjs[hex.handle];
+	hexObj->border = true;
+	hexObj->borderColor = color;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void SelectHex(Hex hex) {
+void HideHexBorder(Hex hex) {
+	Assert(hex.handle > 0 && hex.handle < hexObjsLen);
+	HexObj* const hexObj = &hexObjs[hex.handle];
+	hexObj->border = false;
+	hexObj->borderColor = Vec4();
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void ShowHexHighlight(Hex hex, Vec4 color) {
+	Assert(hex.handle > 0 && hex.handle < hexObjsLen);
+	HexObj* const hexObj = &hexObjs[hex.handle];
+	hexObj->highlight = true;
+	hexObj->highlightColor = color;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void HideHexHighlight(Hex hex) {
+	Assert(hex.handle > 0 && hex.handle < hexObjsLen);
+	HexObj* const hexObj = &hexObjs[hex.handle];
+	hexObj->highlight = false;
+	hexObj->highlightColor = Vec4();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -197,33 +234,25 @@ static Vec2 ColRowToTopLeftScreenPos(U32 col, U32 row) {
 //---------------------------------------------------------------------------------------------
 
 void Draw(F32 drawZ) {
-	for (U32 i = 0; i < hexObjsLen; i++) {
+	for (U32 i = 1; i < hexObjsLen; i++) {
 		HexObj const* const hexObj = &hexObjs[i];
-		Draw::DrawSprite({
+		Draw::SpriteDrawDef drawDef = {
 			.sprite = hexObj->terrainObj->sprite,
-			.pos    = ColRowToTopLeftScreenPos(hexObj->pos.col, hexObj->pos.row),
+			.pos    = ColRowToTopLeftScreenPos(hexObj->pos.c, hexObj->pos.r),
 			.z      = drawZ,
 			.origin = Draw::Origin::TopLeft,
-			.color  = hexObj->terrainObj->color,
-		});
-	}
-	if (highlightedHexObj) {
-		Draw::DrawSprite({
-			.sprite = highlightedHexSprite,
-			.pos    = ColRowToTopLeftScreenPos(highlightedHexObj->pos.col, highlightedHexObj->pos.row),
-			.z      = drawZ,
-			.origin = Draw::Origin::TopLeft,
-			.color  = highlightedHexColor,
-		});
-	}
-	if (selectedHexObj) {
-		Draw::DrawSprite({
-			.sprite = selectedHexSprite,
-			.pos    = ColRowToTopLeftScreenPos(selectedHexObj->pos.col, selectedHexObj->pos.row),
-			.z      = drawZ,
-			.origin = Draw::Origin::TopLeft,
-			.color  = selectedHexColor,
-		});
+		};
+		Draw::DrawSprite(drawDef);
+		if (hexObj->border) {
+			drawDef.sprite = borderSprite;
+			drawDef.color  = hexObj->borderColor;
+			Draw::DrawSprite(drawDef);
+		}
+		if (hexObj->highlight) {
+			drawDef.sprite = highlightSprite;
+			drawDef.color  = hexObj->highlightColor;
+			Draw::DrawSprite(drawDef);
+		}
 	}
 }
 

@@ -17,6 +17,7 @@ Res<Span<U8>>   ReadAll(Str path);
 Res<Span<char>> ReadAllZ(Str path);
 Res<Span<Str>>  EnumFiles(Str dir, Str ext);
 Str             RemoveExt(Str path);
+bool            PathsEq(Str path1, Str path2);
 
 //--------------------------------------------------------------------------------------------------
 
