@@ -14,14 +14,18 @@ DefHandle(Unit);
 enum struct Side { Left, Right };
 
 struct DefData {
-	Str name;
-	U32 hp;
-	U32 move;
+	Def          def;
+	Str          name;
+	Draw::Sprite sprite;
+	U32          hp;
+	U32          move;
 };
 
 struct Data {
+	Unit           unit;
 	DefData const* defData;
 	Side           side;
+	Vec2           pos;
 	U32            hp;
 	U32            move;
 };
@@ -30,7 +34,8 @@ void     Init(Mem permMem, Mem tempMem);
 Res<>    LoadDefs(Str path);
 Res<Def> GetUnitDef(Str name);
 Unit     CreateUnit(Def def);
-void     FreeUnit(Unit* unit);
+Data*    GetData(Unit unit);
+void     FreeUnit(Unit unit);
 void     Frame(F32 sec);
 void     Draw(F32 z);
 

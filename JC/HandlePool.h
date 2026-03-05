@@ -7,7 +7,7 @@ namespace JC {
 //--------------------------------------------------------------------------------------------------
 
 // H must be declared using DefHandle(H)
-template <class T, class H> struct HandlePool {
+template <class H, class T> struct HandlePool {
 	struct Entry {
 		T   obj;
 		U32 gen;

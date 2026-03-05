@@ -5,11 +5,11 @@ namespace JC {
 
 //--------------------------------------------------------------------------------------------------
 
-struct Foo { Str name; };
-DefHandle(FooHandle);
+struct FooObj { Str name; };
+DefHandle(Foo);
 
 Unit_Test("HandlePool") {
-	using FooPool = HandlePool<Foo, FooHandle>;
+	using FooPool = HandlePool<Foo, FooObj>;
 	FooPool fp;
 	fp.Init(testMem, 16);
 
@@ -52,9 +52,9 @@ Unit_Test("HandlePool") {
 	Unit_CheckEq(fp.free, 0u);
 
 	// TryGet returns nullptr for a stale handle.
-	FooHandle staleHandle = e9->Handle();
+	Foo stale = e9->Handle();
 	fp.Free(e9->Handle());
-	Unit_Check(fp.TryGet(staleHandle) == nullptr);
+	Unit_Check(fp.TryGet(stale) == nullptr);
 }
 
 //--------------------------------------------------------------------------------------------------

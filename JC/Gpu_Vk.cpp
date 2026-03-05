@@ -98,10 +98,10 @@ struct PipelineObj {
 
 //--------------------------------------------------------------------------------------------------
 
-using BufferPool   = HandlePool<BufferObj,   Buffer>;
-using ImagePool    = HandlePool<ImageObj,    Image>;
-using ShaderPool   = HandlePool<ShaderObj,   Shader>;
-using PipelinePool = HandlePool<PipelineObj, Pipeline>;
+using BufferPool   = HandlePool<Buffer,   BufferObj>;
+using ImagePool    = HandlePool<Image,    ImageObj>;
+using ShaderPool   = HandlePool<Shader,   ShaderObj>;
+using PipelinePool = HandlePool<Pipeline, PipelineObj>;
 
 static Mem                      permMem;
 static Mem                      tempMem;

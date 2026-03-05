@@ -26,7 +26,7 @@ struct Hex {
 	Hex*           neighbors[6];
 	U32            neighborsLen;
 	Terrain const* terrain;
-	Unit::Unit*    unit;
+	Unit::Data*    unitData;
 };
 
 struct MoveCostMap {

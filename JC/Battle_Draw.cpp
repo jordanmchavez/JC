@@ -66,12 +66,12 @@ void Draw(Data const* data) {
 			.color  = Vec4(1.f, 1.f, 1.f, 1.f),
 		});
 
-		if (!hex->unit) { continue; }
+		if (!hex->unitData) { continue; }
 
-		Unit::Unit const* const unit = hex->unit;
+		Unit::Data const* const unitData = hex->unitData;
 		Draw::DrawSprite({
-			.sprite       = unit->def->sprite,
-			.pos          = unit->pos,
+			.sprite       = unitData->defData->sprite,
+			.pos          = unitData->pos,
 			.z            = Z_Hex + 1.f,
 			.origin       = Draw::Origin::Center,
 		});

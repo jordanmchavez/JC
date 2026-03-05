@@ -83,18 +83,18 @@ static U32 HexDistance(Hex const* a, Hex const* b) {
 	}
 }
 
-static bool IsTilePassable(Hex const* hex, Unit::Side::Enum mySide) {
-	return hex->terrain->moveCost && (!hex->unit || hex->unit->side == mySide);
+static bool IsTilePassable(Hex const* hex, Unit::Side side) {
+	return hex->terrain->moveCost && (!hex->unitData || hex->unitData->side == side);
 }
 
 static bool IsHexLandable(Hex const* hex) {
-	return hex->terrain->moveCost && !hex->unit;
+	return hex->terrain->moveCost && !hex->unitData;
 }
 
 //--------------------------------------------------------------------------------------------------
 
 // Djikstra flood fill
-void BuildMoveCostMap(Data const* data, Hex const* startHex, U32 move, Unit::Side::Enum mySide, MoveCostMap* moveCostMap) {
+void BuildMoveCostMap(Data const* data, Hex const* startHex, U32 move, Unit::Side side, MoveCostMap* moveCostMap) {
 	memset(moveCostMap->moveCosts, 0xff, sizeof(moveCostMap->moveCosts));
 	memset(moveCostMap->parents,   0,   sizeof(moveCostMap->parents));
 	memset(pathVisited,            0,   MaxCols * MaxRows * sizeof(pathVisited[0]));
@@ -119,7 +119,7 @@ void BuildMoveCostMap(Data const* data, Hex const* startHex, U32 move, Unit::Sid
 			if (pathVisited[neighbor->idx]) {
 				continue;
 			}
-			if (!IsTilePassable(neighbor, mySide)) {
+			if (!IsTilePassable(neighbor, side)) {
 				continue;
 			}
 			U32 const tentativeScore = moveCostMap->moveCosts[entry.idx] + neighbor->terrain->moveCost;
@@ -163,11 +163,10 @@ bool FindPathFromMoveCostMap(MoveCostMap const* moveCostMap, Hex* startHex, Hex*
 	return true;
 }
 
-
 //--------------------------------------------------------------------------------------------------
-
+/*
 // A*
-bool FindPath(Hex* startHex, Hex* endHex, Path* pathOut, Unit::Side::Enum mySide) {
+bool FindPath(Hex* startHex, Hex* endHex, Unit::Side side, Path* pathOut) {
 	Hex* goalHexes[6];
 	U32 goalHexesLen = 0;
 	if (IsHexLandable(endHex)) {
@@ -234,7 +233,7 @@ bool FindPath(Hex* startHex, Hex* endHex, Path* pathOut, Unit::Side::Enum mySide
 			if (pathVisited[neighbor->idx]) {
 				continue;
 			}
-			if (!IsTilePassable(entryHex->neighbors[i], mySide)) {
+			if (!IsTilePassable(entryHex->neighbors[i], side)) {
 				continue;
 			}
 			U32 const tentativeScore = pathScore[entry.idx] + entryHex->neighbors[i]->terrain->moveCost;
@@ -269,7 +268,7 @@ bool FindPath(Hex* startHex, Hex* endHex, Path* pathOut, Unit::Side::Enum mySide
 
 	return true;
 }
-
+*/
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC::Battle
