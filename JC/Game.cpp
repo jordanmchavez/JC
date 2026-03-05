@@ -1,6 +1,3 @@
-#pragma warning(disable: 4505)
-#pragma warning(disable: 4189)
-
 #include "JC/App.h"
 #include "JC/Battle.h"
 #include "JC/Cfg.h"
@@ -39,8 +36,10 @@ Res<> PreInit(Mem permMemIn, Mem tempMemIn) {
 
 Res<> Init(Window::State const* windowState) {
 	Try(Battle::Init(permMem, tempMem, windowState));
+	Unit::Init(permMem, tempMem);
 	Effect::Init(permMem);
 
+	Try(Unit::LoadUnitDefsJson("Assets/UnitDefs.unitdefsjson"));
 	Try(Battle::LoadBattleJson("Assets/Battle.battlejson"));
 	Try(Battle::GenerateMap());
 

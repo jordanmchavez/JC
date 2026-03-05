@@ -1,0 +1,11 @@
+{
+	atlasJsonPath: "Assets/Units.atlasjson",
+	unitDefs: [
+		{
+			name: "Spearmen",
+			sprite: "Unit_Spearmen",
+			hp: 10,
+			move: 5,
+		},
+	],
+}

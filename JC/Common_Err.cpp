@@ -1,5 +1,6 @@
 #include "JC/Common.h"
 
+#include "JC/Log.h"
 #include "JC/Sys.h"
 
 namespace JC {
@@ -48,7 +49,10 @@ static Arg CloneArg(Arg arg) {
 
 //--------------------------------------------------------------------------------------------------
 
+static bool recursive = false;
+
 Err const* Err::Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, Span<NamedArg const> namedArgs) {
+
 	Assert(errsLen < MaxErrs);
 	Assert(namedArgs.len <= Err::MaxNamedArgs);
 
@@ -73,9 +77,13 @@ Err const* Err::Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, 
 		};
 	}
 
-	if (errBreakOnErr && Sys::DbgPresent() && err->ns != "App" && err->sCode != "Exit") {
+	if (errBreakOnErr && !recursive && Sys::DbgPresent() && err->ns != "App" && err->sCode != "Exit") {
+		recursive = true;
+		LogErr(err);
+		recursive = false;
 		DbgBreak;
 	}
+
 
 	return err;
 }

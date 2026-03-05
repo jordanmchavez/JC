@@ -13,52 +13,37 @@ static constexpr U32 MaxUnitAnimations      = 16;
 
 namespace Side {
 	enum Enum {
-		Invalid = 0,
-		Left,
+		Left = 0,
 		Right,
 		Max
 	};
-};
-
-struct UnitAnimationFrame {
-	Draw::Sprite sprite;
-	F32          sec;
-};
-
-struct UnitAnimation {
-	UnitAnimationFrame frames[MaxUnitAnimationFrames];
-	U32                framesLen;
 };
 
 struct UnitDef {
 	Str           name;
 	Draw::Sprite  sprite;
 	Vec2          size;
-	U32           maxHp;
-	U32           maxMove;
-	U32           damage;
-	UnitAnimation animations[MaxUnitAnimations];
-	U32           animationsLen;
+	U32           hp;
+	U32           move;
 };
 
 struct Unit {
-	UnitDef const* def;
+	UnitDef const* unitDef;
 	Side::Enum     side;
 	Vec2           pos;
 	U32            hp;
 	U32            move;
-	U32            activeAnimationIdx;
-	F32            activeAnimationSec;
-	bool           outline;
 	Unit*          next;
+	U32            nextFreeIdx;
 };
 
-Res<>          LoadUnitFile(Str unitFilePath);
-UnitDef const* GetUnitDef(Str name);
-Unit*          CreateUnit(UnitDef unitDef, Side::Enum side, Vec2 pos);
-void           DestroyUnit(Unit* unit);
-void           Frame(F32 sec);
-void           Draw(F32 z);
+void                Init(Mem permMem, Mem tempMem);
+Res<>               LoadUnitDefsJson(Str unitDefJsonPath);
+Res<UnitDef const*> GetUnitDef(Str name);
+Unit*               AllocUnit();
+void                FreeUnit(Unit* unit);
+void                Frame(F32 sec);
+void                Draw(F32 z);
 
 //--------------------------------------------------------------------------------------------------
 

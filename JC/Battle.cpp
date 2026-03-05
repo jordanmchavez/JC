@@ -23,6 +23,8 @@ DefErr(Battle, TerrainNotFound);
 
 //--------------------------------------------------------------------------------------------------
 
+static constexpr I32 MaxCols = 16;
+static constexpr I32 MaxRows = 14;
 static constexpr U32 HexSize = 32;
 static constexpr U32 MaxTerrain = 64;
 static constexpr F32 CamSpeedPixelsPerSec = 1000.f;
@@ -33,6 +35,21 @@ static constexpr F32 Z_Hex          = 1.f;
 static constexpr F32 Z_HexHighlight = 1.1f;
 
 //--------------------------------------------------------------------------------------------------
+
+struct Terrain {
+	Str          name;
+	Draw::Sprite sprite;
+	U32          moveCost;
+};
+
+struct Hex {
+	U32            idx;
+	I32            c, r;
+	Hex*           neighbors[6];
+	U32            neighborsLen;
+	Terrain const* terrain;
+	Unit::Unit*    unit;
+};
 
 enum : U64 {
 	ActionId_Invalid = 0,
@@ -94,6 +111,28 @@ struct Heap {
 	U32        cap;
 };
 
+struct MoveCostMap {
+	U32  moveCosts[MaxCols * MaxRows];
+	Hex* parents[MaxCols * MaxRows];
+};
+
+struct Path {
+	Hex* hexes[MaxCols * MaxRows];
+	U32  len;
+};
+
+static constexpr U32 MaxArmyUnits = 16;
+
+struct Army {
+	Unit::Side::Enum side;
+	Unit::Unit*      units[MaxArmyUnits];
+	U32              unitsLen;
+	Unit::Unit*      readyUnits;
+	Unit::Unit*      doneUnits;
+};
+static Army             armies[2];
+static Unit::Side::Enum activeSide;
+
 //--------------------------------------------------------------------------------------------------
 
 static Mem                tempMem;
@@ -110,6 +149,8 @@ static Draw::Camera       camera;
 static Vec2               mouseWorldPos;
 static Hex*               mouseHex;
 static Hex*               selectedHex;
+static MoveCostMap        selectedHexMoveCostMap;
+static Path               selectedToHoverPath;
 static Input::BindingSet  bindingSet;
 static ActionFn*          actionFns[ActionId_Max];
 static U32*               pathScore;
@@ -125,6 +166,55 @@ static F32                fancyFontScale = 2.f;
 
 static State              state;
 
+
+//--------------------------------------------------------------------------------------------------
+
+static Vec2 ColRowToTopLeftWorldPos(I32 c, I32 r) {
+	return {
+		(F32)(c * HexSize + (r & 1) * (HexSize / 2)),
+		(F32)(r * (HexSize * 3 / 4)),
+	};
+}
+
+static Vec2 HexToTopLeftWorldPos(Hex const* hex) {
+	return {
+		(F32)(hex->c * HexSize + (hex->r & 1) * (HexSize / 2)),
+		(F32)(hex->r * (HexSize * 3 / 4)),
+	};
+}
+
+static Vec2 HexToCenterWorldPos(Hex const* hex) {
+	return {
+		(F32)((HexSize / 2) + hex->c * HexSize + (hex->r & 1) * (HexSize / 2)),
+		(F32)((HexSize / 2) + hex->r * (HexSize * 3 / 4)),
+	};
+}
+
+static Hex* WorldPosToHex(Vec2 p) {
+	I32 const hsize   = (I32)HexSize;
+	I32 const rowStep = hsize * 3 / 4;
+	I32 const iy      = (I32)p.y;
+	I32 r = iy / rowStep - (iy % rowStep != 0 && iy < 0 ? 1 : 0);	// floor division
+	U8  const parity  = (U8)(r & 1);
+
+	I32 const ix  = (I32)p.x - (I32)parity * (hsize / 2);
+	I32 c = ix / hsize - (ix % hsize != 0 && ix < 0 ? 1 : 0);	// floor division
+
+	I32 const lx = ix - c * hsize;
+	I32 const ly = iy - r * rowStep;
+	Assert(lx >= 0 && lx < hsize && ly >= 0 && ly < rowStep);
+
+	U8 const l = (hexLut[(ly / 2) * (hsize / 2) + (lx / 2)] >> ((lx & 1) * 4)) & 0xf;
+	switch (l) {
+		case 1: c -= 1 - parity; r -= 1; break;
+		case 2: c += parity;     r -= 1; break;
+	}
+
+	if (c >= 0 && c < MaxCols && r >= 0 && r < MaxRows) {
+		return &hexes[c + (r * MaxCols)];
+	}
+	return nullptr;
+}
 
 //--------------------------------------------------------------------------------------------------
 
@@ -178,10 +268,10 @@ static HeapEntry HeapPop(Heap* heap) {
 //--------------------------------------------------------------------------------------------------
 
 static U32 HexDistance(Hex const* a, Hex const* b) {
-	I32 const aq = a->hexPos.c - (a->hexPos.r - (a->hexPos.r & 1)) / 2;
-	I32 const as = a->hexPos.r;
-	I32 const bq = b->hexPos.c - (b->hexPos.r - (b->hexPos.r & 1)) / 2;
-	I32 const bs = b->hexPos.r;
+	I32 const aq = a->c - (a->r - (a->r & 1)) / 2;
+	I32 const as = a->r;
+	I32 const bq = b->c - (b->r - (b->r & 1)) / 2;
+	I32 const bs = b->r;
 	I32 const dq = bq - aq;
 	I32 const ds = bs - as;
 	I32 const dqSign = dq < 0 ? -1 : 1;
@@ -203,43 +293,80 @@ static bool IsHexLandable(Hex const* hex) {
 
 //--------------------------------------------------------------------------------------------------
 
-// Finds the shortest path between two hex positions on a 64x64 odd-r offset hex grid.
-//
-// GRID & COORDINATES:
-//   - Grid is MaxCols x MaxRows (64x64), origin (0,0) at top-left.
-//   - use `hexes` as the grid data structure
-//   - Odd-r offset: rows with odd zero-based index are shifted right.
-//   - Neighbor deltas differ by row parity:
-//       Even row: (-1,-1),(0,-1),(-1,0),(+1,0),(-1,+1),(0,+1)
-//       Odd row:  (0,-1),(+1,-1),(-1,0),(+1,0),(0,+1),(+1,+1)
-//
-// MOVEMENT COSTS:
-//   - moveCost is the cost to ENTER that cell from any neighbor.
-//   - moveCost == 0 means impassable; skip as neighbor.
-//   - moveCost range is small (0-3 typical).
-//
-// UNIT BLOCKING:
-//   - Cells occupied by an enemy unit (unit->side != mySide) are impassable.
-//   - Cells occupied by a friendly unit (unit->side == mySide) are passable.
-//   - The moving unit's side must be passed into this function.
-//
-// GOAL RESOLUTION (applied before pathfinding):
-//   - If end cell is passable AND unoccupied: goal set = { end }.
-//   - Otherwise: goal set = all 6 neighbors of end that are passable and unoccupied.
-//     - If goal set is empty: no path exists, pathOut->hexPosLen = 0, return false.
-//
-// OUTPUT & TRUNCATION:
-//   - Start hex IS NOT included in the output path or the cost. A unit that starts in a cell has already "paid" the cost to get there.
-//   - On success: write hexes start->goal into pathOut->hexes, set hexPosLen
-//   - If shortest path length > MaxHexPath (128): write first MaxHexPath hexes
-//   - If no path exists: set hexPosLen = 0
-//
-// HEURISTIC:
-//   - Convert odd-r offset to axial: q = c - (r - (r & 1)) / 2, s = r.
-//   - Hex distance in axial coords: if sign(dq)==sign(dr): |dq|+|dr|, else max(|dq|,|dr|).
-//   - Heuristic is admissible given moveCost >= 1 for passable cells.
-//
-// ALGORITHM: A* with binary min-pathHeap open set, flat arrays indexed by (c + (r * MaxCols)).
+// Djikstra flood fill
+void BuildMoveCostMap(Hex* startHex, U32 move, Unit::Side::Enum mySide, MoveCostMap* moveCostMap) {
+	memset(moveCostMap->moveCosts, 0xff, sizeof(moveCostMap->moveCosts));
+	memset(moveCostMap->parents,   0,   sizeof(moveCostMap->parents));
+	memset(pathVisited,            0,   MaxCols * MaxRows * sizeof(pathVisited[0]));
+	pathHeap.len = 0;
+
+	moveCostMap->moveCosts[startHex->idx] = 0;
+	HeapPush(&pathHeap, { .dist = 0, .idx = startHex->idx });
+
+	while (pathHeap.len > 0) {
+		HeapEntry const entry = HeapPop(&pathHeap);
+		if (entry.dist > move) {
+			break;
+		}
+		if (pathVisited[entry.idx]) {
+			continue;
+		}
+		pathVisited[entry.idx] = true;
+
+		Hex* const entryHex = &hexes[entry.idx];
+		for (U32 i = 0; i < entryHex->neighborsLen; i++) {
+			Hex* const neighbor = entryHex->neighbors[i];
+			if (pathVisited[neighbor->idx]) {
+				continue;
+			}
+			if (!IsTilePassable(neighbor, mySide)) {
+				continue;
+			}
+			U32 const tentativeScore = moveCostMap->moveCosts[entry.idx] + neighbor->terrain->moveCost;
+			if (tentativeScore < moveCostMap->moveCosts[neighbor->idx]) {
+				moveCostMap->moveCosts[neighbor->idx] = tentativeScore;
+				moveCostMap->parents[neighbor->idx]   = entryHex;
+				HeapPush(&pathHeap, { .dist = tentativeScore, .idx = neighbor->idx });
+			}
+		}
+	}
+
+	// TODO: this is pointless, find a way to make it work without this conversion
+	for (U32 i = 0; i < MaxCols * MaxRows; i++) {
+		if (moveCostMap->moveCosts[i] == U32Max) { moveCostMap->moveCosts[i] = 0; }
+	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+// Simple back-traversal using `parents`
+bool FindPathFromMoveCostMap(MoveCostMap const* moveCostMap, Hex* startHex, Hex* end, Path* pathOut) {
+	if (end == startHex) {
+		pathOut->len = 0;
+		return true;
+	}
+	if (!moveCostMap->parents[end->idx]) {
+		pathOut->len = 0;
+		return false;
+	}
+
+	Hex** iter = pathOut->hexes;
+	for (Hex* hex = end; hex != startHex; hex = moveCostMap->parents[hex->idx]) {
+		*iter++ = hex;
+	}
+	U64 const len     = (U64)(iter - pathOut->hexes);
+	U64 const halfLen = len / 2;
+	for (U64 i = 0; i < halfLen; i++) {
+		Swap(pathOut->hexes[i], pathOut->hexes[len - i - 1]);
+	}
+	pathOut->len = (U32)len;
+	return true;
+}
+
+
+//--------------------------------------------------------------------------------------------------
+
+// A*
 bool FindPath(Hex* startHex, Hex* endHex, Path* pathOut, Unit::Side::Enum mySide) {
 	Hex* goalHexes[6];
 	U32 goalHexesLen = 0;
@@ -334,7 +461,7 @@ bool FindPath(Hex* startHex, Hex* endHex, Path* pathOut, Unit::Side::Enum mySide
 		*iter++ = hex;
 	}
 	U64 const len = (U64)(iter - pathOut->hexes);
-	U64 const halfLen = pathOut->len / 2;
+	U64 const halfLen = len / 2;
 	for (U64 i = 0; i < halfLen ; i++) {
 		Swap(pathOut->hexes[i], pathOut->hexes[len - i - 1]);
 	}
@@ -351,20 +478,21 @@ static Res<> Action_Exit(F32) { return App::Err_Exit(); };
 
 static Res<> Action_Click(F32) { 
 	if (!mouseHex) {
-		return Ok();;
+		return Ok();
 	}
 
 	if (state == State::None) {
-		if (selectedHex) {
-			selectedHex->highlight = false;
-		}
 		if (selectedHex == mouseHex) {
+			Logf("Deselected hex (%i,%i)", selectedHex->c, selectedHex->r);
 			selectedHex = nullptr;
-		} else {
-			mouseHex->highlight = true;
-			mouseHex->highlightColor = Vec4(1.f, 0.f, 0.f, 0.5f);
+		} else if (mouseHex->unit) {
+			Logf("Selected hex (%i, %i)", mouseHex->c, mouseHex->r);
 			selectedHex = mouseHex;
+			BuildMoveCostMap(selectedHex, selectedHex->unit->unitDef->move, selectedHex->unit->side, &selectedHexMoveCostMap);
+		} else {
+			Logf("Ignoring click on empty hex (%i, %i)", mouseHex->c, mouseHex->r);
 		}
+		return Ok();
 	}
 		
 	/*
@@ -533,31 +661,51 @@ Res<> LoadBattleJson(Str battleJsonPath) {
 //--------------------------------------------------------------------------------------------------
 
 static void AddNeighbor(Hex* hex, I32 cOff, I32 rOff) {
-	I32 const c = hex->hexPos.c + cOff;
-	I32 const r = hex->hexPos.r + rOff;
+	I32 const c = hex->c + cOff;
+	I32 const r = hex->r + rOff;
 
 	if (c >= 0 && c <= MaxCols - 1 && r >= 0 && r <= MaxRows - 1) {
 		hex->neighbors[hex->neighborsLen++] = &hexes[c + (r * MaxCols)];
 	}
 }
 
-Res<> GenerateMap() {
-	Terrain const* terrainTable[6];
-	TryTo(GetTerrain("Grassland"), terrainTable[0]);
-	TryTo(GetTerrain("Forest"), terrainTable[1]);
-	TryTo(GetTerrain("Swamp"), terrainTable[2]);
-	TryTo(GetTerrain("Hill"), terrainTable[3]);
-	TryTo(GetTerrain("Mountain"), terrainTable[4]);
-	TryTo(GetTerrain("Water"), terrainTable[5]);
+static Unit::Unit* CreateUnitOn(Unit::UnitDef const* unitDef, Hex* hex, Unit::Side::Enum side) {
+	Unit::Unit* const unit = Unit::AllocUnit();
+	unit->unitDef = unitDef;
+	unit->side    = side;
+	unit->pos     = HexToCenterWorldPos(hex);
+	unit->hp      = unitDef->hp;
+	unit->move    = unitDef->move;
+	unit->next    = nullptr;
 
+	hex->unit     = unit;
+
+	return unit;
+}
+
+struct TerrainGen {
+	Terrain const* terrain;
+	U32            chance;
+};
+
+Res<> GenerateMap() {
+	TerrainGen terrainGen[6];
+	U32 maxChance = 0;
+	TryTo(GetTerrain("Grassland"), terrainGen[0].terrain); maxChance += 6; terrainGen[0].chance = maxChance;
+	TryTo(GetTerrain("Forest"),    terrainGen[1].terrain); maxChance += 3; terrainGen[1].chance = maxChance;
+	TryTo(GetTerrain("Swamp"),     terrainGen[2].terrain); maxChance += 1; terrainGen[2].chance = maxChance;
+	TryTo(GetTerrain("Hill"),      terrainGen[3].terrain); maxChance += 2; terrainGen[3].chance = maxChance;
+	TryTo(GetTerrain("Mountain"),  terrainGen[4].terrain); maxChance += 1; terrainGen[4].chance = maxChance;
+	TryTo(GetTerrain("Water"),     terrainGen[5].terrain); maxChance += 1; terrainGen[5].chance = maxChance;
+
+	memset(hexes, 0, MaxCols * MaxRows * sizeof(Hex));
+	hexesLen = 0;
 	for (U32 c = 0; c < MaxCols; c++) {
 		for (U32 r = 0; r < MaxRows; r++) {
 			Hex* const hex = &hexes[c + (r * MaxCols)];
-			hex->idx     = c + (r * MaxCols);
-			hex->hexPos  = HexPos((I32)c, (I32)r);
-			hex->terrain = terrainTable[Rng::NextU32(0, LenOf(terrainTable))];
-			hex->border = false;
-			hex->highlight = false;
+			hex->idx = c + (r * MaxCols);
+			hex->c = (I32)c;
+			hex->r = (I32)r;
 			hex->neighborsLen = 0;
 			if (r & 1) {
 				AddNeighbor(hex,  0, -1);
@@ -574,44 +722,46 @@ Res<> GenerateMap() {
 				AddNeighbor(hex, -1, +1);
 				AddNeighbor(hex,  0, +1);
 			}
+			U32 rng = Rng::NextU32(0, maxChance);
+			for (U32 i = 0; i < LenOf(terrainGen); i++) {
+				if (rng < terrainGen[i].chance) {
+					hex->terrain = terrainGen[i].terrain;
+					break;
+				}
+			}
+			Assert(hex->terrain);
+			hex->unit = nullptr;
+			hexesLen++;
 		}
 	}
-	hexesLen = MaxCols * MaxRows;
+
+	Unit::UnitDef const* unitDef; TryTo(Unit::GetUnitDef("Spearmen"), unitDef);
+
+	U32 startCol = 0;
+	Unit::Side::Enum side = Unit::Side::Left;
+	for (bool b = true; b; b = false) {
+		Army* army = &armies[Unit::Side::Left];
+		memset(army, 0, sizeof(Army));
+		army->side = Unit::Side::Left;
+		for (U32 c = startCol; c < startCol + 2; c++) {
+			for (U32 r = 0; r < MaxRows; r++) {
+				if (Rng::NextU32(0, 100) < 50) {
+					army->units[army->unitsLen++] = CreateUnitOn(unitDef, &hexes[c + (r * MaxCols)], Unit::Side::Left);
+					if (army->unitsLen >= MaxArmyUnits) {
+						goto DoneUnitGen;
+					}
+				}
+			}
+		}
+		DoneUnitGen:
+		side = Unit::Side::Right;
+		startCol = MaxCols - 2;
+	}
 
 	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
-
-static Hex* WorldPosToHex(Vec2 p) {
-	I32 const hsize   = (I32)HexSize;
-	I32 const rowStep = hsize * 3 / 4;
-	I32 const iy      = (I32)p.y;
-	I32 r = iy / rowStep - (iy % rowStep != 0 && iy < 0 ? 1 : 0);	// floor division
-	U8  const parity  = (U8)(r & 1);
-
-	I32 const ix  = (I32)p.x - (I32)parity * (hsize / 2);
-	I32 c = ix / hsize - (ix % hsize != 0 && ix < 0 ? 1 : 0);	// floor division
-
-	I32 const lx = ix - c * hsize;
-	I32 const ly = iy - r * rowStep;
-	Assert(lx >= 0 && lx < hsize && ly >= 0 && ly < rowStep);
-
-	U8 const l = (hexLut[(ly / 2) * (hsize / 2) + (lx / 2)] >> ((lx & 1) * 4)) & 0xf;
-	switch (l) {
-		case 1: c -= 1 - parity; r -= 1; break;
-		case 2: c += parity;     r -= 1; break;
-	}
-
-	if (c >= 0 && c < MaxCols && r >= 0 && r < MaxRows) {
-		return &hexes[c + (r * MaxCols)];
-	}
-	return nullptr;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static Path mousePath;
 
 Res<> Frame(App::FrameData const* appFrameData) {
 	mouseWorldPos = Vec2(
@@ -624,87 +774,112 @@ Res<> Frame(App::FrameData const* appFrameData) {
 		Assert(actionId > 0 && actionId < ActionId_Max);
 		Try(actionFns[actionId](appFrameData->sec));
 	}
-	
-	if (mouseHex) {
-		mouseHex->border = false;
-	}
-	Hex* oldMouseHex = mouseHex;
-	mouseHex = WorldPosToHex(mouseWorldPos);
-	if (mouseHex) {
-		mouseHex->border = true;
-		mouseHex->borderColor = Vec4(1.f, 1.f, 1.f, 1.f);
-		if (oldMouseHex != mouseHex) {
-			Logf("Mouse hex (%i, %i)", mouseHex->hexPos.c, mouseHex->hexPos.r);
 
-			if (selectedHex) {
-				for (U32 i = 0; i < mousePath.len; i++) {
-					mousePath.hexes[i]->highlight = false;
-				}
-				bool foundPath = FindPath(selectedHex, mouseHex, &mousePath, Unit::Side::Left);
-				Logf("foundPath=%t", foundPath);
-				StrBuf sb(tempMem);
-				sb.Add('[');
-				for (U32 i = 0; i < mousePath.len; i++) {
-					mousePath.hexes[i]->highlight = true;
-					mousePath.hexes[i]->highlightColor = Vec4(1.f, 1.f, 1.f, 0.5f);
-					sb.Printf("(%i, %i), ", mousePath.hexes[i]->hexPos.c, mousePath.hexes[i]->hexPos.r);
-				}
-				sb.Add(']');
-				Logf("path=%s", sb.ToStr());
+	Hex const* const oldMouseHex = mouseHex;	
+	mouseHex = WorldPosToHex(mouseWorldPos);
+	if (mouseHex && selectedHex && oldMouseHex != mouseHex) {
+		if (selectedHexMoveCostMap.moveCosts[mouseHex->c + (mouseHex->r * MaxCols)] != 0) {
+			FindPathFromMoveCostMap(&selectedHexMoveCostMap, selectedHex, mouseHex, &selectedToHoverPath);
+			StrBuf sb(tempMem);
+			sb.Add("path=[");
+			for (U32 i = 0; i < selectedToHoverPath.len; i++) {
+				sb.Printf("(%i, %i), ", selectedToHoverPath.hexes[i]->c, selectedToHoverPath.hexes[i]->r);
 			}
+			sb.Add(']');
+			Logf("path=%s", sb.ToStr());
 		}
 	}
-
-	// construct shortest path from selectedMapTile -> mouseMapTile
 
 	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static Vec2 ColRowToTopLeftScreenPos(U32 col, U32 row) {
-	return {
-		(F32)(col * HexSize + (row & 1) * (HexSize / 2)),
-		(F32)(row * (HexSize * 3 / 4)),
-	};
-}
-
 void Draw() {
 	Draw::SetCamera(camera);
 
 	for (U32 i = 0; i < hexesLen; i++) {
 		Hex const* const hex = &hexes[i];
-		Vec2 const topLeftPos = ColRowToTopLeftScreenPos(hex->hexPos.c, hex->hexPos.r);
-		Draw::SpriteDrawDef drawDef = {
+		Vec2 const topLeftPos = HexToTopLeftWorldPos(hex);
+		Draw::DrawSprite({
 			.sprite = hex->terrain->sprite,
 			.pos    = topLeftPos,
 			.z      = Z_Hex,
 			.origin = Draw::Origin::TopLeft,
-		};
-		Draw::DrawSprite(drawDef);
-
+		});
 		Draw::DrawStr({
 			.font   = numberFont,
 			.str    = SPrintf(tempMem, "%u", hex->terrain->moveCost),
-			.pos    = Vec2(topLeftPos.x + (F32)HexSize / 2.f, topLeftPos.y + (F32)HexSize / 2.f),
-			.z      = Z_Hex + 0.2f,
-			.origin = Draw::Origin::Center,
+			.pos    = Vec2(topLeftPos.x + (F32)HexSize / 2.f, topLeftPos.y + 3.f),
+			.z      = Z_Hex + 10.f,
+			.origin = Draw::Origin::TopCenter,
 			.color  = Vec4(1.f, 1.f, 1.f, 1.f),
 		});
 
-		if (hex->border) {
-			drawDef.sprite = borderSprite;
-			drawDef.color  = hex->borderColor;
-			drawDef.z = Z_HexHighlight + 0.1f;
-			Draw::DrawSprite(drawDef);
-		}
+		if (!hex->unit) { continue; }
 
-		if (hex->highlight) {
-			drawDef.sprite = highlightSprite;
-			drawDef.color  = hex->highlightColor;
-			drawDef.z = Z_HexHighlight + 0.1f;
-			Draw::DrawSprite(drawDef);
+		Unit::Unit const* const unit = hex->unit;
+		Draw::DrawSprite({
+			.sprite       = unit->unitDef->sprite,
+			.pos          = unit->pos,
+			.z            = Z_Hex + 1.f,
+			.origin       = Draw::Origin::Center,
+		});
+	}
+
+	if (mouseHex) {
+		Draw::DrawSprite({
+			.sprite = borderSprite,
+			.pos    = HexToTopLeftWorldPos(mouseHex),
+			.z      = Z_Hex + 0.1f,
+			.origin = Draw::Origin::TopLeft,
+			.color  = Vec4(1.f, 1.f, 1.f, 0.5f),
+		});
+	}
+
+	if (!selectedHex) { return; }
+
+	Draw::DrawSprite({
+		.sprite = borderSprite,
+		.pos    = HexToTopLeftWorldPos(selectedHex),
+		.z      = Z_Hex + 0.2f,
+		.origin = Draw::Origin::TopLeft,
+		.color  = Vec4(1.f, 0.f, 0.f, 1.f),
+	});
+
+	for (U32 c = 0; c < MaxCols; c++) {
+		for (U32 r = 0; r < MaxRows; r++) {
+			U32 const idx = c + (r * MaxCols);
+			Vec2 const topLeftPos = ColRowToTopLeftWorldPos(c, r);
+			if (!selectedHexMoveCostMap.moveCosts[idx]) {
+				Draw::DrawSprite({
+					.sprite = highlightSprite,
+					.pos    = ColRowToTopLeftWorldPos(c, r),
+					.z      = Z_Hex + 0.1f,
+					.origin = Draw::Origin::TopLeft,
+					.color  = Vec4(0.f, 0.f, 0.f, 0.5f),
+				});
+			}
+			Draw::DrawStr({
+				.font   = numberFont,
+				.str    = SPrintf(tempMem, "%u", selectedHexMoveCostMap.moveCosts[idx]),
+				.pos    = Vec2(topLeftPos.x + (F32)HexSize / 2.f, topLeftPos.y + (F32)HexSize - 3.f),
+				.z      = Z_Hex + 10.f,
+				.origin = Draw::Origin::BottomCenter,
+				.color  = Vec4(1.f, 1.f, 1.f, 1.f),
+			});
 		}
+	}
+
+	for (U32 i = 0; i < selectedToHoverPath.len; i++) {
+		Vec2 const topLeftPos = HexToTopLeftWorldPos(selectedToHoverPath.hexes[i]);
+		Draw::DrawSprite({
+			.sprite = highlightSprite,
+			.pos    = topLeftPos,
+			.z      = Z_Hex + 0.1f,
+			.origin = Draw::Origin::TopLeft,
+			.color  = Vec4(0.f, 1.f, 0.f, 0.5f),
+		});
 	}
 }
 
@@ -736,18 +911,6 @@ static constexpr F32  UiPanelWidth = 500.f;
 static constexpr Vec4 UiBackgroundColor = Vec4(0.2f, 0.3f, 0.4f, 1.f);
 
 //--------------------------------------------------------------------------------------------------
-
-
-Hex GetHexByWorldPos(Vec2 p) {
-	HexPos const hexPos = GetHexPosByWorldPos(p);
-	HexObj** hexObjPtr = hexMap.FindOrNull(HexMapKey(hexPos));
-	if (!hexObjPtr) { return Hex(); }
-	return { .handle = (U64)(*hexObjPtr - hexObjs) };
-}
-
-static Unit::Side::Enum activeSide;
-static Unit::Unit*      readyUnits[Unit::Side::Max];
-static Unit::Unit*      doneUnits[Unit::Side::Max];
 
 enum struct OrderType {
 	Invalid = 0,
@@ -921,60 +1084,6 @@ static void ExecuteAttackOrder(F32 secs) {
 		.color = MapBackgroundColor,
 	});
 	/*
-	Draw::SetCamera(camera);
-
-	for (U32 i = 0; i < unitsLen; i++) {
-		Unit const* const unit = &units[i];
-		if (!unit->alive) { continue; }
-		F32 outlineWidth = 0.f;
-		if (unit == selectedUnit) {
-			outlineWidth = 1.f;
-		}
-		Draw::Sprite sprite = unit->unitDef->sprite;
-		if (unit->activeAnimationDef) {
-			sprite = unit->activeAnimationDef->frameSprites[unit->animationFrame];
-		}
-
-		Draw::DrawSprite({
-			.sprite       = sprite,
-			.pos          = unit->pos,
-			.z            = unit->z,
-			.outlineWidth = outlineWidth,
-			.outlineColor = SelectedColor,
-		});
-
-		constexpr F32 HpBarHeight = 2.f;
-		F32 y = unit->pos.y - (unit->unitDef->size.y / 2.f);
-		F32 const hpFrac = (F32)unit->hp / (F32)unit->unitDef->maxHp;
-		F32 const x = unit->pos.x - (unit->unitDef->size.x / 2.f);
-		Draw::DrawRect({
-			.pos    = { x, y },
-			.z      = unit->z + 1,
-			.origin = Draw::Origin::BottomLeft,
-			.size   = { hpFrac * unit->unitDef->size.x, HpBarHeight },
-			.color  = { 1.f, 0.f, 0.f, 1.f },
-		});
-		Draw::DrawRect({
-			.pos    = { x + hpFrac * unit->unitDef->size.x, y },
-			.z      = unit->z,
-			.origin = Draw::Origin::BottomLeft,
-			.size   = { (1.f - hpFrac) * unit->unitDef->size.x, HpBarHeight },
-			.color  = { 1.f, 0.f, 0.f, 0.5f },
-		});
-
-		y -= HpBarHeight;
-		Draw::DrawStr({
-			.font         = numberFont,
-			.str          = SPrintf(tempMem, "%u", unit->id),
-			.pos          = { unit->pos.x, y },
-			.z            = unit->z,
-			.origin       = Draw::Origin::BottomCenter,
-			.color        = { 0.8f, 0.8f, 1.f, 1.f },
-			.outlineWidth = 1.f,
-			.outlineColor = { 0.f, 0.f, 0.f, 1.f },
-		});
-	}
-
 	Draw::ClearCamera();
 
 	Draw::DrawRect({
