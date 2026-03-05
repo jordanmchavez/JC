@@ -1,11 +1,11 @@
 #include "JC/Battle.h"
+#include "JC/Battle_Internal.h"
 
 #include "JC/App.h"
 #include "JC/Draw.h"
 #include "JC/File.h"
-#include "JC/Gpu.h"
 #include "JC/Hash.h"
-#include "JC/Input.h"
+#include "JC/Gpu.h"
 #include "JC/Json.h"
 #include "JC/Key.h"
 #include "JC/Log.h"
@@ -23,48 +23,7 @@ DefErr(Battle, TerrainNotFound);
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr I32 MaxCols = 16;
-static constexpr I32 MaxRows = 14;
-static constexpr U32 HexSize = 32;
 static constexpr U32 MaxTerrain = 64;
-static constexpr F32 CamSpeedPixelsPerSec = 1000.f;
-
-//--------------------------------------------------------------------------------------------------
-
-static constexpr F32 Z_Hex          = 1.f;
-static constexpr F32 Z_HexHighlight = 1.1f;
-
-//--------------------------------------------------------------------------------------------------
-
-struct Terrain {
-	Str          name;
-	Draw::Sprite sprite;
-	U32          moveCost;
-};
-
-struct Hex {
-	U32            idx;
-	I32            c, r;
-	Hex*           neighbors[6];
-	U32            neighborsLen;
-	Terrain const* terrain;
-	Unit::Unit*    unit;
-};
-
-enum : U64 {
-	ActionId_Invalid = 0,
-
-	ActionId_Exit,
-	ActionId_Click,
-	ActionId_ZoomIn,
-	ActionId_ZoomOut,
-	ActionId_ScrollMapLeft,
-	ActionId_ScrollMapRight,
-	ActionId_ScrollMapUp,
-	ActionId_ScrollMapDown,
-
-	ActionId_Max
-};
 
 struct TerrainJson {
 	Str name;
@@ -98,470 +57,26 @@ enum struct State {
 	ExecutingOrder,
 };
 
-static constexpr U32 MaxHeapEntries = MaxCols * MaxRows * 6;
-
-struct HeapEntry {
-	U32 dist;
-	U32 idx;
-};
-
-struct Heap {
-	HeapEntry* entries;
-	U32        len;
-	U32        cap;
-};
-
-struct MoveCostMap {
-	U32  moveCosts[MaxCols * MaxRows];
-	Hex* parents[MaxCols * MaxRows];
-};
-
-struct Path {
-	Hex* hexes[MaxCols * MaxRows];
-	U32  len;
-};
-
 static constexpr U32 MaxArmyUnits = 16;
 
 struct Army {
-	Unit::Side::Enum side;
-	Unit::Unit*      units[MaxArmyUnits];
-	U32              unitsLen;
-	Unit::Unit*      readyUnits;
-	Unit::Unit*      doneUnits;
+	Unit::Side  side;
+	Unit::Unit* units[MaxArmyUnits];
+	U32         unitsLen;
+	Unit::Unit* readyUnits;
+	Unit::Unit* doneUnits;
 };
-static Army             armies[2];
-static Unit::Side::Enum activeSide;
+static Army       armies[2];
+static Unit::Side activeSide;
 
 //--------------------------------------------------------------------------------------------------
 
 static Mem                tempMem;
-static U8                 hexLut[(HexSize / 2) * (HexSize * 3 / 8)];
+static Data               data;
 static Terrain*           terrain;
 static U32                terrainLen;
 static Map<Str, Terrain*> terrainMap;
-static Hex*               hexes;
-static U32                hexesLen = 0;
-static Draw::Sprite       borderSprite;
-static Draw::Sprite       highlightSprite;
-static Vec2               windowSize;
-static Draw::Camera       camera;
-static Vec2               mouseWorldPos;
-static Hex*               mouseHex;
-static Hex*               selectedHex;
-static MoveCostMap        selectedHexMoveCostMap;
-static Path               selectedToHoverPath;
-static Input::BindingSet  bindingSet;
-static ActionFn*          actionFns[ActionId_Max];
-static U32*               pathScore;
-static Hex**              pathParent;
-static bool*              pathVisited;
-static Heap               pathHeap;
-static Draw::Font         numberFont;
-static Draw::Font         uiFont;
-static F32                uiFontScale = 2.f;
-static F32                uiFontLineHeight;
-static Draw::Font         fancyFont;
-static F32                fancyFontScale = 2.f;
 
-static State              state;
-
-
-//--------------------------------------------------------------------------------------------------
-
-static Vec2 ColRowToTopLeftWorldPos(I32 c, I32 r) {
-	return {
-		(F32)(c * HexSize + (r & 1) * (HexSize / 2)),
-		(F32)(r * (HexSize * 3 / 4)),
-	};
-}
-
-static Vec2 HexToTopLeftWorldPos(Hex const* hex) {
-	return {
-		(F32)(hex->c * HexSize + (hex->r & 1) * (HexSize / 2)),
-		(F32)(hex->r * (HexSize * 3 / 4)),
-	};
-}
-
-static Vec2 HexToCenterWorldPos(Hex const* hex) {
-	return {
-		(F32)((HexSize / 2) + hex->c * HexSize + (hex->r & 1) * (HexSize / 2)),
-		(F32)((HexSize / 2) + hex->r * (HexSize * 3 / 4)),
-	};
-}
-
-static Hex* WorldPosToHex(Vec2 p) {
-	I32 const hsize   = (I32)HexSize;
-	I32 const rowStep = hsize * 3 / 4;
-	I32 const iy      = (I32)p.y;
-	I32 r = iy / rowStep - (iy % rowStep != 0 && iy < 0 ? 1 : 0);	// floor division
-	U8  const parity  = (U8)(r & 1);
-
-	I32 const ix  = (I32)p.x - (I32)parity * (hsize / 2);
-	I32 c = ix / hsize - (ix % hsize != 0 && ix < 0 ? 1 : 0);	// floor division
-
-	I32 const lx = ix - c * hsize;
-	I32 const ly = iy - r * rowStep;
-	Assert(lx >= 0 && lx < hsize && ly >= 0 && ly < rowStep);
-
-	U8 const l = (hexLut[(ly / 2) * (hsize / 2) + (lx / 2)] >> ((lx & 1) * 4)) & 0xf;
-	switch (l) {
-		case 1: c -= 1 - parity; r -= 1; break;
-		case 2: c += parity;     r -= 1; break;
-	}
-
-	if (c >= 0 && c < MaxCols && r >= 0 && r < MaxRows) {
-		return &hexes[c + (r * MaxCols)];
-	}
-	return nullptr;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static void InitLut() {
-	memset(hexLut, 0, sizeof(hexLut));
-	U8 start = (HexSize / 2) - 1;
-	U8 end   = HexSize / 2;
-	for (U8 y = 0; y < HexSize / 4; y++) {
-		for (U8 x = 0; x < start; x++) {
-			hexLut[((y / 2) * (HexSize / 2)) + (x / 2)] |= (1 << ((x & 1) * 4));
-		}
-		for (U8 x = end + 1; x < HexSize; x++) {
-			hexLut[((y / 2) * (HexSize / 2)) + (x / 2)] |= (2 << ((x & 1) * 4));
-		}
-		start -= 2;
-		end   += 2;
-	}
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static void HeapPush(Heap* heap, HeapEntry e) {
-	Assert(heap->len < heap->cap);	// should never trigger since our heap is 6*#tiles
-	heap->entries[(heap->len)++] = e;
-	U32 i = heap->len - 1;
-	while (i > 0) {
-		U32 const p = (i - 1) / 2;
-		if (heap->entries[p].dist <= heap->entries[i].dist) { break; }
-		HeapEntry tmp = heap->entries[p]; heap->entries[p] = heap->entries[i]; heap->entries[i] = tmp;
-		i = p;
-	}
-}
-
-static HeapEntry HeapPop(Heap* heap) {
-	HeapEntry const result = heap->entries[0];
-	heap->entries[0] = heap->entries[--heap->len];
-	U32 i = 0;
-	while (true) {
-		U32 const l = 2 * i + 1;
-		U32 const r = 2 * i + 2;
-		U32 smallest = i;
-		if (l < heap->len && heap->entries[l].dist < heap->entries[smallest].dist) { smallest = l; }
-		if (r < heap->len && heap->entries[r].dist < heap->entries[smallest].dist) { smallest = r; }
-		if (smallest == i) { break; }
-		HeapEntry tmp = heap->entries[smallest]; heap->entries[smallest] = heap->entries[i]; heap->entries[i] = tmp;
-		i = smallest;
-	}
-	return result;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static U32 HexDistance(Hex const* a, Hex const* b) {
-	I32 const aq = a->c - (a->r - (a->r & 1)) / 2;
-	I32 const as = a->r;
-	I32 const bq = b->c - (b->r - (b->r & 1)) / 2;
-	I32 const bs = b->r;
-	I32 const dq = bq - aq;
-	I32 const ds = bs - as;
-	I32 const dqSign = dq < 0 ? -1 : 1;
-	I32 const dsSign = ds < 0 ? -1 : 1;
-	if (dqSign == dsSign) {
-		return Math::Abs(dq) + Math::Abs(ds);
-	} else {
-		return Max(Math::Abs(dq), Math::Abs(ds));
-	}
-}
-
-static bool IsTilePassable(Hex const* hex, Unit::Side::Enum mySide) {
-	return hex->terrain->moveCost && (!hex->unit || hex->unit->side == mySide);
-}
-
-static bool IsHexLandable(Hex const* hex) {
-	return hex->terrain->moveCost && !hex->unit;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-// Djikstra flood fill
-void BuildMoveCostMap(Hex* startHex, U32 move, Unit::Side::Enum mySide, MoveCostMap* moveCostMap) {
-	memset(moveCostMap->moveCosts, 0xff, sizeof(moveCostMap->moveCosts));
-	memset(moveCostMap->parents,   0,   sizeof(moveCostMap->parents));
-	memset(pathVisited,            0,   MaxCols * MaxRows * sizeof(pathVisited[0]));
-	pathHeap.len = 0;
-
-	moveCostMap->moveCosts[startHex->idx] = 0;
-	HeapPush(&pathHeap, { .dist = 0, .idx = startHex->idx });
-
-	while (pathHeap.len > 0) {
-		HeapEntry const entry = HeapPop(&pathHeap);
-		if (entry.dist > move) {
-			break;
-		}
-		if (pathVisited[entry.idx]) {
-			continue;
-		}
-		pathVisited[entry.idx] = true;
-
-		Hex* const entryHex = &hexes[entry.idx];
-		for (U32 i = 0; i < entryHex->neighborsLen; i++) {
-			Hex* const neighbor = entryHex->neighbors[i];
-			if (pathVisited[neighbor->idx]) {
-				continue;
-			}
-			if (!IsTilePassable(neighbor, mySide)) {
-				continue;
-			}
-			U32 const tentativeScore = moveCostMap->moveCosts[entry.idx] + neighbor->terrain->moveCost;
-			if (tentativeScore < moveCostMap->moveCosts[neighbor->idx]) {
-				moveCostMap->moveCosts[neighbor->idx] = tentativeScore;
-				moveCostMap->parents[neighbor->idx]   = entryHex;
-				HeapPush(&pathHeap, { .dist = tentativeScore, .idx = neighbor->idx });
-			}
-		}
-	}
-
-	// TODO: this is pointless, find a way to make it work without this conversion
-	for (U32 i = 0; i < MaxCols * MaxRows; i++) {
-		if (moveCostMap->moveCosts[i] == U32Max) { moveCostMap->moveCosts[i] = 0; }
-	}
-}
-
-//--------------------------------------------------------------------------------------------------
-
-// Simple back-traversal using `parents`
-bool FindPathFromMoveCostMap(MoveCostMap const* moveCostMap, Hex* startHex, Hex* end, Path* pathOut) {
-	if (end == startHex) {
-		pathOut->len = 0;
-		return true;
-	}
-	if (!moveCostMap->parents[end->idx]) {
-		pathOut->len = 0;
-		return false;
-	}
-
-	Hex** iter = pathOut->hexes;
-	for (Hex* hex = end; hex != startHex; hex = moveCostMap->parents[hex->idx]) {
-		*iter++ = hex;
-	}
-	U64 const len     = (U64)(iter - pathOut->hexes);
-	U64 const halfLen = len / 2;
-	for (U64 i = 0; i < halfLen; i++) {
-		Swap(pathOut->hexes[i], pathOut->hexes[len - i - 1]);
-	}
-	pathOut->len = (U32)len;
-	return true;
-}
-
-
-//--------------------------------------------------------------------------------------------------
-
-// A*
-bool FindPath(Hex* startHex, Hex* endHex, Path* pathOut, Unit::Side::Enum mySide) {
-	Hex* goalHexes[6];
-	U32 goalHexesLen = 0;
-	if (IsHexLandable(endHex)) {
-		if (startHex == endHex) {
-			pathOut->len = 0;
-			return true;
-		}
-		goalHexes[0] = endHex;
-		goalHexesLen = 1;
-	} else {
-		for (U32 i = 0; i < endHex->neighborsLen; i++) {
-			if (IsHexLandable(endHex->neighbors[i])) {
-				if (startHex == endHex->neighbors[i]) {
-					pathOut->len = 0;
-					return true;
-				}
-				goalHexes[goalHexesLen++] = endHex->neighbors[i];
-			}
-		}
-	}
-	if (goalHexesLen == 0) {
-		pathOut->len = 0;
-		return false;
-	}
-
-	// TODO: should I just roll these into Hex? We're already going with the meganode approach
-	// Probably not, makes it harder to reset?
-	memset(pathScore,   0xff, MaxCols * MaxRows * sizeof(pathScore[0]));
-	memset(pathParent,  0,    MaxCols * MaxRows * sizeof(pathParent[0]));
-	memset(pathVisited, 0,    MaxCols * MaxRows * sizeof(pathVisited[0]));
-	pathHeap.len = 0;
-
-	U32 minGoalDist = U32Max;
-	for (U32 i = 0; i < goalHexesLen; i++) {
-		U32 const dist = HexDistance(startHex, goalHexes[i]);
-		if (dist < minGoalDist) {
-			minGoalDist = dist;
-		}
-	}
-	pathScore[startHex->idx] = 0;
-	HeapPush(&pathHeap, { .dist = minGoalDist, .idx = startHex->idx });
-
-	Hex* foundGoalHex = nullptr;
-	for (;;) {
-		if (pathHeap.len == 0) {
-			pathOut->len = 0;
-			return false;
-		}
-		HeapEntry const entry = HeapPop(&pathHeap);
-		if (pathVisited[entry.idx]) {
-			continue;
-		}
-		pathVisited[entry.idx] = true;
-		for (U32 i = 0; i < goalHexesLen; i++) {
-			if (goalHexes[i] == &hexes[entry.idx]) {
-				foundGoalHex = goalHexes[i];
-				goto FoundGoalTile;
-			}
-		}
-
-		Hex* const entryHex = &hexes[entry.idx];
-		for (U32 i = 0; i < entryHex->neighborsLen; i++) {
-			Hex* const neighbor = entryHex->neighbors[i];
-			if (pathVisited[neighbor->idx]) {
-				continue;
-			}
-			if (!IsTilePassable(entryHex->neighbors[i], mySide)) {
-				continue;
-			}
-			U32 const tentativeScore = pathScore[entry.idx] + entryHex->neighbors[i]->terrain->moveCost;
-			if (tentativeScore < pathScore[neighbor->idx]) {
-				pathScore[neighbor->idx] = tentativeScore;
-				pathParent[neighbor->idx] = &hexes[entry.idx];
-
-				U32 minDist = U32Max;
-				for (U32 g = 0; g < goalHexesLen; g++) {
-					U32 const dist = HexDistance(neighbor, goalHexes[g]);
-					if (dist < minDist) {
-						minDist = dist;
-					}
-				}
-				HeapPush(&pathHeap, { .dist = tentativeScore + minDist, .idx = neighbor->idx });
-			}
-		}
-	}
-
-	FoundGoalTile:
-	Assert(foundGoalHex != startHex);
-	Hex** iter = pathOut->hexes;
-	for (Hex* hex = foundGoalHex; hex != startHex; hex = pathParent[hex->idx]) {
-		*iter++ = hex;
-	}
-	U64 const len = (U64)(iter - pathOut->hexes);
-	U64 const halfLen = len / 2;
-	for (U64 i = 0; i < halfLen ; i++) {
-		Swap(pathOut->hexes[i], pathOut->hexes[len - i - 1]);
-	}
-	pathOut->len = (U32)len;
-
-	return true;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static Res<> Action_Exit(F32) { return App::Err_Exit(); };
-
-//--------------------------------------------------------------------------------------------------
-
-static Res<> Action_Click(F32) { 
-	if (!mouseHex) {
-		return Ok();
-	}
-
-	if (state == State::None) {
-		if (selectedHex == mouseHex) {
-			Logf("Deselected hex (%i,%i)", selectedHex->c, selectedHex->r);
-			selectedHex = nullptr;
-		} else if (mouseHex->unit) {
-			Logf("Selected hex (%i, %i)", mouseHex->c, mouseHex->r);
-			selectedHex = mouseHex;
-			BuildMoveCostMap(selectedHex, selectedHex->unit->unitDef->move, selectedHex->unit->side, &selectedHexMoveCostMap);
-		} else {
-			Logf("Ignoring click on empty hex (%i, %i)", mouseHex->c, mouseHex->r);
-		}
-		return Ok();
-	}
-		
-	/*
-		if (clickedMapTile->unit) {
-			selectedMapTile = clickedMapTile;
-			Logf("Selected map tile (%i, %i) with %s unit %p", clickedHexPos.col, clickedHexPos.row, clickedMapTile->unit->def->name, clickedMapTile->unit);
-		} else {
-			Logf("Ignoring click on empty map tile");
-		}
-		return;
-	}
-
-	if (state == State::UnitSelected) {
-		if (clickedMapTile == selectedMapTile) {
-			Logf("Deselected map tile");
-			selectedMapTile = nullptr;
-			return;
-		}
-		/*
-		if (!clickedMapTile->unit) {
-			MoveRequest(selectedMapTile, clickedMapTile);
-			Vec2 const targetUnitPos  = clickedMapTile->unit->pos;
-			Vec2 const targetUnitSize = Math::Scale(clickedMapTile->unit->unitDef->size, 0.5f);
-
-			order.orderType = OrderType::Attack;
-			order.attackOrder.attackOrderState = AttackOrderState::MovingTo;
-			order.attackOrder.elapsedSecs      = 0.f;
-			order.attackOrder.durSecs          = 0.5f;
-			order.attackOrder.unitMapTile      = selectedMapTile;
-			order.attackOrder.unit             = selectedUnit;
-			order.attackOrder.targetUnit       = clickedHex->unit;
-			bool intersected = Math::IntersectLineSegmentAabb(selectedUnit->pos, targetUnitPos, Math::Sub(targetUnitPos, targetUnitSize), Math::Add(targetUnitPos, targetUnitSize), &order.attackOrder.targetPos);
-			Assert(intersected);
-			if (!intersected) {
-				order.attackOrder.targetPos = targetUnitPos;
-			}
-
-			state = State::ExecutingOrder;
-
-			Logf("Executing attack order");
-		}
-	}
-	*/
-	return Ok();
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static Res<> Action_Zoom(F32 scaleDelta) {
-	F32 const oldScale = camera.scale;
-	if (camera.scale + scaleDelta >= 1.f) {
-		camera.scale += scaleDelta;
-	}
-	F32 const windowCenterX = windowSize.x * 0.5f;
-	F32 const windowCenterY = windowSize.y * 0.5f;
-	camera.pos.x -= windowCenterX / camera.scale - windowCenterX / oldScale;
-	camera.pos.y -= windowCenterY / camera.scale - windowCenterY / oldScale;
-	Logf("camera.scale = %f", camera.scale);
-	return Ok();
-}
-static Res<> Action_ZoomIn(F32)  { return Action_Zoom(1.f); }
-static Res<> Action_ZoomOut(F32) { return Action_Zoom(-1.f); }
-
-//--------------------------------------------------------------------------------------------------
-
-static Res<> Action_ScrollMapLeft (F32 sec) { camera.pos.x -= (CamSpeedPixelsPerSec * sec) / camera.scale; return Ok(); }
-static Res<> Action_ScrollMapRight(F32 sec) { camera.pos.x += (CamSpeedPixelsPerSec * sec) / camera.scale; return Ok(); }
-static Res<> Action_ScrollMapUp   (F32 sec) { camera.pos.y -= (CamSpeedPixelsPerSec * sec) / camera.scale; return Ok(); }
-static Res<> Action_ScrollMapDown (F32 sec) { camera.pos.y += (CamSpeedPixelsPerSec * sec) / camera.scale; return Ok(); }
 
 //--------------------------------------------------------------------------------------------------
 
@@ -570,46 +85,13 @@ Res<> Init(Mem permMem, Mem tempMemIn, Window::State const* windowState) {
 	terrain          = Mem::AllocT<Terrain>(permMem, MaxTerrain);
 	terrainLen       = 0;
 	terrainMap.Init(permMem, MaxTerrain);
-	hexes            = Mem::AllocT<Hex>(permMem, MaxRows * MaxCols);
-	hexesLen         = 0;
-	pathScore        = Mem::AllocT<U32> (permMem, MaxCols * MaxRows);
-	pathParent       = Mem::AllocT<Hex*>(permMem, MaxCols * MaxRows);
-	pathVisited      = Mem::AllocT<bool>(permMem, MaxCols * MaxRows);
-	pathHeap.entries = Mem::AllocT<HeapEntry>(permMem, MaxCols * MaxRows * 6);
-	pathHeap.len     = 0;
-	pathHeap.cap     = MaxCols * MaxRows * 6;
+	data.hexes     = Mem::AllocT<Hex>(permMem, MaxRows * MaxCols);
+	data.hexesLen  = 0;
 
-	InitLut();
+	InitDraw(permMem, windowState);
+	InitPath(permMem);
+	InitUtil();
 
-	windowSize = Vec2((F32)windowState->width, (F32)windowState->height);
-
-	camera.pos = { 0.f, 0.f };
-	camera.scale = 3.f;
-
-	bindingSet = Input::CreateBindingSet("Main");
-	Input::Bind(bindingSet, Key::Key::Escape,         Input::BindingType::OnKeyDown,  ActionId_Exit);
-	Input::Bind(bindingSet, Key::Key::Mouse1,         Input::BindingType::OnKeyUp,    ActionId_Click);
-	Input::Bind(bindingSet, Key::Key::MouseWheelUp,   Input::BindingType::OnKeyDown,  ActionId_ZoomIn);
-	Input::Bind(bindingSet, Key::Key::MouseWheelDown, Input::BindingType::OnKeyDown,  ActionId_ZoomOut);
-	Input::Bind(bindingSet, Key::Key::W,              Input::BindingType::Continuous, ActionId_ScrollMapUp);
-	Input::Bind(bindingSet, Key::Key::S,              Input::BindingType::Continuous, ActionId_ScrollMapDown);
-	Input::Bind(bindingSet, Key::Key::A,              Input::BindingType::Continuous, ActionId_ScrollMapLeft);
-	Input::Bind(bindingSet, Key::Key::D,              Input::BindingType::Continuous, ActionId_ScrollMapRight);
-	Input::SetBindingSetStack({ bindingSet });
-
-	actionFns[ActionId_Exit]           = Action_Exit;
-	actionFns[ActionId_Click]          = Action_Click;
-	actionFns[ActionId_ZoomIn]         = Action_ZoomIn;
-	actionFns[ActionId_ZoomOut]        = Action_ZoomOut;
-	actionFns[ActionId_ScrollMapUp]    = Action_ScrollMapUp;
-	actionFns[ActionId_ScrollMapDown]  = Action_ScrollMapDown;
-	actionFns[ActionId_ScrollMapLeft]  = Action_ScrollMapLeft;
-	actionFns[ActionId_ScrollMapRight] = Action_ScrollMapRight;
-
-	TryTo(Draw::LoadFontJson("Assets/6_EverydayStandard.fontjson"), numberFont);
-	TryTo(Draw::LoadFontJson("Assets/15_CelticTime.fontjson"),      uiFont);
-	TryTo(Draw::LoadFontJson("Assets/21_OldeTome.fontjson"),        fancyFont);
-	uiFontLineHeight = Draw::GetFontLineHeight(uiFont);
 
 	state = State::None;
 
@@ -764,7 +246,7 @@ Res<> GenerateMap() {
 //--------------------------------------------------------------------------------------------------
 
 Res<> Frame(App::FrameData const* appFrameData) {
-	mouseWorldPos = Vec2(
+	Vec2 const mouseWorldPos = Vec2(
 		((F32)appFrameData->mouseX / camera.scale) + camera.pos.x,
 		((F32)appFrameData->mouseY / camera.scale) + camera.pos.y
 	);
@@ -791,96 +273,6 @@ Res<> Frame(App::FrameData const* appFrameData) {
 	}
 
 	return Ok();
-}
-
-//--------------------------------------------------------------------------------------------------
-
-void Draw() {
-	Draw::SetCamera(camera);
-
-	for (U32 i = 0; i < hexesLen; i++) {
-		Hex const* const hex = &hexes[i];
-		Vec2 const topLeftPos = HexToTopLeftWorldPos(hex);
-		Draw::DrawSprite({
-			.sprite = hex->terrain->sprite,
-			.pos    = topLeftPos,
-			.z      = Z_Hex,
-			.origin = Draw::Origin::TopLeft,
-		});
-		Draw::DrawStr({
-			.font   = numberFont,
-			.str    = SPrintf(tempMem, "%u", hex->terrain->moveCost),
-			.pos    = Vec2(topLeftPos.x + (F32)HexSize / 2.f, topLeftPos.y + 3.f),
-			.z      = Z_Hex + 10.f,
-			.origin = Draw::Origin::TopCenter,
-			.color  = Vec4(1.f, 1.f, 1.f, 1.f),
-		});
-
-		if (!hex->unit) { continue; }
-
-		Unit::Unit const* const unit = hex->unit;
-		Draw::DrawSprite({
-			.sprite       = unit->unitDef->sprite,
-			.pos          = unit->pos,
-			.z            = Z_Hex + 1.f,
-			.origin       = Draw::Origin::Center,
-		});
-	}
-
-	if (mouseHex) {
-		Draw::DrawSprite({
-			.sprite = borderSprite,
-			.pos    = HexToTopLeftWorldPos(mouseHex),
-			.z      = Z_Hex + 0.1f,
-			.origin = Draw::Origin::TopLeft,
-			.color  = Vec4(1.f, 1.f, 1.f, 0.5f),
-		});
-	}
-
-	if (!selectedHex) { return; }
-
-	Draw::DrawSprite({
-		.sprite = borderSprite,
-		.pos    = HexToTopLeftWorldPos(selectedHex),
-		.z      = Z_Hex + 0.2f,
-		.origin = Draw::Origin::TopLeft,
-		.color  = Vec4(1.f, 0.f, 0.f, 1.f),
-	});
-
-	for (U32 c = 0; c < MaxCols; c++) {
-		for (U32 r = 0; r < MaxRows; r++) {
-			U32 const idx = c + (r * MaxCols);
-			Vec2 const topLeftPos = ColRowToTopLeftWorldPos(c, r);
-			if (!selectedHexMoveCostMap.moveCosts[idx]) {
-				Draw::DrawSprite({
-					.sprite = highlightSprite,
-					.pos    = ColRowToTopLeftWorldPos(c, r),
-					.z      = Z_Hex + 0.1f,
-					.origin = Draw::Origin::TopLeft,
-					.color  = Vec4(0.f, 0.f, 0.f, 0.5f),
-				});
-			}
-			Draw::DrawStr({
-				.font   = numberFont,
-				.str    = SPrintf(tempMem, "%u", selectedHexMoveCostMap.moveCosts[idx]),
-				.pos    = Vec2(topLeftPos.x + (F32)HexSize / 2.f, topLeftPos.y + (F32)HexSize - 3.f),
-				.z      = Z_Hex + 10.f,
-				.origin = Draw::Origin::BottomCenter,
-				.color  = Vec4(1.f, 1.f, 1.f, 1.f),
-			});
-		}
-	}
-
-	for (U32 i = 0; i < selectedToHoverPath.len; i++) {
-		Vec2 const topLeftPos = HexToTopLeftWorldPos(selectedToHoverPath.hexes[i]);
-		Draw::DrawSprite({
-			.sprite = highlightSprite,
-			.pos    = topLeftPos,
-			.z      = Z_Hex + 0.1f,
-			.origin = Draw::Origin::TopLeft,
-			.color  = Vec4(0.f, 1.f, 0.f, 0.5f),
-		});
-	}
 }
 
 //--------------------------------------------------------------------------------------------------

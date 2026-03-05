@@ -3,8 +3,6 @@
 #include "JC/Common.h"
 
 namespace JC::App    { struct FrameData; }
-namespace JC::Draw   { DefHandle(Sprite); }
-namespace JC::Unit   { struct Unit; }
 namespace JC::Window { struct State; }
 
 namespace JC::Battle {
@@ -12,7 +10,7 @@ namespace JC::Battle {
 //--------------------------------------------------------------------------------------------------
 
 Res<> Init(Mem permMem, Mem tempMem, Window::State const* windowState);
-Res<> LoadBattleJson(Str battleJsonPath);
+Res<> Load(Str path);
 Res<> GenerateMap();
 Res<> Frame(App::FrameData const* appFrameData);
 void  Draw();

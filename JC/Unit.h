@@ -8,42 +8,31 @@ namespace JC::Unit {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr U32 MaxUnitAnimationFrames = 16;
-static constexpr U32 MaxUnitAnimations      = 16;
+DefHandle(Def);
+DefHandle(Unit);
 
-namespace Side {
-	enum Enum {
-		Left = 0,
-		Right,
-		Max
-	};
+enum struct Side { Left, Right };
+
+struct DefData {
+	Str name;
+	U32 hp;
+	U32 move;
 };
 
-struct UnitDef {
-	Str           name;
-	Draw::Sprite  sprite;
-	Vec2          size;
-	U32           hp;
-	U32           move;
-};
-
-struct Unit {
-	UnitDef const* unitDef;
-	Side::Enum     side;
-	Vec2           pos;
+struct Data {
+	DefData const* defData;
+	Side           side;
 	U32            hp;
 	U32            move;
-	Unit*          next;
-	U32            nextFreeIdx;
 };
 
-void                Init(Mem permMem, Mem tempMem);
-Res<>               LoadUnitDefsJson(Str unitDefJsonPath);
-Res<UnitDef const*> GetUnitDef(Str name);
-Unit*               AllocUnit();
-void                FreeUnit(Unit* unit);
-void                Frame(F32 sec);
-void                Draw(F32 z);
+void     Init(Mem permMem, Mem tempMem);
+Res<>    LoadDefs(Str path);
+Res<Def> GetUnitDef(Str name);
+Unit     CreateUnit(Def def);
+void     FreeUnit(Unit* unit);
+void     Frame(F32 sec);
+void     Draw(F32 z);
 
 //--------------------------------------------------------------------------------------------------
 

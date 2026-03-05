@@ -82,3 +82,6 @@ All source lives in `JC/`. Modules are flat namespaces under `JC::`.
 - Create a `BindingSet`, bind `Key::Key` values to `U64` action IDs via `Input::Bind()`
 - `frameData->actions` is a `Span<U64 const>` of triggered actions each frame
 - Switch on action IDs in `Frame()`
+
+# Claude
+- For design and architecture questions, give detailed responses: named options with pros/cons, concrete code examples, and an explicit recommendation. Don't default to brevity on open-ended design questions.

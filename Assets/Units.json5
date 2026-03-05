@@ -1,5 +1,5 @@
 {
-	atlasJsonPath: "Assets/Units.atlasjson",
+	atlasPath: "Assets/UnitAtlas.json",
 	unitDefs: [
 		{
 			name: "Spearmen",
