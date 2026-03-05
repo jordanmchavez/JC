@@ -2,8 +2,8 @@
 
 using namespace JC;
 
-namespace JC::Battle { App::App* GetApp(); }
+namespace JC::Game { App::App* GetApp(); }
 
 int main(int argc, char const** argv) {
-	return App::Run(Battle::GetApp(), argc, argv) ? 0 : 1;
+	return App::Run(Game::GetApp(), argc, argv) ? 0 : 1;
 }

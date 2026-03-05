@@ -1,6 +1,6 @@
 {
-	spriteAtlasJsonPaths: [
-		"Assets/Terrain.spriteatlasjson",
+	atlasJsonPaths: [
+		"Assets/Terrain.atlasjson",
 	],
 	borderSprite: "Hex32_Border",
 	highlightSprite: "Hex32_Highlight",

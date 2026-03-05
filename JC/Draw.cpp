@@ -31,7 +31,7 @@ DefErr(Draw, Ttf);
 //--------------------------------------------------------------------------------------------------
 
 static constexpr U32 MaxDrawCmds      = 128 * 1024;
-static constexpr U32 MaxSpriteAtlases = 64;
+static constexpr U32 MaxAtlases = 64;
 static constexpr U32 MaxSprites       = 64 * 1024;
 static constexpr U32 MaxFonts         = 64;
 static constexpr U32 MaxCanvases      = 64;
@@ -40,7 +40,7 @@ static constexpr U32 ErrorImageSize   = 64;
 
 //--------------------------------------------------------------------------------------------------
 
-struct SpriteAtlas {
+struct Atlas {
 	Str        path;
 	Gpu::Image image;
 	U32        imageIdx = 0;
@@ -121,8 +121,8 @@ static U32           windowWidth;
 static U32           windowHeight;
 static Gpu::Image    errorImage;
 static U32           errorImageIdx;
-static SpriteAtlas*  spriteAtlases;
-static U32           spriteAtlasesLen;
+static Atlas*        atlases;
+static U32           atlasesLen;
 static SpriteObj*    spriteObjs;
 static U32           spriteObjsLen;
 static Map<Str, U32> spriteObjsByName;
@@ -163,14 +163,14 @@ Res<> Init(InitDef const* initDef) {
 	windowWidth  = initDef->windowWidth;
 	windowHeight = initDef->windowHeight;
 
-	spriteAtlases    = Mem::AllocT<SpriteAtlas>(permMem, MaxSpriteAtlases);
-	spriteAtlasesLen = 0;
-	spriteObjs       = Mem::AllocT<SpriteObj>(permMem, MaxSprites);
-	spriteObjsLen    = 1;	// reserve 0 for invalid
-	fontObjs         = Mem::AllocT<FontObj>(permMem, MaxFonts);
-	fontObjsLen      = 1;	// reserve 0 for invalid
-	passes           = Mem::AllocT<Pass>(permMem, MaxPasses);
-	passesLen        = 0;
+	atlases       = Mem::AllocT<Atlas>(permMem, MaxAtlases);
+	atlasesLen    = 0;
+	spriteObjs    = Mem::AllocT<SpriteObj>(permMem, MaxSprites);
+	spriteObjsLen = 1;	// reserve 0 for invalid
+	fontObjs      = Mem::AllocT<FontObj>(permMem, MaxFonts);
+	fontObjsLen   = 1;	// reserve 0 for invalid
+	passes        = Mem::AllocT<Pass>(permMem, MaxPasses);
+	passesLen     = 0;
 	spriteObjsByName.Init(permMem, MaxSprites);
 	canvasObjs.Init(permMem, MaxCanvases);
 
@@ -236,8 +236,8 @@ Res<> Init(InitDef const* initDef) {
 //--------------------------------------------------------------------------------------------------
 
 void Shutdown() {
-	for (U32 i = 0; i < spriteAtlasesLen; i++) {
-		Gpu::DestroyImage(spriteAtlases[i].image);
+	for (U32 i = 0; i < atlasesLen; i++) {
+		Gpu::DestroyImage(atlases[i].image);
 	}
 	for (U32 i = 1; i < fontObjsLen; i++) {	// 0 reserved for invalid
 		Gpu::DestroyImage(fontObjs[i].image);
@@ -316,41 +316,41 @@ Json_Begin(SpriteJson)
 	Json_Member("name", name)
 Json_End(SpriteJson)
 
-struct SpriteAtlasJson {
+struct AtlasJson {
 	Str              imagePath;
 	Span<SpriteJson> sprites;
 };
-Json_Begin(SpriteAtlasJson)
+Json_Begin(AtlasJson)
 	Json_Member("imagePath", imagePath)
 	Json_Member("sprites",   sprites)
-Json_End(SpriteAtlasJson)
+Json_End(AtlasJson)
 
-Res<> LoadSpriteAtlasJson(Str spriteAtlasJsonPath) {
-	for (U32 i = 0; i < spriteAtlasesLen; i++) {
-		if (File::PathsEq(spriteAtlasJsonPath, spriteAtlases[i].path)) {
+Res<> LoadAtlasJson(Str atlastJsonPath) {
+	for (U32 i = 0; i < atlasesLen; i++) {
+		if (File::PathsEq(atlastJsonPath, atlases[i].path)) {
 			return Ok();
 		}
 	}
-	Assert(spriteAtlasesLen < MaxSpriteAtlases);
+	Assert(atlasesLen < MaxAtlases);
 
-	Span<char> json; TryTo(File::ReadAllZ(spriteAtlasJsonPath), json);
-	SpriteAtlasJson spriteAtlasJson; Try(Json::ToObject(tempMem, tempMem, json.data, (U32)json.len, &spriteAtlasJson));
+	Span<char> json; TryTo(File::ReadAllZ(atlastJsonPath), json);
+	AtlasJson atlasJson; Try(Json::ToObject(tempMem, tempMem, json.data, (U32)json.len, &atlasJson));
 
-	Gpu::Image image; TryTo(LoadImage(spriteAtlasJson.imagePath), image);
+	Gpu::Image image; TryTo(LoadImage(atlasJson.imagePath), image);
 	U32 const imageIdx    = Gpu::GetImageBindIdx(image);
 	F32 const imageWidth  = (F32)Gpu::GetImageWidth(image);
 	F32 const imageHeight = (F32)Gpu::GetImageHeight(image);
-	spriteAtlases[spriteAtlasesLen++] = {
-		.path     = StrDb::Intern(spriteAtlasJsonPath),
+	atlases[atlasesLen++] = {
+		.path     = StrDb::Intern(atlastJsonPath),
 		.image    = image,
 		.imageIdx = imageIdx,
 	};
 
-	Assert(spriteObjsLen + spriteAtlasJson.sprites.len <= MaxSprites);
-	for (U64 i = 0; i < spriteAtlasJson.sprites.len; i++) {
-		SpriteJson* const spriteJson = &spriteAtlasJson.sprites[i];
+	Assert(spriteObjsLen + atlasJson.sprites.len <= MaxSprites);
+	for (U64 i = 0; i < atlasJson.sprites.len; i++) {
+		SpriteJson* const spriteJson = &atlasJson.sprites[i];
 		if (spriteObjsByName.FindOrNull(spriteJson->name)) {
-			return Err_DuplicateSpriteName("path", spriteAtlasJsonPath, "name", spriteJson->name);
+			return Err_DuplicateSpriteName("path", atlastJsonPath, "name", spriteJson->name);
 		}
 		F32 const x = (F32)spriteJson->x;
 		F32 const y = (F32)spriteJson->y;
@@ -818,6 +818,11 @@ void DrawStr(StrDrawDef drawDef) {
 		case Origin::Left:
 		case Origin::Center:
 		case Origin::Right:
+			y -= (fontObj->lineHeight / 2.f) * drawDef.scale.y;
+			break;
+		case Origin::BaselineLeft:
+		case Origin::BaselineCenter:
+		case Origin::BaselineRight:
 			y -= fontObj->base * drawDef.scale.y;
 			break;
 	}

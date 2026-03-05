@@ -15,7 +15,6 @@ static constexpr U32 MaxBindingSets = 32;
 struct Binding {
 	BindingType bindingType = BindingType::Invalid;
 	U64         actionId = 0;
-	Str         actionStr;
 };
 
 static Str*     bindingSetNames;
@@ -47,14 +46,13 @@ BindingSet CreateBindingSet(Str name) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Bind(BindingSet bindingSet, Key::Key key, BindingType bindingType, U64 actionId, Str actionStr) {
+void Bind(BindingSet bindingSet, Key::Key key, BindingType bindingType, U64 actionId) {
 	Assert(bindingSet.handle > 0 && bindingSet.handle < bindingSetsLen);
 	Assert(actionId != 0);
 	Assert(bindingType != BindingType::Invalid);
 	bindings[((U64)key * MaxBindingSets) + bindingSet.handle] = {
 		.bindingType = bindingType,
 		.actionId    = actionId,
-		.actionStr   = StrDb::Intern(actionStr),
 	};
 }
 
@@ -161,7 +159,7 @@ Unit_Test("Input") {
 
 	Unit_SubTest("OnKeyDown") {
 		BindingSet bs = CreateBindingSet("game");
-		Bind(bs, Key::Key::A, BindingType::OnKeyDown, 1, "action");
+		Bind(bs, Key::Key::A, BindingType::OnKeyDown, 1);
 		SetBindingSetStack(Span<BindingSet const>({bs}));
 		U64 out[16];
 
@@ -188,7 +186,7 @@ Unit_Test("Input") {
 
 	Unit_SubTest("OnKeyUp") {
 		BindingSet bs = CreateBindingSet("game");
-		Bind(bs, Key::Key::B, BindingType::OnKeyUp, 2, "action");
+		Bind(bs, Key::Key::B, BindingType::OnKeyUp, 2);
 		SetBindingSetStack(Span<BindingSet const>({bs}));
 		U64 out[16];
 
@@ -214,7 +212,7 @@ Unit_Test("Input") {
 
 	Unit_SubTest("Continuous") {
 		BindingSet bs = CreateBindingSet("game");
-		Bind(bs, Key::Key::C, BindingType::Continuous, 3, "action");
+		Bind(bs, Key::Key::C, BindingType::Continuous, 3);
 		SetBindingSetStack(Span<BindingSet const>({bs}));
 		U64 out[16];
 		Span<Window::KeyEvent const> const noEvs;
@@ -242,7 +240,7 @@ Unit_Test("Input") {
 
 	Unit_SubTest("Unbind") {
 		BindingSet bs = CreateBindingSet("game");
-		Bind(bs, Key::Key::D, BindingType::OnKeyDown, 4, "action");
+		Bind(bs, Key::Key::D, BindingType::OnKeyDown, 4);
 		SetBindingSetStack(Span<BindingSet const>({bs}));
 		U64 out[16];
 
@@ -256,7 +254,7 @@ Unit_Test("Input") {
 
 	Unit_SubTest("SetBindingSetStack") {
 		BindingSet bs = CreateBindingSet("game");
-		Bind(bs, Key::Key::E, BindingType::OnKeyDown, 5, "action");
+		Bind(bs, Key::Key::E, BindingType::OnKeyDown, 5);
 		U64 out[16];
 
 		Unit_SubTest("empty stack fires nothing") {
@@ -278,12 +276,12 @@ Unit_Test("Input") {
 	Unit_SubTest("BindingSetPriority") {
 		BindingSet bs1 = CreateBindingSet("low");
 		BindingSet bs2 = CreateBindingSet("high");
-		Bind(bs1, Key::Key::F, BindingType::OnKeyDown, 10, "low_action");
+		Bind(bs1, Key::Key::F, BindingType::OnKeyDown, 10);
 		SetBindingSetStack(Span<BindingSet const>({bs1, bs2}));
 		U64 out[16];
 
 		Unit_SubTest("higher priority set wins when both have a binding") {
-			Bind(bs2, Key::Key::F, BindingType::OnKeyDown, 11, "high_action");
+			Bind(bs2, Key::Key::F, BindingType::OnKeyDown, 11);
 			Span<U64 const> r = ProcessKeyEvents(Span<Window::KeyEvent const>({{Key::Key::F, true}}), out, 16);
 			Unit_CheckEq(r.len, (U64)1);
 			Unit_CheckEq(out[0], (U64)11);
@@ -301,8 +299,8 @@ Unit_Test("Input") {
 
 	Unit_SubTest("MultipleEvents") {
 		BindingSet bs = CreateBindingSet("game");
-		Bind(bs, Key::Key::G, BindingType::OnKeyDown, 20, "action_g");
-		Bind(bs, Key::Key::H, BindingType::OnKeyDown, 21, "action_h");
+		Bind(bs, Key::Key::G, BindingType::OnKeyDown, 20);
+		Bind(bs, Key::Key::H, BindingType::OnKeyDown, 21);
 		SetBindingSetStack(Span<BindingSet const>({bs}));
 		U64 out[16];
 
@@ -319,8 +317,8 @@ Unit_Test("Input") {
 
 	Unit_SubTest("OutputOverflow") {
 		BindingSet bs = CreateBindingSet("game");
-		Bind(bs, Key::Key::I, BindingType::OnKeyDown, 30, "action_i");
-		Bind(bs, Key::Key::J, BindingType::OnKeyDown, 31, "action_j");
+		Bind(bs, Key::Key::I, BindingType::OnKeyDown, 30);
+		Bind(bs, Key::Key::J, BindingType::OnKeyDown, 31);
 		SetBindingSetStack(Span<BindingSet const>({bs}));
 
 		Unit_SubTest("first action written, second dropped, returns early") {

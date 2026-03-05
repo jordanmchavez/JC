@@ -28,12 +28,17 @@ enum struct Origin {
 	TopLeft,
 	TopCenter,
 	TopRight,
-	Left,		// BaselineLeft for fonts
-	Center,		// BaselineCenter for fonts
-	Right,		// BaselineRight for fonts
+	Left,
+	Center,
+	Right,
 	BottomLeft,
 	BottomCenter,
 	BottomRight,
+
+	// only valid for StrDrawDef
+	BaselineLeft,
+	BaselineCenter,
+	BaselineRight
 };
 
 struct RectDrawDef {
@@ -79,7 +84,7 @@ struct CanvasDrawDef {
 Res<>       Init(InitDef const* initDef);
 void        Shutdown();
 Res<>       ResizeWindow(U32 width, U32 height);
-Res<>       LoadSpriteAtlasJson(Str spriteAtlasJsonPath);
+Res<>       LoadAtlasJson(Str atlasJsonPath);
 Res<Sprite> GetSprite(Str name);
 Vec2        GetSpriteSize(Sprite sprite);
 Res<Font>   LoadFontJson(Str fontJsonPath);
