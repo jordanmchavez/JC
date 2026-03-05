@@ -32,41 +32,20 @@ struct HexObj {
 	Vec4              highlightColor;
 };
 
-static Mem           tempMem;
-static U8            hexLut[(HexSize / 2) * (HexSize * 3 / 8)];
-static TerrainObj*   terrainObjs;
-static U32           terrainObjsLen;
-static Map<Str, U32> terrainMap;
-static HexObj*       hexObjs;
-static U32           hexObjsLen;
-static Draw::Sprite  borderSprite;
-static Draw::Sprite  highlightSprite;
+static Mem               tempMem;
+static U8                hexLut[(HexSize / 2) * (HexSize * 3 / 8)];
+static TerrainObj*       terrainObjs;
+static U32               terrainObjsLen;
+static Map<Str, U32>     terrainMap;
+static HexObj*           hexObjs;
+static U32               hexObjsLen;
+static Map<U32, HexObj*> hexMap;
+static Draw::Sprite      borderSprite;
+static Draw::Sprite      highlightSprite;
 
 //--------------------------------------------------------------------------------------------------
-/*
-static HexPos ScreenPosToHexPos(Vec2 p) {
-	I32 iy = (I32)p.y;
-	I32 row = iy / (HexSize * 3 / 4);
-	const U8 parity = (row & 1);
 
-	I32 ix = (I32)p.x - parity * (HexSize / 2);
-	I32 col = ix / HexSize;
-	if (ix < 0 || iy < 0) {
-		return { .col = -1, .row = -1 };
-	}
-
-	I32 lx = ix - (col * HexSize);
-	I32 ly = iy - (row * (HexSize * 3 / 4));
-	Assert(lx >= 0 && ly >= 0);
-
-	const U8 l = (hexLut[(ly / 2) * (HexSize / 2) + (lx / 2)] >> ((lx & 1) * 4)) & 0xf;
-	switch (l) {
-		case 1: col -= 1 * (1 - parity); row -= 1; break;
-		case 2: col += 1 * parity;       row -= 1; break;
-	}
-	return { .col = (I16)col, .row = (I16)row };
-}
-/*/
+static U32 HexMapKey(HexPos hexPos) { return (U32)hexPos.c | ((U32)hexPos.r << 16); }
 
 //--------------------------------------------------------------------------------------------------
 
@@ -95,6 +74,7 @@ void Init(Mem permMem, Mem tempMemIn) {
 	terrainMap.Init(permMem, MaxTerrains);
 	hexObjs        = Mem::AllocT<HexObj>    (permMem, MaxHexes);
 	hexObjsLen     = 1;	// reserve 0 for invalid
+	hexMap.Init(permMem, MaxHexes);
 	InitLut();
 }
 
@@ -167,12 +147,15 @@ Res<Terrain> GetTerrain(Str name) {
 //--------------------------------------------------------------------------------------------------
 
 Hex CreateHex(Terrain terrain, HexPos pos) {
+	U32 const key = HexMapKey(pos);
+	Assert(!hexMap.FindOrNull(key), "Hex %i,%i already exists", pos.c, pos.r);
 	Assert(hexObjsLen < MaxHexes);
 	Assert(terrain.handle > 0 && terrain.handle < MaxTerrains);
 	HexObj* const hexObj = &hexObjs[hexObjsLen++];
 	memset(hexObj, 0, sizeof(HexObj));
 	hexObj->terrainObj = &terrainObjs[terrain.handle];
 	hexObj->pos        = pos;
+	hexMap.Put(key, hexObj);
 	Logf("Created terrain '%s' at %ix%i", hexObj->terrainObj->name, pos.c, pos.r);
 	return { .handle = (U64)(hexObjsLen - 1) };
 }
@@ -183,7 +166,53 @@ Hex CreateHex(Terrain terrain, HexPos pos) {
 void DestroyHex(Hex hex) {
 	Assert(hex.handle > 0 && hex.handle < hexObjsLen);
 	hexObjs[hex.handle] = hexObjs[hexObjsLen - 1];
+	hexMap.Remove(HexMapKey(hexObjs[hex.handle].pos));
 	hexObjsLen--;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+HexPos GetHexPos(Hex hex) {
+	Assert(hex.handle > 0 && hex.handle < hexObjsLen);
+	return hexObjs[hex.handle].pos;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+U32 GetHexMoveCost(Hex hex) {
+	Assert(hex.handle > 0 && hex.handle < hexObjsLen);
+	return hexObjs[hex.handle].terrainObj->moveCost;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static HexPos GetHexPosByWorldPos(Vec2 p) {
+	I32 const hsize   = (I32)HexSize;
+	I32 const rowStep = hsize * 3 / 4;
+	I32 const iy      = (I32)p.y;
+	I32 row = iy / rowStep - (iy % rowStep != 0 && iy < 0 ? 1 : 0);	// floor division
+	U8  const parity  = (U8)(row & 1);
+
+	I32 const ix  = (I32)p.x - (I32)parity * (hsize / 2);
+	I32 col = ix / hsize - (ix % hsize != 0 && ix < 0 ? 1 : 0);	// floor division
+
+	I32 const lx = ix - col * hsize;
+	I32 const ly = iy - row * rowStep;
+	Assert(lx >= 0 && lx < hsize && ly >= 0 && ly < rowStep);
+
+	U8 const l = (hexLut[(ly / 2) * (hsize / 2) + (lx / 2)] >> ((lx & 1) * 4)) & 0xf;
+	switch (l) {
+		case 1: col -= 1 - parity; row -= 1; break;
+		case 2: col += parity;     row -= 1; break;
+	}
+	return { .c = col, .r = row };
+}
+
+Hex GetHexByWorldPos(Vec2 p) {
+	HexPos const hexPos = GetHexPosByWorldPos(p);
+	HexObj** hexObjPtr = hexMap.FindOrNull(HexMapKey(hexPos));
+	if (!hexObjPtr) { return Hex(); }
+	return { .handle = (U64)(*hexObjPtr - hexObjs) };
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -226,8 +255,8 @@ void HideHexHighlight(Hex hex) {
 
 static Vec2 ColRowToTopLeftScreenPos(U32 col, U32 row) {
 	return {
-		(F32)((HexSize / 2) + col * HexSize + (row & 1) * (HexSize / 2)),
-		(F32)((HexSize / 2) + row * (HexSize * 3 / 4)),
+		(F32)(col * HexSize + (row & 1) * (HexSize / 2)),
+		(F32)(row * (HexSize * 3 / 4)),
 	};
 }
 
@@ -243,14 +272,18 @@ void Draw(F32 drawZ) {
 			.origin = Draw::Origin::TopLeft,
 		};
 		Draw::DrawSprite(drawDef);
+
 		if (hexObj->border) {
 			drawDef.sprite = borderSprite;
 			drawDef.color  = hexObj->borderColor;
+			drawDef.z = drawZ + 0.1f;
 			Draw::DrawSprite(drawDef);
 		}
+
 		if (hexObj->highlight) {
 			drawDef.sprite = highlightSprite;
 			drawDef.color  = hexObj->highlightColor;
+			drawDef.z = drawZ + 0.1f;
 			Draw::DrawSprite(drawDef);
 		}
 	}

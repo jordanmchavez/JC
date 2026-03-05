@@ -10,6 +10,7 @@ namespace JC::Math {
 constexpr F32 Pi = 3.14159265358979323846f;
 
 inline    U32 Abs(I32 i) { return (U32)::abs(i); }
+inline    I32 Sign(I32 i) { return i < 0 ? -1 : 1; }
 inline    F32 Abs(F32 f) { return ::fabsf(f); }
 constexpr F32 DegToRad(F32 deg) { return deg * Pi / 180.0f; }
 inline    F32 Round(F32 f) { return ::roundf(f); }

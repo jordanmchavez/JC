@@ -1,67 +1,84 @@
-## Project
-A C++ game engine and game (working title "JC"). Currently building toward a 4X/trading/mercenary roguelike with hex-grid combat (see `Notes/Game Design.md`). The engine targets Windows + Vulkan.
+# Project
+4x turn-based strategy game with roguelite meta-progression. Three gameplay layers: Universe (shard selection, meta), Shard (hex 4x map), Battle (army vs army). Currently implementing the Battle prototype.
 
-## Build
-- **IDE:** Visual Studio 2022, project file `JC.vcxproj`
-- **Standard:** C++20, no exceptions, no RTTI
-- **Run tests:** `jc.exe test` (passes `"test"` arg to `Main.cpp`, which routes to unit tests)
-- **Output:** `Build\x64-Debug\` or `Build\x64-Release\`
-- **Key dependencies (in `3rd/`):** Vulkan SDK, spirv-reflect, stb_image, dragonbox
+- **Language/Platform:** C++20, Windows desktop, Vulkan, MSVC 2022 (`JC.vcxproj`)
+- **Run tests:** `jc.exe test`
+- **Design docs:** `Docs/4xGameDesign.md`, `Docs/Battle.md`
+- **Coding principles:** `Docs/Guidebook.md` — read this first
 
-## Architecture
-**Startup flow** (`App::Run` in `App.cpp`):
-1. Reserve virtual memory (16 GB perm + 16 GB temp)
-2. Init subsystems in order: `Time` → `StrDb` → `Cfg` → `Log` → `App::PreInit` → `Window` → `Gpu` → `Draw` → `App::Init`
-3. Main loop: reset temp memory → input → `App::Update` → `App::Draw` → GPU present
+# Coding Principles (from Guidebook.md)
+- Simple, minimal, transparent, explicit — minimize cognitive load to read end-to-end
+- Code is a liability: less is more. Solve only known use-cases.
+- No destructors, copy constructors, or `operator=` — everything trivially copyable/POD (except a few C++ utilities like `Array`, `DeferInvoker`, `MemScope`)
+- Arrays and hash tables are the only general data structures
+- No standard C/C++ headers — everything is implemented in-house or forwarded manually
+- **Headers may only `#include "JC/Common.h"`** — forward declare everything else
+- Minimize code in headers (especially templates)
+- Use `tempMem` arena for all allocations 1 frame or less (reset each frame), use permMem for everything permanent.
+- Errors must be unignorable: use `Res<T>` / `Err` / `ErrCode` system
+- `Assert(expr)`/`Panic(fmt, ...)` for invariants/sanity checks, NOT for error handling
 
-**Subsystem layers:**
-- **Infrastructure:** `Common.h` (types, errors, strings), `Common_Mem/Err/Fmt.cpp`, `Log`, `Sys`, `Time`
-- **Platform:** `Window_Win.cpp`, `Gpu_Vk.cpp`, `Gpu_Vk_Util.cpp`
-- **Engine:** `Draw.cpp` (2D sprite/canvas), `Event.cpp` (input queue), `Cfg.h` (config/cvars)
-- **Game:** `App.h/.cpp` (framework), `App_Shooter.cpp` (sample), `Main.cpp` (entry point)
-- **Data structures:** `Array.h`, `HandlePool.h`, `Map.h`, `Hash.cpp`, `Json.h/.cpp`, `FS.h/.cpp`
+# Key Types (Common.h)
+- **Primitives:** `I8/I16/I32/I64`, `U8/U16/U32/U64`, `F32/F64`
+- **`Str`** — non-owning string view `{ char const* data; U32 len; }`
+- **`Span<T>`** — non-owning array view `{ T* data; U64 len; }`
+- **`Array<T>`** — owning growable array backed by a `Mem` arena
+- **`Mem`** — arena allocator handle. `Mem::AllocT<T>()`, `Mem::Mark()`/`Mem::Reset()` for scoped rollback
+- **`MemScope`** — RAII arena rollback (the one RAII construct allowed)
+- **`Handle<Tag>`** / `DefHandle(Type)` — typed opaque 64-bit handles (generation + index)
+- **`HandlePool<T, H>`** — generational pool for handle-based object management
+- **`Res<T>`** / **`Res<>`** — result type wrapping value or `Err const*`; `[[nodiscard]]`
+- **`Err`** / **`ErrCode`** — structured error with source location and named args. Define with `DefErr(Ns, Code)`
+- **`Try(expr)`** — propagates error up the call stack (like `?` in Rust)
+- **`TryTo(expr, out)`** — like `Try` but extracts value into `out`
+- **`HexPos { I32 c, r; }`** — axial hex coordinate
+- **`SPrintf(mem, fmt, ...)`** — type-checked printf-style formatting into arena memory
+- **`Logf(fmt, ...)` / `Errorf(...)` / `LogErr(err)`** — logging macros (source loc automatic)
+- **`Defer { ... }`** — deferred execution lambda at scope exit
 
-**Graphics:** Vulkan with bindless descriptors. Resource pools: 4096 buffers, 4096 images, 1024 shaders, 128 pipelines. All GPU resources are handle-based with generation counts (see `HandlePool.h`).
+# Module Map
+All source lives in `JC/`. Modules are flat namespaces under `JC::`.
 
-**2D Drawing:** `Draw.cpp` provides a canvas abstraction, sprite atlasing with name lookup, and deferred `DrawCmd` submission.
+| Module | Files | Purpose |
+|---|---|---|
+| `App` | `App.h`, `App.cpp` | App lifecycle interface (`PreInit`, `Init`, `Frame`, `Draw`, `Shutdown`, `ResizeWindow`) |
+| `Battle` | `App_Battle.cpp` | Current game app — battle prototype |
+| `BMap` | `BattleMap.h`, `BattleMap.cpp` | Hex grid: terrain, hex creation/lookup, highlight/border rendering |
+| `Unit` | `Unit.h`, `Unit.cpp` | Unit defs, runtime unit state, animation, draw |
+| `Draw` | `Draw.h`, `Draw.cpp` | Sprite/rect/string/canvas drawing; font loading; camera |
+| `Gpu` | `Gpu.h`, `Gpu_Vk.h`, `Gpu_Vk.cpp`, `Gpu_Vk_Win.cpp`, `Gpu_Vk_Util.cpp` | Vulkan backend: buffers, images, pipelines, frames |
+| `Input` | `Input.h`, `Input.cpp` | Action binding system — maps keys to `U64` action IDs |
+| `Key` | `Key.h`, `Key.cpp` | Platform key codes |
+| `Window` | `Window.h`, `Window_Win.cpp` | Window creation and state |
+| `Effect` | `Effect.h`, `Effect.cpp` | Visual effects (e.g. floating damage numbers) |
+| `Cfg` | `Cfg.h`, `Cfg.cpp` | Key-value config store |
+| `Log` | `Log.h`, `Log.cpp` | Logging with level and source location |
+| `Math` | `Math.h`, `Math.cpp` | Vec2/Vec3/Vec4/Mat ops, lerp, AABB, etc. |
+| `Rng` | `Rng.h`, `Rng.cpp` | Random number generation |
+| `Mem` | `Common_Mem.cpp` | Arena allocator implementation |
+| `Fmt` | `Common_Fmt.cpp` | `SPrintf` / `StrBuf` formatting implementation |
+| `Json` | `Json.h`, `Json.cpp` | JSON parsing |
+| `File` | `File.h`, `File_Win.cpp` | File I/O |
+| `Hash` | `Hash.h`, `Hash.cpp` | Hash table |
+| `StrDb` | `StrDb.h`, `StrDb.cpp` | Interned string database |
+| `Console` | `Console.h`, `Console.cpp` | In-game console |
+| `Cmd` | `Cmd.h`, `Cmd.cpp` | Command dispatch |
+| `UnitTest` | `UnitTest.h`, `UnitTest.cpp` | Test framework |
+| `Bit` | `Bit.h`, `Bit.cpp` | Bit manipulation |
+| `Unicode` | `Unicode.h`, `Unicode.cpp` | Unicode utilities |
+| `Time` | `Time.h`, `Time_Win.cpp` | High-res timer |
+| `Particle` | `Particle.h`, `Particle.cpp` | Particle system |
 
-## Coding Conventions
-- Headers are not allowed to include other headers, with the exception of "JC/Common.h", which is included by every header.
-**Naming:**
-- Namespaces: `JC::SubSystem` (e.g., `JC::Window`, `JC::Gpu`)
-- Types, functions: `PascalCase`
-- Variables: `camelCase`
-- Macros: `SCREAMING_SNAKE_CASE`
-- Primitive type aliases: `U8`, `U32`, `I64`, `F32`, `F64`, etc.
-- Error codes: `Err_Name`
-- Config keys: `Cfg_DomainItem`
+# App Lifecycle
+`Main.cpp` calls `App::Run(Battle::GetApp(), argc, argv)`. The `App::App` struct is a vtable of function pointers:
+1. `PreInit(permMem, tempMem)` — set config (title, window size)
+2. `Init(windowState)` — load assets, bind inputs
+3. `Frame(frameData, cameraOut)` — process input actions, update state; return `Err_Exit` to quit
+4. `Draw()` — issue draw calls
+5. `ResizeWindow(w, h)`
+6. `Shutdown()`
 
-**Memory:**
-- Two allocators: `permMem` (permanent) and `tempMem` (reset each frame)
-- Linear allocators only — no `new`/`delete`, no `malloc`/`free`
-- Use `MemScope` / `Mem::Mark` + `Mem::Reset` for scoped temp allocations
-- Realloc `Mem::Realloc()` with fast-path extend for allocation-at-the-end
-
-**Error handling:**
-- `Res<T>` result type (monadic). Functions that can fail return `Res<T>` or `Res<void>`.
-- `Try(expr)` macro propagates errors up the call stack
-- `TryTo(expr, var)` extracts value from `Res<T>` or propagates
-- Define error codes with `DefErr(Namespace, Code)`
-- No exceptions anywhere
-
-**Strings:**
-- `Str` = pointer + length (not null-terminated, not `std::string`)
-- `SPrintf()` family with compile-time format string validation
-- Custom specifiers: `%t` = bool, `%b` = binary, `%a` = auto
-
-**Patterns:**
-- `Defer { ... }` for scoped cleanup (like Go's defer)
-- Subsystems receive their allocators explicitly at init — no globals
-- `Log::AddFn()` for callback-based log sinks (max 32)
-
-## Philosophy (from `Notes/Guidebook.md`)
-- **Easiness to change** is the top priority — minimize hidden behavior, make complexity visible
-- **Less is more** — code is a liability; delete unused code; don't abstract until the value is obvious
-- **Explicit > implicit** — slow/expensive operations should look slow/expensive at the call site
-- **Fast iteration** — minimize headers, avoid code-in-headers, keep build times short
-- **Abstraction value = surface area / volume** — the interface should be small relative to the implementation it hides
+# Input System
+- Create a `BindingSet`, bind `Key::Key` values to `U64` action IDs via `Input::Bind()`
+- `frameData->actions` is a `Span<U64 const>` of triggered actions each frame
+- Switch on action IDs in `Frame()`

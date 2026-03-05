@@ -1,5 +1,5 @@
 #pragma once
-/*
+
 namespace std {
 	template <class T> struct initializer_list {
 		const T* _begin = 0;
@@ -12,8 +12,6 @@ namespace std {
 		constexpr size_t size() const { return _end - _begin; }
 	};
 }	// namespace std
-*/
-#include <initializer_list>
 
 namespace JC {
 
@@ -72,15 +70,13 @@ template <class T> inline const T* Addr(const T& t) { return &t; }
 //--------------------------------------------------------------------------------------------------
 
 struct IRect { I32 x = 0; I32 y = 0; U32 width = 0; U32 height = 0; };
-struct UVec2 { U32 x = 0; U32 y = 0; };
 struct Vec2 { F32 x = 0.0f; F32 y = 0.0f; };
 struct Vec3 { F32 x = 0.0f; F32 y = 0.0f; F32 z = 0.0f; };
 struct Vec4 { F32 x = 0.0f; F32 y = 0.0f; F32 z = 0.0f; F32 w = 0.0f; };
 struct Mat2 { F32 m[2][2] = {}; };
 struct Mat3 { F32 m[3][3] = {}; };
 struct Mat4 { F32 m[4][4] = {}; };
-
-template <class T> struct Array;
+struct HexPos { I32 c = 0; I32 r = 0; };
 
 //--------------------------------------------------------------------------------------------------
 
@@ -153,6 +149,7 @@ template <class T> struct Span {
 template <class T> constexpr T Min(T x, T y) { return x < y ? x : y; }
 template <class T> constexpr T Max(T x, T y) { return x > y ? x : y; }
 template <class T> constexpr T Clamp(T x, T lo, T hi) { return x < lo ? lo : (x > hi ? hi : x); }
+template <class T> constexpr void Swap(T& x, T& y) { T tmp; tmp = x; x = y; y = tmp; }
 
 //--------------------------------------------------------------------------------------------------
 

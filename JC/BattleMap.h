@@ -11,8 +11,6 @@ namespace JC::BMap {
 DefHandle(Terrain);
 DefHandle(Hex);
 
-struct HexPos { I32 c, r; };
-
 struct HexDef {
 	Terrain terrain;
 	HexPos  pos;
@@ -25,8 +23,9 @@ Res<>        LoadBattleMapJson(Str battleMapJJsonPath);
 Res<Terrain> GetTerrain(Str name);
 Hex          CreateHex(Terrain terrain, HexPos pos);
 void         DestroyHex(Hex hex);
-Hex          GetHexByWorldPos(Vec2 worldPos);
 HexPos       GetHexPos(Hex hex);
+U32          GetHexMoveCost(Hex hex);
+Hex          GetHexByWorldPos(Vec2 worldPos);
 void         ShowHexBorder(Hex hex, Vec4 color);
 void         HideHexBorder(Hex hex);
 void         ShowHexHighlight(Hex hex, Vec4 color);

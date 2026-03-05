@@ -2,6 +2,7 @@
 #pragma warning(disable: 4189)
 
 #include "JC/App.h"
+#include "JC/Array.h"
 #include "JC/BattleMap.h"
 #include "JC/Cfg.h"
 #include "JC/Draw.h"
@@ -44,6 +45,7 @@ static constexpr U64 Action_ScrollMapDown   = 8;
 struct MapTile {
 	BMap::Hex   hex;
 	Unit::Unit* unit;
+	U32         moveCost;
 };
 
 enum struct State {
@@ -101,9 +103,11 @@ static F32               uiFontLineHeight;
 static Draw::Font        fancyFont;
 static F32               fancyFontScale = 2.f;
 static Draw::Camera      camera;
-static BMap::HexPos      mouseHexPos;
 static MapTile           mapTiles[MapCols * MapRows];
 static Vec2              mouseWorldPos;
+static HexPos            mouseHexPos;
+static BMap::Hex         mouseHex;
+static MapTile*          mouseMapTile;
 static MapTile*          selectedMapTile;
 
 //--------------------------------------------------------------------------------------------------
@@ -126,16 +130,6 @@ Res<> Init(Window::State const* windowState) {
 	camera.scale = 3.f;
 
 	Try(BMap::LoadBattleMapJson("Assets/BattleMap.battlemapjson"));
-	/*
-	BMap::Terrain terrain[] = {
-		BMap::GetTerrain("Grassland"),
-		BMap::GetTerrain("Forest"),
-		BMap::GetTerrain("Swamp"),
-		BMap::GetTerrain("Hill"),
-		BMap::GetTerrain("Mountain"),
-		BMap::GetTerrain("Water"),
-	};
-	*/
 	BMap::Terrain terrain[6];
 	TryTo(BMap::GetTerrain("Grassland"), terrain[0]);
 	TryTo(BMap::GetTerrain("Forest"), terrain[1]);
@@ -152,8 +146,9 @@ Res<> Init(Window::State const* windowState) {
 				{ c, r }
 			);
 			mapTiles[c + (r * MapCols)] = {
-				.hex  = hex,
-				.unit = nullptr,
+				.hex      = hex,
+				.unit     = nullptr,
+				.moveCost = BMap::GetHexMoveCost(hex),
 			};
 		}
 	}
@@ -183,6 +178,253 @@ Res<> Init(Window::State const* windowState) {
 
 //--------------------------------------------------------------------------------------------------
 
+static constexpr U32 MaxHexPath = MapRows * MapCols;
+
+struct HexPath {
+	MapTile const* mapTiles[MaxHexPath];
+	U32            mapTilesLen;
+};
+
+static U32 HexDistance(HexPos a, HexPos b) {
+	I32 const aq = a.c - (a.r - (a.r & 1)) / 2;
+	I32 const as = a.r;
+	I32 const bq = b.c - (b.r - (b.r & 1)) / 2;
+	I32 const bs = b.r;
+	I32 const dq = bq - aq;
+	I32 const ds = bs - as;
+	I32 const dqSign = dq < 0 ? -1 : 1;
+	I32 const dsSign = ds < 0 ? -1 : 1;
+	if (dqSign == dsSign) {
+		return Math::Abs(dq) + Math::Abs(ds);
+	} else {
+		return Max(Math::Abs(dq), Math::Abs(ds));
+	}
+}
+
+static U32 GetTileIdx(MapTile const* mapTile) { return (U32)(mapTile - mapTiles); }
+
+static HexPos GetTileHexPos(MapTile const* mapTile) {
+	U32 const d = (U32)(mapTile - mapTiles);
+	return HexPos(d % MapCols, d / MapCols);
+}
+
+struct NeighborTiles {
+	MapTile* tiles[6];
+	U32      tilesLen;
+};
+
+static NeighborTiles GetNeighborTiles(HexPos hexPos) {
+	I32 const c = hexPos.c;
+	I32 const r = hexPos.r;
+	NeighborTiles nt;
+	nt.tilesLen = 0;
+	if (c > 0                             ) { nt.tiles[nt.tilesLen++] = &mapTiles[(c - 1) + ( r      * MapCols)]; }	// (-1,  0)
+	if (c < MapCols - 1                   ) { nt.tiles[nt.tilesLen++] = &mapTiles[(c + 1) + ( r      * MapCols)]; }	// (+1,  0)
+	if (                   r > 0          ) { nt.tiles[nt.tilesLen++] = &mapTiles[ c      + ((r - 1) * MapCols)]; }	// ( 0, -1)
+	if (                   r < MapRows - 1) { nt.tiles[nt.tilesLen++] = &mapTiles[ c      + ((r + 1) * MapCols)]; }	// ( 0, +1)
+	if (r & 1) {
+		// odd row: (0,-1),(+1,-1),(-1,0),(+1,0),(0,+1),(+1,+1)
+		if (c < MapCols - 1 && r > 0          ) { nt.tiles[nt.tilesLen++] = &mapTiles[(c + 1) + ((r - 1) * MapCols)]; }	// (+1, -1)
+		if (c < MapCols - 1 && r < MapRows - 1) { nt.tiles[nt.tilesLen++] = &mapTiles[(c + 1) + ((r + 1) * MapCols)]; }	// (+1, +1)
+	} else {
+		// even row: (-1,-1),(0,-1),(-1,0),(+1,0),(-1,+1),(0,+1)
+		if (                   r > 0          ) { nt.tiles[nt.tilesLen++] = &mapTiles[(c - 1) + ((r - 1) * MapCols)]; }	// (-1, -1)
+		if (                   r < MapRows - 1) { nt.tiles[nt.tilesLen++] = &mapTiles[(c - 1) + ((r + 1) * MapCols)]; }	// (-1, +1)
+	}
+	return nt;
+}
+
+static bool IsTilePassable(MapTile const* mapTile, Unit::Side::Enum mySide) {
+	return mapTile->moveCost && (!mapTile->unit || mapTile->unit->side == mySide);
+}
+
+static bool IsTileLandable(MapTile const* mapTile) {
+	return mapTile->moveCost && !mapTile->unit;
+}
+
+static constexpr U32 MaxHeapEntries = MapCols * MapRows * 6;
+struct HeapEntry { U32 dist; U32 tileIdx; };
+struct Heap {
+	HeapEntry entries[MaxHeapEntries];
+	U32       entriesLen = 0;
+};
+
+static void HeapPush(Heap* heap, HeapEntry e) {
+	heap->entries[(heap->entriesLen)++] = e;
+	U32 i = heap->entriesLen - 1;
+	while (i > 0) {
+		U32 const p = (i - 1) / 2;
+		if (heap->entries[p].dist <= heap->entries[i].dist) { break; }
+		HeapEntry tmp = heap->entries[p]; heap->entries[p] = heap->entries[i]; heap->entries[i] = tmp;
+		i = p;
+	}
+}
+
+static HeapEntry HeapPop(Heap* heap) {
+	HeapEntry const result = heap->entries[0];
+	heap->entries[0] = heap->entries[--heap->entriesLen];
+	U32 i = 0;
+	while (true) {
+		U32 const l = 2 * i + 1;
+		U32 const r = 2 * i + 2;
+		U32 smallest = i;
+		if (l < heap->entriesLen && heap->entries[l].dist < heap->entries[smallest].dist) { smallest = l; }
+		if (r < heap->entriesLen && heap->entries[r].dist < heap->entries[smallest].dist) { smallest = r; }
+		if (smallest == i) { break; }
+		HeapEntry tmp = heap->entries[smallest]; heap->entries[smallest] = heap->entries[i]; heap->entries[i] = tmp;
+		i = smallest;
+	}
+	return result;
+}
+
+// Finds the shortest path between two hex positions on a 64x64 odd-r offset hex grid.
+//
+// GRID & COORDINATES:
+//   - Grid is MapCols x MapRows (64x64), origin (0,0) at top-left.
+//   - use `mapTiles` as the grid data structure
+//   - Odd-r offset: rows with odd zero-based index are shifted right.
+//   - Neighbor deltas differ by row parity:
+//       Even row: (-1,-1),(0,-1),(-1,0),(+1,0),(-1,+1),(0,+1)
+//       Odd row:  (0,-1),(+1,-1),(-1,0),(+1,0),(0,+1),(+1,+1)
+//
+// MOVEMENT COSTS:
+//   - moveCost is the cost to ENTER that cell from any neighbor.
+//   - moveCost == 0 means impassable; skip as neighbor.
+//   - moveCost range is small (0-3 typical).
+//
+// UNIT BLOCKING:
+//   - Cells occupied by an enemy unit (unit->side != mySide) are impassable.
+//   - Cells occupied by a friendly unit (unit->side == mySide) are passable.
+//   - The moving unit's side must be passed into this function.
+//
+// GOAL RESOLUTION (applied before pathfinding):
+//   - If end cell is passable AND unoccupied: goal set = { end }.
+//   - Otherwise: goal set = all 6 neighbors of end that are passable and unoccupied.
+//     - If goal set is empty: no path exists, hexPathOut->hexPosLen = 0, return false.
+//
+// OUTPUT & TRUNCATION:
+//   - Start hex IS NOT included in the output path or the cost. A unit that starts in a cell has already "paid" the cost to get there.
+//   - On success: write hexes start->goal into hexPathOut->mapTiles, set hexPosLen
+//   - If shortest path length > MaxHexPath (128): write first MaxHexPath hexes
+//   - If no path exists: set hexPosLen = 0
+//
+// HEURISTIC:
+//   - Convert odd-r offset to axial: q = c - (r - (r & 1)) / 2, s = r.
+//   - Hex distance in axial coords: if sign(dq)==sign(dr): |dq|+|dr|, else max(|dq|,|dr|).
+//   - Heuristic is admissible given moveCost >= 1 for passable cells.
+//
+// ALGORITHM: A* with binary min-heap open set, flat arrays indexed by (c + (r * MapCols)).
+bool BuildHexPath(MapTile const* startTile, MapTile const* endTile, HexPath* hexPathOut) {
+	MapTile const* goalTiles[6];
+	U32 goalTilesLen = 0;
+	if (IsTileLandable(endTile)) {
+		if (startTile == endTile) {
+			hexPathOut->mapTilesLen = 0;
+			return true;
+		}
+		goalTiles[0] = endTile;
+		goalTilesLen = 1;
+	} else {
+		NeighborTiles const nt = GetNeighborTiles(GetTileHexPos(endTile));
+		for (U32 i = 0; i < nt.tilesLen; i++) {
+			if (IsTileLandable(nt.tiles[i])) {
+				if (startTile == nt.tiles[i]) {
+					hexPathOut->mapTilesLen = 0;
+					return true;
+				}
+				goalTiles[goalTilesLen++] = nt.tiles[i];
+			}
+		}
+	}
+	if (goalTilesLen == 0) {
+		hexPathOut->mapTilesLen = 0;
+		return false;
+	}
+
+	U32 score[MapCols * MapRows];
+	MapTile const* parent[MapCols * MapRows];
+	bool visited[MapCols * MapRows];
+	memset(score,   0xff, sizeof(score));
+	memset(parent,  0,    sizeof(parent));
+	memset(visited, 0,    sizeof(visited));
+
+	Assert(startTile->unit);
+	Unit::Side::Enum const mySide = startTile->unit->side;
+	Heap heap;
+	U32 minDist = U32Max;
+	HexPos const startHexPos = GetTileHexPos(startTile);
+	for (U32 i = 0; i < goalTilesLen; i++) {
+		U32 const dist = HexDistance(startHexPos, GetTileHexPos(goalTiles[i]));
+		if (dist < minDist) {
+			minDist = dist;
+		}
+	}
+	score[GetTileIdx(startTile)] = 0;
+	HeapPush(&heap, { .dist = minDist, .tileIdx = GetTileIdx(startTile) });
+
+	MapTile const* foundGoalTile = nullptr;
+	for (;;) {
+		if (heap.entriesLen == 0) {
+			hexPathOut->mapTilesLen = 0;
+			return false;
+		}
+		HeapEntry const entry = HeapPop(&heap);
+		if (visited[entry.tileIdx]) {
+			continue;
+		}
+		visited[entry.tileIdx] = true;
+		for (U32 i = 0; i < goalTilesLen; i++) {
+			if (goalTiles[i] == &mapTiles[entry.tileIdx]) {
+				foundGoalTile = goalTiles[i];
+				goto FoundGoalTile;
+			}
+		}
+
+		NeighborTiles const nt = GetNeighborTiles(GetTileHexPos(&mapTiles[entry.tileIdx]));
+		for (U32 i = 0; i < nt.tilesLen; i++) {
+			if (visited[GetTileIdx(nt.tiles[i])]) {
+				continue;
+			}
+			if (!IsTilePassable(nt.tiles[i], mySide)) {
+				continue;
+			}
+			U32 const tentativeScore = score[entry.tileIdx] + nt.tiles[i]->moveCost;
+			U32 const neighborIdx = GetTileIdx(nt.tiles[i]);
+			if (tentativeScore < score[neighborIdx]) {
+				score[neighborIdx] = tentativeScore;
+				parent[neighborIdx] = &mapTiles[entry.tileIdx];
+
+				U32 minDist = U32Max;
+				HexPos const neighborHexPos = GetTileHexPos(nt.tiles[i]);
+				for (U32 g = 0; g < goalTilesLen; g++) {
+					U32 const dist = HexDistance(neighborHexPos, GetTileHexPos(goalTiles[g]));
+					if (dist < minDist) {
+						minDist = dist;
+					}
+				}
+				HeapPush(&heap, { .dist = tentativeScore + minDist, .tileIdx = neighborIdx });
+			}
+		}
+	}
+
+	FoundGoalTile:
+	Assert(foundGoalTile != startTile);
+	MapTile const** iter = hexPathOut->mapTiles;
+	for (MapTile const* tile = foundGoalTile; tile != startTile; tile = parent[GetTileIdx(tile)]) {
+		*iter++ = tile;
+	}
+	U64 const len = (U64)(iter - hexPathOut->mapTiles);
+	U64 const halfLen = hexPathOut->mapTilesLen / 2;
+	for (U64 i = 0; i < halfLen ; i++) {
+		Swap(hexPathOut->mapTiles[i], hexPathOut->mapTiles[len - i - 1]);
+	}
+	hexPathOut->mapTilesLen = len;
+
+	return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+
 /*
 static void MoveRequest(MapTile* start, MapTile* end) {
 		selectedMapTile->unit = nullptr;
@@ -201,16 +443,23 @@ static void MoveRequest(MapTile* start, MapTile* end) {
 		Logf("Executing move order from (%i, %i) -> (%i, %i)", order.moveOrder.startMapTile->mapCoord.col, order.moveOrder.startMapTile->mapCoord.row, order.moveOrder.endMapTile->mapCoord.col, order.moveOrder.endMapTile->mapCoord.row);
 }
 */
-/*
+
 static void HandleLeftClick() {
-	BMap::Hex const clickedHex = BMap::GetHexByWorldPos(mouseWorldPos);
-	if (!clickedHex) {
+	if (!mouseHex) {
 		return;
 	}
-	BMap::HexPos clickedHexPos = BMap::GetHexPos(clickedHex);
-	MapTile* const clickedMapTile = &mapTiles[clickedHexPos.col + clickedHexPos.row * MapCols];
-
 	if (state == State::None) {
+		if (selectedMapTile) {
+			BMap::HideHexHighlight(selectedMapTile->hex);
+		}
+		if (selectedMapTile == mouseMapTile) {
+			selectedMapTile = nullptr;
+		} else {
+			BMap::ShowHexHighlight(mouseMapTile->hex, Vec4(1.f, 0.f, 0.f, 0.5f));
+			selectedMapTile = mouseMapTile;
+		}
+		
+	/*
 		if (clickedMapTile->unit) {
 			selectedMapTile = clickedMapTile;
 			Logf("Selected map tile (%i, %i) with %s unit %p", clickedHexPos.col, clickedHexPos.row, clickedMapTile->unit->def->name, clickedMapTile->unit);
@@ -218,8 +467,9 @@ static void HandleLeftClick() {
 			Logf("Ignoring click on empty map tile");
 		}
 		return;
+		*/
 	}
-
+/*
 	if (state == State::UnitSelected) {
 		if (clickedMapTile == selectedMapTile) {
 			Logf("Deselected map tile");
@@ -250,8 +500,9 @@ static void HandleLeftClick() {
 			Logf("Executing attack order");
 		}
 	}
+	*/
 }
-*/
+
 //--------------------------------------------------------------------------------------------------
 /*
 static void ExecuteMoveOrder(F32 secs) {
@@ -363,8 +614,7 @@ Res<> Frame(App::FrameData const* frameData, Draw::Camera* cameraOut) {
 		switch (actionId) {
 			case Action_Exit: return App::Err_Exit();
 
-			//case Action_Click: HandleLeftClick(); break;
-			case Action_Click: break;
+			case Action_Click: HandleLeftClick(); break;
 
 			case Action_ZoomIn: {
 				F32 const oldScale = camera.scale;
@@ -398,6 +648,26 @@ Res<> Frame(App::FrameData const* frameData, Draw::Camera* cameraOut) {
 		}
 	}
 	
+	if (mouseHex) {
+		BMap::HideHexBorder(mouseHex);
+	}
+	BMap::Hex oldMouseHex = mouseHex;
+	mouseHex = BMap::GetHexByWorldPos(mouseWorldPos);
+	mouseMapTile = nullptr;
+	if (mouseHex) {
+		mouseHexPos = BMap::GetHexPos(mouseHex);
+		BMap::ShowHexBorder(mouseHex, Vec4(1.f, 1.f, 1.f, 1.f));
+		//Logf("Mouse: (%i, %i) -> (%f, %f) -> (%i, %i)", frameData->mouseX, frameData->mouseY, mouseWorldPos.x, mouseWorldPos.y, mouseHexPos.c, mouseHexPos.r);
+		mouseMapTile = &mapTiles[mouseHexPos.c + mouseHexPos.r * MapCols];
+
+		if (oldMouseHex != mouseHex) {
+			Logf("Mouse hex (%i, %i)", mouseHexPos.c, mouseHexPos.r);
+		}
+	}
+
+	// construct shortest path from selectedMapTile -> mouseMapTile
+
+
 	/*
 	if (state == State::ExecutingOrder) {
 		switch (order.orderType) {
