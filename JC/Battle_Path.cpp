@@ -134,7 +134,11 @@ void BuildAttackableMap(
 		Hex const* const enemyHex = enemyArmy->units[i].hex;	
 		for (U32 j = 0; j < MaxCols * MaxRows; j++) {
 			Hex const* const hex = &hexes[j];
-			if (pathMap->moveCosts[hex->idx] != U32Max && HexDistance(hex, enemyHex) <= range) {
+			if (
+				pathMap->moveCosts[hex->idx] != U32Max &&
+				!hex->unit &&
+				HexDistance(hex, enemyHex) <= range
+			) {
 				attackableMapOut[enemyHex->idx] = true;
 				break;
 			}

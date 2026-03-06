@@ -140,11 +140,11 @@ static void DrawHexesAndUnits(Data const* data) {
 
 		if (data->selectedHexAttackable[i]) {
 			Draw::DrawSprite({
-				.sprite = borderSprite,
+				.sprite = highlightSprite,
 				.pos    = topLeftPos,
 				.z      = Z_SelectedHex,
 				.origin = Draw::Origin::TopLeft,
-				.color  = Vec4(1.f, 0.f, 0.f, 1.f),
+				.color  = Vec4(1.f, 0.f, 0.f, 0.5f),
 			});
 		}
 	}
