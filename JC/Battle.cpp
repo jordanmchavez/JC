@@ -24,33 +24,6 @@ DefErr(Battle, TerrainNotFound);
 //--------------------------------------------------------------------------------------------------
 
 static constexpr U32 MaxTerrain = 64;
-
-struct TerrainJson {
-	Str name;
-	Str sprite;
-	U32 moveCost;
-};
-Json_Begin(TerrainJson)
-	Json_Member("name",     name)
-	Json_Member("sprite",   sprite)
-	Json_Member("moveCost", moveCost)
-Json_End(TerrainJson)
-
-struct BattleJson {
-	Span<Str>         atlasPaths;
-	Str               borderSprite;
-	Str               highlightSprite;
-	Span<TerrainJson> terrain;
-};
-Json_Begin(BattleJson)
-	Json_Member("atlasPaths",      atlasPaths)
-	Json_Member("borderSprite",    borderSprite)
-	Json_Member("highlightSprite", highlightSprite)
-	Json_Member("terrain",         terrain)
-Json_End(BattleJson)
-
-using ActionFn = Res<>(F32 sec);
-
 static constexpr U32 MaxArmyUnits = 16;
 
 struct Army {
@@ -58,8 +31,18 @@ struct Army {
 	Unit::Data* units[MaxArmyUnits];
 	U32         unitsLen;
 };
-static Army       armies[2];
-static Unit::Side activeSide;
+Json_Begin(TerrainJson)
+	Json_Member("name",     name)
+	Json_Member("sprite",   sprite)
+	Json_Member("moveCost", moveCost)
+Json_End(TerrainJson)
+
+Json_Begin(BattleJson)
+	Json_Member("atlasPaths",      atlasPaths)
+	Json_Member("borderSprite",    borderSprite)
+	Json_Member("highlightSprite", highlightSprite)
+	Json_Member("terrain",         terrain)
+Json_End(BattleJson)
 
 //--------------------------------------------------------------------------------------------------
 
@@ -68,18 +51,20 @@ static Data               data;
 static Terrain*           terrain;
 static U32                terrainLen;
 static Map<Str, Terrain*> terrainMap;
+static Army               armies[2];
+static Unit::Side         activeSide;
 
 //--------------------------------------------------------------------------------------------------
 
 Res<> Init(Mem permMem, Mem tempMemIn, Window::State const* windowState) {
-	tempMem          = tempMemIn;
-	terrain          = Mem::AllocT<Terrain>(permMem, MaxTerrain);
-	terrainLen       = 0;
+	tempMem       = tempMemIn;
+	terrain       = Mem::AllocT<Terrain>(permMem, MaxTerrain);
+	terrainLen    = 0;
 	terrainMap.Init(permMem, MaxTerrain);
-	data.hexes     = Mem::AllocT<Hex>(permMem, MaxRows * MaxCols);
-	data.hexesLen  = 0;
+	data.hexes    = Mem::AllocT<Hex>(permMem, MaxRows * MaxCols);
+	data.hexesLen = 0;
 
-	Try(InitDraw(permMem, windowState));
+	Try(InitDraw(&data, tempMem, windowState));
 	InitInput();
 	InitPath(permMem);
 	InitUtil();
@@ -109,9 +94,6 @@ Res<> Load(Str path) {
 		Try(Draw::LoadAtlas(battleJson.atlasPaths[i]));
 	}
 
-	TryTo(Draw::GetSprite(battleJson.borderSprite),    data.borderSprite);
-	TryTo(Draw::GetSprite(battleJson.highlightSprite), data.highlightSprite);
-
 	Assert(battleJson.terrain.len < MaxTerrain);
 	terrainLen = 1;	// reserve 0 for invalid
 	for (U64 i = 0; i < battleJson.terrain.len; i++) {
@@ -125,6 +107,8 @@ Res<> Load(Str path) {
 		terrainMap.Put(terrainJson->name, &terrain[terrainLen]);
 		terrainLen++;
 	}
+
+	Try(LoadDraw(&battleJson));
 
 	Try(Gpu::ImmediateWait());
 
@@ -143,7 +127,9 @@ static void AddNeighbor(Hex* hex, I32 cOff, I32 rOff) {
 }
 
 static Unit::Data* CreateUnitOn(Unit::Def const unitDef, Hex* hex, Unit::Side side) {
-	return Unit::CreateUnit(unitDef, side, HexToCenterWorldPos(hex));
+	Unit::Data* const unitData = Unit::CreateUnit(unitDef, side, HexToCenterWorldPos(hex));
+	hex->unitData = unitData;
+	return unitData;
 }
 
 struct TerrainGen {
@@ -202,14 +188,15 @@ Res<> GenerateMap() {
 
 	U32 startCol = 0;
 	Unit::Side side = Unit::Side::Left;
-	for (bool b = true; b; b = false) {
-		Army* army = &armies[(U32)Unit::Side::Left];
+	for (;;) {
+		Army* army = &armies[(U32)side];
 		memset(army, 0, sizeof(Army));
-		army->side = Unit::Side::Left;
+		army->side = side;
 		for (U32 c = startCol; c < startCol + 2; c++) {
 			for (U32 r = 0; r < MaxRows; r++) {
 				if (Rng::NextU32(0, 100) < 50) {
-					army->units[army->unitsLen++] = CreateUnitOn(unitDef, &data.hexes[c + (r * MaxCols)], Unit::Side::Left);
+					army->units[army->unitsLen++] = CreateUnitOn(unitDef, &data.hexes[c + (r * MaxCols)], side);
+					Logf("Created unit for side %u at %u,%u", (U32)side, c, r);
 					if (army->unitsLen >= MaxArmyUnits) {
 						goto DoneUnitGen;
 					}
@@ -217,11 +204,12 @@ Res<> GenerateMap() {
 			}
 		}
 		DoneUnitGen:
+		if (side == Unit::Side::Right) {
+			return Ok();
+		}
 		side = Unit::Side::Right;
 		startCol = MaxCols - 2;
 	}
-
-	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------

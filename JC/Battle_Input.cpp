@@ -125,8 +125,8 @@ Res<> HandleActions(Data* data, F32 sec, Span<U64 const> actionIds) {
 
 			case ActionId_Click: return Click(data);
 
-			case ActionId_ZoomIn:  ZoomCamera(1.f); break;
-			case ActionId_ZoomOut: ZoomCamera(-1.f); break;
+			case ActionId_ZoomIn:  ZoomCamera(data, 1.f); break;
+			case ActionId_ZoomOut: ZoomCamera(data, -1.f); break;
 
 			case ActionId_ScrollMapLeft:  cameraDX--; break;
 			case ActionId_ScrollMapRight: cameraDX++; break;
@@ -135,7 +135,7 @@ Res<> HandleActions(Data* data, F32 sec, Span<U64 const> actionIds) {
 		}
 	}
 
-	MoveCamera(sec, cameraDX, cameraDY);
+	MoveCamera(data, sec, cameraDX, cameraDY);
 
 	return Ok();
 }

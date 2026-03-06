@@ -56,6 +56,7 @@ struct SpriteDrawDef {
 	Origin origin = Origin::Center;
 	Vec2   scale = Vec2(1.f, 1.f);
 	Vec4   color = Vec4(1.f, 1.f, 1.f, 1.f);
+	bool   flip = false;
 	F32    outlineWidth = 0.f;
 	Vec4   outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
 };

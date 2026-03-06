@@ -771,6 +771,9 @@ void DrawSprite(SpriteDrawDef drawDef) {
 	drawCmd->outlineWidth = drawDef.outlineWidth;
 	drawCmd->outlineColor = drawDef.outlineColor;
 
+	if (drawDef.flip) {
+		Swap(drawCmd->uv1.x, drawCmd->uv2.x);
+	}
 	if (drawDef.outlineWidth > 0.f) {
 		drawCmd->pos.x -= 1 * camera.scale;
 		drawCmd->pos.y -= 1 * camera.scale;

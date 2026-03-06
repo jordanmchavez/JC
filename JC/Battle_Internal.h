@@ -14,6 +14,19 @@ constexpr U32 HexSize = 32;
 constexpr I32 MaxCols = 16;
 constexpr I32 MaxRows = 14;
 
+struct TerrainJson {
+	Str name;
+	Str sprite;
+	U32 moveCost;
+};
+
+struct BattleJson {
+	Span<Str>         atlasPaths;
+	Str               borderSprite;
+	Str               highlightSprite;
+	Span<TerrainJson> terrain;
+};
+
 struct Terrain {
 	Str          name;
 	Draw::Sprite sprite;
@@ -48,8 +61,8 @@ enum struct State {
 struct Data {
 	Hex*         hexes;
 	U32          hexesLen;
-	Draw::Sprite borderSprite;
-	Draw::Sprite highlightSprite;
+	Vec2         cameraPos;
+	F32          cameraScale;
 	Hex const*   hoverHex;
 	Hex const*   selectedHex;
 	MoveCostMap  selectedHexMoveCostMap;
@@ -60,12 +73,13 @@ struct Data {
 //--------------------------------------------------------------------------------------------------
 
 // Battle_Draw.cpp
-Res<>      InitDraw(Mem tempMem, Window::State const* windowState);
+Res<>      InitDraw(Data* data, Mem tempMem, Window::State const* windowState);
 
 Hex const* ScreenPosToHex(Data const* data, I32 x, I32 y);
-void       MoveCamera(F32 sec, F32 dx, F32 dy);
-void       ZoomCamera(F32 d);
+void       MoveCamera(Data* data, F32 sec, F32 dx, F32 dy);
+void       ZoomCamera(Data* data, F32 d);
 void       Draw(Data const* data);
+Res<>      LoadDraw(BattleJson const* battleJson);
 
 // Battle_Input.cpp
 void       InitInput();
