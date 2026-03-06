@@ -11,7 +11,10 @@ namespace JC::Unit {
 DefHandle(Def);
 DefHandle(Unit);
 
-enum struct Side { Left, Right };
+namespace Side {
+	constexpr U32 Left  = 0;
+	constexpr U32 Right = 1;
+}
 
 struct DefData {
 	Str          name;
@@ -22,19 +25,17 @@ struct DefData {
 };
 
 struct Data {
-	Unit           unit;
-	DefData const* defData;
-	Side           side;
-	Vec2           pos;
-	U32            hp;
-	U32            move;
+	U32 side;
+	U32 hp;
 };
 
-void     Init(Mem permMem, Mem tempMem);
-Res<>    LoadDefs(Str path);
-Res<Def> GetDef(Str name);
-Data*    CreateUnit(Def def, Side side,Vec2 pos);
-void     DestroyUnit(Unit unit);
+void           Init(Mem permMem, Mem tempMem);
+Res<>          LoadDefs(Str path);
+Res<Def>       GetDef(Str name);
+DefData const* GetDefData(Def def);
+Unit           CreateUnit(Def def, U32 side);
+void           DestroyUnit(Unit unit);
+Data*          GetData(Unit unit);
 
 //--------------------------------------------------------------------------------------------------
 

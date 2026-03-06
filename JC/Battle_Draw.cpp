@@ -86,8 +86,8 @@ Hex const* ScreenPosToHex(Data const* data, I32 x, I32 y) {
 //--------------------------------------------------------------------------------------------------
 
 void MoveCamera(Data* data, F32 sec, F32 dx, F32 dy) {
-	data->cameraPos.x += dx * CameraSpeedPixelsPerSec * sec;
-	data->cameraPos.y += dy * CameraSpeedPixelsPerSec * sec;
+	data->cameraPos.x += dx * CameraSpeedPixelsPerSec * sec / data->cameraScale;
+	data->cameraPos.y += dy * CameraSpeedPixelsPerSec * sec / data->cameraScale;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -167,21 +167,21 @@ static void DrawHexDecorations(Data const* data) {
 	}
 
 	if (data->selectedHex) {
-		for (U32 c = 0; c < MaxCols; c++) {
-			for (U32 r = 0; r < MaxRows; r++) {
+		for (U32 r = 0; r < MaxRows; r++) {
+			for (U32 c = 0; c < MaxCols; c++) {
 				U32 const idx = c + (r * MaxCols);
 				Vec2 const topLeftPos = ColRowToTopLeftWorldPos(c, r);
-	/*
-				if (data->selectedHexPathMap.moveCosts[idx]) {
+	
+				if (data->selectedHexPathMap.moveCosts[idx] != U32Max) {
 					Draw::DrawSprite({
-						.sprite = borderSprite,
+						.sprite = highlightSprite,
 						.pos    = ColRowToTopLeftWorldPos(c, r),
 						.z      = Z_ReachableHex,
 						.origin = Draw::Origin::TopLeft,
-						.color  = Vec4(0.f, 1.f, 0.f, 1.f),
+						.color  = Vec4(0.f, 0.f, 0.f, 0.5f),
 					});
 				}
-	*/
+	/*
 				if (!data->selectedHexPathMap.moveCosts[idx]) {
 					Draw::DrawSprite({
 						.sprite = highlightSprite,
@@ -191,6 +191,7 @@ static void DrawHexDecorations(Data const* data) {
 						.color  = Vec4(0.f, 0.f, 0.f, 0.5f),
 					});
 				}
+				*/
 /*
 				Draw::DrawStr({
 					.font   = numberFont,
@@ -204,7 +205,6 @@ static void DrawHexDecorations(Data const* data) {
 			}
 		}
 
-		// TODO: implement me
 		auto SelectPathSprite = [](Hex const* fromHex, Hex const* toHex) {
 			if (toHex == fromHex->neighbors[NeighborIdx_TopLeft    ]) { return pathTopLeftSprite; }
 			if (toHex == fromHex->neighbors[NeighborIdx_TopRight   ]) { return pathTopRightSprite; }

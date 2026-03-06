@@ -1,5 +1,7 @@
 #include "JC/Battle_Internal.h"
 
+#include "JC/Math.h"
+
 namespace JC::Battle {
 
 //--------------------------------------------------------------------------------------------------
@@ -31,6 +33,24 @@ Vec2 ColRowToTopLeftWorldPos(I32 c, I32 r) {
 		(F32)(c * HexSize + (r & 1) * (HexSize / 2)),
 		(F32)(r * (HexSize * 3 / 4)),
 	};
+}
+
+//--------------------------------------------------------------------------------------------------
+
+U32 HexDistance(Hex const* a, Hex const* b) {
+	I32 const aq = a->c - (a->r - (a->r & 1)) / 2;
+	I32 const as = a->r;
+	I32 const bq = b->c - (b->r - (b->r & 1)) / 2;
+	I32 const bs = b->r;
+	I32 const dq = bq - aq;
+	I32 const ds = bs - as;
+	I32 const dqSign = dq < 0 ? -1 : 1;
+	I32 const dsSign = ds < 0 ? -1 : 1;
+	if (dqSign == dsSign) {
+		return Math::Abs(dq) + Math::Abs(ds);
+	} else {
+		return Max(Math::Abs(dq), Math::Abs(ds));
+	}
 }
 
 //--------------------------------------------------------------------------------------------------

@@ -1,6 +1,5 @@
 #include "JC/Battle_Internal.h"
 
-#include "JC/Math.h"
 #include "JC/Unit.h"
 
 namespace JC::Battle {
@@ -11,7 +10,7 @@ static constexpr U32 MaxHeapEntries = MaxCols * MaxRows * 6;
 
 struct HeapEntry {
 	U32 dist;
-	U32 hops;
+	U32 pathLen;
 	U32 idx;
 };
 
@@ -24,14 +23,12 @@ struct Heap {
 //--------------------------------------------------------------------------------------------------
 
 static bool* pathVisited;
-static U32*  pathHops;
 static Heap  pathHeap;
 
 //--------------------------------------------------------------------------------------------------
 
 void InitPath(Mem permMem) {
 	pathVisited      = Mem::AllocT<bool>(permMem, MaxCols * MaxRows);
-	pathHops         = Mem::AllocT<U32>(permMem, MaxCols * MaxRows);
 	pathHeap.entries = Mem::AllocT<HeapEntry>(permMem, MaxCols * MaxRows * 6);
 	pathHeap.len     = 0;
 	pathHeap.cap     = MaxCols * MaxRows * 6;
@@ -46,7 +43,7 @@ static void HeapPush(Heap* heap, HeapEntry e) {
 	while (i > 0) {
 		U32 const p = (i - 1) / 2;
 		HeapEntry const& ep = heap->entries[p]; HeapEntry const& ei = heap->entries[i];
-		if (ep.dist < ei.dist || (ep.dist == ei.dist && ep.hops <= ei.hops)) { break; }
+		if (ep.dist < ei.dist || (ep.dist == ei.dist && ep.pathLen <= ei.pathLen)) { break; }
 		HeapEntry tmp = heap->entries[p]; heap->entries[p] = heap->entries[i]; heap->entries[i] = tmp;
 		i = p;
 	}
@@ -62,7 +59,7 @@ static HeapEntry HeapPop(Heap* heap) {
 		U32 smallest = i;
 		auto heapLess = [&](U32 a, U32 b) {
 			return heap->entries[a].dist < heap->entries[b].dist ||
-			       (heap->entries[a].dist == heap->entries[b].dist && heap->entries[a].hops < heap->entries[b].hops);
+			       (heap->entries[a].dist == heap->entries[b].dist && heap->entries[a].pathLen < heap->entries[b].pathLen);
 		};
 		if (l < heap->len && heapLess(l, smallest)) { smallest = l; }
 		if (r < heap->len && heapLess(r, smallest)) { smallest = r; }
@@ -75,23 +72,23 @@ static HeapEntry HeapPop(Heap* heap) {
 
 //--------------------------------------------------------------------------------------------------
 
-static bool IsHexPassable(Hex const* hex, Unit::Side side) {
+static bool IsHexPassable(Hex const* hex, U32 side) {
 	return hex->terrain->moveCost && (!hex->unitData || hex->unitData->side == side);
 }
 
 //--------------------------------------------------------------------------------------------------
 
 // Djikstra flood fill
-void BuildPathMap(Data const* data, Hex const* startHex, U32 move, Unit::Side side, PathMap* pathMap) {
-	memset(pathMap->moveCosts, 0xff, sizeof(pathMap->moveCosts));
-	memset(pathMap->parents,   0,   sizeof(pathMap->parents));
-	memset(pathVisited,            0,   MaxCols * MaxRows * sizeof(pathVisited[0]));
-	memset(pathHops,               0xff, MaxCols * MaxRows * sizeof(pathHops[0]));
+void BuildPathMap(Hex const* hexes, Hex const* startHex, U32 move, U32 side, PathMap* pathMap) {
+	memset(pathMap->moveCosts,  0xff, sizeof(pathMap->moveCosts));
+	memset(pathMap->pathLens,   0xff, sizeof(pathMap->pathLens));
+	memset(pathMap->parents,    0,    sizeof(pathMap->parents));
+	memset(pathVisited,         0,    MaxCols * MaxRows * sizeof(pathVisited[0]));
 	pathHeap.len = 0;
 
 	pathMap->moveCosts[startHex->idx] = 0;
-	pathHops[startHex->idx] = 0;
-	HeapPush(&pathHeap, { .dist = 0, .hops = 0, .idx = startHex->idx });
+	pathMap->pathLens[startHex->idx] = 0;
+	HeapPush(&pathHeap, { .dist = 0, .pathLen = 0, .idx = startHex->idx });
 
 	while (pathHeap.len > 0) {
 		HeapEntry const entry = HeapPop(&pathHeap);
@@ -103,32 +100,44 @@ void BuildPathMap(Data const* data, Hex const* startHex, U32 move, Unit::Side si
 		}
 		pathVisited[entry.idx] = true;
 
-		Hex* const entryHex = &data->hexes[entry.idx];
+		Hex const* const entryHex = &hexes[entry.idx];
 		for (U32 i = 0; i < 6; i++) {
 			Hex* const neighbor = entryHex->neighbors[i];
 			if (!neighbor || pathVisited[neighbor->idx] || !IsHexPassable(neighbor, side)) {
 				continue;
 			}
-			U32 const tentativeScore = pathMap->moveCosts[entry.idx] + neighbor->terrain->moveCost;
-			U32 const tentativeHops  = entry.hops + 1;
-			bool const betterCost = tentativeScore < pathMap->moveCosts[neighbor->idx];
-			bool const fewerHops  = tentativeScore == pathMap->moveCosts[neighbor->idx] && tentativeHops < pathHops[neighbor->idx];
+			U32 const tentativeScore   = pathMap->moveCosts[entry.idx] + neighbor->terrain->moveCost;
+			U32 const tentativePathLen = entry.pathLen + 1;
+			bool const betterCost      = tentativeScore < pathMap->moveCosts[neighbor->idx];
+			bool const fewerHops       = tentativeScore == pathMap->moveCosts[neighbor->idx] && tentativePathLen < pathMap->pathLens[neighbor->idx];
 			if (betterCost || fewerHops) {
 				pathMap->moveCosts[neighbor->idx] = tentativeScore;
+				pathMap->pathLens[neighbor->idx]  = tentativePathLen;
 				pathMap->parents[neighbor->idx]   = entryHex;
-				pathHops[neighbor->idx]               = tentativeHops;
-				HeapPush(&pathHeap, { .dist = tentativeScore, .hops = tentativeHops, .idx = neighbor->idx });
+				HeapPush(&pathHeap, { .dist = tentativeScore, .pathLen = tentativePathLen, .idx = neighbor->idx });
 			}
 		}
 	}
+}
 
-	// TODO: this is pointless, find a way to make it work without this conversion
-	for (U32 i = 0; i < MaxCols * MaxRows; i++) {
-		if (pathMap->moveCosts[i] == U32Max) {
-			pathMap->moveCosts[i] = 0;
-			pathMap->hexCounts[i] = 0;
-		} else {
-			pathMap->hexCounts[i] = pathHops[i];
+//--------------------------------------------------------------------------------------------------
+
+void BuildAttackableMap(
+	Hex const* hexes,
+	PathMap const* pathMap,
+	Army const* enemyArmy, 
+	U32 range,
+	bool* attackableMapOut
+) {
+	memset(attackableMapOut, 0, MaxCols * MaxRows * sizeof(bool));
+	for (U32 i = 0; i < enemyArmy->unitsLen; i++) {
+		Hex const* const enemyHex = enemyArmy->unitData[i]->hex;	
+		for (U32 j = 0; j < MaxCols * MaxRows; j++) {
+			Hex const* const hex = &hexes[j];
+			if (pathMap->moveCosts[hex->idx] != U32Max && HexDistance(hex, enemyHex) <= range) {
+				attackableMapOut[enemyHex->idx] = true;
+				break;
+			}
 		}
 	}
 }
@@ -161,27 +170,12 @@ bool FindPathFromMoveCostMap(PathMap const* pathMap, Hex const* startHex, Hex co
 
 //--------------------------------------------------------------------------------------------------
 /*
-static U32 HexDistance(Hex const* a, Hex const* b) {
-	I32 const aq = a->c - (a->r - (a->r & 1)) / 2;
-	I32 const as = a->r;
-	I32 const bq = b->c - (b->r - (b->r & 1)) / 2;
-	I32 const bs = b->r;
-	I32 const dq = bq - aq;
-	I32 const ds = bs - as;
-	I32 const dqSign = dq < 0 ? -1 : 1;
-	I32 const dsSign = ds < 0 ? -1 : 1;
-	if (dqSign == dsSign) {
-		return Math::Abs(dq) + Math::Abs(ds);
-	} else {
-		return Max(Math::Abs(dq), Math::Abs(ds));
-	}
-}
-
 static bool IsHexLandable(Hex const* hex) {
 	return hex->terrain->moveCost && !hex->unitData;
 }
 
-// A*
+// A* if we ever need, possibly for projectiles and spell one-off closest target type things.
+// Keep commented out until battle module done, then delete if unused
 bool FindPath(Hex* startHex, Hex* endHex, Unit::Side side, Path* pathOut) {
 	Hex* goalHexes[6];
 	U32 goalHexesLen = 0;

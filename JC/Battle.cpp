@@ -24,13 +24,7 @@ DefErr(Battle, TerrainNotFound);
 //--------------------------------------------------------------------------------------------------
 
 static constexpr U32 MaxTerrain = 64;
-static constexpr U32 MaxArmyUnits = 16;
 
-struct Army {
-	Unit::Side  side;
-	Unit::Data* units[MaxArmyUnits];
-	U32         unitsLen;
-};
 
 //--------------------------------------------------------------------------------------------------
 
@@ -39,8 +33,6 @@ static Data               data;
 static Terrain*           terrain;
 static U32                terrainLen;
 static Map<Str, Terrain*> terrainMap;
-static Army               armies[2];
-static Unit::Side         activeSide;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -134,7 +126,7 @@ static void AddNeighbor(Hex* hex, I32 cOff, I32 rOff, U32 neighborIdx) {
 	}
 }
 
-static Unit::Data* CreateUnitOn(Unit::Def const unitDef, Hex* hex, Unit::Side side) {
+static Unit::Data* CreateUnitOn(Unit::Def const unitDef, Hex* hex, U32 side) {
 	Unit::Data* const unitData = Unit::CreateUnit(unitDef, side, HexToCenterWorldPos(hex));
 	hex->unitData = unitData;
 	return unitData;
@@ -157,8 +149,8 @@ Res<> GenerateMap() {
 
 	memset(data.hexes, 0, MaxCols * MaxRows * sizeof(Hex));
 	data.hexesLen = 0;
-	for (U32 c = 0; c < MaxCols; c++) {
-		for (U32 r = 0; r < MaxRows; r++) {
+	for (U32 r = 0; r < MaxRows; r++) {
+		for (U32 c = 0; c < MaxCols; c++) {
 			Hex* const hex = &data.hexes[c + (r * MaxCols)];
 			hex->idx = c + (r * MaxCols);
 			hex->c = (I32)c;
@@ -194,15 +186,16 @@ Res<> GenerateMap() {
 	Unit::Def unitDef; TryTo(Unit::GetDef("Spearmen"), unitDef);
 
 	U32 startCol = 0;
-	Unit::Side side = Unit::Side::Left;
-	for (;;) {
-		Army* army = &armies[(U32)side];
+	for (U32 side = Unit::Side::Left; side <= Unit::Side::Right; side++) {
+		Logf("Creating side %u", side);
+		Army* army = &data.armies[(U32)side];
 		memset(army, 0, sizeof(Army));
 		army->side = side;
 		for (U32 c = startCol; c < startCol + 2; c++) {
 			for (U32 r = 0; r < MaxRows; r++) {
-				if (Rng::NextU32(0, 100) < 50) {
-					army->units[army->unitsLen++] = CreateUnitOn(unitDef, &data.hexes[c + (r * MaxCols)], side);
+				Hex* const hex = &data.hexes[c + (r * MaxCols)];
+				if (!hex->unitData && Rng::NextU32(0, 100) < 50) {
+					army->units[army->unitsLen++] = CreateUnitOn(unitDef, hex, side);
 					Logf("Created unit for side %u at %u,%u", (U32)side, c, r);
 					if (army->unitsLen >= MaxArmyUnits) {
 						goto DoneUnitGen;
@@ -210,13 +203,10 @@ Res<> GenerateMap() {
 				}
 			}
 		}
-		DoneUnitGen:
-		if (side == Unit::Side::Right) {
-			return Ok();
-		}
-		side = Unit::Side::Right;
 		startCol += 2;
 	}
+	DoneUnitGen:
+	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -262,8 +252,8 @@ static void UpdateHoverHexAndPath(U32 mouseX, U32 mouseY) {
 	if (data.hoverHex->unitData) {
 		Assert(data.hoverHex->unitData->side != data.selectedHex->unitData->side);
 
-		U32 minCost     = U32Max;
-		U32 minHexCount = U32Max;
+		U32 minCost    = U32Max;
+		U32 minPathLen = U32Max;
 		for (U32 i = 0; i < 6; i++) {
 			Hex const* const neighbor = data.hoverHex->neighbors[i];
 			if (neighbor == data.selectedHex) {
@@ -274,15 +264,15 @@ static void UpdateHoverHexAndPath(U32 mouseX, U32 mouseY) {
 			U32 const idx   = neighbor->idx;
 			U32 const cost  = data.selectedHexPathMap.moveCosts[idx];
 			if (cost == 0) { continue; }
-			U32 const hexCount = data.selectedHexPathMap.hexCounts[idx];
+			U32 const pathLen = data.selectedHexPathMap.pathLens[idx];
 			if (cost < minCost) {
-				toHex       = neighbor;
-				minCost     = cost;
-				minHexCount = hexCount;
-			} else if (cost == minCost && hexCount < minHexCount) {
-				toHex       = neighbor;
-				minCost     = cost;
-				minHexCount = hexCount;
+				toHex      = neighbor;
+				minCost    = cost;
+				minPathLen = pathLen;
+			} else if (cost == minCost && pathLen < minPathLen) {
+				toHex      = neighbor;
+				minCost    = cost;
+				minPathLen = pathLen;
 			}
 		}
 		// toHex may be nullptr after all this

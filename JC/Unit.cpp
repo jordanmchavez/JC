@@ -98,7 +98,7 @@ Res<Def> GetDef(Str name) {
 
 //--------------------------------------------------------------------------------------------------
 
-Data* CreateUnit(Def def, Side side, Vec2 pos) {
+Data* CreateUnit(Def def, U32 side, Vec2 pos) {
 	Assert(def.handle > 0 && def.handle < defDatasLen);
 	DefData const* const defData = &defDatas[def.handle];
 

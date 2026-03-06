@@ -56,19 +56,19 @@ static Res<> Click(Data* data) {
 			Logf("Selected hex (%i, %i)", data->hoverHex->c, data->hoverHex->r);
 			data->selectedHex = data->hoverHex;
 			BuildPathMap(
-				data,
+				data->hexes,
 				data->selectedHex,
 				data->selectedHex->unitData->move,
 				data->selectedHex->unitData->side,
 				&data->selectedHexPathMap
 			);
+			BuildAttackableMap(data->hexes, &data->selectedHexPathMap, data->selectedHex->unitData->side, 1, data->selectedHexAttackable);
 			data->selectedHexToHoverHexPath.len = 0;
 		} else {
 			Logf("Ignoring click on empty hex (%i, %i)", data->hoverHex->c, data->hoverHex->r);
 		}
 		return Ok();
 	}
-		
 	/*
 		if (clickedMapTile->unit) {
 			selectedMapTile = clickedMapTile;
