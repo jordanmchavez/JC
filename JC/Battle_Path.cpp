@@ -11,6 +11,7 @@ static constexpr U32 MaxHeapEntries = MaxCols * MaxRows * 6;
 
 struct HeapEntry {
 	U32 dist;
+	U32 hops;
 	U32 idx;
 };
 
@@ -23,12 +24,14 @@ struct Heap {
 //--------------------------------------------------------------------------------------------------
 
 static bool* pathVisited;
+static U32*  pathHops;
 static Heap  pathHeap;
 
 //--------------------------------------------------------------------------------------------------
 
 void InitPath(Mem permMem) {
 	pathVisited      = Mem::AllocT<bool>(permMem, MaxCols * MaxRows);
+	pathHops         = Mem::AllocT<U32>(permMem, MaxCols * MaxRows);
 	pathHeap.entries = Mem::AllocT<HeapEntry>(permMem, MaxCols * MaxRows * 6);
 	pathHeap.len     = 0;
 	pathHeap.cap     = MaxCols * MaxRows * 6;
@@ -42,7 +45,8 @@ static void HeapPush(Heap* heap, HeapEntry e) {
 	U32 i = heap->len - 1;
 	while (i > 0) {
 		U32 const p = (i - 1) / 2;
-		if (heap->entries[p].dist <= heap->entries[i].dist) { break; }
+		HeapEntry const& ep = heap->entries[p]; HeapEntry const& ei = heap->entries[i];
+		if (ep.dist < ei.dist || (ep.dist == ei.dist && ep.hops <= ei.hops)) { break; }
 		HeapEntry tmp = heap->entries[p]; heap->entries[p] = heap->entries[i]; heap->entries[i] = tmp;
 		i = p;
 	}
@@ -56,8 +60,12 @@ static HeapEntry HeapPop(Heap* heap) {
 		U32 const l = 2 * i + 1;
 		U32 const r = 2 * i + 2;
 		U32 smallest = i;
-		if (l < heap->len && heap->entries[l].dist < heap->entries[smallest].dist) { smallest = l; }
-		if (r < heap->len && heap->entries[r].dist < heap->entries[smallest].dist) { smallest = r; }
+		auto heapLess = [&](U32 a, U32 b) {
+			return heap->entries[a].dist < heap->entries[b].dist ||
+			       (heap->entries[a].dist == heap->entries[b].dist && heap->entries[a].hops < heap->entries[b].hops);
+		};
+		if (l < heap->len && heapLess(l, smallest)) { smallest = l; }
+		if (r < heap->len && heapLess(r, smallest)) { smallest = r; }
 		if (smallest == i) { break; }
 		HeapEntry tmp = heap->entries[smallest]; heap->entries[smallest] = heap->entries[i]; heap->entries[i] = tmp;
 		i = smallest;
@@ -74,14 +82,16 @@ static bool IsHexPassable(Hex const* hex, Unit::Side side) {
 //--------------------------------------------------------------------------------------------------
 
 // Djikstra flood fill
-void BuildMoveCostMap(Data const* data, Hex const* startHex, U32 move, Unit::Side side, MoveCostMap* moveCostMap) {
-	memset(moveCostMap->moveCosts, 0xff, sizeof(moveCostMap->moveCosts));
-	memset(moveCostMap->parents,   0,   sizeof(moveCostMap->parents));
+void BuildPathMap(Data const* data, Hex const* startHex, U32 move, Unit::Side side, PathMap* pathMap) {
+	memset(pathMap->moveCosts, 0xff, sizeof(pathMap->moveCosts));
+	memset(pathMap->parents,   0,   sizeof(pathMap->parents));
 	memset(pathVisited,            0,   MaxCols * MaxRows * sizeof(pathVisited[0]));
+	memset(pathHops,               0xff, MaxCols * MaxRows * sizeof(pathHops[0]));
 	pathHeap.len = 0;
 
-	moveCostMap->moveCosts[startHex->idx] = 0;
-	HeapPush(&pathHeap, { .dist = 0, .idx = startHex->idx });
+	pathMap->moveCosts[startHex->idx] = 0;
+	pathHops[startHex->idx] = 0;
+	HeapPush(&pathHeap, { .dist = 0, .hops = 0, .idx = startHex->idx });
 
 	while (pathHeap.len > 0) {
 		HeapEntry const entry = HeapPop(&pathHeap);
@@ -94,44 +104,50 @@ void BuildMoveCostMap(Data const* data, Hex const* startHex, U32 move, Unit::Sid
 		pathVisited[entry.idx] = true;
 
 		Hex* const entryHex = &data->hexes[entry.idx];
-		for (U32 i = 0; i < entryHex->neighborsLen; i++) {
+		for (U32 i = 0; i < 6; i++) {
 			Hex* const neighbor = entryHex->neighbors[i];
-			if (pathVisited[neighbor->idx]) {
+			if (!neighbor || pathVisited[neighbor->idx] || !IsHexPassable(neighbor, side)) {
 				continue;
 			}
-			if (!IsHexPassable(neighbor, side)) {
-				continue;
-			}
-			U32 const tentativeScore = moveCostMap->moveCosts[entry.idx] + neighbor->terrain->moveCost;
-			if (tentativeScore < moveCostMap->moveCosts[neighbor->idx]) {
-				moveCostMap->moveCosts[neighbor->idx] = tentativeScore;
-				moveCostMap->parents[neighbor->idx]   = entryHex;
-				HeapPush(&pathHeap, { .dist = tentativeScore, .idx = neighbor->idx });
+			U32 const tentativeScore = pathMap->moveCosts[entry.idx] + neighbor->terrain->moveCost;
+			U32 const tentativeHops  = entry.hops + 1;
+			bool const betterCost = tentativeScore < pathMap->moveCosts[neighbor->idx];
+			bool const fewerHops  = tentativeScore == pathMap->moveCosts[neighbor->idx] && tentativeHops < pathHops[neighbor->idx];
+			if (betterCost || fewerHops) {
+				pathMap->moveCosts[neighbor->idx] = tentativeScore;
+				pathMap->parents[neighbor->idx]   = entryHex;
+				pathHops[neighbor->idx]               = tentativeHops;
+				HeapPush(&pathHeap, { .dist = tentativeScore, .hops = tentativeHops, .idx = neighbor->idx });
 			}
 		}
 	}
 
 	// TODO: this is pointless, find a way to make it work without this conversion
 	for (U32 i = 0; i < MaxCols * MaxRows; i++) {
-		if (moveCostMap->moveCosts[i] == U32Max) { moveCostMap->moveCosts[i] = 0; }
+		if (pathMap->moveCosts[i] == U32Max) {
+			pathMap->moveCosts[i] = 0;
+			pathMap->hexCounts[i] = 0;
+		} else {
+			pathMap->hexCounts[i] = pathHops[i];
+		}
 	}
 }
 
 //--------------------------------------------------------------------------------------------------
 
 // Simple back-traversal using `parents`
-bool FindPathFromMoveCostMap(MoveCostMap const* moveCostMap, Hex const* startHex, Hex const* end, Path* pathOut) {
+bool FindPathFromMoveCostMap(PathMap const* pathMap, Hex const* startHex, Hex const* end, Path* pathOut) {
 	if (end == startHex) {
 		pathOut->len = 0;
 		return true;
 	}
-	if (!moveCostMap->parents[end->idx]) {
+	if (!pathMap->parents[end->idx]) {
 		pathOut->len = 0;
 		return false;
 	}
 
 	Hex const** iter = pathOut->hexes;
-	for (Hex const* hex = end; hex != startHex; hex = moveCostMap->parents[hex->idx]) {
+	for (Hex const* hex = end; hex != startHex; hex = pathMap->parents[hex->idx]) {
 		*iter++ = hex;
 	}
 	U64 const len     = (U64)(iter - pathOut->hexes);

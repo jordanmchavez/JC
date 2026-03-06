@@ -38,7 +38,6 @@ void InitInput() {
 	Input::Bind(bindingSet, Key::Key::W,              Input::BindingType::Continuous, ActionId_ScrollMapUp);
 	Input::Bind(bindingSet, Key::Key::S,              Input::BindingType::Continuous, ActionId_ScrollMapDown);
 	Input::SetBindingSetStack({ bindingSet });
-
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -48,20 +47,22 @@ static Res<> Click(Data* data) {
 		return Ok();
 	}
 
-	if (data->state == State::None) {
+	if (data->state == State::WaitingOrder) {
 		if (data->selectedHex == data->hoverHex) {
 			Logf("Deselected hex (%i,%i)", data->selectedHex->c, data->selectedHex->r);
 			data->selectedHex = nullptr;
+			data->selectedHexToHoverHexPath.len = 0;
 		} else if (data->hoverHex->unitData) {
 			Logf("Selected hex (%i, %i)", data->hoverHex->c, data->hoverHex->r);
 			data->selectedHex = data->hoverHex;
-			BuildMoveCostMap(
+			BuildPathMap(
 				data,
 				data->selectedHex,
 				data->selectedHex->unitData->move,
 				data->selectedHex->unitData->side,
-				&data->selectedHexMoveCostMap
+				&data->selectedHexPathMap
 			);
+			data->selectedHexToHoverHexPath.len = 0;
 		} else {
 			Logf("Ignoring click on empty hex (%i, %i)", data->hoverHex->c, data->hoverHex->r);
 		}

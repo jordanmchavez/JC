@@ -31,18 +31,6 @@ struct Army {
 	Unit::Data* units[MaxArmyUnits];
 	U32         unitsLen;
 };
-Json_Begin(TerrainJson)
-	Json_Member("name",     name)
-	Json_Member("sprite",   sprite)
-	Json_Member("moveCost", moveCost)
-Json_End(TerrainJson)
-
-Json_Begin(BattleJson)
-	Json_Member("atlasPaths",      atlasPaths)
-	Json_Member("borderSprite",    borderSprite)
-	Json_Member("highlightSprite", highlightSprite)
-	Json_Member("terrain",         terrain)
-Json_End(BattleJson)
 
 //--------------------------------------------------------------------------------------------------
 
@@ -69,7 +57,7 @@ Res<> Init(Mem permMem, Mem tempMemIn, Window::State const* windowState) {
 	InitPath(permMem);
 	InitUtil();
 
-	data.state = State::None;
+	data.state = State::WaitingOrder;
 
 	return Ok();
 }
@@ -85,6 +73,25 @@ static Res<Terrain const*> GetTerrain(Str name) {
 }
 
 //--------------------------------------------------------------------------------------------------
+
+Json_Begin(TerrainJson)
+	Json_Member("name",     name)
+	Json_Member("sprite",   sprite)
+	Json_Member("moveCost", moveCost)
+Json_End(TerrainJson)
+
+Json_Begin(BattleJson)
+	Json_Member("atlasPaths",            atlasPaths)
+	Json_Member("borderSprite",          borderSprite)
+	Json_Member("highlightSprite",       highlightSprite)
+	Json_Member("pathTopLeftSprite",     pathTopLeftSprite)
+	Json_Member("pathTopRightSprite",    pathTopRightSprite)
+	Json_Member("pathRightSprite",       pathRightSprite)
+	Json_Member("pathBottomRightSprite", pathBottomRightSprite)
+	Json_Member("pathBottomLeftSprite",  pathBottomLeftSprite)
+	Json_Member("pathLeftSprite",        pathLeftSprite)
+	Json_Member("terrain",               terrain)
+Json_End(BattleJson)
 
 Res<> Load(Str path) {
 	Span<char> json; TryTo(File::ReadAllZ(path), json);
@@ -117,12 +124,13 @@ Res<> Load(Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
-static void AddNeighbor(Hex* hex, I32 cOff, I32 rOff) {
+static void AddNeighbor(Hex* hex, I32 cOff, I32 rOff, U32 neighborIdx) {
 	I32 const c = hex->c + cOff;
 	I32 const r = hex->r + rOff;
-
 	if (c >= 0 && c <= MaxCols - 1 && r >= 0 && r <= MaxRows - 1) {
-		hex->neighbors[hex->neighborsLen++] = &data.hexes[c + (r * MaxCols)];
+		hex->neighbors[neighborIdx] = &data.hexes[c + (r * MaxCols)];
+	} else {
+		hex->neighbors[neighborIdx] = nullptr;
 	}
 }
 
@@ -155,21 +163,20 @@ Res<> GenerateMap() {
 			hex->idx = c + (r * MaxCols);
 			hex->c = (I32)c;
 			hex->r = (I32)r;
-			hex->neighborsLen = 0;
-			if (r & 1) {
-				AddNeighbor(hex,  0, -1);
-				AddNeighbor(hex, +1, -1);
-				AddNeighbor(hex, -1,  0);
-				AddNeighbor(hex, +1,  0);
-				AddNeighbor(hex,  0, +1);
-				AddNeighbor(hex, +1, +1);
-			} else {
-				AddNeighbor(hex, -1, -1);
-				AddNeighbor(hex,  0, -1);
-				AddNeighbor(hex, -1,  0);
-				AddNeighbor(hex, +1,  0);
-				AddNeighbor(hex, -1, +1);
-				AddNeighbor(hex,  0, +1);
+			if (r & 1) {	// odd row
+				AddNeighbor(hex,  0, -1, NeighborIdx_TopLeft    );
+				AddNeighbor(hex, +1, -1, NeighborIdx_TopRight   );
+				AddNeighbor(hex, +1,  0, NeighborIdx_Right      );
+				AddNeighbor(hex, +1, +1, NeighborIdx_BottomRight);
+				AddNeighbor(hex,  0, +1, NeighborIdx_BottomLeft );
+				AddNeighbor(hex, -1,  0, NeighborIdx_Left       );
+			} else {	// even row
+				AddNeighbor(hex, -1, -1, NeighborIdx_TopLeft    );
+				AddNeighbor(hex,  0, -1, NeighborIdx_TopRight   );
+				AddNeighbor(hex, +1,  0, NeighborIdx_Right      );
+				AddNeighbor(hex,  0, +1, NeighborIdx_BottomRight);
+				AddNeighbor(hex, -1, +1, NeighborIdx_BottomLeft );
+				AddNeighbor(hex, -1,  0, NeighborIdx_Left       );
 			}
 			U32 rng = Rng::NextU32(0, maxChance);
 			for (U32 i = 0; i < LenOf(terrainGen); i++) {
@@ -208,28 +215,101 @@ Res<> GenerateMap() {
 			return Ok();
 		}
 		side = Unit::Side::Right;
-		startCol = MaxCols - 2;
+		startCol += 2;
 	}
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Update(App::UpdateData const* updateData) {
+static void UpdateHoverHexAndPath(U32 mouseX, U32 mouseY) {
 	Hex const* const oldHoverHex = data.hoverHex;	
-	data.hoverHex = ScreenPosToHex(&data, updateData->mouseX, updateData->mouseY);
-	if (data.hoverHex && data.selectedHex && oldHoverHex != data.hoverHex) {
-		if (data.selectedHexMoveCostMap.moveCosts[data.hoverHex->c + (data.hoverHex->r * MaxCols)] != 0) {
-			FindPathFromMoveCostMap(&data.selectedHexMoveCostMap, data.selectedHex, data.hoverHex, &data.selectedHexToHoverHexPath);
-			StrBuf sb(tempMem);
-			sb.Add("path=[");
-			for (U32 i = 0; i < data.selectedHexToHoverHexPath.len; i++) {
-				sb.Printf("(%i, %i), ", data.selectedHexToHoverHexPath.hexes[i]->c, data.selectedHexToHoverHexPath.hexes[i]->r);
-			}
-			sb.Add(']');
-			Logf("path=%s", sb.ToStr());
-		}
+	data.hoverHex = ScreenPosToHex(&data, mouseX, mouseY);
+
+	// No selected unit -> no path
+	if (!data.selectedHex) {
+		data.selectedHexToHoverHexPath.len = 0;
+		return;
 	}
 
+	// Same hover hex as before -> no change: we should have already calc'd the path
+	if (oldHoverHex == data.hoverHex) {
+		return;
+	}
+
+	// Hover hex off map -> no path
+	if (!data.hoverHex) {
+		Logf("no hover hex");
+		data.selectedHexToHoverHexPath.len = 0;
+		return;
+	}
+
+	// Hover hex has friendly unit -> no path
+	if (data.hoverHex->unitData && data.hoverHex->unitData->side == data.selectedHex->unitData->side) {
+		Logf("friendly");
+		data.selectedHexToHoverHexPath.len = 0;
+		return;
+	}
+
+	// Hex we'll try to build our path to; this may end up being nullptr
+	Hex const* toHex = nullptr;
+
+	// Hover hex is empty and reachable
+	if (!data.hoverHex->unitData && data.selectedHexPathMap.moveCosts[data.hoverHex->c + (data.hoverHex->r * MaxCols)] != 0) {
+		toHex = data.hoverHex;
+	}
+
+	// Hover hex has an enemy unit -> find empty+reachable neighbor
+	if (data.hoverHex->unitData) {
+		Assert(data.hoverHex->unitData->side != data.selectedHex->unitData->side);
+
+		U32 minCost     = U32Max;
+		U32 minHexCount = U32Max;
+		for (U32 i = 0; i < 6; i++) {
+			Hex const* const neighbor = data.hoverHex->neighbors[i];
+			if (neighbor == data.selectedHex) {
+				toHex = data.selectedHex;
+				break;
+			}
+			if (!neighbor || neighbor->unitData) { continue; }
+			U32 const idx   = neighbor->idx;
+			U32 const cost  = data.selectedHexPathMap.moveCosts[idx];
+			if (cost == 0) { continue; }
+			U32 const hexCount = data.selectedHexPathMap.hexCounts[idx];
+			if (cost < minCost) {
+				toHex       = neighbor;
+				minCost     = cost;
+				minHexCount = hexCount;
+			} else if (cost == minCost && hexCount < minHexCount) {
+				toHex       = neighbor;
+				minCost     = cost;
+				minHexCount = hexCount;
+			}
+		}
+		// toHex may be nullptr after all this
+	}
+
+	if (!toHex) {
+		return;
+	}
+
+	// Build the path
+	FindPathFromMoveCostMap(&data.selectedHexPathMap, data.selectedHex, toHex, &data.selectedHexToHoverHexPath);
+	StrBuf sb(tempMem);
+	sb.Add("path=[");
+	for (U32 i = 0; i < data.selectedHexToHoverHexPath.len; i++) {
+		sb.Printf("(%i, %i), ", data.selectedHexToHoverHexPath.hexes[i]->c, data.selectedHexToHoverHexPath.hexes[i]->r);
+	}
+	if (data.selectedHexToHoverHexPath.len > 0) {
+		sb.Remove(2);
+	}
+	sb.Add(']');
+	Logf("path=%s", sb.ToStr());
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<> Update(App::UpdateData const* updateData) {
+	UpdateHoverHexAndPath(updateData->mouseX, updateData->mouseY);
 	return HandleActions(&data, updateData->sec, updateData-> actions);
 }
 

@@ -24,6 +24,12 @@ struct BattleJson {
 	Span<Str>         atlasPaths;
 	Str               borderSprite;
 	Str               highlightSprite;
+	Str               pathTopLeftSprite;
+	Str               pathTopRightSprite;
+	Str               pathRightSprite;
+	Str               pathBottomRightSprite;
+	Str               pathBottomLeftSprite;
+	Str               pathLeftSprite;
 	Span<TerrainJson> terrain;
 };
 
@@ -33,17 +39,25 @@ struct Terrain {
 	U32          moveCost;
 };
 
+
+constexpr U32 NeighborIdx_TopLeft     = 0;
+constexpr U32 NeighborIdx_TopRight    = 1;
+constexpr U32 NeighborIdx_Right       = 2;
+constexpr U32 NeighborIdx_BottomRight = 3;
+constexpr U32 NeighborIdx_BottomLeft  = 4;
+constexpr U32 NeighborIdx_Left        = 5;
+
 struct Hex {
 	U32            idx;
 	I32            c, r;
-	Hex*           neighbors[6];
-	U32            neighborsLen;
+	Hex*           neighbors[6];	// indexed by NeighborIdx_*; nullptr = no neighbor
 	Terrain const* terrain;
 	Unit::Data*    unitData;
 };
 
-struct MoveCostMap {
+struct PathMap {
 	U32        moveCosts[MaxCols * MaxRows];
+	U32        hexCounts[MaxCols * MaxRows];
 	Hex const* parents[MaxCols * MaxRows];
 };
 
@@ -53,21 +67,21 @@ struct Path {
 };
 
 enum struct State {
-	None,
+	WaitingOrder,
 	UnitSelected,
 	ExecutingOrder,
 };
 
 struct Data {
-	Hex*         hexes;
-	U32          hexesLen;
-	Vec2         cameraPos;
-	F32          cameraScale;
-	Hex const*   hoverHex;
-	Hex const*   selectedHex;
-	MoveCostMap  selectedHexMoveCostMap;
-	Path         selectedHexToHoverHexPath;
-	State        state;
+	Hex*       hexes;
+	U32        hexesLen;
+	Vec2       cameraPos;
+	F32        cameraScale;
+	Hex const* hoverHex;
+	Hex const* selectedHex;
+	PathMap    selectedHexPathMap;
+	Path       selectedHexToHoverHexPath;
+	State      state;
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -87,8 +101,8 @@ Res<>      HandleActions(Data* data, F32 sec, Span<U64 const> actionIds);
 
 // Battle_Path.cpp
 void       InitPath(Mem permMem);
-void       BuildMoveCostMap(Data const* data, Hex const* startHex, U32 move, Unit::Side side, MoveCostMap* moveCostMap);
-bool       FindPathFromMoveCostMap(MoveCostMap const* moveCostMap, Hex const* startHex, Hex const* end, Path* pathOut);
+void       BuildPathMap(Data const* data, Hex const* startHex, U32 move, Unit::Side side, PathMap* pathMapOut);
+bool       FindPathFromMoveCostMap(PathMap const* pathMap, Hex const* startHex, Hex const* end, Path* pathOut);
 
 // Battle_Util.cpp
 void       InitUtil();

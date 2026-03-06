@@ -57,7 +57,8 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 	Time::Init();
 	File::Init(tempMem);
 	StrDb::Init();
-	Rng::Seed(Time::Now());
+	U64 const rngSeed = Time::Now();
+	Rng::Seed(rngSeed);
 
 	Cfg::Init(permMem, argc, argv);
 
@@ -68,6 +69,8 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 			Sys::DbgPrint(msg->line);
 		}
 	});
+
+	Logf("Rng seed = %u", rngSeed);
 
 	Input::Init(permMem);
 

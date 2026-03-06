@@ -2,8 +2,14 @@
 	atlasPaths: [
 		"Assets/Atlas_Terrain.json5",
 	],
-	borderSprite: "Hex32_Border",
-	highlightSprite: "Hex32_Highlight",
+	borderSprite:          "Hex32_Border",
+	highlightSprite:       "Hex32_Highlight",
+	pathTopLeftSprite:     "Hex32_PathTopLeft",
+	pathTopRightSprite:    "Hex32_PathTopRight",
+	pathRightSprite:       "Hex32_PathRight",
+	pathBottomRightSprite: "Hex32_PathBottomRight",
+	pathBottomLeftSprite:  "Hex32_PathBottomLeft",
+	pathLeftSprite:        "Hex32_PathLeft",
 	terrain: [
 		{
 			name: "Grassland",

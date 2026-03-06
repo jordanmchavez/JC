@@ -1,3 +1,33 @@
+- No unit selected
+	- Arrow cursor
+	- Hover -> border hex white, show unit+terrain stats
+	- Click friendly hex -> unit selected
+- Unit selected
+	- Border reachable empty or friendly hexes in green
+	- Border reachable enemy hexes in red
+	- Hover reachable empty hex
+		- Movement cursor
+		- Show dotted path in shortest path hexes (incl hover hex)
+	- Hover reachable friendly hex -> no path
+	- Hover reachable enemy hex -> Attack cursor, show path
+	- Hover unreachable hex -> X cursor
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Battle Layer — Implementation Spec
 
 ## 1. Scope
