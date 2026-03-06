@@ -305,7 +305,7 @@ struct [[nodiscard]] Err {
 	}
 
 	static void SetBreakOnErr(bool breakOnErr);
-	static void Frame(U64 frame);
+	static void Update(U64 frame);
 };
 
 

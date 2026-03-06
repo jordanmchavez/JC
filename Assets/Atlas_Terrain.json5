@@ -1,5 +1,5 @@
 {
-	imagePath: "Assets/TerrainAtlas.png",
+	imagePath: "Assets/Atlas_Terrain.png",
 	sprites: [
 		{ x:   0, y:   0, w: 64, h: 64, name: "Hex_64" },
 		{ x:  64, y:   0, w: 64, h: 64, name: "Hex_64_Border" },

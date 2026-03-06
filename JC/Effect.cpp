@@ -47,7 +47,7 @@ void CreateFloatingStr(FloatingStrDef def) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Frame(F32 sec) {
+void Update(F32 sec) {
 	for (U32 i = 0; i < floatingStrsLen;) {
 		FloatingStr* const fs = &floatingStrs[i];
 		fs->sec += sec;

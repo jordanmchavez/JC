@@ -39,8 +39,8 @@ Res<> Init(Window::State const* windowState) {
 	Unit::Init(permMem, tempMem);
 	Effect::Init(permMem);
 
-	Try(Unit::LoadUnitDefsJson("Assets/UnitDefs.unitdefsjson"));
-	Try(Battle::LoadBattleJson("Assets/Battle.battlejson"));
+	Try(Unit::LoadDefs("Assets/Units.json5"));
+	Try(Battle::Load("Assets/Battle.json5"));
 	Try(Battle::GenerateMap());
 
 	return Ok();
@@ -48,11 +48,11 @@ Res<> Init(Window::State const* windowState) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Frame(App::FrameData const* frameData) {
-	if (frameData->exit) {
+Res<> Update(App::UpdateData const* updateData) {
+	if (updateData->exit) {
 		return App::Err_Exit();
 	}
-	return Battle::Frame(frameData);
+	return Battle::Update(updateData);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -81,7 +81,7 @@ App::App app = {
 	.PreInit      = PreInit,
 	.Init         = Init,
 	.Shutdown     = Shutdown,
-	.Frame        = Frame,
+	.Update       = Update,
 	.Draw         = Draw,
 	.ResizeWindow = ResizeWindow,
 };

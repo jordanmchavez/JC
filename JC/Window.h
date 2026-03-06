@@ -78,7 +78,7 @@ Span<Display const> GetDisplays();
 PlatformDef         GetPlatformDef();
 State               GetState();
 void                SetCursorMode(CursorMode cursorMode);
-Events              Frame();
+Events              Update();
 
 //--------------------------------------------------------------------------------------------------
 

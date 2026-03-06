@@ -12,7 +12,7 @@ struct Type;
 Type    CreateType();
 Emitter CreateEmitter();
 void    DestroyEmitter();
-void    Frame(U64 ticks);
+void    Update(F32 sec);
 void    Draw();
 
 //--------------------------------------------------------------------------------------------------

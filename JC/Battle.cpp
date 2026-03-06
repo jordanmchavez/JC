@@ -37,13 +37,13 @@ Json_Begin(TerrainJson)
 Json_End(TerrainJson)
 
 struct BattleJson {
-	Span<Str>         atlasJsonPaths;
+	Span<Str>         atlasPaths;
 	Str               borderSprite;
 	Str               highlightSprite;
 	Span<TerrainJson> terrain;
 };
 Json_Begin(BattleJson)
-	Json_Member("atlasJsonPaths",  atlasJsonPaths)
+	Json_Member("atlasPaths",      atlasPaths)
 	Json_Member("borderSprite",    borderSprite)
 	Json_Member("highlightSprite", highlightSprite)
 	Json_Member("terrain",         terrain)
@@ -51,20 +51,12 @@ Json_End(BattleJson)
 
 using ActionFn = Res<>(F32 sec);
 
-enum struct State {
-	None,
-	UnitSelected,
-	ExecutingOrder,
-};
-
 static constexpr U32 MaxArmyUnits = 16;
 
 struct Army {
 	Unit::Side  side;
-	Unit::Unit* units[MaxArmyUnits];
+	Unit::Data* units[MaxArmyUnits];
 	U32         unitsLen;
-	Unit::Unit* readyUnits;
-	Unit::Unit* doneUnits;
 };
 static Army       armies[2];
 static Unit::Side activeSide;
@@ -77,7 +69,6 @@ static Terrain*           terrain;
 static U32                terrainLen;
 static Map<Str, Terrain*> terrainMap;
 
-
 //--------------------------------------------------------------------------------------------------
 
 Res<> Init(Mem permMem, Mem tempMemIn, Window::State const* windowState) {
@@ -88,12 +79,12 @@ Res<> Init(Mem permMem, Mem tempMemIn, Window::State const* windowState) {
 	data.hexes     = Mem::AllocT<Hex>(permMem, MaxRows * MaxCols);
 	data.hexesLen  = 0;
 
-	InitDraw(permMem, windowState);
+	Try(InitDraw(permMem, windowState));
+	InitInput();
 	InitPath(permMem);
 	InitUtil();
 
-
-	state = State::None;
+	data.state = State::None;
 
 	return Ok();
 }
@@ -110,16 +101,16 @@ static Res<Terrain const*> GetTerrain(Str name) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> LoadBattleJson(Str battleJsonPath) {
-	Span<char> json; TryTo(File::ReadAllZ(battleJsonPath), json);
+Res<> Load(Str path) {
+	Span<char> json; TryTo(File::ReadAllZ(path), json);
 	BattleJson battleJson; Try(Json::ToObject(tempMem, tempMem, json.data, (U32)json.len, &battleJson));
 
-	for (U64 i = 0; i < battleJson.atlasJsonPaths.len; i++) {
-		Try(Draw::LoadAtlasJson(battleJson.atlasJsonPaths[i]));
+	for (U64 i = 0; i < battleJson.atlasPaths.len; i++) {
+		Try(Draw::LoadAtlas(battleJson.atlasPaths[i]));
 	}
 
-	TryTo(Draw::GetSprite(battleJson.borderSprite),    borderSprite);
-	TryTo(Draw::GetSprite(battleJson.highlightSprite), highlightSprite);
+	TryTo(Draw::GetSprite(battleJson.borderSprite),    data.borderSprite);
+	TryTo(Draw::GetSprite(battleJson.highlightSprite), data.highlightSprite);
 
 	Assert(battleJson.terrain.len < MaxTerrain);
 	terrainLen = 1;	// reserve 0 for invalid
@@ -147,22 +138,12 @@ static void AddNeighbor(Hex* hex, I32 cOff, I32 rOff) {
 	I32 const r = hex->r + rOff;
 
 	if (c >= 0 && c <= MaxCols - 1 && r >= 0 && r <= MaxRows - 1) {
-		hex->neighbors[hex->neighborsLen++] = &hexes[c + (r * MaxCols)];
+		hex->neighbors[hex->neighborsLen++] = &data.hexes[c + (r * MaxCols)];
 	}
 }
 
-static Unit::Unit* CreateUnitOn(Unit::UnitDef const* unitDef, Hex* hex, Unit::Side::Enum side) {
-	Unit::Unit* const unit = Unit::AllocUnit();
-	unit->unitDef = unitDef;
-	unit->side    = side;
-	unit->pos     = HexToCenterWorldPos(hex);
-	unit->hp      = unitDef->hp;
-	unit->move    = unitDef->move;
-	unit->next    = nullptr;
-
-	hex->unit     = unit;
-
-	return unit;
+static Unit::Data* CreateUnitOn(Unit::Def const unitDef, Hex* hex, Unit::Side side) {
+	return Unit::CreateUnit(unitDef, side, HexToCenterWorldPos(hex));
 }
 
 struct TerrainGen {
@@ -180,11 +161,11 @@ Res<> GenerateMap() {
 	TryTo(GetTerrain("Mountain"),  terrainGen[4].terrain); maxChance += 1; terrainGen[4].chance = maxChance;
 	TryTo(GetTerrain("Water"),     terrainGen[5].terrain); maxChance += 1; terrainGen[5].chance = maxChance;
 
-	memset(hexes, 0, MaxCols * MaxRows * sizeof(Hex));
-	hexesLen = 0;
+	memset(data.hexes, 0, MaxCols * MaxRows * sizeof(Hex));
+	data.hexesLen = 0;
 	for (U32 c = 0; c < MaxCols; c++) {
 		for (U32 r = 0; r < MaxRows; r++) {
-			Hex* const hex = &hexes[c + (r * MaxCols)];
+			Hex* const hex = &data.hexes[c + (r * MaxCols)];
 			hex->idx = c + (r * MaxCols);
 			hex->c = (I32)c;
 			hex->r = (I32)r;
@@ -212,23 +193,23 @@ Res<> GenerateMap() {
 				}
 			}
 			Assert(hex->terrain);
-			hex->unit = nullptr;
-			hexesLen++;
+			hex->unitData = nullptr;
+			data.hexesLen++;
 		}
 	}
 
-	Unit::UnitDef const* unitDef; TryTo(Unit::GetUnitDef("Spearmen"), unitDef);
+	Unit::Def unitDef; TryTo(Unit::GetDef("Spearmen"), unitDef);
 
 	U32 startCol = 0;
-	Unit::Side::Enum side = Unit::Side::Left;
+	Unit::Side side = Unit::Side::Left;
 	for (bool b = true; b; b = false) {
-		Army* army = &armies[Unit::Side::Left];
+		Army* army = &armies[(U32)Unit::Side::Left];
 		memset(army, 0, sizeof(Army));
 		army->side = Unit::Side::Left;
 		for (U32 c = startCol; c < startCol + 2; c++) {
 			for (U32 r = 0; r < MaxRows; r++) {
 				if (Rng::NextU32(0, 100) < 50) {
-					army->units[army->unitsLen++] = CreateUnitOn(unitDef, &hexes[c + (r * MaxCols)], Unit::Side::Left);
+					army->units[army->unitsLen++] = CreateUnitOn(unitDef, &data.hexes[c + (r * MaxCols)], Unit::Side::Left);
 					if (army->unitsLen >= MaxArmyUnits) {
 						goto DoneUnitGen;
 					}
@@ -245,50 +226,34 @@ Res<> GenerateMap() {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Frame(App::FrameData const* appFrameData) {
-	Vec2 const mouseWorldPos = Vec2(
-		((F32)appFrameData->mouseX / camera.scale) + camera.pos.x,
-		((F32)appFrameData->mouseY / camera.scale) + camera.pos.y
-	);
-
-	for (U64 i = 0; i < appFrameData->actions.len; i++) {
-		U64 const actionId = appFrameData->actions[i];
-		Assert(actionId > 0 && actionId < ActionId_Max);
-		Try(actionFns[actionId](appFrameData->sec));
-	}
-
-	Hex const* const oldMouseHex = mouseHex;	
-	mouseHex = WorldPosToHex(mouseWorldPos);
-	if (mouseHex && selectedHex && oldMouseHex != mouseHex) {
-		if (selectedHexMoveCostMap.moveCosts[mouseHex->c + (mouseHex->r * MaxCols)] != 0) {
-			FindPathFromMoveCostMap(&selectedHexMoveCostMap, selectedHex, mouseHex, &selectedToHoverPath);
+Res<> Update(App::UpdateData const* updateData) {
+	Hex const* const oldHoverHex = data.hoverHex;	
+	data.hoverHex = ScreenPosToHex(&data, updateData->mouseX, updateData->mouseY);
+	if (data.hoverHex && data.selectedHex && oldHoverHex != data.hoverHex) {
+		if (data.selectedHexMoveCostMap.moveCosts[data.hoverHex->c + (data.hoverHex->r * MaxCols)] != 0) {
+			FindPathFromMoveCostMap(&data.selectedHexMoveCostMap, data.selectedHex, data.hoverHex, &data.selectedHexToHoverHexPath);
 			StrBuf sb(tempMem);
 			sb.Add("path=[");
-			for (U32 i = 0; i < selectedToHoverPath.len; i++) {
-				sb.Printf("(%i, %i), ", selectedToHoverPath.hexes[i]->c, selectedToHoverPath.hexes[i]->r);
+			for (U32 i = 0; i < data.selectedHexToHoverHexPath.len; i++) {
+				sb.Printf("(%i, %i), ", data.selectedHexToHoverHexPath.hexes[i]->c, data.selectedHexToHoverHexPath.hexes[i]->r);
 			}
 			sb.Add(']');
 			Logf("path=%s", sb.ToStr());
 		}
 	}
 
-	return Ok();
+	return HandleActions(&data, updateData->sec, updateData-> actions);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void Draw() {
+	Draw(&data);
 }
 
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC::Battle
-
-
-
-
-
-
-
-
-
-
-
 
 
 

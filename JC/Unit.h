@@ -14,9 +14,9 @@ DefHandle(Unit);
 enum struct Side { Left, Right };
 
 struct DefData {
-	Def          def;
 	Str          name;
 	Draw::Sprite sprite;
+	Vec2         size;
 	U32          hp;
 	U32          move;
 };
@@ -32,12 +32,9 @@ struct Data {
 
 void     Init(Mem permMem, Mem tempMem);
 Res<>    LoadDefs(Str path);
-Res<Def> GetUnitDef(Str name);
-Unit     CreateUnit(Def def);
-Data*    GetData(Unit unit);
-void     FreeUnit(Unit unit);
-void     Frame(F32 sec);
-void     Draw(F32 z);
+Res<Def> GetDef(Str name);
+Data*    CreateUnit(Def def, Side side,Vec2 pos);
+void     DestroyUnit(Unit unit);
 
 //--------------------------------------------------------------------------------------------------
 

@@ -1,7 +1,10 @@
 #include "JC/Battle_Internal.h"
 
+#include "JC/App.h"
 #include "JC/Input.h"
 #include "JC/Key.h"
+#include "JC/Log.h"
+#include "JC/Unit.h"
 
 namespace JC::Battle {
 
@@ -30,33 +33,37 @@ void InitInput() {
 	Input::Bind(bindingSet, Key::Key::Mouse1,         Input::BindingType::OnKeyUp,    ActionId_Click);
 	Input::Bind(bindingSet, Key::Key::MouseWheelUp,   Input::BindingType::OnKeyDown,  ActionId_ZoomIn);
 	Input::Bind(bindingSet, Key::Key::MouseWheelDown, Input::BindingType::OnKeyDown,  ActionId_ZoomOut);
-	Input::Bind(bindingSet, Key::Key::W,              Input::BindingType::Continuous, ActionId_ScrollMapUp);
-	Input::Bind(bindingSet, Key::Key::S,              Input::BindingType::Continuous, ActionId_ScrollMapDown);
 	Input::Bind(bindingSet, Key::Key::A,              Input::BindingType::Continuous, ActionId_ScrollMapLeft);
 	Input::Bind(bindingSet, Key::Key::D,              Input::BindingType::Continuous, ActionId_ScrollMapRight);
+	Input::Bind(bindingSet, Key::Key::W,              Input::BindingType::Continuous, ActionId_ScrollMapUp);
+	Input::Bind(bindingSet, Key::Key::S,              Input::BindingType::Continuous, ActionId_ScrollMapDown);
 	Input::SetBindingSetStack({ bindingSet });
 
 }
 
-static Res<> Action_Exit(F32) { return App::Err_Exit(); };
-
 //--------------------------------------------------------------------------------------------------
 
-static Res<> Action_Click(F32) { 
-	if (!mouseHex) {
+static Res<> Click(Data* data) { 
+	if (!data->hoverHex) {
 		return Ok();
 	}
 
-	if (state == State::None) {
-		if (selectedHex == mouseHex) {
-			Logf("Deselected hex (%i,%i)", selectedHex->c, selectedHex->r);
-			selectedHex = nullptr;
-		} else if (mouseHex->unit) {
-			Logf("Selected hex (%i, %i)", mouseHex->c, mouseHex->r);
-			selectedHex = mouseHex;
-			BuildMoveCostMap(selectedHex, selectedHex->unit->unitDef->move, selectedHex->unit->side, &selectedHexMoveCostMap);
+	if (data->state == State::None) {
+		if (data->selectedHex == data->hoverHex) {
+			Logf("Deselected hex (%i,%i)", data->selectedHex->c, data->selectedHex->r);
+			data->selectedHex = nullptr;
+		} else if (data->hoverHex->unitData) {
+			Logf("Selected hex (%i, %i)", data->hoverHex->c, data->hoverHex->r);
+			data->selectedHex = data->hoverHex;
+			BuildMoveCostMap(
+				data,
+				data->selectedHex,
+				data->selectedHex->unitData->move,
+				data->selectedHex->unitData->side,
+				&data->selectedHexMoveCostMap
+			);
 		} else {
-			Logf("Ignoring click on empty hex (%i, %i)", mouseHex->c, mouseHex->r);
+			Logf("Ignoring click on empty hex (%i, %i)", data->hoverHex->c, data->hoverHex->r);
 		}
 		return Ok();
 	}
@@ -107,29 +114,31 @@ static Res<> Action_Click(F32) {
 
 //--------------------------------------------------------------------------------------------------
 
-static Res<> Action_Zoom(F32 scaleDelta) {
-	F32 const oldScale = camera.scale;
-	if (camera.scale + scaleDelta >= 1.f) {
-		camera.scale += scaleDelta;
+
+Res<> HandleActions(Data* data, F32 sec, Span<U64 const> actionIds) {
+	F32 cameraDX = 0.f;
+	F32 cameraDY = 0.f;
+
+	for (U64 i = 0; i < actionIds.len; i++) {
+		switch (actionIds[i]) {
+			case ActionId_Exit: return App::Err_Exit();
+
+			case ActionId_Click: return Click(data);
+
+			case ActionId_ZoomIn:  ZoomCamera(1.f); break;
+			case ActionId_ZoomOut: ZoomCamera(-1.f); break;
+
+			case ActionId_ScrollMapLeft:  cameraDX--; break;
+			case ActionId_ScrollMapRight: cameraDX++; break;
+			case ActionId_ScrollMapUp:    cameraDY--; break;
+			case ActionId_ScrollMapDown:  cameraDY++; break;
+		}
 	}
-	F32 const windowCenterX = windowSize.x * 0.5f;
-	F32 const windowCenterY = windowSize.y * 0.5f;
-	camera.pos.x -= windowCenterX / camera.scale - windowCenterX / oldScale;
-	camera.pos.y -= windowCenterY / camera.scale - windowCenterY / oldScale;
-	Logf("camera.scale = %f", camera.scale);
+
+	MoveCamera(sec, cameraDX, cameraDY);
+
 	return Ok();
 }
-static Res<> Action_ZoomIn(F32)  { return Action_Zoom(1.f); }
-static Res<> Action_ZoomOut(F32) { return Action_Zoom(-1.f); }
-
-//--------------------------------------------------------------------------------------------------
-
-static Res<> Action_ScrollMapLeft (F32 sec) { camera.pos.x -= (CamSpeedPixelsPerSec * sec) / camera.scale; return Ok(); }
-static Res<> Action_ScrollMapRight(F32 sec) { camera.pos.x += (CamSpeedPixelsPerSec * sec) / camera.scale; return Ok(); }
-static Res<> Action_ScrollMapUp   (F32 sec) { camera.pos.y -= (CamSpeedPixelsPerSec * sec) / camera.scale; return Ok(); }
-static Res<> Action_ScrollMapDown (F32 sec) { camera.pos.y += (CamSpeedPixelsPerSec * sec) / camera.scale; return Ok(); }
-
-
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC::Battle

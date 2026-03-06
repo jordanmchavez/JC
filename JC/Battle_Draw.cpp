@@ -1,6 +1,7 @@
 #include "JC/Battle_Internal.h"
 
 #include "JC/Draw.h"
+#include "JC/Log.h"
 #include "JC/Unit.h"
 #include "JC/Window.h"
 
@@ -14,33 +15,59 @@ static constexpr F32 Z_Hex = 0.f;
 
 static Mem          tempMem;
 static Vec2         windowSize;
-static Draw::Sprite borderSprite;
-static Draw::Sprite highlightSprite;
 static Draw::Font   numberFont;
 static Draw::Font   uiFont;
-static U32          uiFontLineHeight;
+static F32          uiFontLineHeight;
 static Draw::Font   fancyFont;
 static Draw::Camera camera;
 
 //--------------------------------------------------------------------------------------------------
 
 Res<> InitDraw(Mem tempMemIn, Window::State const* windowState) {
+
 	tempMem = tempMemIn;
 
 	windowSize = Vec2((F32)windowState->width, (F32)windowState->height);
 
-	TryTo(Draw::LoadFont("Assets/Font_EverydayStandard6.json"), numberFont);
-	TryTo(Draw::LoadFont("Assets/Font_CelticTime15.json"), uiFont);
-	TryTo(Draw::LoadFont("Assets/Font_OldeTome21.json"), fancyFont);
+	TryTo(Draw::LoadFont("Assets/Font_EverydayStandard6.json5"), numberFont);
+	TryTo(Draw::LoadFont("Assets/Font_CelticTime15.json5"), uiFont);
+	TryTo(Draw::LoadFont("Assets/Font_OldeTome21.json5"), fancyFont);
 	uiFontLineHeight = Draw::GetFontLineHeight(uiFont);
 
 	camera.pos = { 0.f, 0.f };
 	camera.scale = 3.f;
+
+	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void UpdateCamera(F32 sec, F32 dx, F32 dy) {
+Hex const* ScreenPosToHex(Data const* data, I32 x, I32 y) {
+	return WorldPosToHex(data, Vec2(
+		((F32)x / camera.scale) + camera.pos.x,
+		((F32)y / camera.scale) + camera.pos.y
+	));
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void MoveCamera(F32 sec, F32 dx, F32 dy) {
+	camera.pos.x += dx * CameraSpeedPixelsPerSec * sec;
+	camera.pos.y += dy * CameraSpeedPixelsPerSec * sec;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void ZoomCamera(F32 d) {
+	F32 const oldScale = camera.scale;
+	if (camera.scale + d >= 1.f) {
+		camera.scale += d;
+	}
+	F32 const windowCenterX = windowSize.x * 0.5f;
+	F32 const windowCenterY = windowSize.y * 0.5f;
+	camera.pos.x -= windowCenterX / camera.scale - windowCenterX / oldScale;
+	camera.pos.y -= windowCenterY / camera.scale - windowCenterY / oldScale;
+	Logf("camera scale = %f", camera.scale);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -79,7 +106,7 @@ void Draw(Data const* data) {
 
 	if (data->hoverHex) {
 		Draw::DrawSprite({
-			.sprite = borderSprite,
+			.sprite = data->borderSprite,
 			.pos    = HexToTopLeftWorldPos(data->hoverHex),
 			.z      = Z_Hex + 0.1f,
 			.origin = Draw::Origin::TopLeft,
@@ -90,7 +117,7 @@ void Draw(Data const* data) {
 	if (!data->selectedHex) { return; }
 
 	Draw::DrawSprite({
-		.sprite = borderSprite,
+		.sprite = data->borderSprite,
 		.pos    = HexToTopLeftWorldPos(data->selectedHex),
 		.z      = Z_Hex + 0.2f,
 		.origin = Draw::Origin::TopLeft,
@@ -103,7 +130,7 @@ void Draw(Data const* data) {
 			Vec2 const topLeftPos = ColRowToTopLeftWorldPos(c, r);
 			if (!data->selectedHexMoveCostMap.moveCosts[idx]) {
 				Draw::DrawSprite({
-					.sprite = highlightSprite,
+					.sprite = data->highlightSprite,
 					.pos    = ColRowToTopLeftWorldPos(c, r),
 					.z      = Z_Hex + 0.1f,
 					.origin = Draw::Origin::TopLeft,
@@ -124,7 +151,7 @@ void Draw(Data const* data) {
 	for (U32 i = 0; i < data->selectedHexToHoverHexPath.len; i++) {
 		Vec2 const topLeftPos = HexToTopLeftWorldPos(data->selectedHexToHoverHexPath.hexes[i]);
 		Draw::DrawSprite({
-			.sprite = highlightSprite,
+			.sprite = data->highlightSprite,
 			.pos    = topLeftPos,
 			.z      = Z_Hex + 0.1f,
 			.origin = Draw::Origin::TopLeft,

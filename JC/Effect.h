@@ -19,7 +19,7 @@ struct FloatingStrDef {
 
 void Init(Mem permMem);
 void CreateFloatingStr(FloatingStrDef def);
-void Frame(F32 sec);
+void Update(F32 sec);
 void Draw(F32 z);
 
 //--------------------------------------------------------------------------------------------------

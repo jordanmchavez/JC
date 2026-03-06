@@ -53,7 +53,7 @@ Vec2 HexToCenterWorldPos(Hex const* hex) {
 
 //--------------------------------------------------------------------------------------------------
 
-Hex* WorldPosToHex(Data const* data, Vec2 p) {
+Hex const* WorldPosToHex(Data const* data, Vec2 p) {
 	I32 const hsize   = (I32)HexSize;
 	I32 const rowStep = hsize * 3 / 4;
 	I32 const iy      = (I32)p.y;

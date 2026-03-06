@@ -537,7 +537,7 @@ void SetCursorMode(CursorMode newCursorMode) {
 
 //----------------------------------------------------------------------------------------------
 
-Events Frame() {
+Events Update() {
 	keyEventsLen = 0;
 	mouseDeltaX  = 0;
 	mouseDeltaY  = 0;

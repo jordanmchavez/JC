@@ -17,12 +17,8 @@ DefErr(Unit, DefNotFound);
 static constexpr U32 MaxDefs  = 1024;
 static constexpr U32 MaxUnits = 64 * 1024;
 
-struct DefObj {
-	DefData defData;
-};
-
-struct UnitObj {
-};
+// We don't need a `DefData` because it's the exact same as `DefData`
+// Same for `UnitData` / `UnitObj`
 
 struct DefJson {
 	Str name;
@@ -48,20 +44,20 @@ Json_End(DefsJson)
 
 //--------------------------------------------------------------------------------------------------
 
-static Mem                       tempMem;
-static DefObj*                   defObjs;
-static U32                       defObjsLen;
-static Map<Str, Def*>            defMap;
-static HandlePool<Unit, UnitObj> units;
+static Mem                        tempMem;
+static DefData*                   defDatas;
+static U32                        defDatasLen;
+static Map<Str, DefData const*>   defDatasMap;
+static HandlePool<Unit, Data>     units;
 
 //--------------------------------------------------------------------------------------------------
 
 void Init(Mem permMem, Mem tempMemIn) {
 	tempMem    = tempMemIn;
-	defObjs    = Mem::AllocT<DefObj>(permMem, MaxDefs);
-	defObjsLen = 0;
+	defDatas    = Mem::AllocT<DefData>(permMem, MaxDefs);
+	defDatasLen = 1;	// reserve 0 for invalid
+	defDatasMap.Init(permMem, MaxDefs);
 	units.Init(permMem, MaxUnits);
-	defMap.Init(permMem, MaxDefs);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -73,43 +69,50 @@ Res<> LoadDefs(Str path) {
 
 	Try(Draw::LoadAtlas(defsJson.atlasPath));
 
-	Assert(defObjsLen + defsJson.defs.len < MaxDefs);
+	Assert(defDatasLen + defsJson.defs.len < MaxDefs);
 	for (U64 i = 0; i < defsJson.defs.len; i++) {
 		DefJson const* const unitDefJson = &defsJson.defs[i];
-		DefObj* const defObj = &defObjs[defObjsLen++];
-		defObj->name = unitDefJson->name;	// already interned
-		defObj->hp   = unitDefJson->hp;
-		defObj->move = unitDefJson->move;
-		TryTo(Draw::GetSprite(unitDefJson->sprite), defObj->sprite);
-		defObj->size = Draw::GetSpriteSize(defObj->sprite);
-		if (unitDefMap.FindOrNull(defObj->name)) {
-			return Err_DuplicateDef("name", defObj->name);
+		DefData* const defData = &defDatas[defDatasLen++];
+		defData->name = unitDefJson->name;	// already interned
+		defData->hp   = unitDefJson->hp;
+		defData->move = unitDefJson->move;
+		TryTo(Draw::GetSprite(unitDefJson->sprite), defData->sprite);
+		defData->size = Draw::GetSpriteSize(defData->sprite);
+		if (defDatasMap.FindOrNull(defData->name)) {
+			return Err_DuplicateDef("name", defData->name);
 		}
-		unitDefMap.Put(defObj->name, defObj);
+		defDatasMap.Put(defData->name, defData);
 	}
 	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Def const*> GetDef(Str name) {
-	Def const* const* const unitDefPP = unitDefMap.FindOrNull(name);
-	if (!unitDefPP) {
+Res<Def> GetDef(Str name) {
+	DefData const* const* const defDataPP = defDatasMap.FindOrNull(name);
+	if (!defDataPP ) {
 		return Err_DefNotFound("name", name);
 	}
-	return *unitDefPP;
+	return Def { .handle = (U64)(*defDataPP - defDatas) };
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Unit* AllocUnit() {
-	if (freeUnitIdx) {
-		Unit* const unit = &units[freeUnitIdx];
-		freeUnitIdx = unit->nextFreeIdx;
-		return unit;
-	}
-	Assert(unitsLen < MaxUnits);
-	return &units[unitsLen++];
+Data* CreateUnit(Def def, Side side, Vec2 pos) {
+	Assert(def.handle > 0 && def.handle < defDatasLen);
+	DefData const* const defData = &defDatas[def.handle];
+
+	auto entry = units.Alloc();
+
+	Data* const data = &entry->obj;
+	data->defData = defData;
+	data->unit    = entry->Handle();
+	data->side    = side;
+	data->pos     = pos;
+	data->hp      = defData->hp;
+	data->move    = defData->move;
+
+	return data;
 }
 
 //--------------------------------------------------------------------------------------------------

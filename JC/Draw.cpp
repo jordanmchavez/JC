@@ -83,7 +83,7 @@ struct CanvasObj {
 	Vec2             size;
 };
 
-using CanvasPool = HandlePool<CanvasObj, Canvas>;
+using CanvasPool = HandlePool<Canvas, CanvasObj>;
 
 struct Scene {
 	Mat4 projViews[MaxCanvases + 1];	// +1 for the no-canvas pass
@@ -325,15 +325,15 @@ Json_Begin(AtlasJson)
 	Json_Member("sprites",   sprites)
 Json_End(AtlasJson)
 
-Res<> LoadAtlasJson(Str atlastJsonPath) {
+Res<> LoadAtlas(Str path) {
 	for (U32 i = 0; i < atlasesLen; i++) {
-		if (File::PathsEq(atlastJsonPath, atlases[i].path)) {
+		if (File::PathsEq(path, atlases[i].path)) {
 			return Ok();
 		}
 	}
 	Assert(atlasesLen < MaxAtlases);
 
-	Span<char> json; TryTo(File::ReadAllZ(atlastJsonPath), json);
+	Span<char> json; TryTo(File::ReadAllZ(path), json);
 	AtlasJson atlasJson; Try(Json::ToObject(tempMem, tempMem, json.data, (U32)json.len, &atlasJson));
 
 	Gpu::Image image; TryTo(LoadImage(atlasJson.imagePath), image);
@@ -341,7 +341,7 @@ Res<> LoadAtlasJson(Str atlastJsonPath) {
 	F32 const imageWidth  = (F32)Gpu::GetImageWidth(image);
 	F32 const imageHeight = (F32)Gpu::GetImageHeight(image);
 	atlases[atlasesLen++] = {
-		.path     = StrDb::Intern(atlastJsonPath),
+		.path     = StrDb::Intern(path),
 		.image    = image,
 		.imageIdx = imageIdx,
 	};
@@ -350,7 +350,7 @@ Res<> LoadAtlasJson(Str atlastJsonPath) {
 	for (U64 i = 0; i < atlasJson.sprites.len; i++) {
 		SpriteJson* const spriteJson = &atlasJson.sprites[i];
 		if (spriteObjsByName.FindOrNull(spriteJson->name)) {
-			return Err_DuplicateSpriteName("path", atlastJsonPath, "name", spriteJson->name);
+			return Err_DuplicateSpriteName("path", path, "name", spriteJson->name);
 		}
 		F32 const x = (F32)spriteJson->x;
 		F32 const y = (F32)spriteJson->y;
@@ -423,10 +423,10 @@ Json_Begin(FontJson)
 	Json_Member("glyphs",     glyphs)
 Json_End(FontJson)
 
-Res<Font> LoadFontJson(Str fontJsonPath) {
+Res<Font> LoadFont(Str path) {
 	Assert(fontObjsLen < MaxFonts);
 
-	Span<char> json; TryTo(File::ReadAllZ(fontJsonPath), json);
+	Span<char> json; TryTo(File::ReadAllZ(path), json);
 	FontJson fontJson; Try(Json::ToObject(tempMem, tempMem, json.data, (U32)json.len, &fontJson));
 
 
@@ -436,7 +436,7 @@ Res<Font> LoadFontJson(Str fontJsonPath) {
 	F32 const imageHeight = (F32)Gpu::GetImageHeight(image);
 
 	FontObj* const fontObj = &fontObjs[fontObjsLen++];
-	fontObj->path       = StrDb::Intern(fontJsonPath);
+	fontObj->path       = StrDb::Intern(path);
 	fontObj->image      = image;
 	fontObj->imageIdx   = imageIdx;
 	fontObj->lineHeight = (F32)fontJson.lineHeight;

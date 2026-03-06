@@ -96,7 +96,7 @@ void Err::SetBreakOnErr(bool breakOnErr) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Err::Frame(U64 frameIn) {
+void Err::Update(U64 frameIn) {
 	errFrame = frameIn;
 	memset(errs, 0, errsLen * sizeof(Err));
 	errsLen = 0;

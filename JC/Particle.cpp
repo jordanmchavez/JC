@@ -90,19 +90,19 @@ static Array<Emitter> emitters;
 
 //--------------------------------------------------------------------------------------------------
 
-static void UpdateParticleType(F32 secs, Type* type) {
+static void UpdateParticleType(F32 sec, Type* type) {
 	for (U64 i = 0; i < type->particles.len;) {
 		Particle* const p = &type->particles[i];
-		if (p->life += secs; p->life >= p->lifeEnd) {
+		if (p->life += sec; p->life >= p->lifeEnd) {
 			type->particles.RemoveUnordered(i);
 			continue;
 		}
-		p->size     += secs * type->scaleInc;
-		p->speed    += secs * type->speedInc;
-		p->angle    += secs * type->angleInc;
-		p->rotation += secs * type->rotationInc ;
-		p->pos.x    += secs * p->speed * Math::Cos(Math::DegToRad(p->angle));
-		p->pos.y    += secs * p->speed * Math::Sin(Math::DegToRad(p->angle));
+		p->size     += sec * type->scaleInc;
+		p->speed    += sec * type->speedInc;
+		p->angle    += sec * type->angleInc;
+		p->rotation += sec * type->rotationInc ;
+		p->pos.x    += sec * p->speed * Math::Cos(Math::DegToRad(p->angle));
+		p->pos.y    += sec * p->speed * Math::Sin(Math::DegToRad(p->angle));
 		F32 t = p->life / p->lifeEnd;
 		if (t < 0.5f) {
 			p->color = Math::Lerp(type->color1, type->color2, t * 2.0f);
@@ -115,9 +115,9 @@ static void UpdateParticleType(F32 secs, Type* type) {
 
 //---------------------------------------------------------------------------------------------
 
-static void UpdateParticleEmitter(F32 secs, Emitter* emitter) {
+static void UpdateParticleEmitter(F32 sec, Emitter* emitter) {
 	Type* const t = emitter->type;
-	emitter->emitAccum += emitter->emitRate * secs;
+	emitter->emitAccum += emitter->emitRate * sec;
 	while (emitter->emitAccum >= 1.0f) {
 		Particle* const p = t->particles.Add();
 		switch (emitter->shape) {
@@ -151,14 +151,13 @@ static void UpdateParticleEmitter(F32 secs, Emitter* emitter) {
 
 //---------------------------------------------------------------------------------------------
 
-void Frame(U64 ticks) {
-	F32 const secs = (F32)Time::Secs(ticks);
+void Update(F32 sec) {
 	for (U64 i = 0; i < types.len; i++) {
-		UpdateParticleType(secs, &types[i]);
+		UpdateParticleType(sec, &types[i]);
 	}
 
 	for (U64 i = 0; i < emitters.len; i++) {
-		UpdateParticleEmitter(secs, &emitters[i]);
+		UpdateParticleEmitter(sec, &emitters[i]);
 	}
 }
 

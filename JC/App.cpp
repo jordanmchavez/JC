@@ -84,7 +84,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 	};
 	Try(Window::Init(&windowInitDef));
 
-	Window::Frame();
+	Window::Update();
 	Window::State windowState = Window::GetState();
 
 	Window::PlatformDef const windowPlatformDef = Window::GetPlatformDef();
@@ -113,19 +113,19 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 		frame++;
 
 		Mem::Reset(tempMem, MemMark());
-		Err::Frame(frame);
+		Err::Update(frame);
 
 		U64 const nowTicks = Time::Now();
 		F32 const sec = (F32)Time::Secs(nowTicks - lastTicks);
 		lastTicks = nowTicks;
 
-		Window::Events const windowEvents = Window::Frame();
-		Window::State const prevWindowState = windowState;	// TODO: this could be rolled into Events as part of the return val from Window::Frame()
+		Window::Events const windowEvents = Window::Update();
+		Window::State const prevWindowState = windowState;	// TODO: this could be rolled into Events as part of the return val from Window::Update()
 		windowState = Window::GetState();
 
 		Span<U64 const> const actions = Input::ProcessKeyEvents(windowEvents.keyEvents, actionIds, MaxActionIds);
 
-		FrameData const appFrameData = {
+		UpdateData const appUpdateData = {
 			.sec         = sec,
 			.actions     = actions,
 			.mouseX      = windowEvents.mouseX,
@@ -134,7 +134,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 			.mouseDeltaY = windowEvents.mouseDeltaY,
 			.exit        = windowEvents.exitEvent,
 		};
-		if (Res<> r = app->Frame(&appFrameData); !r) {
+		if (Res<> r = app->Update(&appUpdateData); !r) {
 			if (r.err == Err_Exit) {
 				return Ok();
 			}

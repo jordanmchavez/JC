@@ -37,7 +37,7 @@ void InitPath(Mem permMem) {
 //--------------------------------------------------------------------------------------------------
 
 static void HeapPush(Heap* heap, HeapEntry e) {
-	Assert(heap->len < heap->cap);	// should never trigger since our heap is 6*#tiles
+	Assert(heap->len < heap->cap);	// should never trigger since our heap is 6*#hexes
 	heap->entries[(heap->len)++] = e;
 	U32 i = heap->len - 1;
 	while (i > 0) {
@@ -67,28 +67,8 @@ static HeapEntry HeapPop(Heap* heap) {
 
 //--------------------------------------------------------------------------------------------------
 
-static U32 HexDistance(Hex const* a, Hex const* b) {
-	I32 const aq = a->c - (a->r - (a->r & 1)) / 2;
-	I32 const as = a->r;
-	I32 const bq = b->c - (b->r - (b->r & 1)) / 2;
-	I32 const bs = b->r;
-	I32 const dq = bq - aq;
-	I32 const ds = bs - as;
-	I32 const dqSign = dq < 0 ? -1 : 1;
-	I32 const dsSign = ds < 0 ? -1 : 1;
-	if (dqSign == dsSign) {
-		return Math::Abs(dq) + Math::Abs(ds);
-	} else {
-		return Max(Math::Abs(dq), Math::Abs(ds));
-	}
-}
-
-static bool IsTilePassable(Hex const* hex, Unit::Side side) {
+static bool IsHexPassable(Hex const* hex, Unit::Side side) {
 	return hex->terrain->moveCost && (!hex->unitData || hex->unitData->side == side);
-}
-
-static bool IsHexLandable(Hex const* hex) {
-	return hex->terrain->moveCost && !hex->unitData;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -119,7 +99,7 @@ void BuildMoveCostMap(Data const* data, Hex const* startHex, U32 move, Unit::Sid
 			if (pathVisited[neighbor->idx]) {
 				continue;
 			}
-			if (!IsTilePassable(neighbor, side)) {
+			if (!IsHexPassable(neighbor, side)) {
 				continue;
 			}
 			U32 const tentativeScore = moveCostMap->moveCosts[entry.idx] + neighbor->terrain->moveCost;
@@ -140,7 +120,7 @@ void BuildMoveCostMap(Data const* data, Hex const* startHex, U32 move, Unit::Sid
 //--------------------------------------------------------------------------------------------------
 
 // Simple back-traversal using `parents`
-bool FindPathFromMoveCostMap(MoveCostMap const* moveCostMap, Hex* startHex, Hex* end, Path* pathOut) {
+bool FindPathFromMoveCostMap(MoveCostMap const* moveCostMap, Hex const* startHex, Hex const* end, Path* pathOut) {
 	if (end == startHex) {
 		pathOut->len = 0;
 		return true;
@@ -150,8 +130,8 @@ bool FindPathFromMoveCostMap(MoveCostMap const* moveCostMap, Hex* startHex, Hex*
 		return false;
 	}
 
-	Hex** iter = pathOut->hexes;
-	for (Hex* hex = end; hex != startHex; hex = moveCostMap->parents[hex->idx]) {
+	Hex const** iter = pathOut->hexes;
+	for (Hex const* hex = end; hex != startHex; hex = moveCostMap->parents[hex->idx]) {
 		*iter++ = hex;
 	}
 	U64 const len     = (U64)(iter - pathOut->hexes);
@@ -165,6 +145,26 @@ bool FindPathFromMoveCostMap(MoveCostMap const* moveCostMap, Hex* startHex, Hex*
 
 //--------------------------------------------------------------------------------------------------
 /*
+static U32 HexDistance(Hex const* a, Hex const* b) {
+	I32 const aq = a->c - (a->r - (a->r & 1)) / 2;
+	I32 const as = a->r;
+	I32 const bq = b->c - (b->r - (b->r & 1)) / 2;
+	I32 const bs = b->r;
+	I32 const dq = bq - aq;
+	I32 const ds = bs - as;
+	I32 const dqSign = dq < 0 ? -1 : 1;
+	I32 const dsSign = ds < 0 ? -1 : 1;
+	if (dqSign == dsSign) {
+		return Math::Abs(dq) + Math::Abs(ds);
+	} else {
+		return Max(Math::Abs(dq), Math::Abs(ds));
+	}
+}
+
+static bool IsHexLandable(Hex const* hex) {
+	return hex->terrain->moveCost && !hex->unitData;
+}
+
 // A*
 bool FindPath(Hex* startHex, Hex* endHex, Unit::Side side, Path* pathOut) {
 	Hex* goalHexes[6];
@@ -223,7 +223,7 @@ bool FindPath(Hex* startHex, Hex* endHex, Unit::Side side, Path* pathOut) {
 		for (U32 i = 0; i < goalHexesLen; i++) {
 			if (goalHexes[i] == &hexes[entry.idx]) {
 				foundGoalHex = goalHexes[i];
-				goto FoundGoalTile;
+				goto FoundGoalHex;
 			}
 		}
 
@@ -233,7 +233,7 @@ bool FindPath(Hex* startHex, Hex* endHex, Unit::Side side, Path* pathOut) {
 			if (pathVisited[neighbor->idx]) {
 				continue;
 			}
-			if (!IsTilePassable(entryHex->neighbors[i], side)) {
+			if (!IsHexPassable(entryHex->neighbors[i], side)) {
 				continue;
 			}
 			U32 const tentativeScore = pathScore[entry.idx] + entryHex->neighbors[i]->terrain->moveCost;
@@ -253,7 +253,7 @@ bool FindPath(Hex* startHex, Hex* endHex, Unit::Side side, Path* pathOut) {
 		}
 	}
 
-	FoundGoalTile:
+	FoundGoalHex:
 	Assert(foundGoalHex != startHex);
 	Hex** iter = pathOut->hexes;
 	for (Hex* hex = foundGoalHex; hex != startHex; hex = pathParent[hex->idx]) {

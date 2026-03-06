@@ -1,6 +1,6 @@
 {
-	atlasPath: "Assets/UnitAtlas.json",
-	unitDefs: [
+	atlasPath: "Assets/Atlas_Units.json5",
+	defs: [
 		{
 			name: "Spearmen",
 			sprite: "Unit_Spearmen",

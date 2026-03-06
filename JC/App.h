@@ -19,7 +19,7 @@ constexpr Str Cfg_WindowDisplayIdx = "App.WindowDisplayIdx";
 
 //--------------------------------------------------------------------------------------------------
 
-struct FrameData {
+struct UpdateData {
 	F32             sec;
 	Span<U64 const> actions;
 	I32             mouseX;
@@ -33,7 +33,7 @@ struct App {
 	Res<> (*PreInit)(Mem permMem, Mem tempMem);
 	Res<> (*Init)(Window::State const* windowState);
 	void  (*Shutdown)();
-	Res<> (*Frame)(FrameData const* appFrameData);	// Err_Exit = exit program
+	Res<> (*Update)(UpdateData const* appUpdateData);	// Err_Exit = exit program
 	Res<> (*Draw)();
 	Res<> (*ResizeWindow)(U32 width, U32 height);
 };
