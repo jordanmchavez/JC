@@ -323,3 +323,7 @@ make all perm arrays use the perm allocator
 - Json missing close quote gives the END OF FILE as position. store opening quote in parse ctx
 - Log error on Err::MakeV break
 	- but be careful of recursion
+- Pathfinder should prefer shorts # hexes all things being equal
+- Eador-like pathfinding:
+	- hover over enemy: shortest path
+	- hover over enemy border: shortest path going through that border

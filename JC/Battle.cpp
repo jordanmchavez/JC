@@ -244,19 +244,7 @@ void Draw() {
 }	// namespace JC::Battle
 
 
-
-
-
-
 /*
-
-
-static constexpr Vec4 MapBackgroundColor = Vec4(13.f/255.f, 30.f/255.f, 22.f/255.f, 1.f);
-static constexpr F32  UiPanelWidth = 500.f;
-static constexpr Vec4 UiBackgroundColor = Vec4(0.2f, 0.3f, 0.4f, 1.f);
-
-//--------------------------------------------------------------------------------------------------
-
 enum struct OrderType {
 	Invalid = 0,
 	Move,
@@ -413,66 +401,4 @@ static void ExecuteAttackOrder(F32 secs) {
 			case OrderType::Attack: ExecuteAttackOrder(frameData->secs); break;
 			default: Panic("Unhandled OrderType %u", (U32)order.orderType);
 		}
-	}
-	*cameraOut = camera;
-	
-	
-	
-	
-	
-	
-		Draw::DrawRect({
-		.pos   = { 0.f, 0.f },
-		.z     = 0.f,
-		.origin = Draw::Origin::TopLeft,
-		.size  = { 1920.f, 1080.f },
-		.color = MapBackgroundColor,
-	});
-	/*
-	Draw::ClearCamera();
-
-	Draw::DrawRect({
-		.pos   = Vec2(windowSize.x - UiPanelWidth / 2.f, windowSize.y / 2.f),
-		.z     = Z_UiBackground,
-		.size  = Vec2(UiPanelWidth, windowSize.y),
-		.color = UiBackgroundColor,
-	});
-	constexpr Str lines[] = {
-		"Spearman",
-		"HP: 10",
-		"Atk: 2",
-		"Def: 3",
-		"abcdefghjiklm",
-		"nopqrstuvwxyz",
-		"ABCDEFGHJIKLM",
-		"NOPQRSTUVWXYZ",
-		"0123456789",
-		"`!@#$%^&*()",
-		"_+[]{};':\"",
-		"<>/?-=,.",
-		"Armoury",
-		"129 GP",
-		"-43 Mana",
-		"1/2 food",
-		"+3% production",
-		"Reduces normal",
-		"unit cost by 5%",
-	};
-
-	Draw::StrDrawDef strDrawDef = {
-		.font   = uiFont,
-		.pos    = { windowSize.x - UiPanelWidth + 10.f, 10.f },
-		.z      = Z_Ui,
-		.origin = Draw::Origin::TopLeft,
-		.scale  = { uiFontScale, uiFontScale },
-		.color  = { 1.f, 1.f, 1.f, 1.f },
-
-	};
-	for (U32 i = 0; i < LenOf(lines); i++) {
-		strDrawDef.str = lines[i];
-		Draw::DrawStr(strDrawDef);
-		strDrawDef.pos.y += (uiFontLineHeight + 2) * uiFontScale;
-	}
-	return Ok();
-
-	*/
+	}*/
