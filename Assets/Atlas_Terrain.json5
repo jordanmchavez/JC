@@ -6,6 +6,7 @@
 		{ x:  64, y:   0, w: 32, h: 32, name: "Hex32_Border2" },
 		{ x:  96, y:   0, w: 32, h: 32, name: "Hex32_Border3" },
 		{ x: 128, y:   0, w: 32, h: 32, name: "Hex32_Border4" },
+		{ x: 160, y:   0, w: 32, h: 32, name: "Hex32_Inner1" },
 
 		{ x:   0, y:  32, w: 32, h: 32, name: "Hex32_Grassland" },
 		{ x:  32, y:  32, w: 32, h: 32, name: "Hex32_Forest" },

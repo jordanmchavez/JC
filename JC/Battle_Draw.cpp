@@ -127,22 +127,32 @@ static void DrawHexesAndUnits(Data const* data) {
 		});
 */
 
-		if (!hex->unitData) { continue; }
+		if (!hex->unit) { continue; }
 
-		Unit::Data const* const unitData = hex->unitData;
+		Unit const* const unit = hex->unit;
 		Draw::DrawSprite({
-			.sprite = unitData->defData->sprite,
-			.pos    = unitData->pos,
+			.sprite = unit->def->sprite,
+			.pos    = unit->pos,
 			.z      = Z_Unit,
 			.origin = Draw::Origin::Center,
-			.flip   = unitData->side == Unit::Side::Right,
+			.flip   = unit->side == Side::Right,
 		});
+
+		if (data->selectedHexAttackable[i]) {
+			Draw::DrawSprite({
+				.sprite = borderSprite,
+				.pos    = topLeftPos,
+				.z      = Z_SelectedHex,
+				.origin = Draw::Origin::TopLeft,
+				.color  = Vec4(1.f, 0.f, 0.f, 1.f),
+			});
+		}
 	}
 }
 
-static constexpr Vec4 SelectedHexColor  = Vec4(0.f, 0.f, 1.f, 1.f);
-static constexpr Vec4 HoverHexColor     = Vec4(1.f, 1.f, 1.f, 1.f);
-static constexpr Vec4 ReachableHexColor = Vec4(0.f, 1.f, 0.f, 1.f);
+static constexpr Vec4 SelectedHexColor  = Vec4(0.f, 1.f, 0.f, 1.f);
+static constexpr Vec4 HoverHexColor     = Vec4(0.f, 1.f, 0.f, 1.f);
+static constexpr Vec4 ReachableHexColor = Vec4(1.f, 1.f, 1.f, 0.25f);
 static constexpr Vec4 PathColor         = Vec4(1.f, 1.f, 0.f, 1.f);
 
 static void DrawHexDecorations(Data const* data) {
@@ -172,13 +182,13 @@ static void DrawHexDecorations(Data const* data) {
 				U32 const idx = c + (r * MaxCols);
 				Vec2 const topLeftPos = ColRowToTopLeftWorldPos(c, r);
 	
-				if (data->selectedHexPathMap.moveCosts[idx] != U32Max) {
+				if (data->selectedHexPathMap.moveCosts[idx] != U32Max && !data->hexes[idx].unit) {
 					Draw::DrawSprite({
 						.sprite = highlightSprite,
 						.pos    = ColRowToTopLeftWorldPos(c, r),
 						.z      = Z_ReachableHex,
 						.origin = Draw::Origin::TopLeft,
-						.color  = Vec4(0.f, 0.f, 0.f, 0.5f),
+						.color  = ReachableHexColor,
 					});
 				}
 	/*
@@ -225,7 +235,6 @@ static void DrawHexDecorations(Data const* data) {
 				.origin = Draw::Origin::TopLeft,
 				.color  = PathColor,
 			});
-
 			Draw::DrawSprite({
 				.sprite = SelectPathSprite(toHex, fromHex),
 				.pos    = HexToTopLeftWorldPos(toHex),
@@ -235,6 +244,28 @@ static void DrawHexDecorations(Data const* data) {
 			});
 
 			fromHex = toHex;
+		}
+		if (
+			data->hoverHex &&
+			data->hoverHex->unit &&
+			data->hoverHex->unit->side != data->selectedHex->unit->side
+		) {
+			if (AreHexesAdjacent(fromHex, data->hoverHex)) {
+				Draw::DrawSprite({
+					.sprite = SelectPathSprite(fromHex, data->hoverHex),
+					.pos    = HexToTopLeftWorldPos(fromHex),
+					.z      = Z_Path,
+					.origin = Draw::Origin::TopLeft,
+					.color  = PathColor,
+				});
+				Draw::DrawSprite({
+					.sprite = SelectPathSprite(data->hoverHex, fromHex),
+					.pos    = HexToTopLeftWorldPos(data->hoverHex),
+					.z      = Z_Path,
+					.origin = Draw::Origin::TopLeft,
+					.color  = Vec4(1.f, 0.f, 0.f, 1.f),
+				});
+			}
 		}
 	}
 }
@@ -265,18 +296,18 @@ static void DrawUi(Data const* data) {
 	}
 
 	if (data->selectedHex) {
-		Unit::Data const* const unitData = data->selectedHex->unitData;
-		Unit::DefData const* const defData = unitData->defData;
+		Unit const* const unit = data->selectedHex->unit;
+		JC::Unit::Def const* const def = unit->def;
 
-		drawDef.str    = defData->name;
+		drawDef.str    = def->name;
 		Draw::DrawStr(drawDef);
 		drawDef.pos.y += (uiFontLineHeight + 3) * UiFontScale;
 
-		drawDef.str = SPrintf(tempMem, "HP: %u/%u", unitData->hp, defData->hp);
+		drawDef.str = SPrintf(tempMem, "HP: %u/%u", unit->hp, def->hp);
 		Draw::DrawStr(drawDef);
 		drawDef.pos.y += (uiFontLineHeight + 3) * UiFontScale;
 
-		drawDef.str = SPrintf(tempMem, "Move: %u/%u", unitData->move, defData->move);
+		drawDef.str = SPrintf(tempMem, "Move: %u/%u", unit->move, def->move);
 		Draw::DrawStr(drawDef);
 		drawDef.pos.y += (uiFontLineHeight + 3) * UiFontScale;
 	}

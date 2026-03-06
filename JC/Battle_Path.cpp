@@ -73,7 +73,7 @@ static HeapEntry HeapPop(Heap* heap) {
 //--------------------------------------------------------------------------------------------------
 
 static bool IsHexPassable(Hex const* hex, U32 side) {
-	return hex->terrain->moveCost && (!hex->unitData || hex->unitData->side == side);
+	return hex->terrain->moveCost && (!hex->unit || hex->unit->side == side);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -131,7 +131,7 @@ void BuildAttackableMap(
 ) {
 	memset(attackableMapOut, 0, MaxCols * MaxRows * sizeof(bool));
 	for (U32 i = 0; i < enemyArmy->unitsLen; i++) {
-		Hex const* const enemyHex = enemyArmy->unitData[i]->hex;	
+		Hex const* const enemyHex = enemyArmy->units[i].hex;	
 		for (U32 j = 0; j < MaxCols * MaxRows; j++) {
 			Hex const* const hex = &hexes[j];
 			if (pathMap->moveCosts[hex->idx] != U32Max && HexDistance(hex, enemyHex) <= range) {

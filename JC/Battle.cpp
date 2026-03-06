@@ -126,12 +126,6 @@ static void AddNeighbor(Hex* hex, I32 cOff, I32 rOff, U32 neighborIdx) {
 	}
 }
 
-static Unit::Data* CreateUnitOn(Unit::Def const unitDef, Hex* hex, U32 side) {
-	Unit::Data* const unitData = Unit::CreateUnit(unitDef, side, HexToCenterWorldPos(hex));
-	hex->unitData = unitData;
-	return unitData;
-}
-
 struct TerrainGen {
 	Terrain const* terrain;
 	U32            chance;
@@ -178,15 +172,16 @@ Res<> GenerateMap() {
 				}
 			}
 			Assert(hex->terrain);
-			hex->unitData = nullptr;
+			hex->unit = nullptr;
 			data.hexesLen++;
 		}
 	}
 
-	Unit::Def unitDef; TryTo(Unit::GetDef("Spearmen"), unitDef);
+	JC::Unit::Unit unit; TryTo(JC::Unit::GetUnit("Spearmen"), unit);
+	JC::Unit::Def const* def = JC::Unit::GetDef(unit);
 
 	U32 startCol = 0;
-	for (U32 side = Unit::Side::Left; side <= Unit::Side::Right; side++) {
+	for (U32 side = Side::Left; side <= Side::Right; side++) {
 		Logf("Creating side %u", side);
 		Army* army = &data.armies[(U32)side];
 		memset(army, 0, sizeof(Army));
@@ -194,8 +189,17 @@ Res<> GenerateMap() {
 		for (U32 c = startCol; c < startCol + 2; c++) {
 			for (U32 r = 0; r < MaxRows; r++) {
 				Hex* const hex = &data.hexes[c + (r * MaxCols)];
-				if (!hex->unitData && Rng::NextU32(0, 100) < 50) {
-					army->units[army->unitsLen++] = CreateUnitOn(unitDef, hex, side);
+				if (!hex->unit&& Rng::NextU32(0, 100) < 50) {
+					army->units[army->unitsLen] = {
+						.def  = def,
+						.hex  = hex,
+						.pos  = HexToCenterWorldPos(hex),
+						.side = side,
+						.hp   = def->hp,
+						.move = def->move,
+					};
+					hex->unit = &army->units[army->unitsLen];
+					army->unitsLen++;
 					Logf("Created unit for side %u at %u,%u", (U32)side, c, r);
 					if (army->unitsLen >= MaxArmyUnits) {
 						goto DoneUnitGen;
@@ -203,9 +207,9 @@ Res<> GenerateMap() {
 				}
 			}
 		}
+		DoneUnitGen:
 		startCol += 2;
 	}
-	DoneUnitGen:
 	return Ok();
 }
 
@@ -234,7 +238,7 @@ static void UpdateHoverHexAndPath(U32 mouseX, U32 mouseY) {
 	}
 
 	// Hover hex has friendly unit -> no path
-	if (data.hoverHex->unitData && data.hoverHex->unitData->side == data.selectedHex->unitData->side) {
+	if (data.hoverHex->unit && data.hoverHex->unit->side == data.selectedHex->unit->side) {
 		Logf("friendly");
 		data.selectedHexToHoverHexPath.len = 0;
 		return;
@@ -244,13 +248,13 @@ static void UpdateHoverHexAndPath(U32 mouseX, U32 mouseY) {
 	Hex const* toHex = nullptr;
 
 	// Hover hex is empty and reachable
-	if (!data.hoverHex->unitData && data.selectedHexPathMap.moveCosts[data.hoverHex->c + (data.hoverHex->r * MaxCols)] != 0) {
+	if (!data.hoverHex->unit && data.selectedHexPathMap.moveCosts[data.hoverHex->c + (data.hoverHex->r * MaxCols)] != 0) {
 		toHex = data.hoverHex;
 	}
 
 	// Hover hex has an enemy unit -> find empty+reachable neighbor
-	if (data.hoverHex->unitData) {
-		Assert(data.hoverHex->unitData->side != data.selectedHex->unitData->side);
+	if (data.hoverHex->unit) {
+		Assert(data.hoverHex->unit->side != data.selectedHex->unit->side);
 
 		U32 minCost    = U32Max;
 		U32 minPathLen = U32Max;
@@ -260,7 +264,7 @@ static void UpdateHoverHexAndPath(U32 mouseX, U32 mouseY) {
 				toHex = data.selectedHex;
 				break;
 			}
-			if (!neighbor || neighbor->unitData) { continue; }
+			if (!neighbor || neighbor->unit) { continue; }
 			U32 const idx   = neighbor->idx;
 			U32 const cost  = data.selectedHexPathMap.moveCosts[idx];
 			if (cost == 0) { continue; }

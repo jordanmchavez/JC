@@ -28,6 +28,20 @@ void InitUtil() {
 
 //--------------------------------------------------------------------------------------------------
 
+bool AreHexesAdjacent(Hex const* a, Hex const* b) {
+	return
+		a == b ||
+		a->neighbors[0] == b ||
+		a->neighbors[1] == b ||
+		a->neighbors[2] == b ||
+		a->neighbors[3] == b ||
+		a->neighbors[4] == b ||
+		a->neighbors[5] == b
+	;
+}
+
+//--------------------------------------------------------------------------------------------------
+
 Vec2 ColRowToTopLeftWorldPos(I32 c, I32 r) {
 	return {
 		(F32)(c * HexSize + (r & 1) * (HexSize / 2)),

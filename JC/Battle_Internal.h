@@ -3,7 +3,7 @@
 #include "JC/Common.h"
 
 namespace JC::Draw   { DefHandle(Sprite); }
-namespace JC::Unit   { struct Data; }
+namespace JC::Unit   { struct Def; }
 namespace JC::Window { struct State; }
 
 namespace JC::Battle {
@@ -48,12 +48,14 @@ constexpr U32 NeighborIdx_BottomRight = 3;
 constexpr U32 NeighborIdx_BottomLeft  = 4;
 constexpr U32 NeighborIdx_Left        = 5;
 
+struct Unit;
+
 struct Hex {
 	U32            idx;
 	I32            c, r;
 	Hex*           neighbors[6];	// indexed by NeighborIdx_*; nullptr = no neighbor
 	Terrain const* terrain;
-	UnitData*      unit;
+	Unit*          unit;
 };
 
 struct PathMap {
@@ -67,18 +69,24 @@ struct Path {
 	U32        len;
 };
 
-struct UnitData {
-	Unit::DefData const* def;
-	Unit::Data*          ??;
+namespace Side {
+	constexpr U32 Left  = 0;
+	constexpr U32 Right = 1;
+}
+
+struct Unit {
+	JC::Unit::Def const* def;
 	Hex const*           hex;
 	Vec2                 pos;
+	U32                  side;
+	U32                  hp;
 	U32                  move;
 };
 
 struct Army {
-	U32       side;
-	UnitData* units[MaxArmyUnits];
-	U32       unitsLen;
+	U32  side;
+	Unit units[MaxArmyUnits];
+	U32  unitsLen;
 };
 
 enum struct State {
@@ -98,6 +106,7 @@ struct Data {
 	PathMap    selectedHexPathMap;
 	bool       selectedHexAttackable[MaxRows * MaxCols];
 	Path       selectedHexToHoverHexPath;
+	bool       hoverHexIsEnemy;
 	State      state;
 };
 
@@ -123,6 +132,7 @@ bool       FindPathFromMoveCostMap(PathMap const* pathMap, Hex const* startHex, 
 
 // Battle_Util.cpp
 void       InitUtil();
+bool       AreHexesAdjacent(Hex const* a, Hex const* b);
 Vec2       ColRowToTopLeftWorldPos(I32 c, I32 r);
 U32        HexDistance(Hex const* a, Hex const* b);
 Vec2       HexToTopLeftWorldPos(Hex const* hex);

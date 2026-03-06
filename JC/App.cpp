@@ -58,6 +58,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 	File::Init(tempMem);
 	StrDb::Init();
 	U64 const rngSeed = Time::Now();
+	//U64 const rngSeed = 19382994308027;
 	Rng::Seed(rngSeed);
 
 	Cfg::Init(permMem, argc, argv);

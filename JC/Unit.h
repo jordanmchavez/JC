@@ -8,15 +8,9 @@ namespace JC::Unit {
 
 //--------------------------------------------------------------------------------------------------
 
-DefHandle(Def);
 DefHandle(Unit);
 
-namespace Side {
-	constexpr U32 Left  = 0;
-	constexpr U32 Right = 1;
-}
-
-struct DefData {
+struct Def {
 	Str          name;
 	Draw::Sprite sprite;
 	Vec2         size;
@@ -24,18 +18,10 @@ struct DefData {
 	U32          move;
 };
 
-struct Data {
-	U32 side;
-	U32 hp;
-};
-
-void           Init(Mem permMem, Mem tempMem);
-Res<>          LoadDefs(Str path);
-Res<Def>       GetDef(Str name);
-DefData const* GetDefData(Def def);
-Unit           CreateUnit(Def def, U32 side);
-void           DestroyUnit(Unit unit);
-Data*          GetData(Unit unit);
+void       Init(Mem permMem, Mem tempMem);
+Res<>      LoadDefs(Str path);
+Res<Unit>  GetUnit(Str name);
+Def const* GetDef(Unit unit);
 
 //--------------------------------------------------------------------------------------------------
 

@@ -2,7 +2,6 @@
 
 #include "JC/Draw.h"
 #include "JC/File.h"
-#include "JC/HandlePool.h"
 #include "JC/Hash.h"
 #include "JC/Json.h"
 #include "JC/Map.h"
@@ -17,7 +16,7 @@ DefErr(Unit, DefNotFound);
 static constexpr U32 MaxDefs  = 1024;
 static constexpr U32 MaxUnits = 64 * 1024;
 
-// We don't need a `DefData` because it's the exact same as `DefData`
+// We don't need a `Def` because it's the exact same as `Def`
 // Same for `UnitData` / `UnitObj`
 
 struct DefJson {
@@ -44,20 +43,18 @@ Json_End(DefsJson)
 
 //--------------------------------------------------------------------------------------------------
 
-static Mem                        tempMem;
-static DefData*                   defDatas;
-static U32                        defDatasLen;
-static Map<Str, DefData const*>   defDatasMap;
-static HandlePool<Unit, Data>     units;
+static Mem                  tempMem;
+static Def*                 defs;
+static U32                  defsLen;
+static Map<Str, Def const*> defsMap;
 
 //--------------------------------------------------------------------------------------------------
 
 void Init(Mem permMem, Mem tempMemIn) {
-	tempMem    = tempMemIn;
-	defDatas    = Mem::AllocT<DefData>(permMem, MaxDefs);
-	defDatasLen = 1;	// reserve 0 for invalid
-	defDatasMap.Init(permMem, MaxDefs);
-	units.Init(permMem, MaxUnits);
+	tempMem = tempMemIn;
+	defs    = Mem::AllocT<Def>(permMem, MaxDefs);
+	defsLen = 1;	// reserve 0 for invalid
+	defsMap.Init(permMem, MaxDefs);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -69,56 +66,38 @@ Res<> LoadDefs(Str path) {
 
 	Try(Draw::LoadAtlas(defsJson.atlasPath));
 
-	Assert(defDatasLen + defsJson.defs.len < MaxDefs);
+	Assert(defsLen + defsJson.defs.len < MaxDefs);
 	for (U64 i = 0; i < defsJson.defs.len; i++) {
 		DefJson const* const unitDefJson = &defsJson.defs[i];
-		DefData* const defData = &defDatas[defDatasLen++];
-		defData->name = unitDefJson->name;	// already interned
-		defData->hp   = unitDefJson->hp;
-		defData->move = unitDefJson->move;
-		TryTo(Draw::GetSprite(unitDefJson->sprite), defData->sprite);
-		defData->size = Draw::GetSpriteSize(defData->sprite);
-		if (defDatasMap.FindOrNull(defData->name)) {
-			return Err_DuplicateDef("name", defData->name);
+		Def* const def = &defs[defsLen++];
+		def->name = unitDefJson->name;	// already interned
+		def->hp   = unitDefJson->hp;
+		def->move = unitDefJson->move;
+		TryTo(Draw::GetSprite(unitDefJson->sprite), def->sprite);
+		def->size = Draw::GetSpriteSize(def->sprite);
+		if (defsMap.FindOrNull(def->name)) {
+			return Err_DuplicateDef("name", def->name);
 		}
-		defDatasMap.Put(defData->name, defData);
+		defsMap.Put(def->name, def);
 	}
 	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Def> GetDef(Str name) {
-	DefData const* const* const defDataPP = defDatasMap.FindOrNull(name);
+Res<Unit> GetUnit(Str name) {
+	Def const* const* const defDataPP = defsMap.FindOrNull(name);
 	if (!defDataPP ) {
 		return Err_DefNotFound("name", name);
 	}
-	return Def { .handle = (U64)(*defDataPP - defDatas) };
+	return Unit { .handle = (U64)(*defDataPP - defs) };
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Data* CreateUnit(Def def, U32 side, Vec2 pos) {
-	Assert(def.handle > 0 && def.handle < defDatasLen);
-	DefData const* const defData = &defDatas[def.handle];
-
-	auto entry = units.Alloc();
-
-	Data* const data = &entry->obj;
-	data->defData = defData;
-	data->unit    = entry->Handle();
-	data->side    = side;
-	data->pos     = pos;
-	data->hp      = defData->hp;
-	data->move    = defData->move;
-
-	return data;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-void DestroyUnit(Unit unit) {
-	units.Free(unit);
+Def const* GetDef(Unit unit) {
+	Assert(unit.handle > 0 && unit.handle < defsLen);
+	return &defs[unit.handle];
 }
 
 //--------------------------------------------------------------------------------------------------

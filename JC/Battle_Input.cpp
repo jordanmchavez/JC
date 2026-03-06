@@ -52,17 +52,24 @@ static Res<> Click(Data* data) {
 			Logf("Deselected hex (%i,%i)", data->selectedHex->c, data->selectedHex->r);
 			data->selectedHex = nullptr;
 			data->selectedHexToHoverHexPath.len = 0;
-		} else if (data->hoverHex->unitData) {
+			memset(data->selectedHexAttackable, 0, sizeof(data->selectedHexAttackable));
+		} else if (data->hoverHex->unit) {
 			Logf("Selected hex (%i, %i)", data->hoverHex->c, data->hoverHex->r);
 			data->selectedHex = data->hoverHex;
 			BuildPathMap(
 				data->hexes,
 				data->selectedHex,
-				data->selectedHex->unitData->move,
-				data->selectedHex->unitData->side,
+				data->selectedHex->unit->move,
+				data->selectedHex->unit->side,
 				&data->selectedHexPathMap
 			);
-			BuildAttackableMap(data->hexes, &data->selectedHexPathMap, data->selectedHex->unitData->side, 1, data->selectedHexAttackable);
+			BuildAttackableMap(
+				data->hexes,
+				&data->selectedHexPathMap,
+				&data->armies[1 - data->selectedHex->unit->side],
+				1,
+				data->selectedHexAttackable
+			);
 			data->selectedHexToHoverHexPath.len = 0;
 		} else {
 			Logf("Ignoring click on empty hex (%i, %i)", data->hoverHex->c, data->hoverHex->r);
