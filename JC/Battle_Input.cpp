@@ -189,10 +189,11 @@ static bool Click(Data* data) {
 
 	if (data->hoverHex == data->selectedHex) {
 		data->selectedHex = nullptr;
+		data->selectedPath.len = 0;
 		return true;
 	} else if (data->hoverHex->unit && data->hoverHex->unit->side == data->activeSide) {
 		data->selectedHex = data->hoverHex;
-		find path;
+		data->selectedPath.len = 0;
 		return true;
 	}
 
@@ -321,7 +322,6 @@ Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<U64 const> a
 	if (!rebuildHexFlags) {
 		return Ok();
 	}
-	Logf("Rebuilding hex flags");
 
 	Army const* const friendlyArmy = &data->armies[data->activeSide];
 	Army const* const enemyArmy    = &data->armies[1 - data->activeSide];
@@ -404,6 +404,20 @@ Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<U64 const> a
 		}
 
 		data->hexFlags[i] = flags;
+	}
+
+	if (selectedUnit) {
+		data->selectedPath.len = 0;
+		if (data->hoverHex && (!hoverUnit || hoverUnit->side == enemyArmy->side)) {
+			if (FindPath(selectedUnit, data->hoverHex, &data->selectedPath)) {
+				Logf("path from (%u, %u) -> (%u, %u)", selectedUnit->hex->c, selectedUnit->hex->r, data->hoverHex->c, data->hoverHex->r);
+			} else {
+				Logf("no path");
+			}
+		}
+	}
+
+	for (U32 i = 0; i < data->selectedPath.len; i++) {
 	}
 
 	return Ok();

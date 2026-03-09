@@ -52,12 +52,33 @@ namespace HexFlags {
 	constexpr U64 FriendlyTargetable = (U64)1 << 1;
 	constexpr U64 EnemyAttackable    = (U64)1 << 2;
 	constexpr U64 EnemyAttacker      = (U64)1 << 3;
+
+	constexpr U64 PathInTopLeft      = (U64)1 << 4;
+	constexpr U64 PathInTopRight     = (U64)1 << 5;
+	constexpr U64 PathInRight        = (U64)1 << 6;
+	constexpr U64 PathInBottomRight  = (U64)1 << 7;
+	constexpr U64 PathInBottomLeft   = (U64)1 << 8;
+	constexpr U64 PathInLeft         = (U64)1 << 9;
+
+	constexpr U64 PathOutTopLeft     = (U64)1 << 10;
+	constexpr U64 PathOutTopRight    = (U64)1 << 11;
+	constexpr U64 PathOutRight       = (U64)1 << 12;
+	constexpr U64 PathOutBottomRight = (U64)1 << 13;
+	constexpr U64 PathOutBottomLeft  = (U64)1 << 14;
+	constexpr U64 PathOutLeft        = (U64)1 << 15;
+
+	constexpr U64 AttackTopLeft      = (U64)1 << 16;
+	constexpr U64 AttackTopRight     = (U64)1 << 17;
+	constexpr U64 AttackRight        = (U64)1 << 18;
+	constexpr U64 AttackBottomRight  = (U64)1 << 19;
+	constexpr U64 AttackBottomLeft   = (U64)1 << 20;
+	constexpr U64 AttackLeft         = (U64)1 << 21;
 };
 
 // TODO: split out into SoA as needed
 struct Hex {
 	U32            idx;
-	I32            c, r;
+	U32            c, r;
 	Hex*           neighbors[6];	// indexed by NeighborIdx_*; nullptr = no neighbor
 	Terrain const* terrain;
 	struct Unit*   unit;
@@ -142,7 +163,7 @@ Res<>      HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<U64 con
 // Battle_Path.cpp
 void       InitPath(Mem permMem);
 void       BuildPathMap(Hex const* hexes, Unit* unit);
-bool       FindPath(PathMap const* pathMap, Hex const* startHex, Hex const* endHex, Path* pathOut);
+bool       FindPath(Unit const* unit, Hex const* end, Path* pathOut);
 
 // Battle_Util.cpp
 void       InitUtil();

@@ -126,18 +126,20 @@ void BuildPathMap(Hex const* hexes, Unit* unit) {
 //--------------------------------------------------------------------------------------------------
 
 // Simple back-traversal using `parents`
-bool FindPath(PathMap const* pathMap, Hex const* startHex, Hex const* end, Path* pathOut) {
-	if (end == startHex) {
+bool FindPath(Unit const* unit, Hex const* end, Path* pathOut) {
+	if (end == unit->hex) {
 		pathOut->len = 0;
 		return true;
 	}
+
+	PathMap const* const pathMap = &unit->pathMap;
 	if (!pathMap->parents[end->idx]) {
 		pathOut->len = 0;
 		return false;
 	}
 
 	Hex const** iter = pathOut->hexes;
-	for (Hex const* hex = end; hex != startHex; hex = pathMap->parents[hex->idx]) {
+	for (Hex const* hex = end; hex != unit->hex; hex = pathMap->parents[hex->idx]) {
 		*iter++ = hex;
 	}
 	U64 const len     = (U64)(iter - pathOut->hexes);

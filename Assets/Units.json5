@@ -5,7 +5,7 @@
 			name: "Spearmen",
 			sprite: "Unit_Spearmen",
 			hp: 10,
-			move: 3,
+			move: 5,
 		},
 	],
 }

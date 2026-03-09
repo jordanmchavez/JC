@@ -193,7 +193,6 @@ Res<> GenerateMap() {
 						.move  = def->move,
 						.range = 1,
 					};
-					BuildPathMap(data->hexes, unit);
 					hex->unit = unit;
 					Logf("Created unit for side %u at %u,%u", (U32)side, c, r);
 					if (army->unitsLen >= 8) {
@@ -203,6 +202,18 @@ Res<> GenerateMap() {
 			}
 		}
 		DoneArmyGen:
+		startCol += 4;
+	}
+
+	for (Side side = Side::Left; side <= Side::Right; side++) {
+		Army* army = &data->armies[(U32)side];
+		for (U32 i = 0; i < army->unitsLen; i++) {
+			BuildPathMap(data->hexes, &army->units[i]);
+		}
+	}
+
+	for (Side side = Side::Left; side <= Side::Right; side++) {
+		Army* army = &data->armies[(U32)side];
 		memset(army->attackMap, 0, sizeof(army->attackMap));
 		for (U32 i = 0; i < army->unitsLen; i++) {
 			Unit const* unit = &army->units[i];
@@ -229,8 +240,6 @@ Res<> GenerateMap() {
 				;
 			}
 		}
-
-		startCol += 4;
 	}
 
 	data->activeSide = Side::Left;

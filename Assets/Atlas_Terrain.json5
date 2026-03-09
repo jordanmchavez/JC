@@ -24,5 +24,12 @@
 		{ x:  96, y:  64, w: 32, h: 32, name: "Hex32_PathBottomRight" },
 		{ x: 128, y:  64, w: 32, h: 32, name: "Hex32_PathBottomLeft" },
 		{ x: 160, y:  64, w: 32, h: 32, name: "Hex32_PathLeft" },
+
+		{ x:   0, y:  96, w: 32, h: 32, name: "Hex32_ArrowTopLeft" },
+		{ x:  32, y:  96, w: 32, h: 32, name: "Hex32_ArrowTopRight" },
+		{ x:  64, y:  96, w: 32, h: 32, name: "Hex32_ArrowRight" },
+		{ x:  96, y:  96, w: 32, h: 32, name: "Hex32_ArrowBottomRight" },
+		{ x: 128, y:  96, w: 32, h: 32, name: "Hex32_ArrowBottomLeft" },
+		{ x: 160, y:  96, w: 32, h: 32, name: "Hex32_ArrowLeft" },
 	],
 }
