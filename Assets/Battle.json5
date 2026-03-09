@@ -3,7 +3,7 @@
 		"Assets/Atlas_Terrain.json5",
 	],
 	borderSprite:          "Hex32_Border1",
-	highlightSprite:       "Hex32_Inner1",
+	highlightSprite:       "Hex32_Inner4",
 	pathTopLeftSprite:     "Hex32_PathTopLeft",
 	pathTopRightSprite:    "Hex32_PathTopRight",
 	pathRightSprite:       "Hex32_PathRight",

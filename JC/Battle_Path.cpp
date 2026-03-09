@@ -1,7 +1,5 @@
 #include "JC/Battle_Internal.h"
 
-#include "JC/Unit.h"
-
 namespace JC::Battle {
 
 //--------------------------------------------------------------------------------------------------
@@ -79,20 +77,25 @@ static bool IsHexPassable(Hex const* hex, U32 side) {
 //--------------------------------------------------------------------------------------------------
 
 // Djikstra flood fill
-void BuildPathMap(Hex const* hexes, Hex const* startHex, U32 move, U32 side, PathMap* pathMap) {
+void BuildPathMap(Hex const* hexes, Unit* unit) {
+	PathMap* const pathMap = &unit->pathMap;
 	memset(pathMap->moveCosts,  0xff, sizeof(pathMap->moveCosts));
 	memset(pathMap->pathLens,   0xff, sizeof(pathMap->pathLens));
 	memset(pathMap->parents,    0,    sizeof(pathMap->parents));
 	memset(pathVisited,         0,    MaxCols * MaxRows * sizeof(pathVisited[0]));
 	pathHeap.len = 0;
 
+	Hex const* const startHex = unit->hex;
+
 	pathMap->moveCosts[startHex->idx] = 0;
 	pathMap->pathLens[startHex->idx] = 0;
 	HeapPush(&pathHeap, { .dist = 0, .pathLen = 0, .idx = startHex->idx });
 
+	Side const side = unit->side;
+
 	while (pathHeap.len > 0) {
 		HeapEntry const entry = HeapPop(&pathHeap);
-		if (entry.dist >= move) {
+		if (entry.dist >= unit->move) {
 			break;
 		}
 		if (pathVisited[entry.idx]) {
@@ -122,34 +125,8 @@ void BuildPathMap(Hex const* hexes, Hex const* startHex, U32 move, U32 side, Pat
 
 //--------------------------------------------------------------------------------------------------
 
-void BuildAttackableMap(
-	Hex const* hexes,
-	PathMap const* pathMap,
-	Army const* enemyArmy, 
-	U32 range,
-	bool* attackableMapOut
-) {
-	memset(attackableMapOut, 0, MaxCols * MaxRows * sizeof(bool));
-	for (U32 i = 0; i < enemyArmy->unitsLen; i++) {
-		Hex const* const enemyHex = enemyArmy->units[i].hex;	
-		for (U32 j = 0; j < MaxCols * MaxRows; j++) {
-			Hex const* const hex = &hexes[j];
-			if (
-				pathMap->moveCosts[hex->idx] != U32Max &&
-				!hex->unit &&
-				HexDistance(hex, enemyHex) <= range
-			) {
-				attackableMapOut[enemyHex->idx] = true;
-				break;
-			}
-		}
-	}
-}
-
-//--------------------------------------------------------------------------------------------------
-
 // Simple back-traversal using `parents`
-bool FindPathFromMoveCostMap(PathMap const* pathMap, Hex const* startHex, Hex const* end, Path* pathOut) {
+bool FindPath(PathMap const* pathMap, Hex const* startHex, Hex const* end, Path* pathOut) {
 	if (end == startHex) {
 		pathOut->len = 0;
 		return true;

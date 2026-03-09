@@ -241,11 +241,11 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 				} else {
 					key = ScanCodeToKey(scanCode, e0);
 				}
+				bool const down = !(rawKeyboard->Flags & RI_KEY_BREAK);
 
 				if (key == Key::Key::Invalid) {
 					Errorf("Unrecognized scan code: %u", scanCode);
 				} else {
-					bool const down = !(rawKeyboard->Flags & RI_KEY_BREAK);
 					AddKeyEvent(key, down);
 				}
 			}
@@ -269,6 +269,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 			break;
 
 		case WM_SYSCOMMAND:
+			if (wparam == SC_KEYMENU) {
+				return 0; // Suppress Alt activating system menu (which enters a modal loop and swallows Alt key-up)
+			}
 			if (inSizeMove) {
 				break;
 			}

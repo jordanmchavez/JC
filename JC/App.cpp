@@ -12,7 +12,6 @@
 #include "JC/StrDb.h"
 #include "JC/Sys.h"
 #include "JC/Time.h"
-#include "JC/Unit.h"
 #include "JC/UnitTest.h"
 #include "JC/Window.h"
 
@@ -44,11 +43,13 @@ static void PanicFn(SrcLoc sl, char const* expr, char const* msg) {
 
 //--------------------------------------------------------------------------------------------------
 
+static Mem permMem;
+static Mem tempMem;
 Res<> RunImpl(App* app, int argc, char const* const* argv) {
 	SetPanicFn(PanicFn);
 
-	Mem permMem = Mem::Create(16 * GB);
-	Mem tempMem = Mem::Create(16 * GB);
+	permMem = Mem::Create(16 * GB);
+	tempMem = Mem::Create(16 * GB);
 
 	constexpr U64 MaxActionIds = 1024;
 	U64* actionIds = Mem::AllocT<U64>(permMem, MaxActionIds);
@@ -65,9 +66,11 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 
 	Log::Init(tempMem);
 	Log::AddFn([](Log::Msg const* msg) {
-		Sys::Print(Str(msg->line, msg->lineLen));
+		StrBuf sb(tempMem);
+		sb.Printf("%s%s(%u): %s", msg->level == Log::Level::Error ? "!!! " : "", msg->sl.file, msg->sl.line, Str(msg->line, msg->lineLen));
+		Sys::Print(sb.ToStr());
 		if (Sys::DbgPresent()) {
-			Sys::DbgPrint(msg->line);
+			Sys::DbgPrint(sb.ToStrZ());
 		}
 	});
 

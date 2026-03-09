@@ -4,11 +4,9 @@
 
 namespace JC::Draw { DefHandle(Sprite); }
 
-namespace JC::Unit {
+namespace JC::UnitDef {
 
 //--------------------------------------------------------------------------------------------------
-
-DefHandle(Unit);
 
 struct Def {
 	Str          name;
@@ -18,11 +16,10 @@ struct Def {
 	U32          move;
 };
 
-void       Init(Mem permMem, Mem tempMem);
-Res<>      LoadDefs(Str path);
-Res<Unit>  GetUnit(Str name);
-Def const* GetDef(Unit unit);
+void            Init(Mem permMem, Mem tempMem);
+Res<>           LoadDefs(Str path);
+Res<Def const*> GetDef(Str name);
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Unit
+}	// namespace JC::UnitDef

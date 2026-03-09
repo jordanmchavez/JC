@@ -2,9 +2,9 @@
 
 #include "JC/Common.h"
 
-namespace JC::Draw   { DefHandle(Sprite); }
-namespace JC::Unit   { struct Def; }
-namespace JC::Window { struct State; }
+namespace JC::Draw    { DefHandle(Sprite); }
+namespace JC::UnitDef { struct Def; }
+namespace JC::Window  { struct State; }
 
 namespace JC::Battle {
 
@@ -13,7 +13,7 @@ namespace JC::Battle {
 constexpr U32 HexSize      = 32;
 constexpr I32 MaxCols      = 16;
 constexpr I32 MaxRows      = 14;
-constexpr U32 MaxArmyUnits = 16;
+constexpr U32 MaxArmyUnits = 64;
 
 struct TerrainJson {
 	Str name;
@@ -40,7 +40,6 @@ struct Terrain {
 	U32          moveCost;
 };
 
-
 constexpr U32 NeighborIdx_TopLeft     = 0;
 constexpr U32 NeighborIdx_TopRight    = 1;
 constexpr U32 NeighborIdx_Right       = 2;
@@ -48,20 +47,36 @@ constexpr U32 NeighborIdx_BottomRight = 3;
 constexpr U32 NeighborIdx_BottomLeft  = 4;
 constexpr U32 NeighborIdx_Left        = 5;
 
-struct Unit;
+namespace HexFlags {
+	constexpr U64 FriendlyMovable    = (U64)1 << 0;
+	constexpr U64 FriendlyTargetable = (U64)1 << 1;
+	constexpr U64 EnemyAttackable    = (U64)1 << 2;
+	constexpr U64 EnemyAttacker      = (U64)1 << 3;
+};
 
+// TODO: split out into SoA as needed
 struct Hex {
 	U32            idx;
 	I32            c, r;
 	Hex*           neighbors[6];	// indexed by NeighborIdx_*; nullptr = no neighbor
 	Terrain const* terrain;
-	Unit*          unit;
+	struct Unit*   unit;
+};
+
+struct Side {
+	enum Val { Left = 0, Right };
+	Val val;
+	Side() { val = Side::Left; }
+	Side(Val valIn) { val = valIn; }
+	operator U32() const { return val; }
+	Side& operator++() { val = (Val)(val + 1); return *this; }
+	Side operator++(int) { Side tmp = *this; val = (Val)(val + 1); return tmp; }
 };
 
 struct PathMap {
-	U32        moveCosts[MaxCols * MaxRows];
-	U32        pathLens[MaxCols * MaxRows];
-	Hex const* parents[MaxCols * MaxRows];
+	U32         moveCosts[MaxCols * MaxRows];
+	U32         pathLens[MaxCols * MaxRows];
+	Hex const*  parents[MaxCols * MaxRows];
 };
 
 struct Path {
@@ -69,45 +84,45 @@ struct Path {
 	U32        len;
 };
 
-namespace Side {
-	constexpr U32 Left  = 0;
-	constexpr U32 Right = 1;
-}
-
 struct Unit {
-	JC::Unit::Def const* def;
-	Hex const*           hex;
-	Vec2                 pos;
-	U32                  side;
-	U32                  hp;
-	U32                  move;
+	UnitDef::Def const* def;
+	Hex const*          hex;
+	Vec2                pos;
+	Side                side;
+	U32                 hp;
+	U32                 move;
+	U32                 range;
+	PathMap             pathMap;
 };
 
 struct Army {
-	U32  side;
+	Side side;
 	Unit units[MaxArmyUnits];
 	U32  unitsLen;
+	U64  attackMap[MaxCols * MaxRows];	// [c, r] = bitmap of units that can attack this spot, updated on any unit create/destroy/move
 };
 
 enum struct State {
 	WaitingOrder,
-	UnitSelected,
 	ExecutingOrder,
 };
 
+// for each hex: list of enemies who can move attack that hex
+
 struct Data {
-	Hex*       hexes;
-	U32        hexesLen;
-	Vec2       cameraPos;
-	F32        cameraScale;
-	Army       armies[2];
-	Hex const* hoverHex;
-	Hex const* selectedHex;
-	PathMap    selectedHexPathMap;
-	bool       selectedHexAttackable[MaxRows * MaxCols];
-	Path       selectedHexToHoverHexPath;
-	bool       hoverHexIsEnemy;
-	State      state;
+	Hex            hexes[MaxCols * MaxRows];
+	U64            hexFlags[MaxCols * MaxRows];
+	U32            hexesLen;
+	Vec2           cameraPos;
+	F32            cameraScale;
+	Army           armies[2];
+	U32            activeSide;
+	Hex const*     hoverHex;
+	Hex const*     selectedHex;
+	Path           selectedPath;
+	Hex const*     targetHex;
+	bool           showEnemyAttackers;
+	State          state;
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -121,14 +136,13 @@ void       Draw(Data const* data);
 Res<>      LoadDraw(BattleJson const* battleJson);
 
 // Battle_Input.cpp
-void       InitInput();
-Res<>      HandleActions(Data* data, F32 sec, Span<U64 const> actionIds);
+void       InitInput(Mem tempMem);
+Res<>      HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<U64 const> actionIds);
 
 // Battle_Path.cpp
 void       InitPath(Mem permMem);
-void       BuildPathMap(Hex const* hexes, Hex const* startHex, U32 move, U32 side, PathMap* pathMapOut);
-void       BuildAttackableMap(Hex const* hexes, PathMap const* pathMap, Army const* enemyArmy, U32 range, bool* attackableMapOut);
-bool       FindPathFromMoveCostMap(PathMap const* pathMap, Hex const* startHex, Hex const* end, Path* pathOut);
+void       BuildPathMap(Hex const* hexes, Unit* unit);
+bool       FindPath(PathMap const* pathMap, Hex const* startHex, Hex const* endHex, Path* pathOut);
 
 // Battle_Util.cpp
 void       InitUtil();

@@ -514,7 +514,7 @@ void StrBuf::Init(Mem memIn) {
 
 //--------------------------------------------------------------------------------------------------	
 
-void GrowPrintBuf(StrBuf* sb, U32 n, SrcLoc sl) {
+void GrowStrBuf(StrBuf* sb, U32 n, SrcLoc sl) {
 	U32 const newCap = Max(sb->cap * 2, sb->len + n);
 	sb->data = Mem::ReallocT<char>(sb->mem, sb->data, sb->cap, newCap, sl);
 	sb->cap = newCap;
@@ -524,7 +524,7 @@ void GrowPrintBuf(StrBuf* sb, U32 n, SrcLoc sl) {
 
 void StrBuf::Add(char c, SrcLoc sl) {
 	if (len >= cap) {
-		GrowPrintBuf(this, 1, sl);
+		GrowStrBuf(this, 1, sl);
 	}
 	data[len++] = c;
 }
@@ -533,7 +533,7 @@ void StrBuf::Add(char c, SrcLoc sl) {
 
 void StrBuf::Add(char c, U32 n, SrcLoc sl) {
 	if (len + n >= cap) {
-		GrowPrintBuf(this, n, sl);
+		GrowStrBuf(this, n, sl);
 	}
 	memset(data + len, c, n);
 	len += n;
@@ -543,7 +543,7 @@ void StrBuf::Add(char c, U32 n, SrcLoc sl) {
 
 void StrBuf::Add(char const* s, U32 sLen, SrcLoc sl) {
 	if (len + sLen >= cap) {
-		GrowPrintBuf(this, sLen, sl);
+		GrowStrBuf(this, sLen, sl);
 	}
 	memcpy(data + len, s, sLen);
 	len += sLen;
@@ -553,7 +553,7 @@ void StrBuf::Add(char const* s, U32 sLen, SrcLoc sl) {
 
 void StrBuf::Add(Str s, SrcLoc sl) {
 	if (len + s.len >= cap) {
-		GrowPrintBuf(this, s.len, sl);
+		GrowStrBuf(this, s.len, sl);
 	}
 	memcpy(data + len, s.data, s.len);
 	len += s.len;
@@ -577,6 +577,16 @@ void StrBuf::Remove(U32 n) {
 
 void StrBuf::Printv(char const* fmt, Span<Arg const> args) {
 	SPrintImpl(this, fmt, args);
+}
+
+//--------------------------------------------------------------------------------------------------	
+
+const char* StrBuf::ToStrZ(SrcLoc sl) const {
+	if (len >= cap) {
+		GrowStrBuf((StrBuf*)this, 1, sl);
+	}
+	data[len] = '\0';
+	return data;
 }
 
 //--------------------------------------------------------------------------------------------------	

@@ -1,4 +1,4 @@
-#include "JC/Unit.h"
+#include "JC/UnitDef.h"
 
 #include "JC/Draw.h"
 #include "JC/File.h"
@@ -6,18 +6,15 @@
 #include "JC/Json.h"
 #include "JC/Map.h"
 
-namespace JC::Unit {
+namespace JC::UnitDef {
 
 //--------------------------------------------------------------------------------------------------
 
-DefErr(Unit, DuplicateDef);
-DefErr(Unit, DefNotFound);
+DefErr(UnitDef, DuplicateDef);
+DefErr(UnitDef, DefNotFound);
 
 static constexpr U32 MaxDefs  = 1024;
 static constexpr U32 MaxUnits = 64 * 1024;
-
-// We don't need a `Def` because it's the exact same as `Def`
-// Same for `UnitData` / `UnitObj`
 
 struct DefJson {
 	Str name;
@@ -69,11 +66,12 @@ Res<> LoadDefs(Str path) {
 	Assert(defsLen + defsJson.defs.len < MaxDefs);
 	for (U64 i = 0; i < defsJson.defs.len; i++) {
 		DefJson const* const unitDefJson = &defsJson.defs[i];
+
 		Def* const def = &defs[defsLen++];
+		TryTo(Draw::GetSprite(unitDefJson->sprite), def->sprite);
 		def->name = unitDefJson->name;	// already interned
 		def->hp   = unitDefJson->hp;
 		def->move = unitDefJson->move;
-		TryTo(Draw::GetSprite(unitDefJson->sprite), def->sprite);
 		def->size = Draw::GetSpriteSize(def->sprite);
 		if (defsMap.FindOrNull(def->name)) {
 			return Err_DuplicateDef("name", def->name);
@@ -85,21 +83,14 @@ Res<> LoadDefs(Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Unit> GetUnit(Str name) {
-	Def const* const* const defDataPP = defsMap.FindOrNull(name);
-	if (!defDataPP ) {
+Res<Def const*> GetDef(Str name) {
+	Def const* const* const def = defsMap.FindOrNull(name);
+	if (!def ) {
 		return Err_DefNotFound("name", name);
 	}
-	return Unit { .handle = (U64)(*defDataPP - defs) };
+	return *def;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Def const* GetDef(Unit unit) {
-	Assert(unit.handle > 0 && unit.handle < defsLen);
-	return &defs[unit.handle];
-}
-
-//--------------------------------------------------------------------------------------------------
-
-}	// namespace JC::Unit
+}	// namespace JC::UnitDef

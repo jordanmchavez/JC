@@ -11,7 +11,7 @@
 #include "JC/Math.h"
 #include "JC/Rng.h"
 #include "JC/Time.h"
-#include "JC/Unit.h"
+#include "JC/UnitDef.h"
 #include "JC/Window.h"
 
 namespace JC::Game {
@@ -36,10 +36,10 @@ Res<> PreInit(Mem permMemIn, Mem tempMemIn) {
 
 Res<> Init(Window::State const* windowState) {
 	Try(Battle::Init(permMem, tempMem, windowState));
-	Unit::Init(permMem, tempMem);
+	UnitDef::Init(permMem, tempMem);
 	Effect::Init(permMem);
 
-	Try(Unit::LoadDefs("Assets/Units.json5"));
+	Try(UnitDef::LoadDefs("Assets/Units.json5"));
 	Try(Battle::Load("Assets/Battle.json5"));
 	Try(Battle::GenerateMap());
 

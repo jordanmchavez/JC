@@ -12,7 +12,7 @@
 #include "JC/Map.h"
 #include "JC/Math.h"
 #include "JC/Rng.h"
-#include "JC/Unit.h"
+#include "JC/UnitDef.h"
 #include "JC/Window.h"
 
 namespace JC::Battle {
@@ -21,15 +21,10 @@ namespace JC::Battle {
 
 DefErr(Battle, TerrainNotFound);
 
-//--------------------------------------------------------------------------------------------------
-
 static constexpr U32 MaxTerrain = 64;
 
-
-//--------------------------------------------------------------------------------------------------
-
 static Mem                tempMem;
-static Data               data;
+static Data*              data;
 static Terrain*           terrain;
 static U32                terrainLen;
 static Map<Str, Terrain*> terrainMap;
@@ -37,19 +32,18 @@ static Map<Str, Terrain*> terrainMap;
 //--------------------------------------------------------------------------------------------------
 
 Res<> Init(Mem permMem, Mem tempMemIn, Window::State const* windowState) {
-	tempMem       = tempMemIn;
-	terrain       = Mem::AllocT<Terrain>(permMem, MaxTerrain);
-	terrainLen    = 0;
+	tempMem        = tempMemIn;
+	terrain        = Mem::AllocT<Terrain>(permMem, MaxTerrain);
+	terrainLen     = 0;
 	terrainMap.Init(permMem, MaxTerrain);
-	data.hexes    = Mem::AllocT<Hex>(permMem, MaxRows * MaxCols);
-	data.hexesLen = 0;
+	data           = Mem::AllocT<Data>(permMem, 1);
 
-	Try(InitDraw(&data, tempMem, windowState));
-	InitInput();
+	Try(InitDraw(data, tempMem, windowState));
+	InitInput(tempMem);
 	InitPath(permMem);
 	InitUtil();
 
-	data.state = State::WaitingOrder;
+	data->state = State::WaitingOrder;
 
 	return Ok();
 }
@@ -120,7 +114,7 @@ static void AddNeighbor(Hex* hex, I32 cOff, I32 rOff, U32 neighborIdx) {
 	I32 const c = hex->c + cOff;
 	I32 const r = hex->r + rOff;
 	if (c >= 0 && c <= MaxCols - 1 && r >= 0 && r <= MaxRows - 1) {
-		hex->neighbors[neighborIdx] = &data.hexes[c + (r * MaxCols)];
+		hex->neighbors[neighborIdx] = &data->hexes[c + (r * MaxCols)];
 	} else {
 		hex->neighbors[neighborIdx] = nullptr;
 	}
@@ -141,11 +135,11 @@ Res<> GenerateMap() {
 	TryTo(GetTerrain("Mountain"),  terrainGen[4].terrain); maxChance += 1; terrainGen[4].chance = maxChance;
 	TryTo(GetTerrain("Water"),     terrainGen[5].terrain); maxChance += 1; terrainGen[5].chance = maxChance;
 
-	memset(data.hexes, 0, MaxCols * MaxRows * sizeof(Hex));
-	data.hexesLen = 0;
+	memset(data->hexes, 0, MaxCols * MaxRows * sizeof(Hex));
+	data->hexesLen = 0;
 	for (U32 r = 0; r < MaxRows; r++) {
 		for (U32 c = 0; c < MaxCols; c++) {
-			Hex* const hex = &data.hexes[c + (r * MaxCols)];
+			Hex* const hex = &data->hexes[c + (r * MaxCols)];
 			hex->idx = c + (r * MaxCols);
 			hex->c = (I32)c;
 			hex->r = (I32)r;
@@ -173,144 +167,87 @@ Res<> GenerateMap() {
 			}
 			Assert(hex->terrain);
 			hex->unit = nullptr;
-			data.hexesLen++;
+			data->hexesLen++;
 		}
 	}
 
-	JC::Unit::Unit unit; TryTo(JC::Unit::GetUnit("Spearmen"), unit);
-	JC::Unit::Def const* def = JC::Unit::GetDef(unit);
+	UnitDef::Def const* def; TryTo(UnitDef::GetDef("Spearmen"), def);
 
 	U32 startCol = 0;
-	for (U32 side = Side::Left; side <= Side::Right; side++) {
-		Logf("Creating side %u", side);
-		Army* army = &data.armies[(U32)side];
+	for (Side side = Side::Left; side <= Side::Right; side++) {
+		Logf("Creating side %u", (U32)side);
+		Army* army = &data->armies[(U32)side];
 		memset(army, 0, sizeof(Army));
 		army->side = side;
 		for (U32 c = startCol; c < startCol + 2; c++) {
 			for (U32 r = 0; r < MaxRows; r++) {
-				Hex* const hex = &data.hexes[c + (r * MaxCols)];
+				Hex* const hex = &data->hexes[c + (r * MaxCols)];
 				if (!hex->unit&& Rng::NextU32(0, 100) < 50) {
-					army->units[army->unitsLen] = {
-						.def  = def,
-						.hex  = hex,
-						.pos  = HexToCenterWorldPos(hex),
-						.side = side,
-						.hp   = def->hp,
-						.move = def->move,
+					Unit* const unit = &army->units[army->unitsLen++];
+					*unit = {
+						.def   = def,
+						.hex   = hex,
+						.pos   = HexToCenterWorldPos(hex),
+						.side  = side,
+						.hp    = def->hp,
+						.move  = def->move,
+						.range = 1,
 					};
-					hex->unit = &army->units[army->unitsLen];
-					army->unitsLen++;
+					BuildPathMap(data->hexes, unit);
+					hex->unit = unit;
 					Logf("Created unit for side %u at %u,%u", (U32)side, c, r);
-					if (army->unitsLen >= MaxArmyUnits) {
-						goto DoneUnitGen;
+					if (army->unitsLen >= 8) {
+						goto DoneArmyGen;
 					}
 				}
 			}
 		}
-		DoneUnitGen:
-		startCol += 2;
+		DoneArmyGen:
+		memset(army->attackMap, 0, sizeof(army->attackMap));
+		for (U32 i = 0; i < army->unitsLen; i++) {
+			Unit const* unit = &army->units[i];
+			for (U32 j = 0; j < MaxCols * MaxRows; j++) {
+				// directly reachable
+				if (unit->pathMap.moveCosts[j] != U32Max) {
+					army->attackMap[j] |= ((U64)1 << i);
+					continue;
+				}
+				// j has a reachable neighbor
+				Hex const* hex = &data->hexes[j];
+				for (U32 k = 0; k < 6; k++) {
+					Hex const* const neighbor = hex->neighbors[k];
+					if (
+						neighbor &&
+						unit->pathMap.moveCosts[neighbor->idx] != U32Max &&
+						HexDistance(neighbor, hex) <= unit->range
+					) {
+						army->attackMap[j] |= ((U64)1 << i);
+						goto DoneNeighbors;
+					}
+				}
+				DoneNeighbors:
+				;
+			}
+		}
+
+		startCol += 4;
 	}
+
+	data->activeSide = Side::Left;
+
 	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static void UpdateHoverHexAndPath(U32 mouseX, U32 mouseY) {
-	Hex const* const oldHoverHex = data.hoverHex;	
-	data.hoverHex = ScreenPosToHex(&data, mouseX, mouseY);
-
-	// No selected unit -> no path
-	if (!data.selectedHex) {
-		data.selectedHexToHoverHexPath.len = 0;
-		return;
-	}
-
-	// Same hover hex as before -> no change: we should have already calc'd the path
-	if (oldHoverHex == data.hoverHex) {
-		return;
-	}
-
-	// Hover hex off map -> no path
-	if (!data.hoverHex) {
-		Logf("no hover hex");
-		data.selectedHexToHoverHexPath.len = 0;
-		return;
-	}
-
-	// Hover hex has friendly unit -> no path
-	if (data.hoverHex->unit && data.hoverHex->unit->side == data.selectedHex->unit->side) {
-		Logf("friendly");
-		data.selectedHexToHoverHexPath.len = 0;
-		return;
-	}
-
-	// Hex we'll try to build our path to; this may end up being nullptr
-	Hex const* toHex = nullptr;
-
-	// Hover hex is empty and reachable
-	if (!data.hoverHex->unit && data.selectedHexPathMap.moveCosts[data.hoverHex->c + (data.hoverHex->r * MaxCols)] != 0) {
-		toHex = data.hoverHex;
-	}
-
-	// Hover hex has an enemy unit -> find empty+reachable neighbor
-	if (data.hoverHex->unit) {
-		Assert(data.hoverHex->unit->side != data.selectedHex->unit->side);
-
-		U32 minCost    = U32Max;
-		U32 minPathLen = U32Max;
-		for (U32 i = 0; i < 6; i++) {
-			Hex const* const neighbor = data.hoverHex->neighbors[i];
-			if (neighbor == data.selectedHex) {
-				toHex = data.selectedHex;
-				break;
-			}
-			if (!neighbor || neighbor->unit) { continue; }
-			U32 const idx   = neighbor->idx;
-			U32 const cost  = data.selectedHexPathMap.moveCosts[idx];
-			if (cost == 0) { continue; }
-			U32 const pathLen = data.selectedHexPathMap.pathLens[idx];
-			if (cost < minCost) {
-				toHex      = neighbor;
-				minCost    = cost;
-				minPathLen = pathLen;
-			} else if (cost == minCost && pathLen < minPathLen) {
-				toHex      = neighbor;
-				minCost    = cost;
-				minPathLen = pathLen;
-			}
-		}
-		// toHex may be nullptr after all this
-	}
-
-	if (!toHex) {
-		return;
-	}
-
-	// Build the path
-	FindPathFromMoveCostMap(&data.selectedHexPathMap, data.selectedHex, toHex, &data.selectedHexToHoverHexPath);
-	StrBuf sb(tempMem);
-	sb.Add("path=[");
-	for (U32 i = 0; i < data.selectedHexToHoverHexPath.len; i++) {
-		sb.Printf("(%i, %i), ", data.selectedHexToHoverHexPath.hexes[i]->c, data.selectedHexToHoverHexPath.hexes[i]->r);
-	}
-	if (data.selectedHexToHoverHexPath.len > 0) {
-		sb.Remove(2);
-	}
-	sb.Add(']');
-	Logf("path=%s", sb.ToStr());
-}
-
-//--------------------------------------------------------------------------------------------------
-
 Res<> Update(App::UpdateData const* updateData) {
-	UpdateHoverHexAndPath(updateData->mouseX, updateData->mouseY);
-	return HandleActions(&data, updateData->sec, updateData-> actions);
+	return HandleInput(data, updateData->sec, updateData->mouseX, updateData->mouseY, updateData-> actions);
 }
 
 //--------------------------------------------------------------------------------------------------
 
 void Draw() {
-	Draw(&data);
+	Draw(data);
 }
 
 //--------------------------------------------------------------------------------------------------

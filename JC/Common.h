@@ -503,7 +503,8 @@ struct StrBuf {
 	void Printv(char const* fmt, Span<Arg const> args);
 	template <class... A> void Printf(CheckFmtStr<A...> fmt, A... args) { Printv(fmt, { Arg::Make(args)... }); }
 
-	inline Str ToStr() const { return Str(data, len); }
+	Str ToStr() const { return Str(data, len); }
+	const char* ToStrZ(SrcLoc sl = SrcLoc::Here()) const;
 };
 
 //--------------------------------------------------------------------------------------------------
