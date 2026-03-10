@@ -30,7 +30,6 @@ void InitUtil() {
 
 bool AreHexesAdjacent(Hex const* a, Hex const* b) {
 	return
-		a == b ||
 		a->neighbors[0] == b ||
 		a->neighbors[1] == b ||
 		a->neighbors[2] == b ||

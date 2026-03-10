@@ -47,14 +47,6 @@ void InitInput(Mem tempMemIn) {
 }
 
 //--------------------------------------------------------------------------------------------------
-/*
-static Hex const* GetCloseNeighbor(U32 mouseX, U32 mouseY) {
-	mouseX;mouseY;
-	return nullptr;
-}
-*/
-//--------------------------------------------------------------------------------------------------
-
 static bool Click(Data* data) { 
 //	selected
 //		lclick attackable: target = hover, lock path
@@ -80,10 +72,12 @@ static bool Click(Data* data) {
 	if (data->hoverHex == data->selectedHex) {
 		data->selectedHex = nullptr;
 		data->selectedPath.len = 0;
+		data->selectedLastEmptyHex = nullptr;
 		return true;
 	} else if (data->hoverHex->unit && data->hoverHex->unit->side == data->activeSide) {
 		data->selectedHex = data->hoverHex;
 		data->selectedPath.len = 0;
+		data->selectedLastEmptyHex = nullptr;
 		return true;
 	}
 
@@ -264,41 +258,61 @@ Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<U64 const> a
 		hex->flags = flags;
 	}
 
+
+	if (data->hoverHex) {
+		data->hoverHex->flags |= HexFlags::Hover;
+	}
+
+	if (data->selectedHex) {
+		data->selectedHex->flags |= HexFlags::Selected;
+	}
+
 	if (selectedUnit) {
-		Hex const* attackHex = nullptr;
 		data->selectedPath.len = 0;
+		if (data->hoverHex == data->selectedHex) {
+			data->selectedLastEmptyHex = nullptr;
+		}
+
 		if (data->hoverHex && !hoverUnit) {
-			FindPath(selectedUnit, data->hoverHex, &data->selectedPath);
-			// if mouse is on border to enemy
-				// add arrow to this hex pointing at enemy
+			if (selectedUnit->pathMap.moveCosts[data->hoverHex->idx] != U32Max) {
+				data->selectedLastEmptyHex = data->hoverHex;
+				data->selectedLastEmptyHex->flags |= HexFlags::SelectedMoveEnd;
+				FindPath(selectedUnit, data->hoverHex, &data->selectedPath);
+			} else {
+				data->selectedLastEmptyHex = nullptr;
+				data->hoverHex->flags |= HexFlags::SelectedUnreachable;
+			}
 		}
 		if (data->hoverHex && hoverUnit && hoverUnit->side == enemyArmy->side) {
-			attackHex = data->hoverHex;
-
-			
-			Hex* attackFromNeighbor = oldHoverHex;
-			if (!oldHoverHex || oldHoverHex->unit || !AreHexesAdjacent(oldHoverHex, data->hoverHex) || selectedUnit->pathMap.moveCosts[oldHoverHex->idx] == U32Max) {
-				// Find closest neighbor hex
+			if (data->selectedLastEmptyHex && AreHexesAdjacent(data->selectedLastEmptyHex, data->hoverHex)) {
+				data->selectedLastEmptyHex->flags |= HexFlags::SelectedMoveEnd;
+				if (FindPath(selectedUnit, data->selectedLastEmptyHex, &data->selectedPath)) {
+					data->hoverHex->flags |= HexFlags::SelectedTarget;
+					AddAttackFlags(data->selectedLastEmptyHex, data->hoverHex);
+				}
+			}
+			else {
 				U32 minCost = U32Max;
-				attackFromNeighbor = nullptr;
+				Hex* minNeighbor = nullptr;
 				for (U32 i = 0; i < 6; i++) {
 					Hex* const neighbor = data->hoverHex->neighbors[i];
 					if (!neighbor || neighbor->unit) { continue; }
 					U32 const cost = selectedUnit->pathMap.moveCosts[neighbor->idx];
 					if (cost < minCost) {
 						minCost = cost;
-						attackFromNeighbor = neighbor;
+						minNeighbor = neighbor;
 					}
 				}
-				if (attackFromNeighbor) {
-					Logf("Selected closest neighbor (%u, %u) with cost %u", attackFromNeighbor->c, attackFromNeighbor->r, minCost);
-				} else {
-					Logf("No neighbor");
-				}
-			}
-			if (attackFromNeighbor) {
-				if (FindPath(selectedUnit, attackFromNeighbor, &data->selectedPath)) {
-					AddAttackFlags(attackFromNeighbor, data->hoverHex);
+
+				if (minNeighbor) {
+					if (FindPath(selectedUnit, minNeighbor, &data->selectedPath)) {
+						data->hoverHex->flags |= HexFlags::SelectedTarget;
+						AddAttackFlags(minNeighbor, data->hoverHex);
+						if (minNeighbor != data->selectedHex) {
+							data->selectedLastEmptyHex = minNeighbor;
+							data->selectedLastEmptyHex->flags |= HexFlags::SelectedMoveEnd;
+						}
+					}
 				}
 			}
 		}

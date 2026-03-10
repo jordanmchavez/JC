@@ -1,7 +1,6 @@
 #include "JC/App.h"
 
 #include "JC/Cfg.h"
-#include "JC/Cfg.h"
 #include "JC/Draw.h"
 #include "JC/Effect.h"
 #include "JC/File.h"
@@ -59,7 +58,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 	File::Init(tempMem);
 	StrDb::Init();
 	U64 rngSeed = Time::Now();
-	rngSeed =   22650996316778;
+	rngSeed = 0x14bd05373a90;
 	Rng::Seed(rngSeed);
 
 	Cfg::Init(permMem, argc, argv);
@@ -74,7 +73,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 		}
 	});
 
-	Logf("Rng seed = %u", rngSeed);
+	Logf("Rng seed = 0x%016x", rngSeed);
 
 	Input::Init(permMem);
 

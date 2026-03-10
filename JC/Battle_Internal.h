@@ -56,22 +56,27 @@ namespace NeighborIdx {
 }
 
 namespace HexFlags {
-	constexpr U64 FriendlyMovable    = (U64)1 << 0;
-	constexpr U64 FriendlyTargetable = (U64)1 << 1;
-	constexpr U64 EnemyAttackable    = (U64)1 << 2;
-	constexpr U64 EnemyAttacker      = (U64)1 << 3;
-	constexpr U64 PathTopLeft        = (U64)1 << 4;
-	constexpr U64 PathTopRight       = (U64)1 << 5;
-	constexpr U64 PathRight          = (U64)1 << 6;
-	constexpr U64 PathBottomRight    = (U64)1 << 7;
-	constexpr U64 PathBottomLeft     = (U64)1 << 8;
-	constexpr U64 PathLeft           = (U64)1 << 9;
-	constexpr U64 AttackTopLeft      = (U64)1 << 10;
-	constexpr U64 AttackTopRight     = (U64)1 << 11;
-	constexpr U64 AttackRight        = (U64)1 << 12;
-	constexpr U64 AttackBottomRight  = (U64)1 << 13;
-	constexpr U64 AttackBottomLeft   = (U64)1 << 14;
-	constexpr U64 AttackLeft         = (U64)1 << 15;
+	constexpr U64 FriendlyMovable     = (U64)1 << 0;
+	constexpr U64 FriendlyTargetable  = (U64)1 << 1;
+	constexpr U64 EnemyAttackable     = (U64)1 << 2;
+	constexpr U64 EnemyAttacker       = (U64)1 << 3;
+	constexpr U64 PathTopLeft         = (U64)1 << 4;
+	constexpr U64 PathTopRight        = (U64)1 << 5;
+	constexpr U64 PathRight           = (U64)1 << 6;
+	constexpr U64 PathBottomRight     = (U64)1 << 7;
+	constexpr U64 PathBottomLeft      = (U64)1 << 8;
+	constexpr U64 PathLeft            = (U64)1 << 9;
+	constexpr U64 AttackTopLeft       = (U64)1 << 10;
+	constexpr U64 AttackTopRight      = (U64)1 << 11;
+	constexpr U64 AttackRight         = (U64)1 << 12;
+	constexpr U64 AttackBottomRight   = (U64)1 << 13;
+	constexpr U64 AttackBottomLeft    = (U64)1 << 14;
+	constexpr U64 AttackLeft          = (U64)1 << 15;
+	constexpr U64 Hover               = (U64)1 << 16;
+	constexpr U64 Selected            = (U64)1 << 17;
+	constexpr U64 SelectedMoveEnd     = (U64)1 << 18;
+	constexpr U64 SelectedTarget      = (U64)1 << 19;
+	constexpr U64 SelectedUnreachable = (U64)1 << 20;
 };
 
 // TODO: split out into SoA as needed
@@ -141,6 +146,7 @@ struct Data {
 	Hex*  hoverHex;
 	Hex*  selectedHex;
 	Path  selectedPath;
+	Hex*  selectedLastEmptyHex;
 	Hex*  targetHex;
 	bool  showEnemyAttackers;
 	State state;
