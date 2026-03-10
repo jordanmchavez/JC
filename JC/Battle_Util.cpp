@@ -69,25 +69,7 @@ U32 HexDistance(Hex const* a, Hex const* b) {
 
 //--------------------------------------------------------------------------------------------------
 
-Vec2 HexToTopLeftWorldPos(Hex const* hex) {
-	return {
-		(F32)(hex->c * HexSize + (hex->r & 1) * (HexSize / 2)),
-		(F32)(hex->r * (HexSize * 3 / 4)),
-	};
-}
-
-//--------------------------------------------------------------------------------------------------
-
-Vec2 HexToCenterWorldPos(Hex const* hex) {
-	return {
-		(F32)((HexSize / 2) + hex->c * HexSize + (hex->r & 1) * (HexSize / 2)),
-		(F32)((HexSize / 2) + hex->r * (HexSize * 3 / 4)),
-	};
-}
-
-//--------------------------------------------------------------------------------------------------
-
-Hex const* WorldPosToHex(Data const* data, Vec2 p) {
+Hex* WorldPosToHex(Data* data, Vec2 p) {
 	I32 const hsize   = (I32)HexSize;
 	I32 const rowStep = hsize * 3 / 4;
 	I32 const iy      = (I32)p.y;

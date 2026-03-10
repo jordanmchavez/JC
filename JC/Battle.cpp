@@ -67,16 +67,22 @@ Json_Begin(TerrainJson)
 Json_End(TerrainJson)
 
 Json_Begin(BattleJson)
-	Json_Member("atlasPaths",            atlasPaths)
-	Json_Member("borderSprite",          borderSprite)
-	Json_Member("highlightSprite",       highlightSprite)
-	Json_Member("pathTopLeftSprite",     pathTopLeftSprite)
-	Json_Member("pathTopRightSprite",    pathTopRightSprite)
-	Json_Member("pathRightSprite",       pathRightSprite)
-	Json_Member("pathBottomRightSprite", pathBottomRightSprite)
-	Json_Member("pathBottomLeftSprite",  pathBottomLeftSprite)
-	Json_Member("pathLeftSprite",        pathLeftSprite)
-	Json_Member("terrain",               terrain)
+	Json_Member("atlasPaths",             atlasPaths)
+	Json_Member("borderSprite",           borderSprite)
+	Json_Member("highlightSprite",        highlightSprite)
+	Json_Member("pathTopLeftSprite",      pathTopLeftSprite)
+	Json_Member("pathTopRightSprite",     pathTopRightSprite)
+	Json_Member("pathRightSprite",        pathRightSprite)
+	Json_Member("pathBottomRightSprite",  pathBottomRightSprite)
+	Json_Member("pathBottomLeftSprite",   pathBottomLeftSprite)
+	Json_Member("pathLeftSprite",         pathLeftSprite)
+	Json_Member("arrowTopLeftSprite",     arrowTopLeftSprite)
+	Json_Member("arrowTopRightSprite",    arrowTopRightSprite)
+	Json_Member("arrowRightSprite",       arrowRightSprite)
+	Json_Member("arrowBottomRightSprite", arrowBottomRightSprite)
+	Json_Member("arrowBottomLeftSprite",  arrowBottomLeftSprite)
+	Json_Member("arrowLeftSprite",        arrowLeftSprite)
+	Json_Member("terrain",                terrain)
 Json_End(BattleJson)
 
 Res<> Load(Str path) {
@@ -110,6 +116,15 @@ Res<> Load(Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
+static Vec2 CalcWorldPos(U32 c, U32 r) {
+	return {
+		(F32)((HexSize / 2) + (c * HexSize + (r & 1) * (HexSize / 2))),
+		(F32)((HexSize / 2) + (r * (HexSize * 3 / 4))),
+	};
+}
+
+//--------------------------------------------------------------------------------------------------
+
 static void AddNeighbor(Hex* hex, I32 cOff, I32 rOff, U32 neighborIdx) {
 	I32 const c = hex->c + cOff;
 	I32 const r = hex->r + rOff;
@@ -119,6 +134,8 @@ static void AddNeighbor(Hex* hex, I32 cOff, I32 rOff, U32 neighborIdx) {
 		hex->neighbors[neighborIdx] = nullptr;
 	}
 }
+
+//--------------------------------------------------------------------------------------------------
 
 struct TerrainGen {
 	Terrain const* terrain;
@@ -143,20 +160,21 @@ Res<> GenerateMap() {
 			hex->idx = c + (r * MaxCols);
 			hex->c = (I32)c;
 			hex->r = (I32)r;
+			hex->pos = CalcWorldPos(c, r);
 			if (r & 1) {	// odd row
-				AddNeighbor(hex,  0, -1, NeighborIdx_TopLeft    );
-				AddNeighbor(hex, +1, -1, NeighborIdx_TopRight   );
-				AddNeighbor(hex, +1,  0, NeighborIdx_Right      );
-				AddNeighbor(hex, +1, +1, NeighborIdx_BottomRight);
-				AddNeighbor(hex,  0, +1, NeighborIdx_BottomLeft );
-				AddNeighbor(hex, -1,  0, NeighborIdx_Left       );
+				AddNeighbor(hex,  0, -1, NeighborIdx::TopLeft    );
+				AddNeighbor(hex, +1, -1, NeighborIdx::TopRight   );
+				AddNeighbor(hex, +1,  0, NeighborIdx::Right      );
+				AddNeighbor(hex, +1, +1, NeighborIdx::BottomRight);
+				AddNeighbor(hex,  0, +1, NeighborIdx::BottomLeft );
+				AddNeighbor(hex, -1,  0, NeighborIdx::Left       );
 			} else {	// even row
-				AddNeighbor(hex, -1, -1, NeighborIdx_TopLeft    );
-				AddNeighbor(hex,  0, -1, NeighborIdx_TopRight   );
-				AddNeighbor(hex, +1,  0, NeighborIdx_Right      );
-				AddNeighbor(hex,  0, +1, NeighborIdx_BottomRight);
-				AddNeighbor(hex, -1, +1, NeighborIdx_BottomLeft );
-				AddNeighbor(hex, -1,  0, NeighborIdx_Left       );
+				AddNeighbor(hex, -1, -1, NeighborIdx::TopLeft    );
+				AddNeighbor(hex,  0, -1, NeighborIdx::TopRight   );
+				AddNeighbor(hex, +1,  0, NeighborIdx::Right      );
+				AddNeighbor(hex,  0, +1, NeighborIdx::BottomRight);
+				AddNeighbor(hex, -1, +1, NeighborIdx::BottomLeft );
+				AddNeighbor(hex, -1,  0, NeighborIdx::Left       );
 			}
 			U32 rng = Rng::NextU32(0, maxChance);
 			for (U32 i = 0; i < LenOf(terrainGen); i++) {
@@ -187,7 +205,7 @@ Res<> GenerateMap() {
 					*unit = {
 						.def   = def,
 						.hex   = hex,
-						.pos   = HexToCenterWorldPos(hex),
+						.pos   = hex->pos,
 						.side  = side,
 						.hp    = def->hp,
 						.move  = def->move,
@@ -195,14 +213,14 @@ Res<> GenerateMap() {
 					};
 					hex->unit = unit;
 					Logf("Created unit for side %u at %u,%u", (U32)side, c, r);
-					if (army->unitsLen >= 8) {
+					if (army->unitsLen >= 12) {
 						goto DoneArmyGen;
 					}
 				}
 			}
 		}
 		DoneArmyGen:
-		startCol += 4;
+		startCol += 2;
 	}
 
 	for (Side side = Side::Left; side <= Side::Right; side++) {

@@ -77,7 +77,7 @@ static bool IsHexPassable(Hex const* hex, U32 side) {
 //--------------------------------------------------------------------------------------------------
 
 // Djikstra flood fill
-void BuildPathMap(Hex const* hexes, Unit* unit) {
+void BuildPathMap(Hex* hexes, Unit* unit) {
 	PathMap* const pathMap = &unit->pathMap;
 	memset(pathMap->moveCosts,  0xff, sizeof(pathMap->moveCosts));
 	memset(pathMap->pathLens,   0xff, sizeof(pathMap->pathLens));
@@ -103,7 +103,7 @@ void BuildPathMap(Hex const* hexes, Unit* unit) {
 		}
 		pathVisited[entry.idx] = true;
 
-		Hex const* const entryHex = &hexes[entry.idx];
+		Hex* const entryHex = &hexes[entry.idx];
 		for (U32 i = 0; i < 6; i++) {
 			Hex* const neighbor = entryHex->neighbors[i];
 			if (!neighbor || pathVisited[neighbor->idx] || !IsHexPassable(neighbor, side)) {
@@ -126,7 +126,7 @@ void BuildPathMap(Hex const* hexes, Unit* unit) {
 //--------------------------------------------------------------------------------------------------
 
 // Simple back-traversal using `parents`
-bool FindPath(Unit const* unit, Hex const* end, Path* pathOut) {
+bool FindPath(Unit const* unit, Hex* end, Path* pathOut) {
 	if (end == unit->hex) {
 		pathOut->len = 0;
 		return true;
@@ -138,8 +138,8 @@ bool FindPath(Unit const* unit, Hex const* end, Path* pathOut) {
 		return false;
 	}
 
-	Hex const** iter = pathOut->hexes;
-	for (Hex const* hex = end; hex != unit->hex; hex = pathMap->parents[hex->idx]) {
+	Hex** iter = pathOut->hexes;
+	for (Hex* hex = end; hex != unit->hex; hex = pathMap->parents[hex->idx]) {
 		*iter++ = hex;
 	}
 	U64 const len     = (U64)(iter - pathOut->hexes);

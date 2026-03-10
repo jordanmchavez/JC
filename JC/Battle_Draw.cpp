@@ -25,6 +25,12 @@ static Draw::Sprite pathRightSprite;
 static Draw::Sprite pathBottomRightSprite;
 static Draw::Sprite pathBottomLeftSprite;
 static Draw::Sprite pathLeftSprite;
+static Draw::Sprite arrowTopLeftSprite;
+static Draw::Sprite arrowTopRightSprite;
+static Draw::Sprite arrowRightSprite;
+static Draw::Sprite arrowBottomRightSprite;
+static Draw::Sprite arrowBottomLeftSprite;
+static Draw::Sprite arrowLeftSprite;
 static Draw::Font   numberFont;
 static Draw::Font   uiFont;
 static F32          uiFontLineHeight;
@@ -52,20 +58,26 @@ Res<> InitDraw(Data* data, Mem tempMemIn, Window::State const* windowState) {
 //--------------------------------------------------------------------------------------------------
 
 Res<> LoadDraw(BattleJson const* battleJson) {
-	TryTo(Draw::GetSprite(battleJson->borderSprite),          borderSprite);
-	TryTo(Draw::GetSprite(battleJson->highlightSprite),       highlightSprite);
-	TryTo(Draw::GetSprite(battleJson->pathBottomLeftSprite),  pathBottomLeftSprite);
-	TryTo(Draw::GetSprite(battleJson->pathLeftSprite),        pathLeftSprite);
-	TryTo(Draw::GetSprite(battleJson->pathTopLeftSprite),     pathTopLeftSprite);
-	TryTo(Draw::GetSprite(battleJson->pathTopRightSprite),    pathTopRightSprite);
-	TryTo(Draw::GetSprite(battleJson->pathRightSprite),       pathRightSprite);
-	TryTo(Draw::GetSprite(battleJson->pathBottomRightSprite), pathBottomRightSprite);
+	TryTo(Draw::GetSprite(battleJson->borderSprite),           borderSprite);
+	TryTo(Draw::GetSprite(battleJson->highlightSprite),        highlightSprite);
+	TryTo(Draw::GetSprite(battleJson->pathBottomLeftSprite),   pathBottomLeftSprite);
+	TryTo(Draw::GetSprite(battleJson->pathLeftSprite),         pathLeftSprite);
+	TryTo(Draw::GetSprite(battleJson->pathTopLeftSprite),      pathTopLeftSprite);
+	TryTo(Draw::GetSprite(battleJson->pathTopRightSprite),     pathTopRightSprite);
+	TryTo(Draw::GetSprite(battleJson->pathRightSprite),        pathRightSprite);
+	TryTo(Draw::GetSprite(battleJson->pathBottomRightSprite),  pathBottomRightSprite);
+	TryTo(Draw::GetSprite(battleJson->arrowBottomLeftSprite),  arrowBottomLeftSprite);
+	TryTo(Draw::GetSprite(battleJson->arrowLeftSprite),        arrowLeftSprite);
+	TryTo(Draw::GetSprite(battleJson->arrowTopLeftSprite),     arrowTopLeftSprite);
+	TryTo(Draw::GetSprite(battleJson->arrowTopRightSprite),    arrowTopRightSprite);
+	TryTo(Draw::GetSprite(battleJson->arrowRightSprite),       arrowRightSprite);
+	TryTo(Draw::GetSprite(battleJson->arrowBottomRightSprite), arrowBottomRightSprite);
 	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-Hex const* ScreenPosToHex(Data const* data, I32 x, I32 y) {
+Hex* ScreenPosToHex(Data* data, I32 x, I32 y) {
 	return WorldPosToHex(data, Vec2(
 		((F32)x / data->cameraScale) + data->cameraPos.x,
 		((F32)y / data->cameraScale) + data->cameraPos.y
@@ -90,19 +102,6 @@ void ZoomCamera(Data* data, F32 d) {
 	F32 const windowCenterY = windowSize.y * 0.5f;
 	data->cameraPos.x -= windowCenterX / data->cameraScale - windowCenterX / oldScale;
 	data->cameraPos.y -= windowCenterY / data->cameraScale - windowCenterY / oldScale;
-	Logf("camera scale = %f", data->cameraScale);
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static Draw::Sprite SelectPathSprite(Hex const* fromHex, Hex const* toHex) {
-	if (toHex == fromHex->neighbors[NeighborIdx_TopLeft    ]) { return pathTopLeftSprite; }
-	if (toHex == fromHex->neighbors[NeighborIdx_TopRight   ]) { return pathTopRightSprite; }
-	if (toHex == fromHex->neighbors[NeighborIdx_Right      ]) { return pathRightSprite; }
-	if (toHex == fromHex->neighbors[NeighborIdx_BottomRight]) { return pathBottomRightSprite; }
-	if (toHex == fromHex->neighbors[NeighborIdx_BottomLeft ]) { return pathBottomLeftSprite; }
-	if (toHex == fromHex->neighbors[NeighborIdx_Left       ]) { return pathLeftSprite; }
-	Panic("Hexes (%u, %u) and (%u, %u) are not adjacent!", fromHex->c, fromHex->r, toHex->c, toHex->r);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -125,6 +124,7 @@ static Draw::Sprite SelectPathSprite(Hex const* fromHex, Hex const* toHex) {
 		.scale  = { UiFontScale, UiFontScale },
 		.color  = { 1.f, 1.f, 1.f, 1.f },
 	};
+	Draw::DrawStr(drawDef);
 
 	if (data->hoverHex) {
 		Terrain const* const terrain = data->hoverHex->terrain;
@@ -155,8 +155,9 @@ static Draw::Sprite SelectPathSprite(Hex const* fromHex, Hex const* toHex) {
 static constexpr Vec4 HoverHexColor     = Vec4(0.f, 1.f, 0.f, 1.f);
 static constexpr Vec4 SelectedHexColor  = Vec4(1.f, 0.f, 1.f, 1.f);
 static constexpr Vec4 ReachableHexColor = Vec4(1.f, 1.f, 1.f, 0.25f);
-static constexpr Vec4 PathColor         = Vec4(1.f, 1.f, 0.f, 1.f);
 static constexpr Vec4 AttackableColor   = Vec4(1.f, 0.f, 0.f, 0.5f);
+static constexpr Vec4 PathColor         = Vec4(1.f, 1.f, 0.f, 1.f);
+static constexpr Vec4 ArrowColor        = Vec4(1.f, 0.f, 0.f, 1.f);
 
 static constexpr F32 Z_Background   = 0.0f;
 static constexpr F32 Z_Hex          = 1.0f;
@@ -164,71 +165,67 @@ static constexpr F32 Z_ReachableHex = 1.1f;
 static constexpr F32 Z_HoverHex     = 1.2f;
 static constexpr F32 Z_SelectedHex  = 1.3f;
 static constexpr F32 Z_Path         = 1.4f;
+static constexpr F32 Z_Arrow        = 1.41f;
 static constexpr F32 Z_HexUi        = 1.5f;
 static constexpr F32 Z_Unit         = 2.0f;
 static constexpr F32 Z_UiBackground = 3.0f;
 static constexpr F32 Z_Ui           = 3.1f;
+
+void DrawHex(Hex const* hex, Draw::Sprite sprite, F32 z, Vec4 color = Vec4(1.f, 1.f, 1.f, 1.f)) {
+	Draw::DrawSprite({
+		.sprite = sprite,
+		.pos    = hex->pos,
+		.z      = z,
+		.origin = Draw::Origin::Center,
+		.color  = color,
+	});
+}
 
 void Draw(Data const* data) {
 	Draw::SetCamera({ .pos = data->cameraPos, .scale = data->cameraScale });
 
 	for (U32 i = 0; i < data->hexesLen; i++) {
 		Hex const* const hex = &data->hexes[i];
-		Vec2 const topLeftPos = HexToTopLeftWorldPos(hex);
-		Draw::DrawSprite({
-			.sprite = hex->terrain->sprite,
-			.pos    = topLeftPos,
-			.z      = Z_Hex,
-			.origin = Draw::Origin::TopLeft,
-		});
+		DrawHex(hex, hex->terrain->sprite, Z_Hex);
 
-		U64 const flags = data->hexFlags[i];
-		if (
-			(flags & HexFlags::FriendlyMovable) && 
-			(flags & HexFlags::EnemyAttackable)
-		) {
-			Draw::DrawSprite({
-				.sprite = highlightSprite,
-				.pos    = topLeftPos,
-				.z      = Z_HoverHex,
-				.origin = Draw::Origin::TopLeft,
-				.color  = Vec4(1.f, 1.f, 0.f, 0.5f),
-			});
-		} else  if (flags & HexFlags::FriendlyMovable) {
-			Draw::DrawSprite({
-				.sprite = highlightSprite,
-				.pos    = topLeftPos,
-				.z      = Z_HoverHex,
-				.origin = Draw::Origin::TopLeft,
-				.color  = Vec4(0.f, 1.f, 0.f, 0.5f),
-			});
+		U64 const flags = hex->flags;
+		if ((flags & HexFlags::FriendlyMovable) && (flags & HexFlags::EnemyAttackable)) {
+			DrawHex(hex, highlightSprite, Z_HoverHex, Vec4(1.f, 1.f, 0.f, 0.5f));
+		} else if (flags & HexFlags::FriendlyMovable) {
+			DrawHex(hex, highlightSprite, Z_HoverHex, Vec4(0.f, 1.f, 0.f, 0.5f));
 		} else if (flags & HexFlags::EnemyAttackable) {
-			Draw::DrawSprite({
-				.sprite = highlightSprite,
-				.pos    = topLeftPos,
-				.z      = Z_HoverHex,
-				.origin = Draw::Origin::TopLeft,
-				.color  = Vec4(1.f, 0.f, 0.f, 0.5f),
-			});
+			DrawHex(hex, highlightSprite, Z_HoverHex, Vec4(1.f, 0.f, 0.f, 0.5f));
 		}
+
 		if (flags & HexFlags::FriendlyTargetable) {
-			Draw::DrawSprite({
-				.sprite = borderSprite,
-				.pos    = topLeftPos,
-				.z      = Z_HoverHex,
-				.origin = Draw::Origin::TopLeft,
-				.color  = Vec4(0.f, 1.f, 0.f, 1.0f),
-			});
+			DrawHex(hex, borderSprite, Z_HoverHex, Vec4(0.f, 1.f, 0.f, 1.f));
 		}
 		if (flags & HexFlags::EnemyAttacker) {
-			Draw::DrawSprite({
-				.sprite = highlightSprite,//borderSprite,
-				.pos    = topLeftPos,
-				.z      = Z_HoverHex + 0.1f,
-				.origin = Draw::Origin::TopLeft,
-				.color  = Vec4(1.f, 0.f, 0.f, 1.0f),
-			});
+			DrawHex(hex, highlightSprite, Z_HoverHex, Vec4(1.f, 0.f, 0.f, 1.f));
 		}
+
+		if (flags & HexFlags::PathTopLeft    ) { DrawHex(hex, pathTopLeftSprite,     Z_Path, PathColor); }
+		if (flags & HexFlags::PathTopRight   ) { DrawHex(hex, pathTopRightSprite,    Z_Path, PathColor); }
+		if (flags & HexFlags::PathRight      ) { DrawHex(hex, pathRightSprite,       Z_Path, PathColor); }
+		if (flags & HexFlags::PathBottomRight) { DrawHex(hex, pathBottomRightSprite, Z_Path, PathColor); }
+		if (flags & HexFlags::PathBottomLeft ) { DrawHex(hex, pathBottomLeftSprite,  Z_Path, PathColor); }
+		if (flags & HexFlags::PathLeft       ) { DrawHex(hex, pathLeftSprite,        Z_Path, PathColor); }
+
+		     if (flags & HexFlags::AttackTopLeft    ) { DrawHex(hex, arrowTopLeftSprite,     Z_Arrow, ArrowColor); }
+		else if (flags & HexFlags::AttackTopRight   ) { DrawHex(hex, arrowTopRightSprite,    Z_Arrow, ArrowColor); }
+		else if (flags & HexFlags::AttackRight      ) { DrawHex(hex, arrowRightSprite,       Z_Arrow, ArrowColor); }
+		else if (flags & HexFlags::AttackBottomRight) { DrawHex(hex, arrowBottomRightSprite, Z_Arrow, ArrowColor); }
+		else if (flags & HexFlags::AttackBottomLeft ) { DrawHex(hex, arrowBottomLeftSprite,  Z_Arrow, ArrowColor); }
+		else if (flags & HexFlags::AttackLeft       ) { DrawHex(hex, arrowLeftSprite,        Z_Arrow, ArrowColor); }
+
+		Draw::DrawStr({
+			.font   = numberFont,
+			.str    = SPrintf(tempMem, "%u,%u", hex->c, hex->r),
+			.pos    = Vec2(hex->pos.x, hex->pos.y + HexSize / 2 - 2.f),
+			.z      = Z_Ui + 10,
+			.origin = Draw::Origin::BottomCenter,
+			.color  = Vec4(1.f, 1.f, 1.f, 1.f),
+		});
 	}
 
 	for (Side side = Side::Left; side <= Side::Right; side++) {
@@ -246,58 +243,11 @@ void Draw(Data const* data) {
 	}
 
 	if (data->hoverHex) {
-		Draw::DrawSprite({
-			.sprite = borderSprite,
-			.pos    = HexToTopLeftWorldPos(data->hoverHex),
-			.z      = Z_HoverHex,
-			.origin = Draw::Origin::TopLeft,
-			.color  = HoverHexColor,
-		});
+		DrawHex(data->hoverHex, borderSprite, Z_HoverHex, HoverHexColor);
 	}
 
 	if (data->selectedHex) {
-		Draw::DrawSprite({
-			.sprite = highlightSprite,
-			.pos    = HexToTopLeftWorldPos(data->selectedHex),
-			.z      = Z_SelectedHex,
-			.origin = Draw::Origin::TopLeft,
-			.color  = SelectedHexColor,
-		});
-
-		Hex const* fromHex = data->selectedHex;
-		for (U32 i = 0; i < data->selectedPath.len; i++) {
-			Hex const* const toHex = data->selectedPath.hexes[i];
-			Draw::DrawSprite({
-				.sprite = SelectPathSprite(fromHex, toHex),
-				.pos    = HexToTopLeftWorldPos(fromHex),
-				.z      = Z_Path,
-				.origin = Draw::Origin::TopLeft,
-				.color  = PathColor,
-			});
-			Draw::DrawSprite({
-				.sprite = SelectPathSprite(toHex, fromHex),
-				.pos    = HexToTopLeftWorldPos(toHex),
-				.z      = Z_Path,
-				.origin = Draw::Origin::TopLeft,
-				.color  = PathColor,
-			});
-
-			fromHex = toHex;
-		}
-/*
-		U32 const* moveCosts = data->selectedHex->unit->pathMap.moveCosts;
-		for (U32 i = 0; i < MaxCols * MaxRows; i++) {
-			Vec2 const topLeftPos = HexToTopLeftWorldPos(&data->hexes[i]);
-			Draw::DrawStr({
-				.font   = numberFont,
-				.str    = moveCosts[i] == U32Max ? "--" : SPrintf(tempMem, "%u", moveCosts[i]),
-				.pos    = Vec2(topLeftPos.x + HexSize / 2, topLeftPos.y + 2.f),
-				.z      = Z_Ui + 10,
-				.origin = Draw::Origin::TopCenter,
-				.color  = Vec4(1.f, 1.f, 1.f, 1.f),
-			});
-		}
-*/
+		DrawHex(data->selectedHex, borderSprite, Z_SelectedHex, SelectedHexColor);
 	}
 }
 
