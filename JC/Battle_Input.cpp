@@ -47,6 +47,7 @@ void InitInput(Mem tempMemIn) {
 }
 
 //--------------------------------------------------------------------------------------------------
+
 static bool Click(Data* data) { 
 //	selected
 //		lclick attackable: target = hover, lock path
@@ -74,7 +75,9 @@ static bool Click(Data* data) {
 		data->selectedPath.len = 0;
 		data->selectedLastEmptyHex = nullptr;
 		return true;
-	} else if (data->hoverHex->unit && data->hoverHex->unit->side == data->activeSide) {
+	}
+
+	if (data->hoverHex->unit && data->hoverHex->unit->side == data->activeSide) {
 		data->selectedHex = data->hoverHex;
 		data->selectedPath.len = 0;
 		data->selectedLastEmptyHex = nullptr;
@@ -195,7 +198,7 @@ Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<U64 const> a
 			(!hex->unit || hex->unit->side == enemyArmy->side) &&
 			hoverUnit->pathMap.moveCosts[i] != U32Max
 		) {
-			flags |= HexFlags::FriendlyMovable;
+			flags |= HexFlags::FriendlyMoveable;
 		};
 
 		if (
@@ -203,7 +206,7 @@ Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<U64 const> a
 			(!hex->unit || hex->unit->side == enemyArmy->side) &&
 			selectedUnit->pathMap.moveCosts[i] != U32Max
 		) {
-			flags |= HexFlags::FriendlyMovable;
+			flags |= HexFlags::FriendlyMoveable;
 		}
 
 		if (
@@ -214,8 +217,7 @@ Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<U64 const> a
 			data->hexes[i].unit->side == enemyArmy->side &&
 			(friendlyArmy->attackMap[i] & ((U64)1 << hoverUnitIdx))
 		) {
-			flags |= HexFlags::FriendlyMovable;
-			//flags |= HexFlags::FriendlyTargetable;
+			flags |= HexFlags::FriendlyAttackable;
 		}
 
 		if (
@@ -224,8 +226,8 @@ Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<U64 const> a
 			data->hexes[i].unit->side == enemyArmy->side &&
 			(friendlyArmy->attackMap[i] & ((U64)1 << selectedUnitIdx))
 		) {
-			flags |= HexFlags::FriendlyMovable;
-			//flags |= HexFlags::FriendlyTargetable;
+			//flags |= HexFlags::FriendlyMoveable;
+			flags |= HexFlags::FriendlyAttackable;
 		}
 
 		if (
@@ -289,6 +291,12 @@ Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<U64 const> a
 				if (FindPath(selectedUnit, data->selectedLastEmptyHex, &data->selectedPath)) {
 					data->hoverHex->flags |= HexFlags::SelectedTarget;
 					AddAttackFlags(data->selectedLastEmptyHex, data->hoverHex);
+				}
+			}
+			else if (!data->selectedLastEmptyHex && AreHexesAdjacent(data->selectedHex, data->hoverHex)) {
+				if (FindPath(selectedUnit, data->selectedHex, &data->selectedPath)) {
+					data->hoverHex->flags |= HexFlags::SelectedTarget;
+					AddAttackFlags(data->selectedHex, data->hoverHex);
 				}
 			}
 			else {

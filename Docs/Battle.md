@@ -1,26 +1,25 @@
-- No unit selected
-	- Arrow cursor
-	- Hover -> border hex white, show unit+terrain stats
-	- Click friendly hex -> unit selected
-- Unit selected
-	- Border reachable empty or friendly hexes in green
-	- Border reachable enemy hexes in red
-	- Hover reachable empty hex
-		- Movement cursor
-		- Show dotted path in shortest path hexes (incl hover hex)
-	- Hover reachable friendly hex -> no path
-	- Hover reachable enemy hex -> Attack cursor, show path
-	- Hover unreachable hex -> X cursor
+# Hex Draw Flags
+- Hex
+- Unit
+- Hover
+- Selected
+- Target
+- Hover Friendly: can move here
+- Hover Friendly: can attack here
+- Hover Enemy: can attack here
+- Enemy Army: can attack here
+- Selected
+- Selected can move here
+- Selected can attack
 
-
-
-
-
-
-
-
-
-
+- 
+- - Hover: green border
+- Selected: purple border
+- Selected Move Target: cyan border
+- Selected Attack: Target: red border
+- Friendly-Hover/Selected Moveable: green highlight
+- Enemy-Hover Moveable: red highlight
+- 
 
 
 

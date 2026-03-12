@@ -247,6 +247,7 @@ Res<> GenerateMap() {
 					Hex const* const neighbor = hex->neighbors[k];
 					if (
 						neighbor &&
+						!neighbor->unit &&
 						unit->pathMap.moveCosts[neighbor->idx] != U32Max &&
 						HexDistance(neighbor, hex) <= unit->range
 					) {

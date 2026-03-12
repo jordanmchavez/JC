@@ -56,8 +56,8 @@ namespace NeighborIdx {
 }
 
 namespace HexFlags {
-	constexpr U64 FriendlyMovable     = (U64)1 << 0;
-	constexpr U64 FriendlyTargetable  = (U64)1 << 1;
+	constexpr U64 FriendlyMoveable    = (U64)1 << 0;
+	constexpr U64 FriendlyAttackable  = (U64)1 << 1;
 	constexpr U64 EnemyAttackable     = (U64)1 << 2;
 	constexpr U64 EnemyAttacker       = (U64)1 << 3;
 	constexpr U64 PathTopLeft         = (U64)1 << 4;

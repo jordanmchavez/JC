@@ -31,5 +31,8 @@
 		{ x:  96, y:  96, w: 32, h: 32, name: "Hex32_ArrowBottomRight" },
 		{ x: 128, y:  96, w: 32, h: 32, name: "Hex32_ArrowBottomLeft" },
 		{ x: 160, y:  96, w: 32, h: 32, name: "Hex32_ArrowLeft" },
+
+		{ x:   0, y: 128, w: 16, h: 16, name: "UI_AttackBorder" },
+		{ x:  16, y: 128, w: 16, h: 16, name: "UI_Attack" },
 	],
 }
