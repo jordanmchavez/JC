@@ -10,10 +10,11 @@ namespace JC::Battle {
 
 //--------------------------------------------------------------------------------------------------
 
-constexpr U32 HexSize      = 32;
-constexpr I32 MaxCols      = 16;
-constexpr I32 MaxRows      = 14;
-constexpr U32 MaxArmyUnits = 64;
+constexpr U8  HexSize      = 32;
+constexpr U16 MaxCols      = 16;
+constexpr U16 MaxRows      = 16;
+constexpr U16 MaxHexes     = MaxCols * MaxRows;
+constexpr U16 MaxArmyUnits = 64;
 
 struct TerrainJson {
 	Str name;
@@ -43,46 +44,54 @@ struct BattleJson {
 struct Terrain {
 	Str          name;
 	Draw::Sprite sprite;
-	U32          moveCost;
+	U16          moveCost;
 };
 
 namespace NeighborIdx {
-	constexpr U32 TopLeft     = 0;
-	constexpr U32 TopRight    = 1;
-	constexpr U32 Right       = 2;
-	constexpr U32 BottomRight = 3;
-	constexpr U32 BottomLeft  = 4;
-	constexpr U32 Left        = 5;
+	constexpr U8 TopLeft     = 0;
+	constexpr U8 TopRight    = 1;
+	constexpr U8 Right       = 2;
+	constexpr U8 BottomRight = 3;
+	constexpr U8 BottomLeft  = 4;
+	constexpr U8 Left        = 5;
 }
 
 namespace HexFlags {
-	constexpr U64 FriendlyMoveable    = (U64)1 << 0;
-	constexpr U64 FriendlyAttackable  = (U64)1 << 1;
-	constexpr U64 EnemyAttackable     = (U64)1 << 2;
-	constexpr U64 EnemyAttacker       = (U64)1 << 3;
-	constexpr U64 PathTopLeft         = (U64)1 << 4;
-	constexpr U64 PathTopRight        = (U64)1 << 5;
-	constexpr U64 PathRight           = (U64)1 << 6;
-	constexpr U64 PathBottomRight     = (U64)1 << 7;
-	constexpr U64 PathBottomLeft      = (U64)1 << 8;
-	constexpr U64 PathLeft            = (U64)1 << 9;
-	constexpr U64 AttackTopLeft       = (U64)1 << 10;
-	constexpr U64 AttackTopRight      = (U64)1 << 11;
-	constexpr U64 AttackRight         = (U64)1 << 12;
-	constexpr U64 AttackBottomRight   = (U64)1 << 13;
-	constexpr U64 AttackBottomLeft    = (U64)1 << 14;
-	constexpr U64 AttackLeft          = (U64)1 << 15;
-	constexpr U64 Hover               = (U64)1 << 16;
-	constexpr U64 Selected            = (U64)1 << 17;
-	constexpr U64 SelectedMoveEnd     = (U64)1 << 18;
-	constexpr U64 SelectedTarget      = (U64)1 << 19;
-	constexpr U64 SelectedUnreachable = (U64)1 << 20;
+	constexpr U64 FriendlyMoveableOrAttackable = (U64)1 << 0;
+	constexpr U64 EnemyAttackable              = (U64)1 << 2;
+	constexpr U64 EnemyAttacker                = (U64)1 << 3;
+	constexpr U64 PathTopLeft                  = (U64)1 << 4;
+	constexpr U64 PathTopRight                 = (U64)1 << 5;
+	constexpr U64 PathRight                    = (U64)1 << 6;
+	constexpr U64 PathBottomRight              = (U64)1 << 7;
+	constexpr U64 PathBottomLeft               = (U64)1 << 8;
+	constexpr U64 PathLeft                     = (U64)1 << 9;
+	constexpr U64 AttackTopLeft                = (U64)1 << 10;
+	constexpr U64 AttackTopRight               = (U64)1 << 11;
+	constexpr U64 AttackRight                  = (U64)1 << 12;
+	constexpr U64 AttackBottomRight            = (U64)1 << 13;
+	constexpr U64 AttackBottomLeft             = (U64)1 << 14;
+	constexpr U64 AttackLeft                   = (U64)1 << 15;
+	constexpr U64 HoverValid                   = (U64)1 << 16;
+	constexpr U64 HoverInvalid                 = (U64)1 << 20;
+	constexpr U64 Selected                     = (U64)1 << 17;
+	constexpr U64 SelectedAttackTarget         = (U64)1 << 19;
 };
 
+/*
+Reachable by Friendly
+Targettable by Enemy
+Both
+Enemies who can Target
+Path
+Selected
+Selected Attack Target
+Actionable Hover
+Unactionable Hover*/
 // TODO: split out into SoA as needed
 struct Hex {
-	U32            idx;
-	U32            c, r;
+	U16            idx;
+	U16            c, r;
 	Vec2           pos;
 	Hex*           neighbors[6];	// indexed by NeighborIdx_*; nullptr = no neighbor
 	Terrain const* terrain;
@@ -91,35 +100,29 @@ struct Hex {
 };
 
 struct Side {
-	enum Val { Left = 0, Right };
+	enum Val : U8 { Left = 0, Right, Max };
 	Val val;
 	Side() { val = Side::Left; }
 	Side(Val valIn) { val = valIn; }
-	operator U32() const { return val; }
+	operator U8() const { return val; }
 	Side& operator++() { val = (Val)(val + 1); return *this; }
 	Side operator++(int) { Side tmp = *this; val = (Val)(val + 1); return tmp; }
 };
 
-struct PathMap {
-	U32   moveCosts[MaxCols * MaxRows];
-	U32   pathLens[MaxCols * MaxRows];
-	Hex * parents[MaxCols * MaxRows];
-};
-
 struct Path {
-	Hex* hexes[MaxCols * MaxRows];
-	U32  len;
+	Hex const* hexes[MaxHexes];
+	U16        len;
 };
 
 struct Unit {
 	UnitDef::Def const* def;
-	Hex const*          hex;
+	Hex*                hex;
 	Vec2                pos;
 	Side                side;
 	U32                 hp;
 	U32                 move;
 	U32                 range;
-	PathMap             pathMap;
+	Hex*                pathMap[MaxHexes];	// parent
 };
 
 struct Army {
@@ -136,19 +139,21 @@ enum struct State {
 
 // for each hex: list of enemies who can move attack that hex
 
+constexpr U32 MaxClickHexes = 16;
+
 struct Data {
 	Hex   hexes[MaxCols * MaxRows];
 	U32   hexesLen;
 	Vec2  cameraPos;
 	F32   cameraScale;
 	Army  armies[2];
-	U32   activeSide;
-	Hex*  hoverHex;
-	Hex*  selectedHex;
+	U8    activeSide;
+	Hex* hoverHex;
+	Hex* selectedHex;
+	Hex*  targetHex;
 	Path  selectedPath;
 	Hex*  selectedLastEmptyHex;
-	Hex*  targetHex;
-	bool  showEnemyAttackers;
+	bool  showEnemyThreatMap;
 	State state;
 };
 
@@ -168,7 +173,7 @@ Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<U64 const> a
 
 // Battle_Path.cpp
 void  InitPath(Mem permMem);
-void  BuildPathMap(Hex* hexes, Unit* unit);
+void  BuildPathMap(Hex const* hexes, Unit* unit);
 bool  FindPath(Unit const* unit, Hex* end, Path* pathOut);
 
 // Battle_Util.cpp

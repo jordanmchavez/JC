@@ -204,7 +204,7 @@ struct Arg {
 	static constexpr Arg Make(char*              val) { return Arg { .type = Type::Str,     .s  = { .data = val,      .len = val ? StrLen(val) : 0 } }; }
 	static constexpr Arg Make(char const*        val) { return Arg { .type = Type::Str,     .s  = { .data = val,      .len = val ? StrLen(val) : 0 } }; }
 	static constexpr Arg Make(Str                val) { return Arg { .type = Type::Str,     .s  = { .data = val.data, .len = val.len } }; }
-	static constexpr Arg Make(Printer*            val) { return Arg { .type = Type::Printer, .printer = val }; }
+	static constexpr Arg Make(Printer*           val) { return Arg { .type = Type::Printer, .printer = val }; }
 	static constexpr Arg Make(const Printer*     val) { return Arg { .type = Type::Printer, .printer = const_cast<Printer*>(val) }; }
 	static constexpr Arg Make(const void*        val) { return Arg { .type = Type::Ptr,     .p  = val }; }
 	static constexpr Arg Make(decltype(nullptr)  val) { return Arg { .type = Type::Ptr,     .p  = val }; }

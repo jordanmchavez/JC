@@ -101,7 +101,7 @@ Res<> Load(Str path) {
 		terrain[terrainLen] = {
 			.name     = terrainJson->name,	// interned by Json
 			.sprite   = sprite,
-			.moveCost = terrainJson->moveCost,
+			.moveCost = (U16)terrainJson->moveCost,
 		};
 		terrainMap.Put(terrainJson->name, &terrain[terrainLen]);
 		terrainLen++;
@@ -154,12 +154,12 @@ Res<> GenerateMap() {
 
 	memset(data->hexes, 0, MaxCols * MaxRows * sizeof(Hex));
 	data->hexesLen = 0;
-	for (U32 r = 0; r < MaxRows; r++) {
-		for (U32 c = 0; c < MaxCols; c++) {
+	for (U16 r = 0; r < MaxRows; r++) {
+		for (U16 c = 0; c < MaxCols; c++) {
 			Hex* const hex = &data->hexes[c + (r * MaxCols)];
 			hex->idx = c + (r * MaxCols);
-			hex->c = (I32)c;
-			hex->r = (I32)r;
+			hex->c = c;
+			hex->r = r;
 			hex->pos = CalcWorldPos(c, r);
 			if (r & 1) {	// odd row
 				AddNeighbor(hex,  0, -1, NeighborIdx::TopLeft    );
@@ -235,10 +235,11 @@ Res<> GenerateMap() {
 		memset(army->attackMap, 0, sizeof(army->attackMap));
 		for (U32 i = 0; i < army->unitsLen; i++) {
 			Unit const* unit = &army->units[i];
-			for (U32 j = 0; j < MaxCols * MaxRows; j++) {
+			for (U32 j = 0; j < MaxHexes; j++) {
 				// directly reachable
-				if (unit->pathMap.moveCosts[j] != U32Max) {
+				if (unit->pathMap[j]) {
 					army->attackMap[j] |= ((U64)1 << i);
+					Logf("Unit (%u, %u) directly reaches (%u, %u)", unit->hex->c, unit->hex->r, data->hexes[j].c, data->hexes[j].r);
 					continue;
 				}
 				// j has a reachable neighbor
@@ -248,10 +249,11 @@ Res<> GenerateMap() {
 					if (
 						neighbor &&
 						!neighbor->unit &&
-						unit->pathMap.moveCosts[neighbor->idx] != U32Max &&
+						unit->pathMap[neighbor->idx] &&
 						HexDistance(neighbor, hex) <= unit->range
 					) {
 						army->attackMap[j] |= ((U64)1 << i);
+						Logf("Unit (%u, %u) neighbor reaches (%u, %u)", unit->hex->c, unit->hex->r, neighbor->c, neighbor->r);
 						goto DoneNeighbors;
 					}
 				}
@@ -268,8 +270,247 @@ Res<> GenerateMap() {
 
 //--------------------------------------------------------------------------------------------------
 
+/*
+static void AddPathFlags(Hex* fromHex, Hex* toHex) {
+	if (fromHex->neighbors[NeighborIdx::TopLeft] == toHex) {
+		fromHex->flags |= HexFlags::PathTopLeft;
+		toHex->flags   |= HexFlags::PathBottomRight;
+	} else if (fromHex->neighbors[NeighborIdx::TopRight] == toHex) {
+		fromHex->flags |= HexFlags::PathTopRight;
+		toHex->flags   |= HexFlags::PathBottomLeft;
+	} else if (fromHex->neighbors[NeighborIdx::Right] == toHex) {
+		fromHex->flags |= HexFlags::PathRight;
+		toHex->flags   |= HexFlags::PathLeft;
+	} else if (fromHex->neighbors[NeighborIdx::BottomRight] == toHex) {
+		fromHex->flags |= HexFlags::PathBottomRight;
+		toHex->flags   |= HexFlags::PathTopLeft;
+	} else if (fromHex->neighbors[NeighborIdx::BottomLeft] == toHex) {
+		fromHex->flags |= HexFlags::PathBottomLeft;
+		toHex->flags   |= HexFlags::PathTopRight;
+	} else if (fromHex->neighbors[NeighborIdx::Left] == toHex) {
+		fromHex->flags |= HexFlags::PathLeft;
+		toHex->flags   |= HexFlags::PathRight;
+	} else {
+		Panic("Hexes (%u, %u) and (%u, %u) are not adjacent!", fromHex->c, fromHex->r, toHex->c, toHex->r);
+	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static void AddAttackFlags(Hex* fromHex, Hex* toHex) {
+	if (fromHex->neighbors[NeighborIdx::TopLeft] == toHex) {
+			fromHex->flags |= HexFlags::AttackTopLeft | HexFlags::PathTopLeft;
+	} else if (fromHex->neighbors[NeighborIdx::TopRight] == toHex) {
+		fromHex->flags |= HexFlags::AttackTopRight | HexFlags::PathTopRight;
+	} else if (fromHex->neighbors[NeighborIdx::Right] == toHex) {
+		fromHex->flags |= HexFlags::AttackRight | HexFlags::PathRight;
+	} else if (fromHex->neighbors[NeighborIdx::BottomRight] == toHex) {
+		fromHex->flags |= HexFlags::AttackBottomRight | HexFlags::PathBottomRight;
+	} else if (fromHex->neighbors[NeighborIdx::BottomLeft] == toHex) {
+		fromHex->flags |= HexFlags::AttackBottomLeft | HexFlags::PathBottomLeft;
+	} else if (fromHex->neighbors[NeighborIdx::Left] == toHex) {
+		fromHex->flags |= HexFlags::AttackLeft | HexFlags::PathLeft;
+	} else {
+		Panic("Hexes (%u, %u) and (%u, %u) are not adjacent!", fromHex->c, fromHex->r, toHex->c, toHex->r);
+	}
+}
+*/
+//--------------------------------------------------------------------------------------------------
+
+static void Rebuild() {
+	U8 const          activeSide      = data->activeSide;
+
+	Hex* const  hoverHex        = data->hoverHex;
+	U16 const hoverHexIdx     = hoverHex ? hoverHex->idx : 0;
+	Unit const* const hoverUnit       = hoverHex ? hoverHex->unit : nullptr;
+	U8 const          hoverUnitSide       = hoverUnit ? hoverUnit->side : Side::Max;
+	bool const        hoverUnitFriendly = hoverUnitSide == activeSide;
+	bool const        hoverUnitEnemy    = hoverUnitSide == (1 - activeSide);
+	Army const* const hoverUnitArmy    = hoverUnit ? &data->armies[hoverUnit->side] : nullptr;
+	U8  const         hoverUnitIdx    = hoverUnit ? (U8)(hoverUnit - hoverUnitArmy->units) : 0;
+	U64 const          hoverUnitBit = (U64)1 << hoverUnitIdx;
+	Hex* const  selectedHex     = data->selectedHex;
+	Unit const* const selectedUnit    = selectedHex ? selectedHex->unit : nullptr;
+	Army const* const selectedUnitArmy    = selectedUnit ? &data->armies[selectedUnit->side] : nullptr;
+	U8 const          selectedUnitIdx = selectedUnitArmy ? (U8)(selectedUnit - selectedUnitArmy->units) : 0;
+	U64 const          selectedUnitBit = (U64)1 << selectedUnitIdx;
+	Hex const* const*  selectedUnitPathMap = selectedUnit ? selectedUnit->pathMap : nullptr;
+	Hex const* const*  hoverUnitPathMap = hoverUnit ? hoverUnit->pathMap : nullptr;
+
+	Army const* const friendlyArmy = &data->armies[activeSide];
+	U64 const* const friendlyAttackMap = friendlyArmy->attackMap;
+	Army const* const enemyArmy      = &data->armies[1 - activeSide];
+	U64 const* const  enemyAttackMap = enemyArmy->attackMap;
+	Hex * const  targetHex       = data->targetHex;
+	bool const showEnemyThreatMap = data->showEnemyThreatMap;
+	Unit const* targetUnit = targetHex ? targetHex->unit : nullptr;
+
+	for (U16 i = 0; i < MaxHexes; i++) {
+		Hex* hex = &data->hexes[i];
+		Unit const* const hexUnit = hex->unit;
+		U8 const hexUnitSide = hexUnit ? hexUnit->side : Side::Max;
+		U8 const hexUnitIdx = hexUnit ? ((U8)(hexUnit - data->armies[hexUnitSide].units)) : 0;
+		U64 const hexUnitBit = (U64)1 << hexUnitIdx;
+		bool const hexUnitEnemy = hexUnitSide == (1 - activeSide);
+
+		U64 flags = 0;
+		if (
+			!targetHex &&
+			(
+				(hoverUnitFriendly && (hoverUnitPathMap[i] || (hexUnitEnemy && (friendlyAttackMap[i] & hoverUnitBit)))) ||
+				(selectedUnit && (selectedUnitPathMap[i] || (hexUnitEnemy && (friendlyAttackMap[i] & selectedUnitBit))))
+			)
+		) {
+			flags |= HexFlags::FriendlyMoveableOrAttackable;
+		}
+
+		if (
+			(showEnemyThreatMap && enemyAttackMap[i]) ||
+			(!selectedUnit && hoverUnitEnemy && (enemyAttackMap[i] & hoverUnitBit))
+		) {
+			flags |= HexFlags::EnemyAttackable;
+		}
+
+		if (
+			showEnemyThreatMap &&
+			hoverHex &&
+			hexUnitEnemy &&
+			(enemyAttackMap[hoverHexIdx] & hexUnitBit)
+		) {
+
+			flags |= HexFlags::EnemyAttacker;
+		}
+
+		hex->flags = flags;
+	}
+
+	if (selectedHex) {
+		selectedHex->flags |= HexFlags::Selected;
+		if (targetUnit) {
+			targetHex->flags |= HexFlags::SelectedAttackTarget;
+		} else if (hoverHex) {
+			if (
+				(!hoverUnit && selectedUnitPathMap[hoverHexIdx]) ||
+				(hoverUnit && hoverUnitFriendly)
+			) {
+				hoverHex->flags |= HexFlags::HoverValid;
+			} else if (hoverUnit && hoverUnitEnemy && (friendlyAttackMap[hoverHexIdx] & selectedUnitBit)) {
+				hoverHex->flags |= HexFlags::SelectedAttackTarget;
+			} else {
+				hoverHex->flags |= HexFlags::HoverInvalid;
+			}
+		}
+	} else {
+		if (hoverHex) {
+			if (hoverUnitFriendly) {
+				hoverHex->flags |= HexFlags::HoverValid;
+			} else {
+				hoverHex->flags |= HexFlags::HoverInvalid;
+			}
+		}
+	}
+	
+	// Path
+}
+
 Res<> Update(App::UpdateData const* updateData) {
-	return HandleInput(data, updateData->sec, updateData->mouseX, updateData->mouseY, updateData-> actions);
+	Hex* const oldHoverHex           = data->hoverHex;
+	Hex* const oldSelectedHex        = data->selectedHex;
+	Hex* const oldTargetHex          = data->targetHex;
+	bool const oldShowEnemyThreatMap = data->showEnemyThreatMap;
+
+	Try(HandleInput(data, updateData->sec, updateData->mouseX, updateData->mouseY, updateData-> actions));
+
+	if (
+		oldHoverHex           == data->hoverHex &&
+		oldSelectedHex        == data->selectedHex &&
+		oldTargetHex          == data->targetHex && 
+		oldShowEnemyThreatMap == data->showEnemyThreatMap
+	) {
+		return Ok();
+	}
+	Rebuild();
+
+/*
+	if (selectedUnit) {
+		data->selectedPath.len = 0;
+		if (!data->targetHex && data->hoverHex == data->selectedHex) {
+			data->selectedLastEmptyHex = nullptr;
+		}
+
+		if (data->targetHex && !targetUnit) {
+			data->selectedLastEmptyHex = data->targetHex;
+			data->selectedLastEmptyHex->flags |= HexFlags::SelectedMoveEnd;
+			FindPath(selectedUnit, data->targetHex, &data->selectedPath);
+		}
+		else if (data->hoverHex && !hoverUnit) {
+			if (selectedUnit->pathMap.moveCosts[data->hoverHex->idx] != U32Max) {
+				data->selectedLastEmptyHex = data->hoverHex;
+				data->selectedLastEmptyHex->flags |= HexFlags::SelectedMoveEnd;
+				FindPath(selectedUnit, data->hoverHex, &data->selectedPath);
+			} else {
+				data->selectedLastEmptyHex = nullptr;
+				data->hoverHex->flags |= HexFlags::SelectedUnreachable;
+			}
+		}
+
+		Unit* attackUnit = nullptr;
+		if (targetUnit) {
+			attackUnit = targetUnit;
+		} else if (hoverUnit && hoverUnit->side == enemyArmy->side) {
+			attackUnit = hoverUnit;
+		}
+
+		if (attackUnit) {
+			if (data->selectedLastEmptyHex && AreHexesAdjacent(data->selectedLastEmptyHex, attackUnit->hex)) {
+				data->selectedLastEmptyHex->flags |= HexFlags::SelectedMoveEnd;
+				if (FindPath(selectedUnit, data->selectedLastEmptyHex, &data->selectedPath)) {
+					attackUnit->hex->flags |= HexFlags::SelectedTarget;
+					AddAttackFlags(data->selectedLastEmptyHex, attackUnit->hex);
+				}
+			}
+			else if (!data->selectedLastEmptyHex && AreHexesAdjacent(data->selectedHex, attackUnit->hex)) {
+				if (FindPath(selectedUnit, data->selectedHex, &data->selectedPath)) {
+					attackUnit->hex->flags |= HexFlags::SelectedTarget;
+					AddAttackFlags(data->selectedHex, attackUnit->hex);
+				}
+			}
+			else {
+				U32 minCost = U32Max;
+				Hex* minNeighbor = nullptr;
+				for (U32 i = 0; i < 6; i++) {
+					Hex* const neighbor = attackUnit->hex->neighbors[i];
+					if (!neighbor || neighbor->unit) { continue; }
+					U32 const cost = selectedUnit->pathMap.moveCosts[neighbor->idx];
+					if (cost < minCost) {
+						minCost = cost;
+						minNeighbor = neighbor;
+					}
+				}
+
+				if (minNeighbor) {
+					if (FindPath(selectedUnit, minNeighbor, &data->selectedPath)) {
+						attackUnit->hex->flags |= HexFlags::SelectedTarget;
+						AddAttackFlags(minNeighbor, attackUnit->hex);
+						if (minNeighbor != data->selectedHex) {
+							data->selectedLastEmptyHex = minNeighbor;
+							data->selectedLastEmptyHex->flags |= HexFlags::SelectedMoveEnd;
+						}
+					}
+				}
+			}
+		}
+
+		Hex* fromHex = data->selectedHex;
+		for (U32 i = 0; i < data->selectedPath.len; i++) {
+			Hex* toHex = data->selectedPath.hexes[i];
+			AddPathFlags(fromHex, toHex);
+			fromHex = toHex;
+		}
+	}
+	*/
+
+	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -281,163 +522,3 @@ void Draw() {
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC::Battle
-
-
-/*
-enum struct OrderType {
-	Invalid = 0,
-	Move,
-	Attack,
-};
-
-enum struct AttackOrderState {
-	Invalid = 0,
-	MovingTo,
-	Attacking,
-	MovingBack,
-};
-
-struct MoveOrder {
-	F32         elapsedSecs;
-	F32         durSecs;
-	Unit::Unit* unit;
-	MapTile*    startMapTile;
-	MapTile*    endMapTile;
-};
-
-struct AttackOrder {
-	AttackOrderState attackOrderState;
-	F32              elapsedSecs;
-	F32              durSecs;
-	MapTile*         unitMapTile;
-	Unit::Unit*      unit;
-	Unit::Unit*      targetUnit;
-	Vec2             targetPos;
-};
-
-
-
-
-//--------------------------------------------------------------------------------------------------
-
-/*
-static void MoveRequest(MapTile* start, MapTile* end) {
-		selectedMapTile->unit = nullptr;
-
-		order.orderType              = OrderType::Move;
-		order.moveOrder.elapsedSecs  = 0.f;
-		order.moveOrder.durSecs      = 1.f;
-		order.moveOrder.unit         = selectedUnit;
-		order.moveOrder.startMapTile = selectedMapTile;
-		order.moveOrder.endMapTile   = clickedHex;
-
-		selectedMapTile = clickedHex;
-
-		state = State::ExecutingOrder;
-
-		Logf("Executing move order from (%i, %i) -> (%i, %i)", order.moveOrder.startMapTile->mapCoord.col, order.moveOrder.startMapTile->mapCoord.row, order.moveOrder.endMapTile->mapCoord.col, order.moveOrder.endMapTile->mapCoord.row);
-}
-
-//--------------------------------------------------------------------------------------------------
-/*
-static void ExecuteMoveOrder(F32 secs) {
-	MoveOrder* const moveOrder = &order.moveOrder;
-	moveOrder->elapsedSecs += secs;
-	if (moveOrder->elapsedSecs < moveOrder->durSecs) {
-		Vec2 const startPos = MapCoordToCenterScreenPos(moveOrder->startMapTile->mapCoord);
-		Vec2 const endPos   = MapCoordToCenterScreenPos(moveOrder->endMapTile->mapCoord);
-		F32 const t         = moveOrder->elapsedSecs / moveOrder->durSecs;
-		moveOrder->unit->pos = Math::Lerp(startPos, endPos, t);
-	} else {
-		moveOrder->endMapTile->unit = moveOrder->unit;
-		moveOrder->unit->z = Z_Unit;
-		memset(&order, 0, sizeof(order));
-		selectedMapTile = nullptr;
-		selectedUnit    = nullptr;
-		state = State::WaitingOrder;
-	}
-}
-
-static void ExecuteAttackOrder(F32 secs) {
-	AttackOrder* const attackOrder = &order.attackOrder;
-	Unit* const unit = attackOrder->unit;
-	switch (attackOrder->attackOrderState) {
-		case AttackOrderState::MovingTo: {
-			attackOrder->elapsedSecs += secs;
-			if (attackOrder->elapsedSecs < attackOrder->durSecs) {
-				Vec2 const startPos = MapCoordToCenterScreenPos(attackOrder->unitMapTile->mapCoord);
-				Vec2 const endPos   = attackOrder->targetPos;
-				F32 const t         = attackOrder->elapsedSecs / attackOrder->durSecs;
-				unit->pos = Math::Lerp(startPos, endPos, t);
-			} else {
-				attackOrder->attackOrderState = AttackOrderState::Attacking;
-				unit->activeAnimationDef        = &unit->unitDef->attackAnimationDef;
-				unit->animationFrame            = 0;
-				unit->animationFrameElapsedSecs = 0.f;
-				Unit* const targetUnit = attackOrder->targetUnit;
-				if (targetUnit->hp > 0) {
-					targetUnit->hp--;
-				}
-				Effect::CreateFloatingStr({
-					.font   = numberFont,
-					.str    = "-1",
-					.durSec = 2.f,
-					.x      = targetUnit->pos.x,
-					.yStart = targetUnit->pos.y - targetUnit->unitDef->size.y,
-					.yEnd   = targetUnit->pos.y - targetUnit->unitDef->size.y * 2,
-				});
-			}
-			break;
-		}
-
-		case AttackOrderState::Attacking:
-			unit->animationFrameElapsedSecs += secs;
-			if (unit->animationFrameElapsedSecs < unit->activeAnimationDef->frameDurSecs[unit->animationFrame]) {
-				// nothing
-			} else {
-				if (unit->animationFrame < unit->activeAnimationDef->frameLen - 1) {
-					unit->animationFrame++;
-					unit->animationFrameElapsedSecs = 0.f;
-				} else {
-					unit->activeAnimationDef        = nullptr;
-					unit->animationFrame            = 0;
-					unit->animationFrameElapsedSecs = 0.f;
-					attackOrder->attackOrderState = AttackOrderState::MovingBack;
-					attackOrder->elapsedSecs     = 0.f;
-					attackOrder->durSecs         = 0.5f;
-				}
-			}
-			break;
-
-		case AttackOrderState::MovingBack: {
-			attackOrder->elapsedSecs += secs;
-			if (attackOrder->elapsedSecs < attackOrder->durSecs) {
-				Vec2 const startPos = attackOrder->targetPos;
-				Vec2 const endPos   = MapCoordToCenterScreenPos(attackOrder->unitMapTile->mapCoord);
-				F32 const t         = attackOrder->elapsedSecs / attackOrder->durSecs;
-				unit->pos = Math::Lerp(startPos, endPos, t);
-			} else {
-				unit->pos = MapCoordToCenterScreenPos(attackOrder->unitMapTile->mapCoord);
-				unit->z = Z_Unit;
-				memset(&order, 0, sizeof(order));
-				selectedMapTile = nullptr;
-				selectedUnit    = nullptr;
-				state = State::WaitingOrder;
-			}
-			break;
-		}
-
-		default: Panic("Unhandled AttackOrderState %u", (U32)attackOrder->attackOrderState);
-	}
-}
-
-
-
-	/*
-	if (state == State::ExecutingOrder) {
-		switch (order.orderType) {
-			case OrderType::Move:   ExecuteMoveOrder(frameData->secs);   break;
-			case OrderType::Attack: ExecuteAttackOrder(frameData->secs); break;
-			default: Panic("Unhandled OrderType %u", (U32)order.orderType);
-		}
-	}*/

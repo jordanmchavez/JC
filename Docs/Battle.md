@@ -1,26 +1,16 @@
+No 
+
 # Hex Draw Flags
-- Hex
-- Unit
-- Hover
-- Selected
-- Target
-- Hover Friendly: can move here
-- Hover Friendly: can attack here
-- Hover Enemy: can attack here
-- Enemy Army: can attack here
-- Selected
-- Selected can move here
-- Selected can attack
-
-- 
-- - Hover: green border
-- Selected: purple border
-- Selected Move Target: cyan border
-- Selected Attack: Target: red border
-- Friendly-Hover/Selected Moveable: green highlight
-- Enemy-Hover Moveable: red highlight
-- 
-
+friendly moveable hexes: green fill
+	No Selection
+enemy targettable hexes: red fill
+both friendly moveable and enemy targettable hexes: yellow fill
+enemies who can target the hover hex: red border
+path: path sprites
+selected: green border
+selected attack target: red border
+generic hover: solid white
+out of range hover: translucent white
 
 
 

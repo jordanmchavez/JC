@@ -7,9 +7,9 @@ namespace JC::Battle {
 static constexpr U32 MaxHeapEntries = MaxCols * MaxRows * 6;
 
 struct HeapEntry {
-	U32 dist;
-	U32 pathLen;
-	U32 idx;
+	U16 dist;
+	U16 pathLen;
+	U16 idx;
 };
 
 struct Heap {
@@ -20,7 +20,7 @@ struct Heap {
 
 //--------------------------------------------------------------------------------------------------
 
-static bool* pathVisited;
+static bool* pathVisited;	// TODO: bitmap
 static Heap  pathHeap;
 
 //--------------------------------------------------------------------------------------------------
@@ -77,18 +77,21 @@ static bool IsHexPassable(Hex const* hex, U32 side) {
 //--------------------------------------------------------------------------------------------------
 
 // Djikstra flood fill
-void BuildPathMap(Hex* hexes, Unit* unit) {
-	PathMap* const pathMap = &unit->pathMap;
-	memset(pathMap->moveCosts,  0xff, sizeof(pathMap->moveCosts));
-	memset(pathMap->pathLens,   0xff, sizeof(pathMap->pathLens));
-	memset(pathMap->parents,    0,    sizeof(pathMap->parents));
-	memset(pathVisited,         0,    MaxCols * MaxRows * sizeof(pathVisited[0]));
+static U16 moveCosts[MaxHexes];
+static U16 pathLens[MaxHexes];
+
+void BuildPathMap(Hex const* hexes, Unit* unit) {
+	Hex** const pathMap = unit->pathMap;
+	memset(moveCosts,   0xff, sizeof(moveCosts));
+	memset(pathLens,    0xff, sizeof(pathLens));
+	memset(pathMap,     0,    sizeof(pathMap));
+	memset(pathVisited, 0,    MaxHexes * sizeof(pathVisited[0]));
 	pathHeap.len = 0;
 
 	Hex const* const startHex = unit->hex;
 
-	pathMap->moveCosts[startHex->idx] = 0;
-	pathMap->pathLens[startHex->idx] = 0;
+	moveCosts[startHex->idx] = 0;
+	pathLens[startHex->idx] = 0;
 	HeapPush(&pathHeap, { .dist = 0, .pathLen = 0, .idx = startHex->idx });
 
 	Side const side = unit->side;
@@ -103,20 +106,20 @@ void BuildPathMap(Hex* hexes, Unit* unit) {
 		}
 		pathVisited[entry.idx] = true;
 
-		Hex* const entryHex = &hexes[entry.idx];
+		Hex const* const entryHex = &hexes[entry.idx];
 		for (U32 i = 0; i < 6; i++) {
 			Hex* const neighbor = entryHex->neighbors[i];
 			if (!neighbor || pathVisited[neighbor->idx] || !IsHexPassable(neighbor, side)) {
 				continue;
 			}
-			U32 const tentativeScore   = pathMap->moveCosts[entry.idx] + neighbor->terrain->moveCost;
-			U32 const tentativePathLen = entry.pathLen + 1;
-			bool const betterCost      = tentativeScore < pathMap->moveCosts[neighbor->idx];
-			bool const fewerHops       = tentativeScore == pathMap->moveCosts[neighbor->idx] && tentativePathLen < pathMap->pathLens[neighbor->idx];
+			U16 const tentativeScore   = moveCosts[entry.idx] + neighbor->terrain->moveCost;
+			U16 const tentativePathLen = entry.pathLen + 1;
+			bool const betterCost      = tentativeScore < moveCosts[neighbor->idx];
+			bool const fewerHops       = tentativeScore == moveCosts[neighbor->idx] && tentativePathLen < pathLens[neighbor->idx];
 			if (betterCost || fewerHops) {
-				pathMap->moveCosts[neighbor->idx] = tentativeScore;
-				pathMap->pathLens[neighbor->idx]  = tentativePathLen;
-				pathMap->parents[neighbor->idx]   = entryHex;
+				moveCosts[neighbor->idx] = tentativeScore;
+				pathLens[neighbor->idx]  = tentativePathLen;
+				pathMap[neighbor->idx]   = neighbor;
 				HeapPush(&pathHeap, { .dist = tentativeScore, .pathLen = tentativePathLen, .idx = neighbor->idx });
 			}
 		}
@@ -126,142 +129,31 @@ void BuildPathMap(Hex* hexes, Unit* unit) {
 //--------------------------------------------------------------------------------------------------
 
 // Simple back-traversal using `parents`
-bool FindPath(Unit const* unit, Hex* end, Path* pathOut) {
+bool FindPath(Unit const* unit, Hex const* end, Path* pathOut) {
 	if (end == unit->hex) {
 		pathOut->len = 0;
 		return true;
 	}
 
-	PathMap const* const pathMap = &unit->pathMap;
-	if (!pathMap->parents[end->idx]) {
+	Hex const* const* pathMap = unit->pathMap;
+	if (!pathMap[end->idx]) {
 		pathOut->len = 0;
 		return false;
 	}
 
-	Hex** iter = pathOut->hexes;
-	for (Hex* hex = end; hex != unit->hex; hex = pathMap->parents[hex->idx]) {
+	Hex const** iter = pathOut->hexes;
+	for (Hex const* hex = end; hex != unit->hex; hex = pathMap[hex->idx]) {
 		*iter++ = hex;
 	}
-	U64 const len     = (U64)(iter - pathOut->hexes);
-	U64 const halfLen = len / 2;
+	U16 const len     = (U16)(iter - pathOut->hexes);
+	U16 const halfLen = len / 2;
 	for (U64 i = 0; i < halfLen; i++) {
 		Swap(pathOut->hexes[i], pathOut->hexes[len - i - 1]);
 	}
-	pathOut->len = (U32)len;
+	pathOut->len = len;
 	return true;
 }
 
-//--------------------------------------------------------------------------------------------------
-/*
-static bool IsHexLandable(Hex const* hex) {
-	return hex->terrain->moveCost && !hex->unitData;
-}
-
-// A* if we ever need, possibly for projectiles and spell one-off closest target type things.
-// Keep commented out until battle module done, then delete if unused
-bool FindPath(Hex* startHex, Hex* endHex, Unit::Side side, Path* pathOut) {
-	Hex* goalHexes[6];
-	U32 goalHexesLen = 0;
-	if (IsHexLandable(endHex)) {
-		if (startHex == endHex) {
-			pathOut->len = 0;
-			return true;
-		}
-		goalHexes[0] = endHex;
-		goalHexesLen = 1;
-	} else {
-		for (U32 i = 0; i < endHex->neighborsLen; i++) {
-			if (IsHexLandable(endHex->neighbors[i])) {
-				if (startHex == endHex->neighbors[i]) {
-					pathOut->len = 0;
-					return true;
-				}
-				goalHexes[goalHexesLen++] = endHex->neighbors[i];
-			}
-		}
-	}
-	if (goalHexesLen == 0) {
-		pathOut->len = 0;
-		return false;
-	}
-
-	// TODO: should I just roll these into Hex? We're already going with the meganode approach
-	// Probably not, makes it harder to reset?
-	memset(pathScore,   0xff, MaxCols * MaxRows * sizeof(pathScore[0]));
-	memset(pathParent,  0,    MaxCols * MaxRows * sizeof(pathParent[0]));
-	memset(pathVisited, 0,    MaxCols * MaxRows * sizeof(pathVisited[0]));
-	pathHeap.len = 0;
-
-	U32 minGoalDist = U32Max;
-	for (U32 i = 0; i < goalHexesLen; i++) {
-		U32 const dist = HexDistance(startHex, goalHexes[i]);
-		if (dist < minGoalDist) {
-			minGoalDist = dist;
-		}
-	}
-	pathScore[startHex->idx] = 0;
-	HeapPush(&pathHeap, { .dist = minGoalDist, .idx = startHex->idx });
-
-	Hex* foundGoalHex = nullptr;
-	for (;;) {
-		if (pathHeap.len == 0) {
-			pathOut->len = 0;
-			return false;
-		}
-		HeapEntry const entry = HeapPop(&pathHeap);
-		if (pathVisited[entry.idx]) {
-			continue;
-		}
-		pathVisited[entry.idx] = true;
-		for (U32 i = 0; i < goalHexesLen; i++) {
-			if (goalHexes[i] == &hexes[entry.idx]) {
-				foundGoalHex = goalHexes[i];
-				goto FoundGoalHex;
-			}
-		}
-
-		Hex* const entryHex = &hexes[entry.idx];
-		for (U32 i = 0; i < entryHex->neighborsLen; i++) {
-			Hex* const neighbor = entryHex->neighbors[i];
-			if (pathVisited[neighbor->idx]) {
-				continue;
-			}
-			if (!IsHexPassable(entryHex->neighbors[i], side)) {
-				continue;
-			}
-			U32 const tentativeScore = pathScore[entry.idx] + entryHex->neighbors[i]->terrain->moveCost;
-			if (tentativeScore < pathScore[neighbor->idx]) {
-				pathScore[neighbor->idx] = tentativeScore;
-				pathParent[neighbor->idx] = &hexes[entry.idx];
-
-				U32 minDist = U32Max;
-				for (U32 g = 0; g < goalHexesLen; g++) {
-					U32 const dist = HexDistance(neighbor, goalHexes[g]);
-					if (dist < minDist) {
-						minDist = dist;
-					}
-				}
-				HeapPush(&pathHeap, { .dist = tentativeScore + minDist, .idx = neighbor->idx });
-			}
-		}
-	}
-
-	FoundGoalHex:
-	Assert(foundGoalHex != startHex);
-	Hex** iter = pathOut->hexes;
-	for (Hex* hex = foundGoalHex; hex != startHex; hex = pathParent[hex->idx]) {
-		*iter++ = hex;
-	}
-	U64 const len = (U64)(iter - pathOut->hexes);
-	U64 const halfLen = len / 2;
-	for (U64 i = 0; i < halfLen ; i++) {
-		Swap(pathOut->hexes[i], pathOut->hexes[len - i - 1]);
-	}
-	pathOut->len = (U32)len;
-
-	return true;
-}
-*/
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC::Battle

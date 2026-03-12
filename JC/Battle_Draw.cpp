@@ -156,7 +156,6 @@ void ZoomCamera(Data* data, F32 d) {
 }
 */
 
-static constexpr Vec4 HoverHexColor     = Vec4(1.f, 1.f, 1.f, 1.f);
 static constexpr Vec4 SelectedHexColor  = Vec4(0.f, 1.f, 0.f, 1.f);
 static constexpr Vec4 ReachableHexColor = Vec4(1.f, 1.f, 1.f, 0.25f);
 static constexpr Vec4 AttackableColor   = Vec4(1.f, 0.f, 0.f, 0.5f);
@@ -165,12 +164,11 @@ static constexpr Vec4 ArrowColor        = Vec4(1.f, 0.f, 0.f, 1.f);
 
 static constexpr F32 Z_Background   = 0.0f;
 static constexpr F32 Z_Hex          = 1.0f;
-static constexpr F32 Z_ReachableHex = 1.1f;
-static constexpr F32 Z_HoverHex     = 1.2f;
-static constexpr F32 Z_SelectedHex  = 1.3f;
-static constexpr F32 Z_Path         = 1.4f;
-static constexpr F32 Z_Arrow        = 1.41f;
-static constexpr F32 Z_HexUi        = 1.5f;
+static constexpr F32 Z_Path         = 1.01f;
+static constexpr F32 Z_HexFill      = 1.02f;
+static constexpr F32 Z_HexBorder    = 1.03f;
+static constexpr F32 Z_Arrow        = 1.04f;
+static constexpr F32 Z_HexUi        = 1.05f;
 static constexpr F32 Z_Unit         = 2.0f;
 static constexpr F32 Z_UiBackground = 3.0f;
 static constexpr F32 Z_Ui           = 3.1f;
@@ -185,6 +183,13 @@ void DrawHex(Hex const* hex, Draw::Sprite sprite, F32 z, Vec4 color = Vec4(1.f, 
 	});
 }
 
+struct DrawDef {
+	Hex const* friendlyMoveableHexes[MaxCols * MaxRows];
+	U32        friendlyMoveableHexesLen;
+	Hex const* enemyAttackableHexes[MaxCols * MaxRows];
+	U32        enemyAttackableHexesLen;
+};
+
 void Draw(Data const* data) {
 	Draw::SetCamera({ .pos = data->cameraPos, .scale = data->cameraScale });
 
@@ -193,12 +198,10 @@ void Draw(Data const* data) {
 		DrawHex(hex, hex->terrain->sprite, Z_Hex);
 
 		U64 const flags = hex->flags;
-		if ((flags & HexFlags::FriendlyMoveable) && (flags & HexFlags::EnemyAttackable)) { DrawHex(hex, highlightSprite, Z_HoverHex, Vec4(1.f, 1.f, 0.f, 0.5f)); }
-		else if (flags & HexFlags::FriendlyMoveable) { DrawHex(hex, highlightSprite, Z_HoverHex, Vec4(0.f, 1.f, 0.f, 0.5f)); }
-		else if (flags & HexFlags::EnemyAttackable) { DrawHex(hex, highlightSprite, Z_HoverHex, Vec4(1.f, 0.f, 0.f, 0.5f)); }
-
-		if (flags & HexFlags::FriendlyAttackable) { DrawHex(hex, highlightSprite, Z_HoverHex, Vec4(0.f, 1.f, 0.f, 0.5f)); }
-		if (flags & HexFlags::EnemyAttacker) { DrawHex(hex, highlightSprite, Z_HoverHex, Vec4(1.f, 0.f, 0.f, 1.f)); }
+		if (flags & HexFlags::EnemyAttacker) { DrawHex(hex, highlightSprite, Z_HexFill, Vec4(1.f, 0.f, 0.f, 1.f)); }
+		else if ((flags & HexFlags::FriendlyMoveableOrAttackable) && (flags & HexFlags::EnemyAttackable)) { DrawHex(hex, highlightSprite, Z_HexFill, Vec4(1.f, 1.f, 0.f, 0.5f)); }
+		else if (flags & HexFlags::FriendlyMoveableOrAttackable) { DrawHex(hex, highlightSprite, Z_HexFill, Vec4(0.f, 1.f, 0.f, 0.5f)); }
+		else if (flags & HexFlags::EnemyAttackable) { DrawHex(hex, highlightSprite, Z_HexFill, Vec4(1.f, 0.f, 0.f, 0.5f)); }
 
 		if (flags & HexFlags::PathTopLeft    ) { DrawHex(hex, pathTopLeftSprite,     Z_Path, PathColor); }
 		if (flags & HexFlags::PathTopRight   ) { DrawHex(hex, pathTopRightSprite,    Z_Path, PathColor); }
@@ -216,29 +219,29 @@ void Draw(Data const* data) {
 		};
 		     if (flags & HexFlags::AttackTopLeft    ) { dd.pos.x -= (HexSize / 4); dd.pos.y -= HexSize * 3 / 8; Draw::DrawSprite(dd); }
 		else if (flags & HexFlags::AttackTopRight   ) { dd.pos.x += (HexSize / 4); dd.pos.y -= HexSize * 3 / 8; Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::AttackRight      ) { dd.pos.x += (HexSize / 2);                                             Draw::DrawSprite(dd); }
+		else if (flags & HexFlags::AttackRight      ) { dd.pos.x += (HexSize / 2);                              Draw::DrawSprite(dd); }
 		else if (flags & HexFlags::AttackBottomRight) { dd.pos.x += (HexSize / 4); dd.pos.y += HexSize * 3 / 8; Draw::DrawSprite(dd); }
 		else if (flags & HexFlags::AttackBottomLeft ) { dd.pos.x -= (HexSize / 4); dd.pos.y += HexSize * 3 / 8; Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::AttackLeft       ) { dd.pos.x -= (HexSize / 2);                                             Draw::DrawSprite(dd); }
+		else if (flags & HexFlags::AttackLeft       ) { dd.pos.x -= (HexSize / 2);                              Draw::DrawSprite(dd); }
 
-		if (flags & HexFlags::Selected) { DrawHex(hex, borderSprite, Z_SelectedHex, SelectedHexColor); }
+		if (flags & HexFlags::Selected) { DrawHex(hex, borderSprite, Z_HexBorder, SelectedHexColor); }
+		else if (flags & HexFlags::SelectedAttackTarget) { DrawHex(hex, borderSprite, Z_HexBorder, Vec4(1.f, 0.f, 0.f, 1.f)); }
+		else if (flags & HexFlags::HoverValid) { DrawHex(hex, borderSprite, Z_HexBorder, Vec4(1.f, 1.f, 1.f, 1.f)); }
+		else if (flags & HexFlags::HoverInvalid) { DrawHex(hex, borderSprite, Z_HexBorder, Vec4(1.f, 1.f, 1.f, 0.5f)); }
 
-		//if (flags & HexFlags::SelectedMoveEnd) { DrawHex(hex, borderSprite, Z_HoverHex, Vec4(0.f, 1.f, 1.f, 1.f)); }
-		//if (flags & HexFlags::SelectedMoveEnd) { DrawHex(hex, highlightSprite, Z_HoverHex + 0.1f, Vec4(0.f, 1.f, 1.f, 0.5f)); }
-		if (flags & HexFlags::SelectedTarget) { DrawHex(hex, borderSprite, Z_HoverHex, Vec4(1.f, 0.f, 0.f, 1.f)); }
-		else if (flags & HexFlags::SelectedUnreachable) { DrawHex(hex, borderSprite, Z_HoverHex, Vec4(1.f, 1.f, 1.f, 0.5f)); }
-		else if (flags & HexFlags::Hover) { DrawHex(hex, borderSprite, Z_HoverHex, HoverHexColor); }
-		/*
 		Draw::DrawStr({
 			.font   = numberFont,
-			//.str    = SPrintf(tempMem, "%u,%u", hex->c, hex->r),
-			.str    = SPrintf(tempMem, "%x", hex->flags),
+			.str    = SPrintf(tempMem, "%u,%u[%u]", hex->c, hex->r, hex->idx),
+			//.str    = SPrintf(tempMem, "%x", hex->flags),
 			.pos    = Vec2(hex->pos.x, hex->pos.y + HexSize / 2 - 2.f),
 			.z      = Z_Ui + 10,
 			.origin = Draw::Origin::BottomCenter,
+			//.scale = Vec2(2.f / data->cameraScale, 2.f / data->cameraScale),
+			.scale = Vec2(1.f / data->cameraScale, 1.f / data->cameraScale),
+			//.scale = Vec2(1.f, 1.f),
 			.color  = Vec4(1.f, 1.f, 1.f, 1.f),
 		});
-		*/
+
 	}
 
 	for (Side side = Side::Left; side <= Side::Right; side++) {
