@@ -4,7 +4,7 @@ namespace JC::Battle {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr U32 MaxHeapEntries = MaxCols * MaxRows * 6;
+static constexpr U32 MaxHeapEntries = MaxHexes * 6;
 
 struct HeapEntry {
 	U16 dist;
@@ -21,15 +21,17 @@ struct Heap {
 //--------------------------------------------------------------------------------------------------
 
 static bool* pathVisited;	// TODO: bitmap
+static U16*  pathLens;
 static Heap  pathHeap;
 
 //--------------------------------------------------------------------------------------------------
 
 void InitPath(Mem permMem) {
-	pathVisited      = Mem::AllocT<bool>(permMem, MaxCols * MaxRows);
-	pathHeap.entries = Mem::AllocT<HeapEntry>(permMem, MaxCols * MaxRows * 6);
+	pathVisited      = Mem::AllocT<bool>(permMem, MaxHexes);
+	pathLens         = Mem::AllocT<U16>(permMem, MaxHexes);
+	pathHeap.entries = Mem::AllocT<HeapEntry>(permMem, MaxHexes * 6);
 	pathHeap.len     = 0;
-	pathHeap.cap     = MaxCols * MaxRows * 6;
+	pathHeap.cap     = MaxHexes * 6;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -77,14 +79,13 @@ static bool IsHexPassable(Hex const* hex, U32 side) {
 //--------------------------------------------------------------------------------------------------
 
 // Djikstra flood fill
-static U16 moveCosts[MaxHexes];
-static U16 pathLens[MaxHexes];
+void BuildPathMap(Hex* hexes, Unit* unit) {
+	U16* const  moveCosts = unit->pathMap.moveCosts;
+	Hex** const parents   = unit->pathMap.parents;
 
-void BuildPathMap(Hex const* hexes, Unit* unit) {
-	Hex** const pathMap = unit->pathMap;
-	memset(moveCosts,   0xff, sizeof(moveCosts));
+	memset(moveCosts,   0xff, sizeof(unit->pathMap.moveCosts));
 	memset(pathLens,    0xff, sizeof(pathLens));
-	memset(pathMap,     0,    sizeof(pathMap));
+	memset(parents,     0,    sizeof(unit->pathMap.parents));
 	memset(pathVisited, 0,    MaxHexes * sizeof(pathVisited[0]));
 	pathHeap.len = 0;
 
@@ -106,20 +107,20 @@ void BuildPathMap(Hex const* hexes, Unit* unit) {
 		}
 		pathVisited[entry.idx] = true;
 
-		Hex const* const entryHex = &hexes[entry.idx];
+		Hex* const entryHex = &hexes[entry.idx];
 		for (U32 i = 0; i < 6; i++) {
 			Hex* const neighbor = entryHex->neighbors[i];
 			if (!neighbor || pathVisited[neighbor->idx] || !IsHexPassable(neighbor, side)) {
 				continue;
 			}
-			U16 const tentativeScore   = moveCosts[entry.idx] + neighbor->terrain->moveCost;
-			U16 const tentativePathLen = entry.pathLen + 1;
-			bool const betterCost      = tentativeScore < moveCosts[neighbor->idx];
-			bool const fewerHops       = tentativeScore == moveCosts[neighbor->idx] && tentativePathLen < pathLens[neighbor->idx];
-			if (betterCost || fewerHops) {
+			U16 const tentativeScore     = moveCosts[entry.idx] + neighbor->terrain->moveCost;
+			U16 const tentativePathLen   = entry.pathLen + 1;
+			bool const betterCost        = tentativeScore < moveCosts[neighbor->idx];
+			bool const sameCostFewerHops = tentativeScore == moveCosts[neighbor->idx] && tentativePathLen < pathLens[neighbor->idx];
+			if (betterCost || sameCostFewerHops) {
 				moveCosts[neighbor->idx] = tentativeScore;
 				pathLens[neighbor->idx]  = tentativePathLen;
-				pathMap[neighbor->idx]   = neighbor;
+				parents[neighbor->idx]   = entryHex;
 				HeapPush(&pathHeap, { .dist = tentativeScore, .pathLen = tentativePathLen, .idx = neighbor->idx });
 			}
 		}
@@ -130,27 +131,23 @@ void BuildPathMap(Hex const* hexes, Unit* unit) {
 
 // Simple back-traversal using `parents`
 bool FindPath(Unit const* unit, Hex const* end, Path* pathOut) {
+	pathOut->len = 0;
 	if (end == unit->hex) {
-		pathOut->len = 0;
 		return true;
 	}
 
-	Hex const* const* pathMap = unit->pathMap;
-	if (!pathMap[end->idx]) {
-		pathOut->len = 0;
+	Hex const* const* parents = unit->pathMap.parents;
+	if (!parents[end->idx]) {
 		return false;
 	}
 
-	Hex const** iter = pathOut->hexes;
-	for (Hex const* hex = end; hex != unit->hex; hex = pathMap[hex->idx]) {
-		*iter++ = hex;
+	for (Hex const* hex = end; hex != unit->hex; hex = parents[hex->idx]) {
+		pathOut->hexes[pathOut->len++] = (Hex*)hex;	// TODO: this cast seems wrong, but it also seems wrong to accept `end` as non-const
 	}
-	U16 const len     = (U16)(iter - pathOut->hexes);
-	U16 const halfLen = len / 2;
+	U16 const halfLen = pathOut->len / 2;
 	for (U64 i = 0; i < halfLen; i++) {
-		Swap(pathOut->hexes[i], pathOut->hexes[len - i - 1]);
+		Swap(pathOut->hexes[i], pathOut->hexes[pathOut->len - i - 1]);
 	}
-	pathOut->len = len;
 	return true;
 }
 

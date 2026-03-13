@@ -110,8 +110,13 @@ struct Side {
 };
 
 struct Path {
-	Hex const* hexes[MaxHexes];
-	U16        len;
+	Hex* hexes[MaxHexes];
+	U16  len;
+};
+
+struct PathMap {
+	U16  moveCosts[MaxHexes];
+	Hex* parents[MaxHexes];
 };
 
 struct Unit {
@@ -122,14 +127,14 @@ struct Unit {
 	U32                 hp;
 	U32                 move;
 	U32                 range;
-	Hex*                pathMap[MaxHexes];	// parent
+	PathMap             pathMap;
 };
 
 struct Army {
 	Side side;
 	Unit units[MaxArmyUnits];
 	U32  unitsLen;
-	U64  attackMap[MaxCols * MaxRows];	// [c, r] = bitmap of units that can attack this spot, updated on any unit create/destroy/move
+	U64  attackMap[MaxHexes];	// [c, r] = bitmap of units that can attack this spot, updated on any unit create/destroy/move
 };
 
 enum struct State {
@@ -142,17 +147,16 @@ enum struct State {
 constexpr U32 MaxClickHexes = 16;
 
 struct Data {
-	Hex   hexes[MaxCols * MaxRows];
+	Hex   hexes[MaxHexes];
 	U32   hexesLen;
 	Vec2  cameraPos;
 	F32   cameraScale;
 	Army  armies[2];
 	U8    activeSide;
-	Hex* hoverHex;
-	Hex* selectedHex;
+	Hex*  hoverHex;
+	Hex*  selectedHex;
 	Hex*  targetHex;
 	Path  selectedPath;
-	Hex*  selectedLastEmptyHex;
 	bool  showEnemyThreatMap;
 	State state;
 };
@@ -173,8 +177,8 @@ Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<U64 const> a
 
 // Battle_Path.cpp
 void  InitPath(Mem permMem);
-void  BuildPathMap(Hex const* hexes, Unit* unit);
-bool  FindPath(Unit const* unit, Hex* end, Path* pathOut);
+void  BuildPathMap(Hex* hexes, Unit* unit);
+bool  FindPath(Unit const* unit, Hex const* end, Path* pathOut);
 
 // Battle_Util.cpp
 void  InitUtil();

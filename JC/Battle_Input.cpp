@@ -76,7 +76,7 @@ static void Select(Data* data) {
 	if (
 		data->selectedHex &&
 		!data->hoverHex->unit &&
-		data->selectedHex->unit->pathMap[data->hoverHex->idx]
+		data->selectedHex->unit->pathMap.parents[data->hoverHex->idx]
 	) {
 		data->targetHex = data->hoverHex;
 		Logf("Targetted (%u, %u) for move", data->targetHex->c, data->targetHex->r);
