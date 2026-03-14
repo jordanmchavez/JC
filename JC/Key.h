@@ -6,9 +6,8 @@ namespace JC::Key {
 
 //--------------------------------------------------------------------------------------------------
 
-enum struct Key : U16 {
+enum Key : U8 {
 	Invalid = 0x00,
-
 	Mouse1,
 	Mouse2,
 	Mouse3,
@@ -16,7 +15,6 @@ enum struct Key : U16 {
 	Mouse5,
 	MouseWheelUp,
 	MouseWheelDown,
-
 	A,
 	B,
 	C,
@@ -43,7 +41,6 @@ enum struct Key : U16 {
 	X,
 	Y,
 	Z,
-
 	Zero,
 	One,
 	Two,
@@ -54,7 +51,6 @@ enum struct Key : U16 {
 	Seven,
 	Eight,
 	Nine,
-
 	Escape,
 	F1,
 	F2,
@@ -71,7 +67,6 @@ enum struct Key : U16 {
 	PrintScreen,
 	ScrollLock,
 	Pause,
-
 	BackQuote,
 	Minus,
 	Equals,
@@ -84,12 +79,10 @@ enum struct Key : U16 {
 	Comma,
 	Dot,
 	Slash,
-
 	Tab,
 	CapsLock,
 	Space,
 	Enter,
-
 	Insert,
 	Delete,
 	Home,
@@ -100,7 +93,6 @@ enum struct Key : U16 {
 	Right,
 	Up,
 	Down,
-
 	ShiftLeft,
 	ShiftRight,
 	CtrlLeft,
@@ -110,7 +102,6 @@ enum struct Key : U16 {
 	Winleft,
 	WinRight,
 	Menu,
-
 	NumPad0,
 	NumPad1,
 	NumPad2,
@@ -126,8 +117,6 @@ enum struct Key : U16 {
 	NumpadEnter,
 	NumpadMinus,
 	NumpadDot,
-
-	Max,
 };
 
 Str GetKeyStr(Key key);

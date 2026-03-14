@@ -43,8 +43,6 @@ Res<> Init(Mem permMem, Mem tempMemIn, Window::State const* windowState) {
 	InitPath(permMem);
 	InitUtil();
 
-	data->state = State::WaitingOrder;
-
 	return Ok();
 }
 
@@ -192,7 +190,7 @@ Res<> GenerateMap() {
 	UnitDef::Def const* def; TryTo(UnitDef::GetDef("Spearmen"), def);
 
 	U32 startCol = 0;
-	for (Side side = Side::Left; side <= Side::Right; side++) {
+	for (Side side = Side_Left; side <= Side_Right; side++) {
 		Logf("Creating side %u", (U32)side);
 		Army* army = &data->armies[(U32)side];
 		memset(army, 0, sizeof(Army));
@@ -223,14 +221,14 @@ Res<> GenerateMap() {
 		startCol += 2;
 	}
 
-	for (Side side = Side::Left; side <= Side::Right; side++) {
+	for (Side side = Side_Left; side <= Side_Right; side++) {
 		Army* army = &data->armies[(U32)side];
 		for (U32 i = 0; i < army->unitsLen; i++) {
 			BuildPathMap(data->hexes, &army->units[i]);
 		}
 	}
 
-	for (Side side = Side::Left; side <= Side::Right; side++) {
+	for (Side side = Side_Left; side <= Side_Right; side++) {
 		Army* army = &data->armies[(U32)side];
 		memset(army->attackMap, 0, sizeof(army->attackMap));
 		for (U32 i = 0; i < army->unitsLen; i++) {
@@ -263,47 +261,9 @@ Res<> GenerateMap() {
 		}
 	}
 
-	data->activeSide = Side::Left;
+	data->activeSide = Side_Left;
 
 	return Ok();
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static void AddPathFlags(Hex* fromHex, Hex* toHex) {
-	if (fromHex->neighbors[NeighborIdx::TopLeft] == toHex) {
-		fromHex->flags |= HexFlags::PathTopLeft;
-		toHex->flags   |= HexFlags::PathBottomRight;
-	} else if (fromHex->neighbors[NeighborIdx::TopRight] == toHex) {
-		fromHex->flags |= HexFlags::PathTopRight;
-		toHex->flags   |= HexFlags::PathBottomLeft;
-	} else if (fromHex->neighbors[NeighborIdx::Right] == toHex) {
-		fromHex->flags |= HexFlags::PathRight;
-		toHex->flags   |= HexFlags::PathLeft;
-	} else if (fromHex->neighbors[NeighborIdx::BottomRight] == toHex) {
-		fromHex->flags |= HexFlags::PathBottomRight;
-		toHex->flags   |= HexFlags::PathTopLeft;
-	} else if (fromHex->neighbors[NeighborIdx::BottomLeft] == toHex) {
-		fromHex->flags |= HexFlags::PathBottomLeft;
-		toHex->flags   |= HexFlags::PathTopRight;
-	} else if (fromHex->neighbors[NeighborIdx::Left] == toHex) {
-		fromHex->flags |= HexFlags::PathLeft;
-		toHex->flags   |= HexFlags::PathRight;
-	} else {
-		Panic("Hexes (%u, %u) and (%u, %u) are not adjacent!", fromHex->c, fromHex->r, toHex->c, toHex->r);
-	}
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static void AddAttackFlags(Hex* fromHex, Hex* toHex) {
-	     if (fromHex->neighbors[NeighborIdx::TopLeft    ] == toHex) { fromHex->flags |= HexFlags::AttackTopLeft     | HexFlags::PathTopLeft;     }
-	else if (fromHex->neighbors[NeighborIdx::TopRight   ] == toHex) { fromHex->flags |= HexFlags::AttackTopRight    | HexFlags::PathTopRight;    }
-	else if (fromHex->neighbors[NeighborIdx::Right      ] == toHex) { fromHex->flags |= HexFlags::AttackRight       | HexFlags::PathRight;       }
-	else if (fromHex->neighbors[NeighborIdx::BottomRight] == toHex) { fromHex->flags |= HexFlags::AttackBottomRight | HexFlags::PathBottomRight; }
-	else if (fromHex->neighbors[NeighborIdx::BottomLeft ] == toHex) { fromHex->flags |= HexFlags::AttackBottomLeft  | HexFlags::PathBottomLeft;  }
-	else if (fromHex->neighbors[NeighborIdx::Left       ] == toHex) { fromHex->flags |= HexFlags::AttackLeft        | HexFlags::PathLeft;        }
-	else { Panic("Hexes (%u, %u) and (%u, %u) are not adjacent!", fromHex->c, fromHex->r, toHex->c, toHex->r); }
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -316,13 +276,15 @@ struct PathPrinter : Printer {
 	void Print(StrBuf* sb) override {
 		sb->Add('[');
 		U16 i = 0;
-		for (; i < data->selectedPath.len; i++) {
-			sb->Printf("(%u,%u), ", data->selectedPath.hexes[i]->c, data->selectedPath.hexes[i]->r);
+		for (; i < path->len; i++) {
+			sb->Printf("(%u,%u), ", path->hexes[i]->c, path->hexes[i]->r);
 		}
 		if (i > 0) { sb->Remove(2); }
 		sb->Add(']');
 	}
 };
+
+//--------------------------------------------------------------------------------------------------
 
 static void Rebuild() {
 	U8 const          activeSide      = data->activeSide;
@@ -330,7 +292,7 @@ static void Rebuild() {
 	Hex* const  hoverHex        = data->hoverHex;
 	U16 const hoverHexIdx     = hoverHex ? hoverHex->idx : 0;
 	Unit const* const hoverUnit       = hoverHex ? hoverHex->unit : nullptr;
-	U8 const          hoverUnitSide       = hoverUnit ? hoverUnit->side : Side::Max;
+	U8 const          hoverUnitSide       = hoverUnit ? hoverUnit->side : Side_Max;
 	bool const        hoverUnitFriendly = hoverUnitSide == activeSide;
 	bool const        hoverUnitEnemy    = hoverUnitSide == (1 - activeSide);
 	Army const* const hoverUnitArmy    = hoverUnit ? &data->armies[hoverUnit->side] : nullptr;
@@ -354,18 +316,15 @@ static void Rebuild() {
 	for (U16 i = 0; i < MaxHexes; i++) {
 		Hex* hex = &data->hexes[i];
 		Unit const* const hexUnit = hex->unit;
-		U8 const hexUnitSide = hexUnit ? hexUnit->side : Side::Max;
+		U8 const hexUnitSide = hexUnit ? hexUnit->side : Side_Max;
 		U8 const hexUnitIdx = hexUnit ? ((U8)(hexUnit - data->armies[hexUnitSide].units)) : 0;
 		U64 const hexUnitBit = (U64)1 << hexUnitIdx;
 		bool const hexUnitEnemy = hexUnitSide == (1 - activeSide);
 
 		U64 flags = 0;
 		if (
-			!targetHex &&
-			(
-				(!selectedUnit && hoverUnitFriendly && ((hoverUnitPathMap->parents[i] && !hexUnit) || (hexUnitEnemy && (friendlyAttackMap[i] & hoverUnitBit)))) ||
-				(selectedUnit && ((selectedUnitPathMap->parents[i] && !hexUnit) || (hexUnitEnemy && (friendlyAttackMap[i] & selectedUnitBit))))
-			)
+			(!selectedUnit && hoverUnitFriendly && ((hoverUnitPathMap->parents[i] && !hexUnit) || (hexUnitEnemy && (friendlyAttackMap[i] & hoverUnitBit)))) ||
+			(selectedUnit && ((selectedUnitPathMap->parents[i] && !hexUnit) || (hexUnitEnemy && (friendlyAttackMap[i] & selectedUnitBit))))
 		) {
 			flags |= HexFlags::FriendlyMoveableOrAttackable;
 		}
@@ -394,7 +353,8 @@ static void Rebuild() {
 		selectedHex->flags |= HexFlags::Selected;
 		if (targetUnit) {
 			targetHex->flags |= HexFlags::SelectedAttackTarget;
-		} else if (hoverHex) {
+		}
+		if (hoverHex) {
 			if (
 				(!hoverUnit && selectedUnitPathMap->parents[hoverHexIdx]) ||
 				(hoverUnit && hoverUnitFriendly)
@@ -416,36 +376,32 @@ static void Rebuild() {
 		}
 	}
 
-	if (targetHex) {
-		// no change
-
-	} else if (selectedUnit) {
-		Hex* prevPathEndHex = data->selectedPath.len ? data->selectedPath.hexes[data->selectedPath.len - 1] : nullptr;
+	Path* const hoverPath = &data->hoverPath;
+	Hex* prevPathEndHex = hoverPath->len ? hoverPath->hexes[hoverPath->len - 1] : nullptr;
+	if (selectedUnit) {
 		if (prevPathEndHex) {
 			Logf("prevPathEndHex=(%u,%u)", prevPathEndHex->c, prevPathEndHex->r);
 		}
-		data->selectedPath.len = 0;
-
-		
+		hoverPath->len = 0;
 
 		if (hoverHex && !hoverUnit && selectedUnitPathMap->parents[hoverHexIdx]) {
-			FindPath(selectedUnit, data->hoverHex, &data->selectedPath);
-			Logf("Found path to empty: %a", Addr(PathPrinter(&data->selectedPath)));
+			FindPath(selectedUnit, data->hoverHex, hoverPath);
+			Logf("Found path to empty: %a", Addr(PathPrinter(hoverPath)));
 		}
 
 		if (hoverUnitEnemy) {
 			if (prevPathEndHex && AreHexesAdjacent(prevPathEndHex, hoverHex)) {
-				if (FindPath(selectedUnit, prevPathEndHex, &data->selectedPath)) {
+				if (FindPath(selectedUnit, prevPathEndHex, hoverPath)) {
 					hoverUnit->hex->flags |= HexFlags::SelectedAttackTarget;
-					AddAttackFlags(prevPathEndHex, hoverHex);
-					Logf("Found path to prev adjacent: %a", Addr(PathPrinter(&data->selectedPath)));
+					AddHoverAttackFlags(prevPathEndHex, hoverHex);
+					Logf("Found path to prev adjacent: %a", Addr(PathPrinter(hoverPath)));
 				}
 			}
 			else if (!prevPathEndHex && AreHexesAdjacent(selectedHex, hoverHex)) {
-				if (FindPath(selectedUnit, data->selectedHex, &data->selectedPath)) {
+				if (FindPath(selectedUnit, data->selectedHex, hoverPath)) {
 					hoverUnit->hex->flags |= HexFlags::SelectedAttackTarget;
-					AddAttackFlags(selectedHex, hoverHex);
-					Logf("Found path to hover adjacent: %a", Addr(PathPrinter(&data->selectedPath)));
+					AddHoverAttackFlags(selectedHex, hoverHex);
+					Logf("Found path to hover adjacent: %a", Addr(PathPrinter(hoverPath)));
 				}
 			}
 			else {
@@ -462,42 +418,250 @@ static void Rebuild() {
 				}
 
 				if (minNeighbor) {
-					if (FindPath(selectedUnit, minNeighbor, &data->selectedPath)) {
+					if (FindPath(selectedUnit, minNeighbor, hoverPath)) {
 						hoverUnit->hex->flags |= HexFlags::SelectedAttackTarget;
-						AddAttackFlags(minNeighbor, hoverUnit->hex);
-						Logf("Found path to min neighbor: %a", Addr(PathPrinter(&data->selectedPath)));
+						AddHoverAttackFlags(minNeighbor, hoverUnit->hex);
+						Logf("Found path to min neighbor: %a", Addr(PathPrinter(hoverPath)));
 					}
 				}
 			}
 		}
 
-		Hex* fromHex = data->selectedHex;
-		for (U32 i = 0; i < data->selectedPath.len; i++) {
-			Hex* toHex = data->selectedPath.hexes[i];
-			AddPathFlags(fromHex, toHex);
+		Hex* fromHex = selectedHex;
+		for (U32 i = 0; i < hoverPath->len; i++) {
+			Hex* toHex = hoverPath->hexes[i];
+			AddHoverPathFlags(fromHex, toHex);
 			fromHex = toHex;
+		}
+	}
+
+	if (targetHex) {
+		Path* const targetPath = &data->targetPath;
+
+		Hex* prevPathEndHex = targetPath->len ? targetPath->hexes[targetPath->len - 1] : nullptr;
+		if (prevPathEndHex) {
+			Logf("prevPathEndHex=(%u,%u)", prevPathEndHex->c, prevPathEndHex->r);
+		}
+		targetPath->len = 0;
+
+		if (!targetUnit) {
+			FindPath(selectedUnit, targetHex, targetPath);
+			Logf("Found path to empty: %a", Addr(PathPrinter(targetPath)));
+
+		} else  {
+			if (prevPathEndHex && AreHexesAdjacent(prevPathEndHex, targetHex)) {
+				if (FindPath(selectedUnit, prevPathEndHex, targetPath)) {
+					hoverUnit->hex->flags |= HexFlags::SelectedAttackTarget;
+					AddAttackFlags(prevPathEndHex, hoverHex);
+					Logf("Found path to prev adjacent: %a", Addr(PathPrinter(targetPath)));
+				}
+			}
+			else if (!prevPathEndHex && AreHexesAdjacent(selectedHex, hoverHex)) {
+				if (FindPath(selectedUnit, data->selectedHex, targetPath)) {
+					hoverUnit->hex->flags |= HexFlags::SelectedAttackTarget;
+					AddAttackFlags(selectedHex, hoverHex);
+					Logf("Found path to hover adjacent: %a", Addr(PathPrinter(targetPath)));
+				}
+			}
+			else {
+				U32 minCost = U32Max;
+				Hex* minNeighbor = nullptr;
+				for (U32 i = 0; i < 6; i++) {
+					Hex* const neighbor = hoverHex->neighbors[i];
+					if (!neighbor || neighbor->unit) { continue; }
+					U32 const cost = selectedUnitPathMap->moveCosts[neighbor->idx];
+					if (cost < minCost) {
+						minCost = cost;
+						minNeighbor = neighbor;
+					}
+				}
+
+				if (minNeighbor) {
+					if (FindPath(selectedUnit, minNeighbor, targetPath)) {
+						hoverUnit->hex->flags |= HexFlags::SelectedAttackTarget;
+						AddAttackFlags(minNeighbor, hoverUnit->hex);
+						Logf("Found path to min neighbor: %a", Addr(PathPrinter(targetPath)));
+					}
+				}
+			}
 		}
 	}
 }
 
-Res<> Update(App::UpdateData const* updateData) {
-	Hex* const oldHoverHex           = data->hoverHex;
-	Hex* const oldSelectedHex        = data->selectedHex;
-	Hex* const oldTargetHex          = data->targetHex;
-	bool const oldShowEnemyThreatMap = data->showEnemyThreatMap;
+//--------------------------------------------------------------------------------------------------
 
-	Try(HandleInput(data, updateData->sec, updateData->mouseX, updateData->mouseY, updateData-> actions));
+static void ExecuteOrder(Unit const* unit, Path const* movePath, Hex const* attackHex);
 
-	if (
-		oldHoverHex           == data->hoverHex &&
-		oldSelectedHex        == data->selectedHex &&
-		oldTargetHex          == data->targetHex && 
-		oldShowEnemyThreatMap == data->showEnemyThreatMap
-	) {
-		return Ok();
+static Unit* selectedUnit;
+static Path  hoverPath;
+static Path  targetPath;
+static Hex*  targetAttackHex;
+
+//--------------------------------------------------------------------------------------------------
+
+static bool UnitCanAttackHex(Data const* data, Unit const* unit, Hex const* hex) {
+	Army const* const army = &data->armies[unit->side];
+	U64 const unitIdx = (U64)(unit - army->units);
+	return army->attackMap[hex->idx] & ((U64)1 << unitIdx);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static bool FindPathToNeighbor(Unit const* unit, Hex const* hex, Path* pathOut) {
+	Hex const* closestReachableNeighbor = nullptr;
+	U16 minMoveCost = U16Max;
+	for (U8 i = 0; i < 6; i++) {
+		Hex const* const neighbor = hex->neighbors[i];
+		if (!neighbor) { continue; }
+		U16 const neighborMoveCost = unit->pathMap.moveCosts[neighbor->idx];
+		if (neighborMoveCost < minMoveCost) {
+			minMoveCost = neighborMoveCost;
+			closestReachableNeighbor = neighbor;
+		}
+	}
+	if (!closestReachableNeighbor) { return false; }
+	return FindPath(unit, closestReachableNeighbor, pathOut);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static void ClearTarget() {
+	targetPath.len  = 0;
+	targetAttackHex = nullptr;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static void SetMoveTarget(Hex* hex) {
+	targetAttackHex = nullptr;
+
+	FindPath(selectedUnit, hex, &targetPath);
+
+	Hex* fromHex = selectedUnit->hex;
+	for (U32 i = 0; i < targetPath.len; i++) {
+		Hex* toHex = targetPath.hexes[i];
+		fromHex = toHex;
 	}
 
-	Rebuild();
+	Logf("Targetted (%u, %u) for move", hex->c, hex->r);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static void SetAttackTarget(Hex* hex) {
+	if (hoverPath.len && AreHexesAdjacent(hoverPath.hexes[hoverPath.len - 1], hex)) {
+		targetPath = hoverPath;
+
+	} else {
+		bool foundPath = FindPathToNeighbor(selectedUnit, hex, &targetPath);
+		Assert(foundPath);
+	}
+	targetAttackHex = hex;
+
+	Logf("Targetted (%u, %u) for attack", targetAttackHex->c, targetAttackHex->r);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static void ClearSelected() {
+	selectedUnit    = nullptr;
+	hoverPath.len   = 0;
+	targetPath.len  = 0;
+	targetAttackHex = nullptr;
+	Logf("Cleared selected");
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static void SetSelected(Unit* unit) {
+	selectedUnit    = unit;
+	hoverPath.len   = 0;
+	targetPath.len  = 0;
+	targetAttackHex = nullptr;
+	Logf("Selected (%u, %u)", selectedUnit->hex->c, selectedUnit->hex->r);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void LeftClickHex(Hex* clickHex) {
+	// Target -> click target -> execute order
+	if (clickHex == targetAttackHex) {
+		ExecuteOrder(selectedUnit, &targetPath, targetAttackHex);
+		return;
+	}
+	if (targetPath.len > 0 && clickHex == targetPath.hexes[targetPath.len - 1]) {
+		ExecuteOrder(selectedUnit, &targetPath, nullptr);
+		return;
+	}
+
+	// Selected -> click reachable hex -> target
+	Unit* const clickUnit = clickHex->unit;
+	if (
+		selectedUnit &&
+		!clickUnit &&
+		selectedUnit->pathMap.parents[clickHex->idx]
+	) {
+		SetMoveTarget(clickHex);
+		return;
+	}
+
+	// Selected -> click targettable hex -> target
+	if (
+		selectedUnit && 
+		clickUnit &&
+		clickUnit->side != selectedUnit->side &&
+		UnitCanAttackHex(data, selectedUnit, clickHex)		
+	) {
+		SetAttackTarget(clickHex);
+		return;
+	}
+
+	// Selected -> click selected -> deselect
+	if (clickHex == selectedUnit->hex) {
+
+		ClearSelected();
+		return;
+	}
+
+	// Selected -> click friendly unit -> select that unit
+	if (
+		clickUnit && 
+		clickUnit->side == data->activeSide
+	) {
+		SetSelected(clickUnit);
+		return;
+	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void RightClick() {
+	if (targetPath.len > 0 || targetAttackHex) {
+		ClearTarget();
+		return;
+	}
+	if (selectedUnit) {
+		ClearSelected();
+	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void HoverHex(Hex const* hex) {
+	// target
+	// selected
+
+	// show friendly overlay
+	// show enemy overlay
+	// show enemy attackers for hex
+
+	// selected -> path to hover
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<> Update(App::UpdateData const* updateData) {
+	Try(HandleInput(data, updateData->sec, updateData->mouseX, updateData->mouseY, updateData->actions));
 
 	return Ok();
 }

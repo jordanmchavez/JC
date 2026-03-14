@@ -2,7 +2,7 @@
 
 #include "JC/Common.h"
 
-namespace JC::Key { enum struct Key : U16; }
+namespace JC::Key { enum Key : U8; }
 
 namespace JC::Window {
 
@@ -61,14 +61,16 @@ struct PlatformDef {
 struct KeyEvent {
 	Key::Key key;
 	bool     down;
+	I32      mouseX;
+	I32      mouseY;
 };
 
 struct Events {
 	Span<KeyEvent const> keyEvents;
 	I32                  mouseX = 0;
 	I32                  mouseY = 0;
-	I64                  mouseDeltaX = 0;
-	I64                  mouseDeltaY = 0;
+	I32                  mouseDeltaX = 0;
+	I32                  mouseDeltaY = 0;
 	bool                 exitEvent = false;
 };
 

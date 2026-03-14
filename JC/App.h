@@ -2,6 +2,7 @@
 
 #include "JC/Common.h"
 
+namespace JC::Input  { struct Action; }
 namespace JC::Gpu    { struct FrameData; }
 namespace JC::Window { struct State; }
 
@@ -20,13 +21,13 @@ constexpr Str Cfg_WindowDisplayIdx = "App.WindowDisplayIdx";
 //--------------------------------------------------------------------------------------------------
 
 struct UpdateData {
-	F32             sec;
-	Span<U64 const> actions;
-	I32             mouseX;
-	I32             mouseY;
-	I64             mouseDeltaX;
-	I64             mouseDeltaY;
-	bool            exit;
+	F32                       sec;
+	Span<Input::Action const> actions;
+	I32                       mouseX;
+	I32                       mouseY;
+	I64                       mouseDeltaX;
+	I64                       mouseDeltaY;
+	bool                      exit;
 };
 
 struct App {

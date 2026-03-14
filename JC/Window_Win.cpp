@@ -18,8 +18,8 @@ namespace JC::Window {
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr U32 MaxDisplays = 32;
-static constexpr U32 MaxKeyEvents = 1024;
+static constexpr U8  MaxDisplays = 32;
+static constexpr U16 MaxKeyEvents = 1024;
 
 struct Window {
 	HWND        hwnd;
@@ -36,13 +36,13 @@ struct Window {
 
 static Mem       tempMem;
 static Display*  displays;
-static U16       displaysLen;
+static U8        displaysLen;
 static Window    window;
 static bool      inSizeMove;
 static KeyEvent* keyEvents;
 static U16       keyEventsLen;
-static I64       mouseDeltaX;
-static I64       mouseDeltaY;
+static I32       mouseDeltaX;
+static I32       mouseDeltaY;
 static bool      exitEvent;
 
 //----------------------------------------------------------------------------------------------
@@ -146,7 +146,12 @@ static void AddKeyEvent(Key::Key key, bool down) {
 		Errorf("Dropping key '%s' %s event", Key::GetKeyStr(key), down ? "down" : "up");
 		return;
 	}
-	keyEvents[keyEventsLen++] = { .key = key, .down = down };
+	keyEvents[keyEventsLen++] = {
+		.key    = key,
+		.down   = down,
+		.mouseX = mouseDeltaX,
+		.mouseY = mouseDeltaY,
+	};
 }
 
 //----------------------------------------------------------------------------------------------
@@ -203,6 +208,19 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 			GetRawInputData(hrawInput, RID_INPUT, rawInput, &size, sizeof(RAWINPUTHEADER));
 			if (rawInput->header.dwType == RIM_TYPEMOUSE) {
 				const RAWMOUSE* const rawMouse = &rawInput->data.mouse;
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) { AddKeyEvent(Key::Key::Mouse1, true); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) { AddKeyEvent(Key::Key::Mouse2, true); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) { AddKeyEvent(Key::Key::Mouse3, true); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) { AddKeyEvent(Key::Key::Mouse4, true); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) { AddKeyEvent(Key::Key::Mouse5, true); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_1_UP  ) { AddKeyEvent(Key::Key::Mouse1, false); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_2_UP  ) { AddKeyEvent(Key::Key::Mouse2, false); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_3_UP  ) { AddKeyEvent(Key::Key::Mouse3, false); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_4_UP  ) { AddKeyEvent(Key::Key::Mouse4, false); }
+				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_5_UP  ) { AddKeyEvent(Key::Key::Mouse5, false); }
+				mouseDeltaX += (I32)rawMouse->lLastX;
+				mouseDeltaY += (I32)rawMouse->lLastY;
+
 				if (rawMouse->usButtonFlags & RI_MOUSE_WHEEL) {
 					I16 const wheelDelta = (I16)rawMouse->usButtonData;
 					Key::Key const key = (wheelDelta > 0) ? Key::Key::MouseWheelUp : Key::Key::MouseWheelDown;
@@ -214,19 +232,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpara
 						AddKeyEvent(key, false);
 					}
 				}
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) { AddKeyEvent(Key::Key::Mouse1, true); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) { AddKeyEvent(Key::Key::Mouse2, true); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) { AddKeyEvent(Key::Key::Mouse3, true); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) { AddKeyEvent(Key::Key::Mouse4, true); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) { AddKeyEvent(Key::Key::Mouse5, true); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_1_UP  ) { AddKeyEvent(Key::Key::Mouse1, false); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_2_UP  ) { AddKeyEvent(Key::Key::Mouse2, false); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_3_UP  ) { AddKeyEvent(Key::Key::Mouse3, false); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_4_UP  ) { AddKeyEvent(Key::Key::Mouse4, false); }
-				if (rawMouse->usButtonFlags & RI_MOUSE_BUTTON_5_UP  ) { AddKeyEvent(Key::Key::Mouse5, false); }
-
-				mouseDeltaX += (I64)rawMouse->lLastX;
-				mouseDeltaY += (I64)rawMouse->lLastY;
 
 			} else if (rawInput->header.dwType == RIM_TYPEKEYBOARD) {
 				const RAWKEYBOARD* const rawKeyboard = &rawInput->data.keyboard;

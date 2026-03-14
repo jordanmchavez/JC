@@ -3,6 +3,7 @@
 #include "JC/Common.h"
 
 namespace JC::Draw    { DefHandle(Sprite); }
+namespace JC::Input   { struct Action; }
 namespace JC::UnitDef { struct Def; }
 namespace JC::Window  { struct State; }
 
@@ -56,38 +57,6 @@ namespace NeighborIdx {
 	constexpr U8 Left        = 5;
 }
 
-namespace HexFlags {
-	constexpr U64 FriendlyMoveableOrAttackable = (U64)1 << 0;
-	constexpr U64 EnemyAttackable              = (U64)1 << 2;
-	constexpr U64 EnemyAttacker                = (U64)1 << 3;
-	constexpr U64 PathTopLeft                  = (U64)1 << 4;
-	constexpr U64 PathTopRight                 = (U64)1 << 5;
-	constexpr U64 PathRight                    = (U64)1 << 6;
-	constexpr U64 PathBottomRight              = (U64)1 << 7;
-	constexpr U64 PathBottomLeft               = (U64)1 << 8;
-	constexpr U64 PathLeft                     = (U64)1 << 9;
-	constexpr U64 AttackTopLeft                = (U64)1 << 10;
-	constexpr U64 AttackTopRight               = (U64)1 << 11;
-	constexpr U64 AttackRight                  = (U64)1 << 12;
-	constexpr U64 AttackBottomRight            = (U64)1 << 13;
-	constexpr U64 AttackBottomLeft             = (U64)1 << 14;
-	constexpr U64 AttackLeft                   = (U64)1 << 15;
-	constexpr U64 HoverValid                   = (U64)1 << 16;
-	constexpr U64 HoverInvalid                 = (U64)1 << 20;
-	constexpr U64 Selected                     = (U64)1 << 17;
-	constexpr U64 SelectedAttackTarget         = (U64)1 << 19;
-};
-
-/*
-Reachable by Friendly
-Targettable by Enemy
-Both
-Enemies who can Target
-Path
-Selected
-Selected Attack Target
-Actionable Hover
-Unactionable Hover*/
 // TODO: split out into SoA as needed
 struct Hex {
 	U16            idx;
@@ -96,18 +65,10 @@ struct Hex {
 	Hex*           neighbors[6];	// indexed by NeighborIdx_*; nullptr = no neighbor
 	Terrain const* terrain;
 	struct Unit*   unit;
-	U64            flags;
 };
 
-struct Side {
-	enum Val : U8 { Left = 0, Right, Max };
-	Val val;
-	Side() { val = Side::Left; }
-	Side(Val valIn) { val = valIn; }
-	operator U8() const { return val; }
-	Side& operator++() { val = (Val)(val + 1); return *this; }
-	Side operator++(int) { Side tmp = *this; val = (Val)(val + 1); return tmp; }
-};
+enum Side : U8 { Side_Left = 0, Side_Right, Side_Max };
+Side operator++(Side& side, int) { Side tmp = side; side = (Side)((U8)side + 1); return tmp; }
 
 struct Path {
 	Hex* hexes[MaxHexes];
@@ -149,19 +110,14 @@ constexpr U32 MaxClickHexes = 16;
 struct Data {
 	Hex   hexes[MaxHexes];
 	U32   hexesLen;
-	Vec2  cameraPos;
-	F32   cameraScale;
 	Army  armies[2];
 	U8    activeSide;
-	Hex*  hoverHex;
-	Hex*  selectedHex;
-	Hex*  targetHex;
-	Path  selectedPath;
-	bool  showEnemyThreatMap;
-	State state;
 };
 
 //--------------------------------------------------------------------------------------------------
+
+// Battle.cpp
+void SelectHex(Hex* hex);
 
 // Battle_Draw.cpp
 Res<> InitDraw(Data* data, Mem tempMem, Window::State const* windowState);
@@ -173,7 +129,7 @@ Res<> LoadDraw(BattleJson const* battleJson);
 
 // Battle_Input.cpp
 void  InitInput(Mem tempMem);
-Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<U64 const> actionIds);
+Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<Input::Action const> actionIds);
 
 // Battle_Path.cpp
 void  InitPath(Mem permMem);

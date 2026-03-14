@@ -12,8 +12,8 @@ namespace JC::Battle {
 
 enum : U64 {
 	ActionId_Exit = 1,
-	ActionId_Select,
-	ActionId_Deselect,
+	ActionId_LClick,
+	ActionId_RClick,
 	ActionId_ZoomIn,
 	ActionId_ZoomOut,
 	ActionId_ScrollMapLeft,
@@ -35,8 +35,8 @@ void InitInput(Mem tempMemIn) {
 
 	bindingSet = Input::CreateBindingSet("Main");
 	Input::Bind(bindingSet, Key::Key::Escape,         Input::BindingType::OnKeyDown,  ActionId_Exit);
-	Input::Bind(bindingSet, Key::Key::Mouse1,         Input::BindingType::OnKeyUp,    ActionId_Select);
-	Input::Bind(bindingSet, Key::Key::Mouse2,         Input::BindingType::OnKeyUp,    ActionId_Deselect);
+	Input::Bind(bindingSet, Key::Key::Mouse1,         Input::BindingType::OnKeyUp,    ActionId_LClick);
+	Input::Bind(bindingSet, Key::Key::Mouse2,         Input::BindingType::OnKeyUp,    ActionId_RClick);
 	Input::Bind(bindingSet, Key::Key::MouseWheelUp,   Input::BindingType::OnKeyDown,  ActionId_ZoomIn);
 	Input::Bind(bindingSet, Key::Key::MouseWheelDown, Input::BindingType::OnKeyDown,  ActionId_ZoomOut);
 	Input::Bind(bindingSet, Key::Key::A,              Input::BindingType::Continuous, ActionId_ScrollMapLeft);
@@ -50,75 +50,17 @@ void InitInput(Mem tempMemIn) {
 
 //--------------------------------------------------------------------------------------------------
 
-static bool UnitCanAttackHex(Data const* data, Unit const* unit, Hex const* hex) {
-	Army const* const army = &data->armies[unit->side];
-	U64 const unitIdx = (U64)(unit - army->units);
-	return army->attackMap[hex->idx] & ((U64)1 << unitIdx);
+static void LClick(Data* data, I32 mouseX, I32 mouseY) { 
+	Hex* const hoverHex = ScreenPosToHex(data, mouseX, mouseY);
+	if (!hoverHex) {
+		return;
+	}
+	SelectHex(hoverHex);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static void Select(Data* data) { 
-	if (!data->hoverHex) {
-		return;
-	}
-
-	if (
-		data->targetHex &&
-		data->hoverHex == data->targetHex
-	) {
-		// TODO: execute order
-		Logf("Executing order");
-		return;
-	}
-
-	// Selected -> click on reachable hex -> taret
-	if (
-		data->selectedHex &&
-		!data->hoverHex->unit &&
-		data->selectedHex->unit->pathMap.parents[data->hoverHex->idx]
-	) {
-		data->targetHex = data->hoverHex;
-		Logf("Targetted (%u, %u) for move", data->targetHex->c, data->targetHex->r);
-		return;
-	}
-
-	// Selected -> click on targettable hex -> target
-	if (
-		data->selectedHex && 
-		data->hoverHex->unit &&
-		data->hoverHex->unit->side != data->selectedHex->unit->side &&
-		UnitCanAttackHex(data, data->selectedHex->unit, data->hoverHex)		
-	) {
-		data->targetHex = data->hoverHex;
-		Logf("Targetted (%u, %u) for attack", data->targetHex->c, data->targetHex->r);
-		return;
-	}
-
-	// Selected -> click on selected -> deselect
-	if (data->hoverHex == data->selectedHex) {
-		data->selectedHex = nullptr;
-		data->targetHex = nullptr;
-		Logf("Cleared selected");
-		return;
-	}
-
-	// Selected -> click on different friendly unit -> select that unit
-	if (
-		data->hoverHex->unit && 
-		data->hoverHex->unit->side == data->activeSide
-	) {
-		data->selectedHex = data->hoverHex;
-		data->targetHex = nullptr;
-		Logf("Selected (%u, %u)", data->selectedHex->c, data->selectedHex->r);
-
-		return;
-	}
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static void Deselect(Data* data) {
+static void RClick(Data* data) {
 	if (data->targetHex) {
 		data->targetHex = nullptr;
 		Logf("Deselected target");
@@ -135,19 +77,18 @@ static void Deselect(Data* data) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<U64 const> actionIds) {
-	data->hoverHex = ScreenPosToHex(data, mouseX, mouseY);
-
+Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<Input::Action const> actions) {
 	F32 cameraDX = 0.f;
 	F32 cameraDY = 0.f;
 
 	data->showEnemyThreatMap = false;
-	for (U64 i = 0; i < actionIds.len; i++) {
-		switch (actionIds[i]) {
+	for (U64 i = 0; i < actions.len; i++) {
+		Input::Action const action = actions[i];
+		switch (action.id) {
 			case ActionId_Exit: return App::Err_Exit();
 
-			case ActionId_Select:   Select(data);   break;
-			case ActionId_Deselect: Deselect(data); break;
+			case ActionId_LClick: LClick(data, action.mouseX, action.mouseY); break;
+			case ActionId_RClick: RClick(data); break;
 
 			case ActionId_ZoomIn:  ZoomCamera(data, 1.f); break;
 			case ActionId_ZoomOut: ZoomCamera(data, -1.f); break;
@@ -160,6 +101,8 @@ Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<U64 const> a
 			case ActionId_ShowEnemyOverlay: data->showEnemyThreatMap = true; break;
 		}
 	}
+
+	data->hoverHex = ScreenPosToHex(data, mouseX, mouseY);
 
 	MoveCamera(data, sec, cameraDX, cameraDY);
 

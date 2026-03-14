@@ -159,8 +159,10 @@ void ZoomCamera(Data* data, F32 d) {
 static constexpr Vec4 SelectedHexColor  = Vec4(0.f, 1.f, 0.f, 1.f);
 static constexpr Vec4 ReachableHexColor = Vec4(1.f, 1.f, 1.f, 0.25f);
 static constexpr Vec4 AttackableColor   = Vec4(1.f, 0.f, 0.f, 0.5f);
-static constexpr Vec4 PathColor         = Vec4(1.f, 1.f, 0.f, 1.f);
-static constexpr Vec4 ArrowColor        = Vec4(1.f, 0.f, 0.f, 1.f);
+static constexpr Vec4 HoverPathColor    = Vec4(1.f, 1.f, 0.f, 0.5f);
+static constexpr Vec4 HoverAttackColor  = Vec4(1.f, 0.f, 0.f, 0.5f);
+static constexpr Vec4 TargetPathColor   = Vec4(1.f, 1.f, 0.f, 1.f);
+static constexpr Vec4 TargetAttackColor = Vec4(1.f, 0.f, 0.f, 1.f);
 
 static constexpr F32 Z_Background   = 0.00f;
 static constexpr F32 Z_Hex          = 1.01f;
@@ -208,26 +210,41 @@ void Draw(Data const* data) {
 		else if (flags & HexFlags::HoverValid)           { DrawHex(hex, borderSprite, Z_HexBorder, Vec4(1.f, 1.f, 1.f, 1.f)); }
 		else if (flags & HexFlags::HoverInvalid)         { DrawHex(hex, borderSprite, Z_HexBorder, Vec4(1.f, 1.f, 1.f, 0.5f)); }
 
-		if (flags & HexFlags::PathTopLeft    ) { DrawHex(hex, pathTopLeftSprite,     Z_Path, PathColor); }
-		if (flags & HexFlags::PathTopRight   ) { DrawHex(hex, pathTopRightSprite,    Z_Path, PathColor); }
-		if (flags & HexFlags::PathRight      ) { DrawHex(hex, pathRightSprite,       Z_Path, PathColor); }
-		if (flags & HexFlags::PathBottomRight) { DrawHex(hex, pathBottomRightSprite, Z_Path, PathColor); }
-		if (flags & HexFlags::PathBottomLeft ) { DrawHex(hex, pathBottomLeftSprite,  Z_Path, PathColor); }
-		if (flags & HexFlags::PathLeft       ) { DrawHex(hex, pathLeftSprite,        Z_Path, PathColor); }
+		if (flags & HexFlags::HoverPathTopLeft    ) { DrawHex(hex, pathTopLeftSprite,     Z_Path, HoverPathColor); }
+		if (flags & HexFlags::HoverPathTopRight   ) { DrawHex(hex, pathTopRightSprite,    Z_Path, HoverPathColor); }
+		if (flags & HexFlags::HoverPathRight      ) { DrawHex(hex, pathRightSprite,       Z_Path, HoverPathColor); }
+		if (flags & HexFlags::HoverPathBottomRight) { DrawHex(hex, pathBottomRightSprite, Z_Path, HoverPathColor); }
+		if (flags & HexFlags::HoverPathBottomLeft ) { DrawHex(hex, pathBottomLeftSprite,  Z_Path, HoverPathColor); }
+		if (flags & HexFlags::HoverPathLeft       ) { DrawHex(hex, pathLeftSprite,        Z_Path, HoverPathColor); }
+
+		if (flags & HexFlags::TargetPathTopLeft    ) { DrawHex(hex, pathTopLeftSprite,     Z_Path, TargetPathColor); }
+		if (flags & HexFlags::TargetPathTopRight   ) { DrawHex(hex, pathTopRightSprite,    Z_Path, TargetPathColor); }
+		if (flags & HexFlags::TargetPathRight      ) { DrawHex(hex, pathRightSprite,       Z_Path, TargetPathColor); }
+		if (flags & HexFlags::TargetPathBottomRight) { DrawHex(hex, pathBottomRightSprite, Z_Path, TargetPathColor); }
+		if (flags & HexFlags::TargetPathBottomLeft ) { DrawHex(hex, pathBottomLeftSprite,  Z_Path, TargetPathColor); }
+		if (flags & HexFlags::TargetPathLeft       ) { DrawHex(hex, pathLeftSprite,        Z_Path, TargetPathColor); }
 
 		Draw::SpriteDrawDef dd = {
 			.sprite = attackSprite,
 			.pos    = hex->pos,
 			.z      = Z_Arrow,
 			.origin = Draw::Origin::Center,
-			.color  = Vec4(1.f, 1.f, 1.f, 1.f),
+			.color  = HoverAttackColor,
 		};
-		     if (flags & HexFlags::AttackTopLeft    ) { dd.pos.x -= (HexSize / 4); dd.pos.y -= HexSize * 3 / 8; Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::AttackTopRight   ) { dd.pos.x += (HexSize / 4); dd.pos.y -= HexSize * 3 / 8; Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::AttackRight      ) { dd.pos.x += (HexSize / 2);                              Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::AttackBottomRight) { dd.pos.x += (HexSize / 4); dd.pos.y += HexSize * 3 / 8; Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::AttackBottomLeft ) { dd.pos.x -= (HexSize / 4); dd.pos.y += HexSize * 3 / 8; Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::AttackLeft       ) { dd.pos.x -= (HexSize / 2);                              Draw::DrawSprite(dd); }
+		     if (flags & HexFlags::HoverAttackTopLeft    ) { dd.pos.x -= (HexSize / 4); dd.pos.y -= HexSize * 3 / 8; Draw::DrawSprite(dd); }
+		else if (flags & HexFlags::HoverAttackTopRight   ) { dd.pos.x += (HexSize / 4); dd.pos.y -= HexSize * 3 / 8; Draw::DrawSprite(dd); }
+		else if (flags & HexFlags::HoverAttackRight      ) { dd.pos.x += (HexSize / 2);                              Draw::DrawSprite(dd); }
+		else if (flags & HexFlags::HoverAttackBottomRight) { dd.pos.x += (HexSize / 4); dd.pos.y += HexSize * 3 / 8; Draw::DrawSprite(dd); }
+		else if (flags & HexFlags::HoverAttackBottomLeft ) { dd.pos.x -= (HexSize / 4); dd.pos.y += HexSize * 3 / 8; Draw::DrawSprite(dd); }
+		else if (flags & HexFlags::HoverAttackLeft       ) { dd.pos.x -= (HexSize / 2);                              Draw::DrawSprite(dd); }
+
+		dd.color = TargetAttackColor;
+		     if (flags & HexFlags::TargetAttackTopLeft    ) { dd.pos.x -= (HexSize / 4); dd.pos.y -= HexSize * 3 / 8; Draw::DrawSprite(dd); }
+		else if (flags & HexFlags::TargetAttackTopRight   ) { dd.pos.x += (HexSize / 4); dd.pos.y -= HexSize * 3 / 8; Draw::DrawSprite(dd); }
+		else if (flags & HexFlags::TargetAttackRight      ) { dd.pos.x += (HexSize / 2);                              Draw::DrawSprite(dd); }
+		else if (flags & HexFlags::TargetAttackBottomRight) { dd.pos.x += (HexSize / 4); dd.pos.y += HexSize * 3 / 8; Draw::DrawSprite(dd); }
+		else if (flags & HexFlags::TargetAttackBottomLeft ) { dd.pos.x -= (HexSize / 4); dd.pos.y += HexSize * 3 / 8; Draw::DrawSprite(dd); }
+		else if (flags & HexFlags::TargetAttackLeft       ) { dd.pos.x -= (HexSize / 2);                              Draw::DrawSprite(dd); }
 
 		Draw::DrawStr({
 			.font   = numberFont,
@@ -244,7 +261,7 @@ void Draw(Data const* data) {
 
 	}
 
-	for (Side side = Side::Left; side <= Side::Right; side++) {
+	for (Side side = Side_Left; side <= Side_Right; side++) {
 		Army const* const army = &data->armies[side];
 		for (U32 i = 0; i < army->unitsLen; i++) {
 			Unit const* const unit = &army->units[i];
@@ -253,7 +270,7 @@ void Draw(Data const* data) {
 				.pos    = unit->pos,
 				.z      = Z_Unit,
 				.origin = Draw::Origin::Center,
-				.flip   = unit->side == Side::Right,
+				.flip   = unit->side == Side_Right,
 			});
 		}
 	}

@@ -129,7 +129,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 		Window::State const prevWindowState = windowState;	// TODO: this could be rolled into Events as part of the return val from Window::Update()
 		windowState = Window::GetState();
 
-		Span<U64 const> const actions = Input::ProcessKeyEvents(windowEvents.keyEvents, actionIds, MaxActionIds);
+		Span<Input::Action const> const actions = Input::ProcessKeyEvents(windowEvents.keyEvents);
 
 		UpdateData const appUpdateData = {
 			.sec         = sec,
