@@ -171,19 +171,19 @@ Res<> GenerateMap() {
 			hex->r = r;
 			hex->pos = CalcWorldPos(c, r);
 			if (r & 1) {	// odd row
-				AddNeighbor(hex,  0, -1, NeighborIdx::TopLeft    );
-				AddNeighbor(hex, +1, -1, NeighborIdx::TopRight   );
-				AddNeighbor(hex, +1,  0, NeighborIdx::Right      );
-				AddNeighbor(hex, +1, +1, NeighborIdx::BottomRight);
-				AddNeighbor(hex,  0, +1, NeighborIdx::BottomLeft );
-				AddNeighbor(hex, -1,  0, NeighborIdx::Left       );
+				AddNeighbor(hex,  0, -1, Dir::TopLeft    );
+				AddNeighbor(hex, +1, -1, Dir::TopRight   );
+				AddNeighbor(hex, +1,  0, Dir::Right      );
+				AddNeighbor(hex, +1, +1, Dir::BottomRight);
+				AddNeighbor(hex,  0, +1, Dir::BottomLeft );
+				AddNeighbor(hex, -1,  0, Dir::Left       );
 			} else {	// even row
-				AddNeighbor(hex, -1, -1, NeighborIdx::TopLeft    );
-				AddNeighbor(hex,  0, -1, NeighborIdx::TopRight   );
-				AddNeighbor(hex, +1,  0, NeighborIdx::Right      );
-				AddNeighbor(hex,  0, +1, NeighborIdx::BottomRight);
-				AddNeighbor(hex, -1, +1, NeighborIdx::BottomLeft );
-				AddNeighbor(hex, -1,  0, NeighborIdx::Left       );
+				AddNeighbor(hex, -1, -1, Dir::TopLeft    );
+				AddNeighbor(hex,  0, -1, Dir::TopRight   );
+				AddNeighbor(hex, +1,  0, Dir::Right      );
+				AddNeighbor(hex,  0, +1, Dir::BottomRight);
+				AddNeighbor(hex, -1, +1, Dir::BottomLeft );
+				AddNeighbor(hex, -1,  0, Dir::Left       );
 			}
 			U32 rng = Rng::NextU32(0, maxChance);
 			for (U32 i = 0; i < LenOf(terrainGen); i++) {
@@ -309,7 +309,7 @@ static bool FindPathToNeighbor(Unit const* unit, Hex const* hex, Path* pathOut) 
 	U16 minMoveCost = U16Max;
 	for (U8 i = 0; i < 6; i++) {
 		Hex const* const neighbor = hex->neighbors[i];
-		if (!neighbor) { continue; }
+		if (!neighbor || neighbor->unit) { continue; }
 		U16 const neighborMoveCost = unit->pathMap.moveCosts[neighbor->idx];
 		if (neighborMoveCost < minMoveCost) {
 			minMoveCost = neighborMoveCost;
@@ -322,48 +322,48 @@ static bool FindPathToNeighbor(Unit const* unit, Hex const* hex, Path* pathOut) 
 
 //--------------------------------------------------------------------------------------------------
 
-static U8 GetNeighborIdx(Hex const* from, Hex const* to) {
-	if (from->neighbors[NeighborIdx::TopLeft    ] == to) { return NeighborIdx::TopLeft; }
-	if (from->neighbors[NeighborIdx::TopRight   ] == to) { return NeighborIdx::TopRight; }
-	if (from->neighbors[NeighborIdx::Right      ] == to) { return NeighborIdx::Right; }
-	if (from->neighbors[NeighborIdx::BottomRight] == to) { return NeighborIdx::BottomRight; }
-	if (from->neighbors[NeighborIdx::BottomLeft ] == to) { return NeighborIdx::BottomLeft; }
-	if (from->neighbors[NeighborIdx::Left       ] == to) { return NeighborIdx::Left; }
+static U8 GetDir(Hex const* from, Hex const* to) {
+	if (from->neighbors[Dir::TopLeft    ] == to) { return Dir::TopLeft; }
+	if (from->neighbors[Dir::TopRight   ] == to) { return Dir::TopRight; }
+	if (from->neighbors[Dir::Right      ] == to) { return Dir::Right; }
+	if (from->neighbors[Dir::BottomRight] == to) { return Dir::BottomRight; }
+	if (from->neighbors[Dir::BottomLeft ] == to) { return Dir::BottomLeft; }
+	if (from->neighbors[Dir::Left       ] == to) { return Dir::Left; }
 	Panic("Neighbors not adjacent");
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static U16 BuildDrawPathObjs(Path const* path, Hex const* attackHex, DrawType base, DrawObj* drawObjs) {
+static U16 BuildDrawPathObjs(Hex const* startHex, Path const* path, Hex const* attackHex, DrawType base, DrawObj* drawObjs) {
 	U16 len = 0;
-	Hex const* from = selectedUnit->hex;
+	Hex const* from = startHex;
 	for (U16 i = 0; i < path->len; i++) {
 		Hex const* to = path->hexes[i];
-		U8 const n = GetNeighborIdx(from, to);
+		U8 const dir = GetDir(from, to);
 		drawObjs[len++] = {
 			.pos  = from->pos,
-			.type = (DrawType)(base + n),
+			.type = (DrawType)(base + dir),
 		};
 		drawObjs[len++] = {
 			.pos  = to->pos,
-			.type = (DrawType)(base + ((n + 3) % 6)),	// opposite side
+			.type = (DrawType)(base + ((dir + 3) % 6)),	// opposite side
 		};
 		from = to;
 	}
 	if (attackHex) {
 		Vec2 pos = from->pos;
-		U8 const n = GetNeighborIdx(from, attackHex);
-		switch (n) {
-			case NeighborIdx::TopLeft:     pos.x -= (HexSize / 4); pos.y -= HexSize * 3 / 8; break;
-			case NeighborIdx::TopRight:    pos.x += (HexSize / 4); pos.y -= HexSize * 3 / 8; break;
-			case NeighborIdx::Right:       pos.x += (HexSize / 2);                           break;
-			case NeighborIdx::BottomRight: pos.x += (HexSize / 4); pos.y += HexSize * 3 / 8; break;
-			case NeighborIdx::BottomLeft:  pos.x -= (HexSize / 4); pos.y += HexSize * 3 / 8; break;
-			case NeighborIdx::Left:        pos.x -= (HexSize / 2);                           break;
+		U8 const dir = GetDir(from, attackHex);
+		switch (dir) {
+			case Dir::TopLeft:     pos.x -= (HexSize / 4); pos.y -= HexSize * 3 / 8; break;
+			case Dir::TopRight:    pos.x += (HexSize / 4); pos.y -= HexSize * 3 / 8; break;
+			case Dir::Right:       pos.x += (HexSize / 2);                           break;
+			case Dir::BottomRight: pos.x += (HexSize / 4); pos.y += HexSize * 3 / 8; break;
+			case Dir::BottomLeft:  pos.x -= (HexSize / 4); pos.y += HexSize * 3 / 8; break;
+			case Dir::Left:        pos.x -= (HexSize / 2);                           break;
 		}
 		drawObjs[len++] = {
 			.pos  = from->pos,
-			.type = (DrawType)(base + n),
+			.type = (DrawType)(base + dir),
 		};
 		drawObjs[len++] = {
 			.pos  = pos,
@@ -378,7 +378,7 @@ static U16 BuildDrawPathObjs(Path const* path, Hex const* attackHex, DrawType ba
 static void SetTargetMoveHex(Hex const* hex) {
 	targetAttackHex = nullptr;
 	FindPath(selectedUnit, hex, &targetPath);
-	drawDef.targetPathLen = BuildDrawPathObjs(&targetPath, nullptr, DrawType_TargetPathTopLeft, drawDef.targetPath);
+	drawDef.targetPathLen = BuildDrawPathObjs(selectedUnit->hex, &targetPath, nullptr, DrawType_TargetPathBase, drawDef.targetPath);
 	Logf("Targetted (%u, %u) for move", hex->c, hex->r);
 }
 
@@ -388,19 +388,19 @@ static void SetTargetAttackHex(Hex const* hex) {
 	if (hoverPath.len && HexDistance(hoverPath.hexes[hoverPath.len - 1], hex) <= selectedUnit->range) {
 		targetAttackHex = hex;
 		targetPath = hoverPath;
-		drawDef.targetPathLen = BuildDrawPathObjs(&targetPath, targetAttackHex, DrawType_TargetPathTopLeft, drawDef.targetPath);
+		drawDef.targetPathLen = BuildDrawPathObjs(selectedUnit->hex, &targetPath, targetAttackHex, DrawType_TargetPathBase, drawDef.targetPath);
 		Logf("Targetted (%u, %u) for attack from hoverPath", targetAttackHex->c, targetAttackHex->r);
 
 	} else if (targetPath.len && HexDistance(targetPath.hexes[targetPath.len - 1], hex) <= selectedUnit->range) {
 		targetAttackHex = hex;
-		drawDef.targetPathLen = BuildDrawPathObjs(&targetPath, targetAttackHex, DrawType_TargetPathTopLeft, drawDef.targetPath);
+		drawDef.targetPathLen = BuildDrawPathObjs(selectedUnit->hex, &targetPath, targetAttackHex, DrawType_TargetPathBase, drawDef.targetPath);
 		Logf("Targetted (%u, %u) for attack from targetPath", targetAttackHex->c, targetAttackHex->r);
 
 
 	} else if (FindPathToNeighbor(selectedUnit, hex, &targetPath)) {
 		targetAttackHex = hex;
-		drawDef.targetPathLen = BuildDrawPathObjs(&targetPath, targetAttackHex, DrawType_TargetPathTopLeft, drawDef.targetPath);
-		Logf("Targetted (%u, %u) for attack from hoverPath", targetAttackHex->c, targetAttackHex->r);
+		drawDef.targetPathLen = BuildDrawPathObjs(selectedUnit->hex, &targetPath, targetAttackHex, DrawType_TargetPathBase, drawDef.targetPath);
+		Logf("Targetted (%u, %u) for attack from closest neighbor", targetAttackHex->c, targetAttackHex->r);
 
 	} else {
 		Logf("Target out of range");
@@ -423,8 +423,8 @@ static void SetSelected(Unit const* unit) {
 	hoverPath.len                 = 0;
 	rebuildOverlay                = true;
 	drawDef.hoverPathLen          = 0;
-	drawDef.hoverSelected[1].pos  = selectedUnit->hex->pos;
-	drawDef.hoverSelected[1].type = DrawType_Selected;
+	drawDef.selected.pos  = selectedUnit->hex->pos;
+	drawDef.selected.type = DrawType_Selected;
 	ClearTarget();
 	Logf("Selected (%u, %u)", unit->hex->c, unit->hex->r);
 }
@@ -436,7 +436,7 @@ static void ClearSelected() {
 	hoverPath.len                 = 0;
 	rebuildOverlay                = true;
 	drawDef.hoverPathLen          = 0;
-	drawDef.hoverSelected[1].type = DrawType_None;
+	drawDef.selected.type = DrawType_None;
 	ClearTarget();
 	Logf("Cleared selected");
 }
@@ -483,43 +483,43 @@ static void UpdateHoverHex(Hex const* newHoverHex) {
 	if (hoverHex == newHoverHex) { return; }
 	rebuildOverlay  = true;
 	hoverHex = newHoverHex;
-	drawDef.hoverSelected[0].type = DrawType_None;
+	drawDef.hover.type = DrawType_None;
 	if (!hoverHex) { return; }
-	drawDef.hoverSelected[0].pos  = hoverHex->pos;
-	drawDef.hoverSelected[0].type = DrawType_HoverDefault;
+	drawDef.hover.pos  = hoverHex->pos;
+	drawDef.hover.type = DrawType_HoverDefault;
 
 	Unit const* const hoverUnit = hoverHex->unit;
 	if (!selectedUnit) {
 		if (hoverUnit) {
 			if (hoverUnit->side == data->activeSide) {
-				drawDef.hoverSelected[0].type = DrawType_HoverSelectableFriendly;
+				drawDef.hover.type = DrawType_HoverSelectableFriendly;
 				Logf("Hover selectable friendly");
 			} else {	
-				drawDef.hoverSelected[0].type = DrawType_HoverUnattackableEnemy;
+				drawDef.hover.type = DrawType_HoverUnattackableEnemy;
 				Logf("Hover unattackable enemy");
 			}
 		}
 	} else {
 		if (!hoverUnit) {
 			if (FindPath(selectedUnit, hoverHex, &hoverPath)) {
-				drawDef.hoverSelected[0].type = DrawType_HoverMoveable;
-				drawDef.hoverPathLen = BuildDrawPathObjs(&hoverPath, nullptr, DrawType_HoverPathTopLeft, drawDef.hoverPath);
+				drawDef.hover.type = DrawType_HoverMoveable;
+				drawDef.hoverPathLen = BuildDrawPathObjs(selectedUnit->hex, &hoverPath, nullptr, DrawType_HoverPathBase, drawDef.hoverPath);
 				Logf("Hover moveable");
 			}
 		} else if (hoverUnit->side == data->activeSide) {
-			drawDef.hoverSelected[0].type = DrawType_HoverSelectableFriendly;
-				Logf("Hover selectable friendly");
+			drawDef.hover.type = DrawType_HoverSelectableFriendly;
+			Logf("Hover selectable friendly");
 		} else {
 			if (hoverPath.len && HexDistance(hoverPath.hexes[hoverPath.len - 1], hoverHex) <= selectedUnit->range) {
-				drawDef.hoverSelected[0].type = DrawType_HoverAttackableEnemy;
-				drawDef.hoverPathLen = BuildDrawPathObjs(&hoverPath, hoverHex, DrawType_HoverPathTopLeft, drawDef.hoverPath);
+				drawDef.hover.type = DrawType_HoverAttackableEnemy;
+				drawDef.hoverPathLen = BuildDrawPathObjs(selectedUnit->hex, &hoverPath, hoverHex, DrawType_HoverPathBase, drawDef.hoverPath);
 				Logf("Hover attackable enemy via hover path");
 			} else if (FindPathToNeighbor(selectedUnit, hoverHex, &hoverPath)) {
-				drawDef.hoverSelected[0].type = DrawType_HoverAttackableEnemy;
-				drawDef.hoverPathLen = BuildDrawPathObjs(&hoverPath, hoverHex, DrawType_HoverPathTopLeft, drawDef.hoverPath);
+				drawDef.hover.type = DrawType_HoverAttackableEnemy;
+				drawDef.hoverPathLen = BuildDrawPathObjs(selectedUnit->hex, &hoverPath, hoverHex, DrawType_HoverPathBase, drawDef.hoverPath);
 				Logf("Hover attackable enemy via nearest neighbor");
 			} else {
-				drawDef.hoverSelected[0].type = DrawType_HoverUnattackableEnemy;
+				drawDef.hover.type = DrawType_HoverUnattackableEnemy;
 				Logf("Hover unattackable enemy");
 			}
 		}
@@ -601,8 +601,7 @@ void RebuildOverlay() {
 					.pos  = data->hexes[i].pos,
 					.type = DrawType_FriendlyMoveable,
 				};
-			}
-			if (!showEnemyArmyThreatMap && friendlyArmy->attackMap[i] & friendlyUnitBit) {
+			} else if (hexUnit && hexUnit->side != data->activeSide && (friendlyArmy->attackMap[i] & friendlyUnitBit)) {
 				drawDef.overlay[drawDef.overlayLen++] = {
 					.pos  = data->hexes[i].pos,
 					.type = DrawType_FriendlyAttackable,

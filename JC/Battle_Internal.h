@@ -48,7 +48,7 @@ struct Terrain {
 	U16          moveCost;
 };
 
-namespace NeighborIdx {
+namespace Dir {
 	constexpr U8 TopLeft     = 0;
 	constexpr U8 TopRight    = 1;
 	constexpr U8 Right       = 2;
@@ -71,8 +71,8 @@ enum Side : U8 { Side_Left = 0, Side_Right, Side_Max };
 inline Side operator++(Side& side, int) { Side tmp = side; side = (Side)((U8)side + 1); return tmp; }
 
 struct Path {
-	Hex* hexes[MaxHexes];
-	U16  len;
+	Hex const* hexes[MaxHexes];
+	U16        len;
 };
 
 struct PathMap {
@@ -111,14 +111,18 @@ enum DrawType : U8 {
 	DrawType_HoverAttackableEnemy,
 	DrawType_HoverUnattackableEnemy,
 	DrawType_Selected,
-	DrawType_HoverPathTopLeft,
+	// Must match Dir order
+	DrawType_HoverPathBase,
+	DrawType_HoverPathTopLeft = DrawType_HoverPathBase,
 	DrawType_HoverPathTopRight,
 	DrawType_HoverPathRight,
 	DrawType_HoverPathBottomRight,
 	DrawType_HoverPathBottomLeft,
 	DrawType_HoverPathLeft,
 	DrawType_HoverAttack,
-	DrawType_TargetPathTopLeft,
+	// Must match Dir order
+	DrawType_TargetPathBase,
+	DrawType_TargetPathTopLeft = DrawType_TargetPathBase,
 	DrawType_TargetPathTopRight,
 	DrawType_TargetPathRight,
 	DrawType_TargetPathBottomRight,
@@ -128,9 +132,24 @@ enum DrawType : U8 {
 	DrawType_Max,
 };
 
+static_assert(DrawType_HoverPathTopLeft      == DrawType_HoverPathBase + Dir::TopLeft);
+static_assert(DrawType_HoverPathTopRight     == DrawType_HoverPathBase + Dir::TopRight);
+static_assert(DrawType_HoverPathRight        == DrawType_HoverPathBase + Dir::Right);
+static_assert(DrawType_HoverPathBottomRight  == DrawType_HoverPathBase + Dir::BottomRight);
+static_assert(DrawType_HoverPathBottomLeft   == DrawType_HoverPathBase + Dir::BottomLeft);
+static_assert(DrawType_HoverPathLeft         == DrawType_HoverPathBase + Dir::Left);
+
+static_assert(DrawType_TargetPathTopLeft     == DrawType_TargetPathBase+ Dir::TopLeft);
+static_assert(DrawType_TargetPathTopRight    == DrawType_TargetPathBase+ Dir::TopRight);
+static_assert(DrawType_TargetPathRight       == DrawType_TargetPathBase+ Dir::Right);
+static_assert(DrawType_TargetPathBottomRight == DrawType_TargetPathBase+ Dir::BottomRight);
+static_assert(DrawType_TargetPathBottomLeft  == DrawType_TargetPathBase+ Dir::BottomLeft);
+static_assert(DrawType_TargetPathLeft        == DrawType_TargetPathBase+ Dir::Left);
+
 struct DrawObj {
 	Vec2     pos;
 	DrawType type;
+	U8       dir;
 };
 
 constexpr U16 MaxDrawPath = 2 * MaxHexes + 1; // two draw objs for each hex + attack
@@ -138,7 +157,8 @@ constexpr U16 MaxDrawPath = 2 * MaxHexes + 1; // two draw objs for each hex + at
 struct DrawDef {
 	DrawObj overlay[MaxHexes];
 	U16     overlayLen;
-	DrawObj hoverSelected[2];
+	DrawObj hover;
+	DrawObj selected;
 	DrawObj hoverPath[MaxDrawPath];
 	U16     hoverPathLen;
 	DrawObj targetPath[MaxDrawPath];

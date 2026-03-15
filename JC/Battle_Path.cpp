@@ -83,9 +83,9 @@ void BuildPathMap(Hex* hexes, Unit* unit) {
 	U16* const  moveCosts = unit->pathMap.moveCosts;
 	Hex** const parents   = unit->pathMap.parents;
 
-	memset(moveCosts,   0xff, sizeof(unit->pathMap.moveCosts));
-	memset(pathLens,    0xff, sizeof(pathLens));
-	memset(parents,     0,    sizeof(unit->pathMap.parents));
+	memset(moveCosts,   0xff, MaxHexes * sizeof(moveCosts[0]));
+	memset(pathLens,    0xff, MaxHexes * sizeof(pathLens[0]));
+	memset(parents,     0,    MaxHexes * sizeof(parents[0]));
 	memset(pathVisited, 0,    MaxHexes * sizeof(pathVisited[0]));
 	pathHeap.len = 0;
 
@@ -142,7 +142,7 @@ bool FindPath(Unit const* unit, Hex const* end, Path* pathOut) {
 	}
 
 	for (Hex const* hex = end; hex != unit->hex; hex = parents[hex->idx]) {
-		pathOut->hexes[pathOut->len++] = (Hex*)hex;	// TODO: this cast seems wrong, but it also seems wrong to accept `end` as non-const
+		pathOut->hexes[pathOut->len++] = hex;
 	}
 	U16 const halfLen = pathOut->len / 2;
 	for (U64 i = 0; i < halfLen; i++) {

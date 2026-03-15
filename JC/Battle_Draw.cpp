@@ -16,11 +16,11 @@ static constexpr F32 Z_Hex          = 1.01f;
 static constexpr F32 Z_HexInner     = 1.02f;
 static constexpr F32 Z_HexBorder    = 1.03f;
 static constexpr F32 Z_HoverPath    = 1.04f;
-static constexpr F32 Z_HoverAttack  = 1.05f;
-static constexpr F32 Z_TargetPath   = 1.06f;
-static constexpr F32 Z_TargetAttack = 1.07f;
-static constexpr F32 Z_HexUi        = 1.08f;
-static constexpr F32 Z_Unit         = 2.00f;
+static constexpr F32 Z_TargetPath   = 1.05f;
+static constexpr F32 Z_Unit         = 1.06f;
+static constexpr F32 Z_HoverAttack  = 1.07f;
+static constexpr F32 Z_TargetAttack = 1.08f;
+static constexpr F32 Z_HexUi        = 1.09f;
 static constexpr F32 Z_UiBackground = 3.00f;
 static constexpr F32 Z_Ui           = 3.01f;
 
@@ -208,7 +208,8 @@ void Draw(Data const* data, DrawDef const* drawDef) {
 	}
 
 	DrawObjs(drawDef->overlay, drawDef->overlayLen);
-	DrawObjs(drawDef->hoverSelected, LenOf(drawDef->hoverSelected));
+	DrawObjs(&drawDef->hover, 1);
+	DrawObjs(&drawDef->selected, 1);
 	DrawObjs(drawDef->hoverPath, drawDef->hoverPathLen);
 	DrawObjs(drawDef->targetPath, drawDef->targetPathLen);
 }
