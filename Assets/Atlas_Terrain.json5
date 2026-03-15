@@ -1,6 +1,8 @@
 {
 	imagePath: "Assets/Atlas_Terrain.png",
 	sprites: [
+		{ x:   0, y:   0, w:  0, h:  0, name: "Empty" },
+
 		{ x:   0, y:   0, w: 32, h: 32, name: "Hex32_Highlight" },
 		{ x:  32, y:   0, w: 32, h: 32, name: "Hex32_Border1" },
 		{ x:  64, y:   0, w: 32, h: 32, name: "Hex32_Border2" },

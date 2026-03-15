@@ -7,6 +7,7 @@
 #include "JC/Unicode.h"
 
 #include <ShellScalingApi.h>
+#include <windowsx.h>
 
 static constexpr JC::U32 HID_USAGE_PAGE_GENERIC     = 0x01;
 static constexpr JC::U32 HID_USAGE_GENERIC_MOUSE    = 0x02;
@@ -141,16 +142,21 @@ constexpr Key::Key ScanCodeToKey(U32 scanCode, bool e0) {
 	return Key::Key::Invalid;
 }
 
+//----------------------------------------------------------------------------------------------
+
 static void AddKeyEvent(Key::Key key, bool down) {
 	if (keyEventsLen >= MaxKeyEvents) {
 		Errorf("Dropping key '%s' %s event", Key::GetKeyStr(key), down ? "down" : "up");
 		return;
 	}
+	DWORD const msgPos = GetMessagePos();
+	POINT pt = { GET_X_LPARAM(msgPos), GET_Y_LPARAM(msgPos) };
+	ScreenToClient(window.hwnd, &pt);
 	keyEvents[keyEventsLen++] = {
 		.key    = key,
 		.down   = down,
-		.mouseX = mouseDeltaX,
-		.mouseY = mouseDeltaY,
+		.mouseX = (I32)pt.x,
+		.mouseY = (I32)pt.y,
 	};
 }
 
@@ -344,8 +350,8 @@ static BOOL MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
 
 	if (monitorInfoEx.dwFlags & MONITORINFOF_PRIMARY) {
 		Display t = displays[0];
-		displays[0] = displays[displaysLen];
-		displays[displaysLen] = t;
+		displays[0] = displays[displaysLen - 1];
+		displays[displaysLen - 1] = t;
 	}
 
 	return TRUE;
@@ -448,7 +454,7 @@ Res<> Init(const InitDef* initDef) {
 	}
 
 	window.windowRect.x      = r.left;
-	window.windowRect.y      = r.bottom;
+	window.windowRect.y      = r.top;
 	window.windowRect.width  = r.right - r.left;
 	window.windowRect.height = r.bottom - r.top;
 	window.dpiScale     = (F32)window.dpi / (F32)USER_DEFAULT_SCREEN_DPI;
@@ -518,8 +524,8 @@ PlatformDef GetPlatformDef() {
 
 State GetState() {
 	return {
-		.x          = window.windowRect.y,
-		.y          = window.windowRect.x,
+		.x          = window.windowRect.x,
+		.y          = window.windowRect.y,
 		.width      = window.clientRect.width,
 		.height     = window.clientRect.height,
 		.style      = window.style,

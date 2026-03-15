@@ -130,8 +130,8 @@ Span<Action const> ProcessKeyEvents(Span<Window::KeyEvent const> keyEvents) {
 				}
 				actions[actionsLen++] = {
 					.id     = binding->actionId,
-					.mouseX = 0,
-					.mouseY = 0,
+					.mouseX = keyStates[key].mouseX,
+					.mouseY = keyStates[key].mouseY,
 				};
 				break;
 			}
@@ -141,7 +141,7 @@ Span<Action const> ProcessKeyEvents(Span<Window::KeyEvent const> keyEvents) {
 	for (U16 i = 0; i < downKeysLen; i++) {
 		Key::Key const key = downKeys[i];
 		Binding* const keyBindings = bindings + (key * MaxBindingSets);
-		for (U8 j = (U8)activeBindingSetsLen - 1; j >= 0; j--) {
+		for (I8 j = (I8)activeBindingSetsLen - 1; j >= 0; j--) {
 			Binding const* const binding = &keyBindings[activeBindSets[j]];
 			if (binding->actionId && binding->bindingType == BindingType::Continuous) {
 				if (actionsLen >= MaxActionsPerFrame) {

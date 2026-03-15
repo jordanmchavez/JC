@@ -11,12 +11,28 @@ namespace JC::Battle {
 
 static constexpr F32 CameraSpeedPixelsPerSec = 1000.f;
 
-static constexpr F32  UiWidth           = 400.f;
-static constexpr Vec4 UiBackgroundColor = Vec4(0.2f, 0.3f, 0.4f, 1.f);
-static constexpr F32  UiFontScale       = 2.f;
+static constexpr F32 Z_Background   = 0.00f;
+static constexpr F32 Z_Hex          = 1.01f;
+static constexpr F32 Z_HexInner     = 1.02f;
+static constexpr F32 Z_HexBorder    = 1.03f;
+static constexpr F32 Z_HoverPath    = 1.04f;
+static constexpr F32 Z_HoverAttack  = 1.05f;
+static constexpr F32 Z_TargetPath   = 1.06f;
+static constexpr F32 Z_TargetAttack = 1.07f;
+static constexpr F32 Z_HexUi        = 1.08f;
+static constexpr F32 Z_Unit         = 2.00f;
+static constexpr F32 Z_UiBackground = 3.00f;
+static constexpr F32 Z_Ui           = 3.01f;
+
+struct DrawTypeData {
+	Draw::Sprite sprite;
+	F32          z;
+	Vec4         color;
+};
 
 static Mem          tempMem;
 static Vec2         windowSize;
+static Draw::Sprite emptySprite;
 static Draw::Sprite borderSprite;
 static Draw::Sprite innerSprite;
 static Draw::Sprite pathTopLeftSprite;
@@ -38,6 +54,7 @@ static F32          uiFontLineHeight;
 static Draw::Font   fancyFont;
 static Vec2         cameraPos;
 static F32          cameraScale;
+static DrawTypeData drawTypeData[DrawType_Max];
 
 //--------------------------------------------------------------------------------------------------
 
@@ -61,6 +78,8 @@ Res<> InitDraw(Mem tempMemIn, Window::State const* windowState) {
 //--------------------------------------------------------------------------------------------------
 
 Res<> LoadDraw(BattleJson const* battleJson) {
+	TryTo(Draw::GetSprite("Empty"), emptySprite);
+
 	TryTo(Draw::GetSprite(battleJson->borderSprite),           borderSprite);
 	TryTo(Draw::GetSprite(battleJson->innerSprite),            innerSprite);
 	TryTo(Draw::GetSprite(battleJson->pathBottomLeftSprite),   pathBottomLeftSprite);
@@ -77,6 +96,33 @@ Res<> LoadDraw(BattleJson const* battleJson) {
 	TryTo(Draw::GetSprite(battleJson->arrowBottomRightSprite), arrowBottomRightSprite);
 
 	TryTo(Draw::GetSprite("UI_AttackBorder"), attackSprite);
+
+	drawTypeData[DrawType_None                              ] = { .sprite = emptySprite,           .z = -1.f,           .color = Vec4(0.f, 0.f, 0.f, 0.0f) };
+	drawTypeData[DrawType_FriendlyMoveable                  ] = { .sprite = innerSprite,           .z = Z_HexInner,     .color = Vec4(0.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_FriendlyAttackable                ] = { .sprite = innerSprite,           .z = Z_HexInner,     .color = Vec4(0.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_EnemyAttackable                   ] = { .sprite = innerSprite,           .z = Z_HexInner,     .color = Vec4(1.f, 0.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_FriendlyMoveableAndEnemyAttackable] = { .sprite = innerSprite,           .z = Z_HexInner,     .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_EnemyAttacker                     ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 0.f, 0.f, 1.0f) };
+	drawTypeData[DrawType_HoverDefault                      ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 0.5f) };
+	drawTypeData[DrawType_HoverMoveable                     ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 1.0f) };
+	drawTypeData[DrawType_HoverSelectableFriendly           ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 1.0f) };
+	drawTypeData[DrawType_HoverAttackableEnemy              ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 1.0f) };
+	drawTypeData[DrawType_HoverUnattackableEnemy            ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 0.5f) };
+	drawTypeData[DrawType_Selected                          ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(0.f, 1.f, 0.f, 1.0f) };
+	drawTypeData[DrawType_HoverPathTopLeft                  ] = { .sprite = pathTopLeftSprite,     .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_HoverPathTopRight                 ] = { .sprite = pathTopRightSprite,    .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_HoverPathRight                    ] = { .sprite = pathRightSprite,       .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_HoverPathBottomRight              ] = { .sprite = pathBottomRightSprite, .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_HoverPathBottomLeft               ] = { .sprite = pathBottomLeftSprite,  .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_HoverPathLeft                     ] = { .sprite = pathLeftSprite,        .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_HoverAttack                       ] = { .sprite = attackSprite,          .z = Z_HoverAttack,  .color = Vec4(1.f, 1.f, 1.f, 0.5f) };
+	drawTypeData[DrawType_TargetPathTopLeft                 ] = { .sprite = pathTopLeftSprite,     .z = Z_TargetPath,   .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
+	drawTypeData[DrawType_TargetPathTopRight                ] = { .sprite = pathTopRightSprite,    .z = Z_TargetPath,   .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
+	drawTypeData[DrawType_TargetPathRight                   ] = { .sprite = pathRightSprite,       .z = Z_TargetPath,   .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
+	drawTypeData[DrawType_TargetPathBottomRight             ] = { .sprite = pathBottomRightSprite, .z = Z_TargetPath,   .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
+	drawTypeData[DrawType_TargetPathBottomLeft              ] = { .sprite = pathBottomLeftSprite,  .z = Z_TargetPath,   .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
+	drawTypeData[DrawType_TargetPathLeft                    ] = { .sprite = pathLeftSprite,        .z = Z_TargetPath,   .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
+	drawTypeData[DrawType_TargetAttack                      ] = { .sprite = attackSprite,          .z = Z_TargetAttack, .color = Vec4(1.f, 1.f, 1.f, 1.0f) };
 
 	return Ok();
 }
@@ -112,94 +158,21 @@ void ZoomCamera(F32 d) {
 
 //--------------------------------------------------------------------------------------------------
 
-/*
-
-	Draw::DrawRect({
-		.pos    = windowSize,
-		.z      = Z_UiBackground,
-		.origin = Draw::Origin::BottomRight,
-		.size   = Vec2(UiWidth, windowSize.y),
-		.color  = UiBackgroundColor,
-	});
-
-	Draw::StrDrawDef drawDef = {
-		.font   = uiFont,
-		.pos    = { windowSize.x - UiWidth + 10.f, 10.f },
-		.z      = Z_Ui,
-		.origin = Draw::Origin::TopLeft,
-		.scale  = { UiFontScale, UiFontScale },
-		.color  = { 1.f, 1.f, 1.f, 1.f },
-	};
-	Draw::DrawStr(drawDef);
-
-	if (data->hoverHex) {
-		Terrain const* const terrain = data->hoverHex->terrain;
-		drawDef.str = SPrintf(tempMem, "%s: %u move", terrain->name, terrain->moveCost);
-		Draw::DrawStr(drawDef);
-		drawDef.pos.y += (uiFontLineHeight + 3) * UiFontScale;
+static void DrawObjs(DrawObj const* drawObjs, U16 len) {
+	for (U64 i = 0; i < len; i++) {
+		DrawTypeData const* const data = &drawTypeData[drawObjs[i].type];
+		Draw::DrawSprite({
+			.sprite = data->sprite,
+			.pos    = drawObjs[i].pos,
+			.z      = data->z,
+			.color  = data->color,
+		});
 	}
-
-	if (data->selectedHex) {
-		Unit const* const unit = data->selectedHex->unit;
-		JC::Unit::Def const* const def = unit->def;
-
-		drawDef.str    = def->name;
-		Draw::DrawStr(drawDef);
-		drawDef.pos.y += (uiFontLineHeight + 3) * UiFontScale;
-
-		drawDef.str = SPrintf(tempMem, "HP: %u/%u", unit->hp, def->hp);
-		Draw::DrawStr(drawDef);
-		drawDef.pos.y += (uiFontLineHeight + 3) * UiFontScale;
-
-		drawDef.str = SPrintf(tempMem, "Move: %u/%u", unit->move, def->move);
-		Draw::DrawStr(drawDef);
-		drawDef.pos.y += (uiFontLineHeight + 3) * UiFontScale;
-	}
-}
-*/
-
-static constexpr Vec4 SelectedHexColor  = Vec4(0.f, 1.f, 0.f, 1.f);
-static constexpr Vec4 ReachableHexColor = Vec4(1.f, 1.f, 1.f, 0.25f);
-static constexpr Vec4 AttackableColor   = Vec4(1.f, 0.f, 0.f, 0.5f);
-static constexpr Vec4 HoverPathColor    = Vec4(1.f, 1.f, 0.f, 0.5f);
-static constexpr Vec4 HoverAttackColor  = Vec4(1.f, 0.f, 0.f, 0.5f);
-static constexpr Vec4 TargetPathColor   = Vec4(1.f, 1.f, 0.f, 1.f);
-static constexpr Vec4 TargetAttackColor = Vec4(1.f, 0.f, 0.f, 1.f);
-
-static constexpr F32 Z_Background   = 0.00f;
-static constexpr F32 Z_Hex          = 1.01f;
-static constexpr F32 Z_HexFill      = 1.02f;
-static constexpr F32 Z_HexBorder    = 1.03f;
-static constexpr F32 Z_Path         = 1.04f;
-static constexpr F32 Z_Arrow        = 1.05f;
-static constexpr F32 Z_HexUi        = 1.06f;
-static constexpr F32 Z_Unit         = 2.00f;
-static constexpr F32 Z_UiBackground = 3.00f;
-static constexpr F32 Z_Ui           = 3.01f;
-
-//--------------------------------------------------------------------------------------------------
-
-static void DrawInner(Vec2 pos, Vec4 color) {
-	Draw::DrawSprite({
-		.sprite = innerSprite,
-		.pos    = pos,
-		.z      = Z_HexFill,
-		.color  = color,
-	});
-}
-
-static void DrawBorder(Vec2 pos, Vec4 color) {
-	Draw::DrawSprite({
-		.sprite = borderSprite,
-		.pos    = pos,
-		.z      = Z_HexBorder,
-		.color  = color,
-	});
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void Draw(Data* data, DrawDef const* drawDef) {
+void Draw(Data const* data, DrawDef const* drawDef) {
 	Draw::SetCamera({ .pos = cameraPos, .scale = cameraScale });
 
 	for (U32 i = 0; i < data->hexesLen; i++) {
@@ -208,6 +181,16 @@ void Draw(Data* data, DrawDef const* drawDef) {
 			.sprite = hex->terrain->sprite,
 			.pos    = hex->pos,
 			.z      = Z_Hex,
+		});
+
+		Draw::DrawStr({
+			.font   = numberFont,
+			.str    = SPrintf(tempMem, "%u,%u[%u]", hex->c, hex->r, hex->idx),
+			.pos    = Vec2(hex->pos.x, hex->pos.y + HexSize / 2 - 2.f),
+			.z      = Z_Ui + 10,
+			.origin = Draw::Origin::BottomCenter,
+			.scale = Vec2(1.f / cameraScale, 1.f / cameraScale),
+			.color  = Vec4(1.f, 1.f, 1.f, 1.f),
 		});
 	}
 
@@ -224,77 +207,10 @@ void Draw(Data* data, DrawDef const* drawDef) {
 		}
 	}
 
-	for (U16 i = 0; i < MaxHexes; i++) {
-		Vec2 const pos = data->hexes[i].pos;
-		U64 const flags = drawDef->overlayFlags[i];
-		if ((flags & OverlayFlags::FriendlyThreat) && (flags & OverlayFlags::EnemyThreat)) {
-			DrawInner(pos, Vec4(1.f, 1.f, 0.f, 0.5f));
-		} else if (flags & OverlayFlags::FriendlyThreat) {
-			DrawInner(pos, Vec4(0.f, 1.f, 0.f, 0.5f));
-		} else if (flags & OverlayFlags::EnemyThreat) {
-			DrawInner(pos, Vec4(1.f, 0.f, 0.f, 0.5f));
-		}
-		if (flags & OverlayFlags::Attacker) {
-			DrawBorder(pos, Vec4(1.f, 0.f, 0.f, 1.0f));
-		}
-	}
-
-	const Draw::Sprite pathSprites[6] = {
-		pathTopLeftSprite,
-		pathTopRightSprite,
-		pathRightSprite,
-		pathBottomRightSprite,
-		pathBottomLeftSprite,
-		pathLeftSprite,
-	};
-	for (U8 n = 0; n < 6; n++) {
-		Draw::Sprite const pathSprite = pathSprites[n];
-		for (U64 i = 0; i < drawDef->hoverPath[n].len; i++) {
-			Draw::DrawSprite({
-				.sprite = pathSprite,
-				.pos    = drawDef->hoverPath[n][i],
-				.z      = Z_Path,
-				.color  = Vec4(1.f, 1.f, 0.f, 0.5f),
-			});
-		}
-		for (U64 i = 0; i < drawDef->targetPath[n].len; i++) {
-			Draw::DrawSprite({
-				.sprite = pathSprite,
-				.pos    = drawDef->targetPath[n][i],
-				.z      = Z_Path,
-				.color  = Vec4(1.f, 1.f, 0.f, 0.5f),
-			});
-		}
-	}
-/*
-		     if (flags & HexFlags::HoverAttackTopLeft    ) { dd.pos.x -= (HexSize / 4); dd.pos.y -= HexSize * 3 / 8; Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::HoverAttackTopRight   ) { dd.pos.x += (HexSize / 4); dd.pos.y -= HexSize * 3 / 8; Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::HoverAttackRight      ) { dd.pos.x += (HexSize / 2);                              Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::HoverAttackBottomRight) { dd.pos.x += (HexSize / 4); dd.pos.y += HexSize * 3 / 8; Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::HoverAttackBottomLeft ) { dd.pos.x -= (HexSize / 4); dd.pos.y += HexSize * 3 / 8; Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::HoverAttackLeft       ) { dd.pos.x -= (HexSize / 2);                              Draw::DrawSprite(dd); }
-
-		dd.color = TargetAttackColor;
-		     if (flags & HexFlags::TargetAttackTopLeft    ) { dd.pos.x -= (HexSize / 4); dd.pos.y -= HexSize * 3 / 8; Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::TargetAttackTopRight   ) { dd.pos.x += (HexSize / 4); dd.pos.y -= HexSize * 3 / 8; Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::TargetAttackRight      ) { dd.pos.x += (HexSize / 2);                              Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::TargetAttackBottomRight) { dd.pos.x += (HexSize / 4); dd.pos.y += HexSize * 3 / 8; Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::TargetAttackBottomLeft ) { dd.pos.x -= (HexSize / 4); dd.pos.y += HexSize * 3 / 8; Draw::DrawSprite(dd); }
-		else if (flags & HexFlags::TargetAttackLeft       ) { dd.pos.x -= (HexSize / 2);                              Draw::DrawSprite(dd); }
-		Draw::DrawStr({
-			.font   = numberFont,
-			.str    = SPrintf(tempMem, "%u,%u[%u]", hex->c, hex->r, hex->idx),
-			//.str    = SPrintf(tempMem, "%x", hex->flags),
-			.pos    = Vec2(hex->pos.x, hex->pos.y + HexSize / 2 - 2.f),
-			.z      = Z_Ui + 10,
-			.origin = Draw::Origin::BottomCenter,
-			//.scale = Vec2(2.f / cameraScale, 2.f / cameraScale),
-			.scale = Vec2(1.f / cameraScale, 1.f / cameraScale),
-			//.scale = Vec2(1.f, 1.f),
-			.color  = Vec4(1.f, 1.f, 1.f, 1.f),
-		});
-		*/
-
+	DrawObjs(drawDef->overlay, drawDef->overlayLen);
+	DrawObjs(drawDef->hoverSelected, LenOf(drawDef->hoverSelected));
+	DrawObjs(drawDef->hoverPath, drawDef->hoverPathLen);
+	DrawObjs(drawDef->targetPath, drawDef->targetPathLen);
 }
 
 //--------------------------------------------------------------------------------------------------

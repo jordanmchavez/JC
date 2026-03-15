@@ -48,20 +48,21 @@ struct Terrain {
 	U16          moveCost;
 };
 
-enum NeighborIdx : U8 {
-	NeighborIdx_TopLeft     = 0,
-	NeighborIdx_TopRight    = 1,
-	NeighborIdx_Right       = 2,
-	NeighborIdx_BottomRight = 3,
-	NeighborIdx_BottomLeft  = 4,
-	NeighborIdx_Left        = 5,
-};
+namespace NeighborIdx {
+	constexpr U8 TopLeft     = 0;
+	constexpr U8 TopRight    = 1;
+	constexpr U8 Right       = 2;
+	constexpr U8 BottomRight = 3;
+	constexpr U8 BottomLeft  = 4;
+	constexpr U8 Left        = 5;
+	constexpr U8 Max         = 6;
+}
 
 struct Hex {
 	U16            idx;
 	U16            c, r;
 	Vec2           pos;
-	Hex*           neighbors[6];	// indexed by NeighborIdx_*; nullptr = no neighbor
+	Hex*           neighbors[6];	// indexed by NeighborIdx::*; nullptr = no neighbor
 	Terrain const* terrain;
 	struct Unit*   unit;
 };
@@ -97,25 +98,51 @@ struct Army {
 	U64  attackMap[MaxHexes];	// [c, r] = bitmap of units that can attack this spot, updated on any unit create/destroy/move
 };
 
-enum struct DrawHover : U8 {
-	None = 0,
-	FriendlyMoveable,
-	FriendlySelectable,
-	FriendlyAttackable,
-	Enemy,
+enum DrawType : U8 {
+	DrawType_None = 0,
+	DrawType_FriendlyMoveable,
+	DrawType_FriendlyAttackable,
+	DrawType_EnemyAttackable,
+	DrawType_FriendlyMoveableAndEnemyAttackable,
+	DrawType_EnemyAttacker,
+	DrawType_HoverDefault,
+	DrawType_HoverMoveable,
+	DrawType_HoverSelectableFriendly,
+	DrawType_HoverAttackableEnemy,
+	DrawType_HoverUnattackableEnemy,
+	DrawType_Selected,
+	DrawType_HoverPathTopLeft,
+	DrawType_HoverPathTopRight,
+	DrawType_HoverPathRight,
+	DrawType_HoverPathBottomRight,
+	DrawType_HoverPathBottomLeft,
+	DrawType_HoverPathLeft,
+	DrawType_HoverAttack,
+	DrawType_TargetPathTopLeft,
+	DrawType_TargetPathTopRight,
+	DrawType_TargetPathRight,
+	DrawType_TargetPathBottomRight,
+	DrawType_TargetPathBottomLeft,
+	DrawType_TargetPathLeft,
+	DrawType_TargetAttack,
+	DrawType_Max,
 };
 
-namespace OverlayFlags {
-	constexpr U64 FriendlyThreat = (U64)1 << 0;
-	constexpr U64 EnemyThreat    = (U64)1 << 1;
-	constexpr U64 Attacker       = (U64)1 << 2;
+struct DrawObj {
+	Vec2     pos;
+	DrawType type;
 };
+
+constexpr U16 MaxDrawPath = 2 * MaxHexes + 1; // two draw objs for each hex + attack
 
 struct DrawDef {
-	DrawHover        hover;
-	U64              overlayFlags[MaxHexes];
-	Span<Vec2 const> hoverPath[6];
-	Span<Vec2 const> targetPath[6];
+	DrawObj overlay[MaxHexes];
+	U16     overlayLen;
+	DrawObj hoverSelected[2];
+	DrawObj hoverPath[MaxDrawPath];
+	U16     hoverPathLen;
+	DrawObj targetPath[MaxDrawPath];
+	U16     targetPathLen;
 };
 
 struct Data {
@@ -138,7 +165,7 @@ Res<>            InitDraw(Mem tempMem, Window::State const* windowState);
 Hex *            ScreenPosToHex(Data* data, I32 x, I32 y);
 void             MoveCamera(F32 sec, F32 dx, F32 dy);
 void             ZoomCamera(F32 d);
-void             Draw(Data* data, DrawDef const* drawDef);
+void             Draw(Data const* data, DrawDef const* drawDef);
 Res<>            LoadDraw(BattleJson const* battleJson);
 
 // Battle_Input.cpp
