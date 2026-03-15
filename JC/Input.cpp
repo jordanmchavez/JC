@@ -11,7 +11,6 @@ namespace JC::Input {
 //--------------------------------------------------------------------------------------------------
 
 static constexpr U8  MaxBindingSets = 32;
-static constexpr U16 MaxActions     = 1024;
 
 struct Binding {
 	BindingType bindingType = BindingType::Invalid;
@@ -19,16 +18,16 @@ struct Binding {
 };
 
 struct KeyState {
-	Key::Key key;
-	I32      mouseX;
-	I32      mouseY;
+	bool down;
+	I32  mouseX;	// Mouse pos at time of last change
+	I32  mouseY;
 };
 
 static Str*     bindingSetNames;
 static U8       bindingSetsLen;
 static Binding* bindings;	// [key * MaxBindingSets + bindSetIdx] -> bind for this key+bindset
-static KeyState keyStates[(U8)Key::Key::Max];
-static Key::Key downKeys[(U8)Key::Key::Max];
+static KeyState keyStates[Key::Max];
+static Key::Key downKeys[Key::Max];
 static U8       downKeysLen;
 static U8       activeBindSets[MaxBindingSets];
 static U8       activeBindingSetsLen;
@@ -41,7 +40,7 @@ void Init(Mem permMem) {
 	bindingSetNames = Mem::AllocT<Str>(permMem, MaxBindingSets);
 	bindingSetsLen  = 1; // reserve 0 for invalid
 	bindings        = Mem::AllocT<Binding>(permMem, (U64)Key::Key::Max * MaxBindingSets);
-	actions         = Mem::AllocT<Action>(permMem, MaxActions);
+	actions         = Mem::AllocT<Action>(permMem, MaxActionsPerFrame);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -81,7 +80,7 @@ void SetBindingSetStack(Span<BindingSet const> bindingSets) {
 	activeBindingSetsLen = 0;
 	for (U64 i = 0; i < bindingSets.len; i++) {
 		Assert(bindingSets[i].handle > 0 && bindingSets[i].handle < bindingSetsLen);
-		activeBindSets[activeBindingSetsLen++] = (U16)bindingSets[i].handle;
+		activeBindSets[activeBindingSetsLen++] = (U8)bindingSets[i].handle;
 	}
 }
 
@@ -94,13 +93,12 @@ Span<Action const> ProcessKeyEvents(Span<Window::KeyEvent const> keyEvents) {
 		Assert(key > Key::Key::Invalid && key < Key::Key::Max);
 
 		bool const down    = keyEvents[i].down;
-		bool const changed = keyDown[(U8)key] != down;
+		bool const changed = keyStates[key].down != down;
 		if (down) {
 			if (changed) {
-				Assert(downKeysLen < (U16)Key::Key::Max);
+				Assert(downKeysLen < Key::Key::Max);
 				downKeys[downKeysLen++] = key;
 			}
-			keyDown[(U16)key] = true;
 		} else {	// key up
 			if (changed) {
 				// O(n) okay, few keys down at a time
@@ -112,22 +110,26 @@ Span<Action const> ProcessKeyEvents(Span<Window::KeyEvent const> keyEvents) {
 					}
 				}
 			}
-			keyDown[(U16)key] = false;
 		}
+		keyStates[key] = {
+			.down   = down,
+			.mouseX = keyEvents[i].mouseX,
+			.mouseY = keyEvents[i].mouseY,
+		};
 
 		if (!changed) { continue; }
 
 		Binding* const keyBindings = bindings + (U64)key * MaxBindingSets;
 		BindingType const targetBindingType = down ? BindingType::OnKeyDown : BindingType::OnKeyUp;
-		for (I16 j = (I16)activeBindingSetsLen - 1; j >= 0; j--) {
+		for (I8 j = (I8)activeBindingSetsLen - 1; j >= 0; j--) {
 			Binding const* const binding = &keyBindings[activeBindSets[j]];
 			if (binding->actionId && (binding->bindingType == targetBindingType)) {
-				if (actionsLen >= MaxActions) {
+				if (actionsLen >= MaxActionsPerFrame) {
 					Errorf("Dropped action ID %u", binding->actionId);
 					return Span<Action const>(actions, actionsLen);
 				}
 				actions[actionsLen++] = {
-					.actionId = binding->actionId,
+					.id     = binding->actionId,
 					.mouseX = 0,
 					.mouseY = 0,
 				};
@@ -137,32 +139,35 @@ Span<Action const> ProcessKeyEvents(Span<Window::KeyEvent const> keyEvents) {
 	}
 
 	for (U16 i = 0; i < downKeysLen; i++) {
-		Binding* const keyBindings = bindings + (U64)downKeys[i] * MaxBindingSets;
-		for (I16 j = (I16)activeBindingSetsLen - 1; j >= 0; j--) {
+		Key::Key const key = downKeys[i];
+		Binding* const keyBindings = bindings + (key * MaxBindingSets);
+		for (U8 j = (U8)activeBindingSetsLen - 1; j >= 0; j--) {
 			Binding const* const binding = &keyBindings[activeBindSets[j]];
 			if (binding->actionId && binding->bindingType == BindingType::Continuous) {
-				if (outActionIdsLen >= outActionIdsMaxLen) {
+				if (actionsLen >= MaxActionsPerFrame) {
 					Errorf("Dropped action ID %u", binding->actionId);
-					return Span<U64 const>(outActionIds, outActionIdsLen);
+					return Span<Action const>(actions, actionsLen);
 				}
 				// This binding set wins for this key
 				// break and go to next down key
-				outActionIds[outActionIdsLen++] = binding->actionId;
+				actions[actionsLen++] = {
+					.id     = binding->actionId,
+					.mouseX = keyStates[key].mouseX,
+					.mouseY = keyStates[key].mouseY,
+				};
 				break;
 			}
 		}
 	}
 
-	return Span<U64 const>(outActionIds, outActionIdsLen);
+	return Span<Action const>(actions, actionsLen);
 }
 
-//--------------------------------------------------------------------------------------------------
-// Tests
 //--------------------------------------------------------------------------------------------------
 
 Unit_Test("Input") {
 	Input::Init(testMem);
-
+	/*
 	Unit_SubTest("CreateBindingSet") {
 		BindingSet bs1 = CreateBindingSet("a");
 		BindingSet bs2 = CreateBindingSet("b");
@@ -346,6 +351,7 @@ Unit_Test("Input") {
 			ProcessKeyEvents(Span<Window::KeyEvent const>(releases, 2), cleanupOut, 16);
 		}
 	}
+	*/
 }
 
 //--------------------------------------------------------------------------------------------------

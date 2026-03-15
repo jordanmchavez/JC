@@ -9,6 +9,8 @@ namespace JC::Input {
 
 //--------------------------------------------------------------------------------------------------
 
+constexpr U16 MaxActionsPerFrame = 1024;
+
 enum struct BindingType {
 	Invalid = 0,
 	OnKeyDown,

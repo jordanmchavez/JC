@@ -327,3 +327,4 @@ make all perm arrays use the perm allocator
 - Eador-like pathfinding:
 	- hover over enemy: shortest path
 	- hover over enemy border: shortest path going through that border
+- Clear keys on refocus window

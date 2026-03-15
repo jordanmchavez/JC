@@ -20,17 +20,20 @@ enum : U64 {
 	ActionId_ScrollMapRight,
 	ActionId_ScrollMapUp,
 	ActionId_ScrollMapDown,
-	ActionId_ShowEnemyOverlay,
+	ActionId_ShowEnemyArmyThreatMap,
 };
 
 //--------------------------------------------------------------------------------------------------
 
+static constexpr U16 MaxClickHexes = Input::MaxActionsPerFrame;
+
 static Mem                tempMem;
 static Input::BindingSet  bindingSet;
+static Hex const**        clickHexes;
 
 //--------------------------------------------------------------------------------------------------
 
-void InitInput(Mem tempMemIn) {
+void InitInput(Mem permMem, Mem tempMemIn) {
 	tempMem = tempMemIn;
 
 	bindingSet = Input::CreateBindingSet("Main");
@@ -43,71 +46,58 @@ void InitInput(Mem tempMemIn) {
 	Input::Bind(bindingSet, Key::Key::D,              Input::BindingType::Continuous, ActionId_ScrollMapRight);
 	Input::Bind(bindingSet, Key::Key::W,              Input::BindingType::Continuous, ActionId_ScrollMapUp);
 	Input::Bind(bindingSet, Key::Key::S,              Input::BindingType::Continuous, ActionId_ScrollMapDown);
-	Input::Bind(bindingSet, Key::Key::AltLeft,        Input::BindingType::Continuous, ActionId_ShowEnemyOverlay);
-	Input::Bind(bindingSet, Key::Key::AltRight,       Input::BindingType::Continuous, ActionId_ShowEnemyOverlay);
+	Input::Bind(bindingSet, Key::Key::AltLeft,        Input::BindingType::Continuous, ActionId_ShowEnemyArmyThreatMap);
+	Input::Bind(bindingSet, Key::Key::AltRight,       Input::BindingType::Continuous, ActionId_ShowEnemyArmyThreatMap);
 	Input::SetBindingSetStack({ bindingSet });
+
+	clickHexes = Mem::AllocT<Hex const*>(permMem, MaxClickHexes);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static void LClick(Data* data, I32 mouseX, I32 mouseY) { 
-	Hex* const hoverHex = ScreenPosToHex(data, mouseX, mouseY);
-	if (!hoverHex) {
-		return;
-	}
-	SelectHex(hoverHex);
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static void RClick(Data* data) {
-	if (data->targetHex) {
-		data->targetHex = nullptr;
-		Logf("Deselected target");
-		return;
-	}
-
-	if (data->selectedHex) {
-		data->selectedHex = nullptr;
-		data->targetHex = nullptr;
-		Logf("Deselected");
-		return;
-	}
-}
-
-//--------------------------------------------------------------------------------------------------
-
-Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<Input::Action const> actions) {
+Res<InputResult> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<Input::Action const> actions) {
 	F32 cameraDX = 0.f;
 	F32 cameraDY = 0.f;
 
-	data->showEnemyThreatMap = false;
+	U16 clickHexesLen = 0;
+	bool showEnemyArmyThreatMap = 0;
 	for (U64 i = 0; i < actions.len; i++) {
 		Input::Action const action = actions[i];
 		switch (action.id) {
 			case ActionId_Exit: return App::Err_Exit();
 
-			case ActionId_LClick: LClick(data, action.mouseX, action.mouseY); break;
-			case ActionId_RClick: RClick(data); break;
+			case ActionId_LClick: {
+				if (Hex const* const clickHex = ScreenPosToHex(data, action.mouseX, action.mouseY)) {
+					Assert(clickHexesLen < MaxClickHexes);
+					clickHexes[clickHexesLen++] = clickHex;
+				}
+				break;
+			}
+			case ActionId_RClick: {
+				Assert(clickHexesLen < MaxClickHexes);
+				clickHexes[clickHexesLen++] = nullptr;
+				break;
+			}
 
-			case ActionId_ZoomIn:  ZoomCamera(data, 1.f); break;
-			case ActionId_ZoomOut: ZoomCamera(data, -1.f); break;
+			case ActionId_ZoomIn:  ZoomCamera( 1.f); break;
+			case ActionId_ZoomOut: ZoomCamera(-1.f); break;
 
 			case ActionId_ScrollMapLeft:  cameraDX--; break;
 			case ActionId_ScrollMapRight: cameraDX++; break;
 			case ActionId_ScrollMapUp:    cameraDY--; break;
 			case ActionId_ScrollMapDown:  cameraDY++; break;
 
-			case ActionId_ShowEnemyOverlay: data->showEnemyThreatMap = true; break;
+			case ActionId_ShowEnemyArmyThreatMap: showEnemyArmyThreatMap = true; break;
 		}
 	}
 
-	data->hoverHex = ScreenPosToHex(data, mouseX, mouseY);
+	MoveCamera(sec, cameraDX, cameraDY);
 
-	MoveCamera(data, sec, cameraDX, cameraDY);
-
-
-	return Ok();
+	return InputResult {
+		.clickHexes             = Span<Hex const*>(clickHexes, clickHexesLen),
+		.hoverHex               = ScreenPosToHex(data, mouseX, mouseY),
+		.showEnemyArmyThreatMap = showEnemyArmyThreatMap,
+	};
 }
 
 //--------------------------------------------------------------------------------------------------

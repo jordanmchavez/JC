@@ -50,9 +50,6 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 	permMem = Mem::Create(16 * GB);
 	tempMem = Mem::Create(16 * GB);
 
-	constexpr U64 MaxActionIds = 1024;
-	U64* actionIds = Mem::AllocT<U64>(permMem, MaxActionIds);
-
 	Err::SetBreakOnErr(true);
 	Time::Init();
 	File::Init(tempMem);

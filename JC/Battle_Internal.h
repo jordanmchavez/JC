@@ -26,7 +26,7 @@ struct TerrainJson {
 struct BattleJson {
 	Span<Str>         atlasPaths;
 	Str               borderSprite;
-	Str               highlightSprite;
+	Str               innerSprite;
 	Str               pathTopLeftSprite;
 	Str               pathTopRightSprite;
 	Str               pathRightSprite;
@@ -48,16 +48,15 @@ struct Terrain {
 	U16          moveCost;
 };
 
-namespace NeighborIdx {
-	constexpr U8 TopLeft     = 0;
-	constexpr U8 TopRight    = 1;
-	constexpr U8 Right       = 2;
-	constexpr U8 BottomRight = 3;
-	constexpr U8 BottomLeft  = 4;
-	constexpr U8 Left        = 5;
-}
+enum NeighborIdx : U8 {
+	NeighborIdx_TopLeft     = 0,
+	NeighborIdx_TopRight    = 1,
+	NeighborIdx_Right       = 2,
+	NeighborIdx_BottomRight = 3,
+	NeighborIdx_BottomLeft  = 4,
+	NeighborIdx_Left        = 5,
+};
 
-// TODO: split out into SoA as needed
 struct Hex {
 	U16            idx;
 	U16            c, r;
@@ -68,7 +67,7 @@ struct Hex {
 };
 
 enum Side : U8 { Side_Left = 0, Side_Right, Side_Max };
-Side operator++(Side& side, int) { Side tmp = side; side = (Side)((U8)side + 1); return tmp; }
+inline Side operator++(Side& side, int) { Side tmp = side; side = (Side)((U8)side + 1); return tmp; }
 
 struct Path {
 	Hex* hexes[MaxHexes];
@@ -98,50 +97,65 @@ struct Army {
 	U64  attackMap[MaxHexes];	// [c, r] = bitmap of units that can attack this spot, updated on any unit create/destroy/move
 };
 
-enum struct State {
-	WaitingOrder,
-	ExecutingOrder,
+enum struct DrawHover : U8 {
+	None = 0,
+	FriendlyMoveable,
+	FriendlySelectable,
+	FriendlyAttackable,
+	Enemy,
 };
 
-// for each hex: list of enemies who can move attack that hex
+namespace OverlayFlags {
+	constexpr U64 FriendlyThreat = (U64)1 << 0;
+	constexpr U64 EnemyThreat    = (U64)1 << 1;
+	constexpr U64 Attacker       = (U64)1 << 2;
+};
 
-constexpr U32 MaxClickHexes = 16;
+struct DrawDef {
+	DrawHover        hover;
+	U64              overlayFlags[MaxHexes];
+	Span<Vec2 const> hoverPath[6];
+	Span<Vec2 const> targetPath[6];
+};
 
 struct Data {
-	Hex   hexes[MaxHexes];
-	U32   hexesLen;
-	Army  armies[2];
-	U8    activeSide;
+	Hex  hexes[MaxHexes];
+	U32  hexesLen;
+	Army armies[2];
+	U8   activeSide;
+};
+
+struct InputResult {
+	Span<Hex const*> clickHexes;	// nullptr = right click
+	Hex const*       hoverHex;
+	bool             showEnemyArmyThreatMap;
 };
 
 //--------------------------------------------------------------------------------------------------
 
-// Battle.cpp
-void SelectHex(Hex* hex);
-
 // Battle_Draw.cpp
-Res<> InitDraw(Data* data, Mem tempMem, Window::State const* windowState);
-Hex * ScreenPosToHex(Data* data, I32 x, I32 y);
-void  MoveCamera(Data* data, F32 sec, F32 dx, F32 dy);
-void  ZoomCamera(Data* data, F32 d);
-void  Draw(Data const* data);
-Res<> LoadDraw(BattleJson const* battleJson);
+Res<>            InitDraw(Mem tempMem, Window::State const* windowState);
+Hex *            ScreenPosToHex(Data* data, I32 x, I32 y);
+void             MoveCamera(F32 sec, F32 dx, F32 dy);
+void             ZoomCamera(F32 d);
+void             Draw(Data* data, DrawDef const* drawDef);
+Res<>            LoadDraw(BattleJson const* battleJson);
 
 // Battle_Input.cpp
-void  InitInput(Mem tempMem);
-Res<> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<Input::Action const> actionIds);
+void             InitInput(Mem permMem, Mem tempMem);
+Res<InputResult> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<Input::Action const> actionIds);
 
 // Battle_Path.cpp
-void  InitPath(Mem permMem);
-void  BuildPathMap(Hex* hexes, Unit* unit);
-bool  FindPath(Unit const* unit, Hex const* end, Path* pathOut);
+void             InitPath(Mem permMem);
+void             BuildPathMap(Hex* hexes, Unit* unit);
+bool             FindPath(Unit const* unit, Hex const* end, Path* pathOut);
 
 // Battle_Util.cpp
-void  InitUtil();
-bool  AreHexesAdjacent(Hex const* a, Hex const* b);
-Vec2  ColRowToTopLeftWorldPos(I32 c, I32 r);
-U32   HexDistance(Hex const* a, Hex const* b);
-Hex*  WorldPosToHex(Data* data, Vec2 p);
+void             InitUtil();
+bool             AreHexesAdjacent(Hex const* a, Hex const* b);
+Vec2             ColRowToTopLeftWorldPos(I32 c, I32 r);
+U32              HexDistance(Hex const* a, Hex const* b);
+Hex*             WorldPosToHex(Data* data, Vec2 p);
 
 //--------------------------------------------------------------------------------------------------
 

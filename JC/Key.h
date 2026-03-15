@@ -117,6 +117,7 @@ enum Key : U8 {
 	NumpadEnter,
 	NumpadMinus,
 	NumpadDot,
+	Max,
 };
 
 Str GetKeyStr(Key key);
