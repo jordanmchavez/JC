@@ -48,6 +48,16 @@ U32 PopCount64(U64 u) {
 
 //--------------------------------------------------------------------------------------------------
 
+U64 MoveBit(U64 u,U8 fromBit, U8 toBit) {
+	U64 fromVal = (u >> fromBit) & 1;
+	u &= ~((U64)1 << fromBit);	// clear from
+	u &= ~((U64)1 << toBit);	// clear to
+	u |= fromVal << toBit;		// set from
+	return u;
+}
+
+//--------------------------------------------------------------------------------------------------
+
 Unit_Test("Bit") {
 	Unit_CheckEq(Bsf64(0),                  0u);
 	Unit_CheckEq(Bsr64(0),                  0u);

@@ -7,7 +7,16 @@
       "Bash(python:*)",
       "Bash(identify:*)",
       "Bash(git diff:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(MSBuild:*)",
+      "Bash(cmd /c:*)",
+      "Bash(powershell -Command \"& ''C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe'' ''C:\\\\Code\\\\JC\\\\JC.vcxproj'' /p:Configuration=Debug /p:Platform=x64 /nologo /v:minimal\")",
+      "Bash(powershell -Command:*)",
+      "Bash(\"C:/Code/JC/Build/x64-Debug/JC.exe\" test:*)",
+      "Bash(echo:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(bash ~/.claude/statusline-command.sh)",
+      "Bash(jq:*)"
     ]
   }
 }

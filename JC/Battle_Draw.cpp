@@ -64,11 +64,6 @@ Res<> InitDraw(Mem tempMemIn, Window::State const* windowState) {
 
 	windowSize = Vec2((F32)windowState->width, (F32)windowState->height);
 
-	TryTo(Draw::LoadFont("Assets/Font_EverydayStandard6.json5"), numberFont);
-	TryTo(Draw::LoadFont("Assets/Font_CelticTime15.json5"), uiFont);
-	TryTo(Draw::LoadFont("Assets/Font_OldeTome21.json5"), fancyFont);
-	uiFontLineHeight = Draw::GetFontLineHeight(uiFont);
-
 	cameraPos = { 0.f, 0.f };
 	cameraScale = 3.f;
 
@@ -80,6 +75,9 @@ Res<> InitDraw(Mem tempMemIn, Window::State const* windowState) {
 Res<> LoadDraw(BattleJson const* battleJson) {
 	TryTo(Draw::GetSprite("Empty"), emptySprite);
 
+	TryTo(Draw::LoadFont(battleJson->numberFont),              numberFont);
+	TryTo(Draw::LoadFont(battleJson->uiFont),                  uiFont);
+	TryTo(Draw::LoadFont(battleJson->fancyFont),               fancyFont);
 	TryTo(Draw::GetSprite(battleJson->borderSprite),           borderSprite);
 	TryTo(Draw::GetSprite(battleJson->innerSprite),            innerSprite);
 	TryTo(Draw::GetSprite(battleJson->pathBottomLeftSprite),   pathBottomLeftSprite);
@@ -94,6 +92,7 @@ Res<> LoadDraw(BattleJson const* battleJson) {
 	TryTo(Draw::GetSprite(battleJson->arrowTopRightSprite),    arrowTopRightSprite);
 	TryTo(Draw::GetSprite(battleJson->arrowRightSprite),       arrowRightSprite);
 	TryTo(Draw::GetSprite(battleJson->arrowBottomRightSprite), arrowBottomRightSprite);
+	uiFontLineHeight = Draw::GetFontLineHeight(uiFont);
 
 	TryTo(Draw::GetSprite("UI_AttackBorder"), attackSprite);
 
@@ -108,7 +107,7 @@ Res<> LoadDraw(BattleJson const* battleJson) {
 	drawTypeData[DrawType_HoverSelectableFriendly           ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 1.0f) };
 	drawTypeData[DrawType_HoverAttackableEnemy              ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 1.0f) };
 	drawTypeData[DrawType_HoverUnattackableEnemy            ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 0.5f) };
-	drawTypeData[DrawType_Selected                          ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(0.f, 1.f, 0.f, 1.0f) };
+	drawTypeData[DrawType_Selected                          ] = { .sprite = innerSprite,           .z = Z_HexBorder,    .color = Vec4(0.f, 1.f, 1.f, 0.5f) };
 	drawTypeData[DrawType_HoverPathTopLeft                  ] = { .sprite = pathTopLeftSprite,     .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
 	drawTypeData[DrawType_HoverPathTopRight                 ] = { .sprite = pathTopRightSprite,    .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
 	drawTypeData[DrawType_HoverPathRight                    ] = { .sprite = pathRightSprite,       .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };

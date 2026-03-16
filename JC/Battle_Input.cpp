@@ -27,9 +27,9 @@ enum : U64 {
 
 static constexpr U16 MaxClickHexes = Input::MaxActionsPerFrame;
 
-static Mem                tempMem;
-static Input::BindingSet  bindingSet;
-static Hex const**        clickHexes;
+static Mem               tempMem;
+static Input::BindingSet bindingSet;
+static Hex**             clickHexes;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -50,7 +50,7 @@ void InitInput(Mem permMem, Mem tempMemIn) {
 	Input::Bind(bindingSet, Key::Key::AltRight,       Input::BindingType::Continuous, ActionId_ShowEnemyArmyThreatMap);
 	Input::SetBindingSetStack({ bindingSet });
 
-	clickHexes = Mem::AllocT<Hex const*>(permMem, MaxClickHexes);
+	clickHexes = Mem::AllocT<Hex*>(permMem, MaxClickHexes);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -67,7 +67,7 @@ Res<InputResult> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<I
 			case ActionId_Exit: return App::Err_Exit();
 
 			case ActionId_LClick: {
-				if (Hex const* const clickHex = ScreenPosToHex(data, action.mouseX, action.mouseY)) {
+				if (Hex* const clickHex = ScreenPosToHex(data, action.mouseX, action.mouseY)) {
 					Assert(clickHexesLen < MaxClickHexes);
 					clickHexes[clickHexesLen++] = clickHex;
 				}
@@ -94,7 +94,7 @@ Res<InputResult> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<I
 	MoveCamera(sec, cameraDX, cameraDY);
 
 	return InputResult {
-		.clickHexes             = Span<Hex const*>(clickHexes, clickHexesLen),
+		.clickHexes             = Span<Hex*>(clickHexes, clickHexesLen),
 		.hoverHex               = ScreenPosToHex(data, mouseX, mouseY),
 		.showEnemyArmyThreatMap = showEnemyArmyThreatMap,
 	};

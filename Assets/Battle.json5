@@ -2,6 +2,9 @@
 	atlasPaths: [
 		"Assets/Atlas_Terrain.json5",
 	],
+	numberFont:             "Assets/Font_EverydayStandard6.json5",
+	uiFont:                 "Assets/Font_CelticTime15.json5",
+	fancyFont:              "Assets/Font_OldeTome21.json5",
 	borderSprite:           "Hex32_Border1",
 	innerSprite:            "Hex32_Inner4",
 	pathTopLeftSprite:      "Hex32_PathTopLeft",

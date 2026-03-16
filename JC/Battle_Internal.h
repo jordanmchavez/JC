@@ -25,6 +25,9 @@ struct TerrainJson {
 
 struct BattleJson {
 	Span<Str>         atlasPaths;
+	Str               numberFont;
+	Str               uiFont;
+	Str               fancyFont;
 	Str               borderSprite;
 	Str               innerSprite;
 	Str               pathTopLeftSprite;
@@ -62,7 +65,7 @@ struct Hex {
 	U16            idx;
 	U16            c, r;
 	Vec2           pos;
-	Hex*           neighbors[6];	// indexed by NeighborIdx::*; nullptr = no neighbor
+	Hex*           neighbors[6];	// indexed by `Dir`, nullptr = no neighbor
 	Terrain const* terrain;
 	struct Unit*   unit;
 };
@@ -71,8 +74,8 @@ enum Side : U8 { Side_Left = 0, Side_Right, Side_Max };
 inline Side operator++(Side& side, int) { Side tmp = side; side = (Side)((U8)side + 1); return tmp; }
 
 struct Path {
-	Hex const* hexes[MaxHexes];
-	U16        len;
+	Hex* hexes[MaxHexes];
+	U16  len;
 };
 
 struct PathMap {
@@ -94,7 +97,7 @@ struct Unit {
 struct Army {
 	Side side;
 	Unit units[MaxArmyUnits];
-	U32  unitsLen;
+	U8   unitsLen;
 	U64  attackMap[MaxHexes];	// [c, r] = bitmap of units that can attack this spot, updated on any unit create/destroy/move
 };
 
@@ -149,7 +152,6 @@ static_assert(DrawType_TargetPathLeft        == DrawType_TargetPathBase+ Dir::Le
 struct DrawObj {
 	Vec2     pos;
 	DrawType type;
-	U8       dir;
 };
 
 constexpr U16 MaxDrawPath = 2 * MaxHexes + 1; // two draw objs for each hex + attack
@@ -173,9 +175,9 @@ struct Data {
 };
 
 struct InputResult {
-	Span<Hex const*> clickHexes;	// nullptr = right click
-	Hex const*       hoverHex;
-	bool             showEnemyArmyThreatMap;
+	Span<Hex*> clickHexes;	// nullptr = right click
+	Hex*       hoverHex;
+	bool       showEnemyArmyThreatMap;
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -195,7 +197,7 @@ Res<InputResult> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<I
 // Battle_Path.cpp
 void             InitPath(Mem permMem);
 void             BuildPathMap(Hex* hexes, Unit* unit);
-bool             FindPath(Unit const* unit, Hex const* end, Path* pathOut);
+bool             FindPath(Unit const* unit, Hex* end, Path* pathOut);
 
 // Battle_Util.cpp
 void             InitUtil();
