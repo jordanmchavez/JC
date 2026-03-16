@@ -16,13 +16,11 @@ static constexpr F32 Z_Background   = 0.00f;
 static constexpr F32 Z_Hex          = 1.01f;
 static constexpr F32 Z_HexInner     = 1.02f;
 static constexpr F32 Z_HexBorder    = 1.03f;
-static constexpr F32 Z_HoverPath    = 1.04f;
-static constexpr F32 Z_TargetPath   = 1.05f;
-static constexpr F32 Z_Unit         = 1.06f;
-static constexpr F32 Z_HoverAttack  = 1.07f;
-static constexpr F32 Z_TargetAttack = 1.08f;
-static constexpr F32 Z_Effect       = 1.09f;
-static constexpr F32 Z_HexUi        = 1.10f;
+static constexpr F32 Z_Path         = 1.04f;
+static constexpr F32 Z_Unit         = 1.05f;
+static constexpr F32 Z_Attack       = 1.06f;
+static constexpr F32 Z_Effect       = 1.07f;
+static constexpr F32 Z_HexUi        = 1.08f;
 static constexpr F32 Z_UiBackground = 3.00f;
 static constexpr F32 Z_Ui           = 3.01f;
 
@@ -95,29 +93,29 @@ Res<> LoadDraw(BattleJson const* battleJson) {
 
 	TryTo(Draw::GetSprite("UI_AttackBorder"), attackSprite);
 
-	drawTypeData[DrawType_None                              ] = { .sprite = emptySprite,           .z = -1.f,           .color = Vec4(0.f, 0.f, 0.f, 0.0f) };
-	drawTypeData[DrawType_FriendlyMoveable                  ] = { .sprite = innerSprite,           .z = Z_HexInner,     .color = Vec4(0.f, 1.f, 0.f, 0.5f) };
-	drawTypeData[DrawType_FriendlyAttackable                ] = { .sprite = innerSprite,           .z = Z_HexInner,     .color = Vec4(0.f, 1.f, 0.f, 0.5f) };
-	drawTypeData[DrawType_EnemyAttackable                   ] = { .sprite = innerSprite,           .z = Z_HexInner,     .color = Vec4(1.f, 0.f, 0.f, 0.5f) };
-	drawTypeData[DrawType_FriendlyMoveableAndEnemyAttackable] = { .sprite = innerSprite,           .z = Z_HexInner,     .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
-	drawTypeData[DrawType_EnemyAttacker                     ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 0.f, 0.f, 1.0f) };
-	drawTypeData[DrawType_HoverInteractible                 ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 1.5f) };
-	drawTypeData[DrawType_HoverNoninteractible              ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 0.5f) };
-	drawTypeData[DrawType_Selected                          ] = { .sprite = innerSprite,           .z = Z_HexBorder,    .color = Vec4(0.f, 1.f, 1.f, 0.5f) };
-	drawTypeData[DrawType_HoverPathTopLeft                  ] = { .sprite = pathTopLeftSprite,     .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
-	drawTypeData[DrawType_HoverPathTopRight                 ] = { .sprite = pathTopRightSprite,    .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
-	drawTypeData[DrawType_HoverPathRight                    ] = { .sprite = pathRightSprite,       .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
-	drawTypeData[DrawType_HoverPathBottomRight              ] = { .sprite = pathBottomRightSprite, .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
-	drawTypeData[DrawType_HoverPathBottomLeft               ] = { .sprite = pathBottomLeftSprite,  .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
-	drawTypeData[DrawType_HoverPathLeft                     ] = { .sprite = pathLeftSprite,        .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
-	drawTypeData[DrawType_HoverAttack                       ] = { .sprite = attackSprite,          .z = Z_HoverAttack,  .color = Vec4(1.f, 1.f, 1.f, 0.5f) };
-	drawTypeData[DrawType_TargetPathTopLeft                 ] = { .sprite = pathTopLeftSprite,     .z = Z_TargetPath,   .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
-	drawTypeData[DrawType_TargetPathTopRight                ] = { .sprite = pathTopRightSprite,    .z = Z_TargetPath,   .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
-	drawTypeData[DrawType_TargetPathRight                   ] = { .sprite = pathRightSprite,       .z = Z_TargetPath,   .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
-	drawTypeData[DrawType_TargetPathBottomRight             ] = { .sprite = pathBottomRightSprite, .z = Z_TargetPath,   .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
-	drawTypeData[DrawType_TargetPathBottomLeft              ] = { .sprite = pathBottomLeftSprite,  .z = Z_TargetPath,   .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
-	drawTypeData[DrawType_TargetPathLeft                    ] = { .sprite = pathLeftSprite,        .z = Z_TargetPath,   .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
-	drawTypeData[DrawType_TargetAttack                      ] = { .sprite = attackSprite,          .z = Z_TargetAttack, .color = Vec4(1.f, 1.f, 1.f, 1.0f) };
+	drawTypeData[DrawType_None                              ] = { .sprite = emptySprite,           .z = -1.f,        .color = Vec4(0.f, 0.f, 0.f, 0.0f) };
+	drawTypeData[DrawType_FriendlyMoveable                  ] = { .sprite = innerSprite,           .z = Z_HexInner,  .color = Vec4(0.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_FriendlyAttackable                ] = { .sprite = innerSprite,           .z = Z_HexInner,  .color = Vec4(0.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_EnemyAttackable                   ] = { .sprite = innerSprite,           .z = Z_HexInner,  .color = Vec4(1.f, 0.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_FriendlyMoveableAndEnemyAttackable] = { .sprite = innerSprite,           .z = Z_HexInner,  .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_EnemyAttacker                     ] = { .sprite = borderSprite,          .z = Z_HexBorder, .color = Vec4(1.f, 0.f, 0.f, 1.0f) };
+	drawTypeData[DrawType_HoverInteractible                 ] = { .sprite = borderSprite,          .z = Z_HexBorder, .color = Vec4(1.f, 1.f, 1.f, 1.5f) };
+	drawTypeData[DrawType_HoverNoninteractible              ] = { .sprite = borderSprite,          .z = Z_HexBorder, .color = Vec4(1.f, 1.f, 1.f, 0.5f) };
+	drawTypeData[DrawType_Selected                          ] = { .sprite = innerSprite,           .z = Z_HexBorder, .color = Vec4(0.f, 1.f, 1.f, 0.5f) };
+	drawTypeData[DrawType_HoverPathTopLeft                  ] = { .sprite = pathTopLeftSprite,     .z = Z_Path,      .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_HoverPathTopRight                 ] = { .sprite = pathTopRightSprite,    .z = Z_Path,      .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_HoverPathRight                    ] = { .sprite = pathRightSprite,       .z = Z_Path,      .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_HoverPathBottomRight              ] = { .sprite = pathBottomRightSprite, .z = Z_Path,      .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_HoverPathBottomLeft               ] = { .sprite = pathBottomLeftSprite,  .z = Z_Path,      .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_HoverPathLeft                     ] = { .sprite = pathLeftSprite,        .z = Z_Path,      .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
+	drawTypeData[DrawType_HoverAttack                       ] = { .sprite = attackSprite,          .z = Z_Attack,    .color = Vec4(1.f, 1.f, 1.f, 0.5f) };
+	drawTypeData[DrawType_TargetPathTopLeft                 ] = { .sprite = pathTopLeftSprite,     .z = Z_Path,      .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
+	drawTypeData[DrawType_TargetPathTopRight                ] = { .sprite = pathTopRightSprite,    .z = Z_Path,      .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
+	drawTypeData[DrawType_TargetPathRight                   ] = { .sprite = pathRightSprite,       .z = Z_Path,      .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
+	drawTypeData[DrawType_TargetPathBottomRight             ] = { .sprite = pathBottomRightSprite, .z = Z_Path,      .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
+	drawTypeData[DrawType_TargetPathBottomLeft              ] = { .sprite = pathBottomLeftSprite,  .z = Z_Path,      .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
+	drawTypeData[DrawType_TargetPathLeft                    ] = { .sprite = pathLeftSprite,        .z = Z_Path,      .color = Vec4(1.f, 1.f, 0.f, 1.0f) };
+	drawTypeData[DrawType_TargetAttack                      ] = { .sprite = attackSprite,          .z = Z_Attack,    .color = Vec4(1.f, 1.f, 1.f, 1.0f) };
 
 	return Ok();
 }
@@ -197,6 +195,7 @@ void Draw(DrawDef const* drawDef) {
 				.sprite = unit->def->sprite,
 				.pos    = unit->pos,
 				.z      = Z_Unit,
+				.color  = unit->acted ? Vec4(1.f, 1.f, 1.f, 0.5f) : Vec4(1.f, 1.f, 1.f, 1.f),
 				.flip   = unit->side == Side_Right,
 			});
 		}
@@ -205,8 +204,7 @@ void Draw(DrawDef const* drawDef) {
 	DrawObjs(drawDef->overlay, drawDef->overlayLen);
 	DrawObjs(&drawDef->hover, 1);
 	DrawObjs(&drawDef->selected, 1);
-	DrawObjs(drawDef->hoverPath, drawDef->hoverPathLen);
-	DrawObjs(drawDef->targetPath, drawDef->targetPathLen);
+	DrawObjs(drawDef->path, drawDef->pathLen);
 
 	Effect::Draw(Z_Effect);
 }

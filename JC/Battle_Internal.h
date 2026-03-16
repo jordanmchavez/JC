@@ -92,6 +92,7 @@ struct Unit {
 	U32                 move;
 	U32                 range;
 	PathMap             pathMap;
+	bool                acted;
 };
 
 struct Army {
@@ -158,10 +159,8 @@ struct DrawDef {
 	U16     overlayLen;
 	DrawObj hover;
 	DrawObj selected;
-	DrawObj hoverPath[MaxDrawPath];
-	U16     hoverPathLen;
-	DrawObj targetPath[MaxDrawPath];
-	U16     targetPathLen;
+	DrawObj path[MaxDrawPath];	// includes the attack drawObj, if any
+	U16     pathLen;
 };
 
 struct Shared {
