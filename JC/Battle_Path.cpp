@@ -131,7 +131,7 @@ void BuildPathMap(Hex* hexes, Unit* unit) {
 //--------------------------------------------------------------------------------------------------
 
 // Simple back-traversal using `parents`
-void FindPathOrPanic(Unit const* unit, Hex* end, Path* pathOut) {
+void BuildPathOrPanic(Unit const* unit, Hex* end, Path* pathOut) {
 	pathOut->len = 0;
 	if (end == unit->hex) {
 		return;
@@ -159,22 +159,22 @@ Unit_Test("Battle_Path") {
 	Terrain const blocked  = { .moveCost = 0 };
 
 	//----------------------------------------------------------------------------------------------
-	// FindPathOrPanic: trivial case — destination is the unit's own hex
+	// BuildPathOrPanic: trivial case — destination is the unit's own hex
 
-	Unit_SubTest("FindPathOrPanic: same hex") {
+	Unit_SubTest("BuildPathOrPanic: same hex") {
 		Hex h; memset(&h, 0, sizeof(h)); h.idx = 0; h.terrain = &passable;
 		Unit unit; memset(&unit, 0, sizeof(unit));
 		unit.hex = &h; unit.move = 5; unit.side = Side_Left;
 		BuildPathMap(&h, &unit);
 		Path path;
-		FindPathOrPanic(&unit, &h, &path);
+		BuildPathOrPanic(&unit, &h, &path);
 		Unit_CheckEq(path.len, (U16)0);
 	}
 
 	//----------------------------------------------------------------------------------------------
-	// FindPathOrPanic: verify path is returned in forward (start → end) order
+	// BuildPathOrPanic: verify path is returned in forward (start → end) order
 
-	Unit_SubTest("FindPathOrPanic: forward path order") {
+	Unit_SubTest("BuildPathOrPanic: forward path order") {
 		// 4-hex chain; path from hex0 to hex3 should be [hex1, hex2, hex3]
 		Hex hexes[4];
 		memset(hexes, 0, sizeof(hexes));
@@ -187,7 +187,7 @@ Unit_Test("Battle_Path") {
 		unit.hex = &hexes[0]; unit.move = 10; unit.side = Side_Left;
 		BuildPathMap(hexes, &unit);
 		Path path;
-		FindPathOrPanic(&unit, &hexes[3], &path);
+		BuildPathOrPanic(&unit, &hexes[3], &path);
 		Unit_CheckEq(path.len, (U16)3);
 		Unit_Check(path.hexes[0] == &hexes[1]);
 		Unit_Check(path.hexes[1] == &hexes[2]);
@@ -238,7 +238,7 @@ Unit_Test("Battle_Path") {
 		Unit_CheckEq(unit.pathMap.moveCosts[4], (U16)0xffff);
 		// cost == move: reachable
 		Path path;
-		FindPathOrPanic(&unit, &hexes[3], &path);
+		BuildPathOrPanic(&unit, &hexes[3], &path);
 	}
 
 	//----------------------------------------------------------------------------------------------
@@ -326,7 +326,7 @@ Unit_Test("Battle_Path") {
 		Unit_Check(unit.pathMap.parents[1] != nullptr);
 		Unit_Check(unit.pathMap.parents[2] != nullptr);
 		Path path;
-		FindPathOrPanic(&unit, &hexes[2], &path);
+		BuildPathOrPanic(&unit, &hexes[2], &path);
 		Unit_CheckEq(path.len, (U16)2);
 	}
 
@@ -355,14 +355,14 @@ Unit_Test("Battle_Path") {
 		Unit_CheckEq(unit.pathMap.moveCosts[3], (U16)3);
 		Unit_Check(unit.pathMap.parents[3] == &hexes[1]); // Path A wins
 		Path path;
-		FindPathOrPanic(&unit, &hexes[3], &path);
+		BuildPathOrPanic(&unit, &hexes[3], &path);
 		Unit_CheckEq(path.len, (U16)2);
 		Unit_Check(path.hexes[0] == &hexes[1]);
 		Unit_Check(path.hexes[1] == &hexes[3]);
 	}
 
 	//----------------------------------------------------------------------------------------------
-	// End-to-end: build a map with varied costs, verify moveCosts and multiple FindPathOrPanic calls
+	// End-to-end: build a map with varied costs, verify moveCosts and multiple BuildPathOrPanic calls
 
 	Unit_SubTest("End-to-end") {
 		// Chain: hex0 → hex1(1) → hex2(3) → hex3(1) → hex4(1)
@@ -392,12 +392,12 @@ Unit_Test("Battle_Path") {
 
 		// Path to a single adjacent hex
 		Path path;
-		FindPathOrPanic(&unit, &hexes[1], &path);
+		BuildPathOrPanic(&unit, &hexes[1], &path);
 		Unit_CheckEq(path.len, (U16)1);
 		Unit_Check(path.hexes[0] == &hexes[1]);
 
 		// Path across the costly hex to hex3 (cost == move, still reachable)
-		FindPathOrPanic(&unit, &hexes[3], &path);
+		BuildPathOrPanic(&unit, &hexes[3], &path);
 		Unit_CheckEq(path.len, (U16)3);
 		Unit_Check(path.hexes[0] == &hexes[1]);
 		Unit_Check(path.hexes[1] == &hexes[2]);

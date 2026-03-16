@@ -6,11 +6,13 @@ namespace JC::Battle {
 
 //--------------------------------------------------------------------------------------------------
 
-static U8 hexLut[(HexSize / 2) * (HexSize * 3 / 8)];
+static Shared* shared;
+static U8      hexLut[(HexSize / 2) * (HexSize * 3 / 8)];
 
 //--------------------------------------------------------------------------------------------------
 
-void InitUtil() {
+void InitUtil(Shared* sharedIn) {
+	shared = sharedIn;
 	memset(hexLut, 0, sizeof(hexLut));
 	U8 start = (HexSize / 2) - 1;
 	U8 end   = HexSize / 2;
@@ -68,7 +70,7 @@ U32 HexDistance(Hex const* a, Hex const* b) {
 
 //--------------------------------------------------------------------------------------------------
 
-Hex* WorldPosToHex(Data* data, Vec2 p) {
+Hex* WorldPosToHex(Vec2 p) {
 	I32 const hsize   = (I32)HexSize;
 	I32 const rowStep = hsize * 3 / 4;
 	I32 const iy      = (I32)p.y;
@@ -89,7 +91,7 @@ Hex* WorldPosToHex(Data* data, Vec2 p) {
 	}
 
 	if (c >= 0 && c < MaxCols && r >= 0 && r < MaxRows) {
-		return &data->hexes[c + (r * MaxCols)];
+		return &shared->hexes[c + (r * MaxCols)];
 	}
 	return nullptr;
 }

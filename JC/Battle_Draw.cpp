@@ -33,6 +33,7 @@ struct DrawTypeData {
 };
 
 static Mem          tempMem;
+static Shared*      shared;
 static Vec2         windowSize;
 static Draw::Sprite emptySprite;
 static Draw::Sprite borderSprite;
@@ -60,16 +61,12 @@ static DrawTypeData drawTypeData[DrawType_Max];
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> InitDraw(Mem tempMemIn, Window::State const* windowState) {
-
-	tempMem = tempMemIn;
-
-	windowSize = Vec2((F32)windowState->width, (F32)windowState->height);
-
-	cameraPos = { 0.f, 0.f };
+void InitDraw(Mem tempMemIn, Shared* sharedIn, Window::State const* windowState) {
+	tempMem     = tempMemIn;
+	shared      = sharedIn;
+	windowSize  = Vec2((F32)windowState->width, (F32)windowState->height);
+	cameraPos   = { 0.f, 0.f };
 	cameraScale = 3.f;
-
-	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -104,11 +101,8 @@ Res<> LoadDraw(BattleJson const* battleJson) {
 	drawTypeData[DrawType_EnemyAttackable                   ] = { .sprite = innerSprite,           .z = Z_HexInner,     .color = Vec4(1.f, 0.f, 0.f, 0.5f) };
 	drawTypeData[DrawType_FriendlyMoveableAndEnemyAttackable] = { .sprite = innerSprite,           .z = Z_HexInner,     .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
 	drawTypeData[DrawType_EnemyAttacker                     ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 0.f, 0.f, 1.0f) };
-	drawTypeData[DrawType_HoverDefault                      ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 0.5f) };
-	drawTypeData[DrawType_HoverMoveable                     ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 1.0f) };
-	drawTypeData[DrawType_HoverSelectableFriendly           ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 1.0f) };
-	drawTypeData[DrawType_HoverAttackableEnemy              ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 1.0f) };
-	drawTypeData[DrawType_HoverUnattackableEnemy            ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 0.5f) };
+	drawTypeData[DrawType_HoverInteractible                 ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 1.5f) };
+	drawTypeData[DrawType_HoverNoninteractible              ] = { .sprite = borderSprite,          .z = Z_HexBorder,    .color = Vec4(1.f, 1.f, 1.f, 0.5f) };
 	drawTypeData[DrawType_Selected                          ] = { .sprite = innerSprite,           .z = Z_HexBorder,    .color = Vec4(0.f, 1.f, 1.f, 0.5f) };
 	drawTypeData[DrawType_HoverPathTopLeft                  ] = { .sprite = pathTopLeftSprite,     .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
 	drawTypeData[DrawType_HoverPathTopRight                 ] = { .sprite = pathTopRightSprite,    .z = Z_HoverPath,    .color = Vec4(1.f, 1.f, 0.f, 0.5f) };
@@ -130,8 +124,8 @@ Res<> LoadDraw(BattleJson const* battleJson) {
 
 //--------------------------------------------------------------------------------------------------
 
-Hex* ScreenPosToHex(Data* data, I32 x, I32 y) {
-	return WorldPosToHex(data, Vec2(
+Hex* ScreenPosToHex(I32 x, I32 y) {
+	return WorldPosToHex(Vec2(
 		((F32)x / cameraScale) + cameraPos.x,
 		((F32)y / cameraScale) + cameraPos.y
 	));
@@ -173,11 +167,11 @@ static void DrawObjs(DrawObj const* drawObjs, U16 len) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Draw(Data const* data, DrawDef const* drawDef) {
+void Draw(DrawDef const* drawDef) {
 	Draw::SetCamera({ .pos = cameraPos, .scale = cameraScale });
 
-	for (U32 i = 0; i < data->hexesLen; i++) {
-		Hex const* const hex = &data->hexes[i];
+	for (U32 i = 0; i < shared->hexesLen; i++) {
+		Hex const* const hex = &shared->hexes[i];
 		Draw::DrawSprite({
 			.sprite = hex->terrain->sprite,
 			.pos    = hex->pos,
@@ -196,7 +190,7 @@ void Draw(Data const* data, DrawDef const* drawDef) {
 	}
 
 	for (Side side = Side_Left; side <= Side_Right; side++) {
-		Army const* const army = &data->armies[side];
+		Army const* const army = &shared->armies[side];
 		for (U32 i = 0; i < army->unitsLen; i++) {
 			Unit const* const unit = &army->units[i];
 			Draw::DrawSprite({

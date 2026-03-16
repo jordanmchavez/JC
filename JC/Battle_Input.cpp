@@ -55,7 +55,7 @@ void InitInput(Mem permMem, Mem tempMemIn) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<InputResult> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<Input::Action const> actions) {
+Res<InputResult> HandleInput(F32 sec, U32 mouseX, U32 mouseY, Span<Input::Action const> actions) {
 	F32 cameraDX = 0.f;
 	F32 cameraDY = 0.f;
 
@@ -67,7 +67,7 @@ Res<InputResult> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<I
 			case ActionId_Exit: return App::Err_Exit();
 
 			case ActionId_LClick: {
-				if (Hex* const clickHex = ScreenPosToHex(data, action.mouseX, action.mouseY)) {
+				if (Hex* const clickHex = ScreenPosToHex(action.mouseX, action.mouseY)) {
 					Assert(clickHexesLen < MaxClickHexes);
 					clickHexes[clickHexesLen++] = clickHex;
 				}
@@ -95,7 +95,7 @@ Res<InputResult> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<I
 
 	return InputResult {
 		.clickHexes             = Span<Hex*>(clickHexes, clickHexesLen),
-		.hoverHex               = ScreenPosToHex(data, mouseX, mouseY),
+		.hoverHex               = ScreenPosToHex(mouseX, mouseY),
 		.showEnemyArmyThreatMap = showEnemyArmyThreatMap,
 	};
 }

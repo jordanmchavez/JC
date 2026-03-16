@@ -108,11 +108,8 @@ enum DrawType : U8 {
 	DrawType_EnemyAttackable,
 	DrawType_FriendlyMoveableAndEnemyAttackable,
 	DrawType_EnemyAttacker,
-	DrawType_HoverDefault,
-	DrawType_HoverMoveable,
-	DrawType_HoverSelectableFriendly,
-	DrawType_HoverAttackableEnemy,
-	DrawType_HoverUnattackableEnemy,
+	DrawType_HoverInteractible,
+	DrawType_HoverNoninteractible,
 	DrawType_Selected,
 	// Must match Dir order
 	DrawType_HoverPathBase,
@@ -167,7 +164,7 @@ struct DrawDef {
 	U16     targetPathLen;
 };
 
-struct Data {
+struct Shared {
 	Hex  hexes[MaxHexes];
 	U32  hexesLen;
 	Army armies[2];
@@ -183,28 +180,28 @@ struct InputResult {
 //--------------------------------------------------------------------------------------------------
 
 // Battle_Draw.cpp
-Res<>            InitDraw(Mem tempMem, Window::State const* windowState);
-Hex *            ScreenPosToHex(Data* data, I32 x, I32 y);
+void             InitDraw(Mem tempMem, Shared* shared, Window::State const* windowState);
+Hex *            ScreenPosToHex(I32 x, I32 y);
 void             MoveCamera(F32 sec, F32 dx, F32 dy);
 void             ZoomCamera(F32 d);
-void             Draw(Data const* data, DrawDef const* drawDef);
+void             Draw(DrawDef const* drawDef);
 Res<>            LoadDraw(BattleJson const* battleJson);
 
 // Battle_Input.cpp
 void             InitInput(Mem permMem, Mem tempMem);
-Res<InputResult> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<Input::Action const> actionIds);
+Res<InputResult> HandleInput(F32 sec, U32 mouseX, U32 mouseY, Span<Input::Action const> actionIds);
 
 // Battle_Path.cpp
 void             InitPath(Mem permMem);
 void             BuildPathMap(Hex* hexes, Unit* unit);
-void             FindPathOrPanic(Unit const* unit, Hex* end, Path* pathOut);
+void             BuildPathOrPanic(Unit const* unit, Hex* end, Path* pathOut);
 
 // Battle_Util.cpp
-void             InitUtil();
+void             InitUtil(Shared* shared);
 bool             AreHexesAdjacent(Hex const* a, Hex const* b);
 Vec2             ColRowToTopLeftWorldPos(I32 c, I32 r);
 U32              HexDistance(Hex const* a, Hex const* b);
-Hex*             WorldPosToHex(Data* data, Vec2 p);
+Hex*             WorldPosToHex(Vec2 p);
 
 //--------------------------------------------------------------------------------------------------
 
