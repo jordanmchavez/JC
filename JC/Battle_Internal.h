@@ -178,6 +178,10 @@ struct InputResult {
 
 //--------------------------------------------------------------------------------------------------
 
+// Battle.cpp
+void             SelectNextUnit();
+void             EndSelectedUnitTurn();
+
 // Battle_Draw.cpp
 void             InitDraw(Mem tempMem, Shared* shared, Window::State const* windowState);
 Hex *            ScreenPosToHex(I32 x, I32 y);

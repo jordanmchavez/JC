@@ -191,6 +191,39 @@ static void AddNeighbor(Hex* hex, I32 cOff, I32 rOff, U32 neighborIdx) {
 
 //--------------------------------------------------------------------------------------------------
 
+static void BuildAttackMap(Army* army) {
+	U64* const attackMap = army->attackMap;
+	memset(attackMap, 0, sizeof(attackMap));
+	for (U32 i = 0; i < army->unitsLen; i++) {
+		Unit* const unit      = &army->units[i];
+		U8    const unitIdx   = (U8)(unit - army->units);
+		U64   const unitBit   = (U64)1 << (U64)unitIdx;
+		for (U16 j = 0; j < MaxHexes; j++) {
+			attackMap[j] &= ~unitBit;
+			if (unit->acted) { continue; }
+			if (unit->pathMap.parents[j]) {
+				attackMap[j] |= unitBit;
+				continue;
+			}
+			Hex const* hex = &shared->hexes[j];
+			for (U8 dir = 0; dir < 6; dir++) {
+				Hex const* const neighbor = hex->neighbors[dir];
+				if (
+					neighbor &&
+					!neighbor->unit &&
+					unit->pathMap.parents[neighbor->idx] &&
+					HexDistance(neighbor, hex) <= unit->range
+				) {
+					attackMap[j] |= unitBit;
+					break;
+				}
+			}
+		}
+	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
 struct TerrainGen {
 	Terrain const* terrain;
 	U32            chance;
@@ -285,36 +318,7 @@ Res<> GenerateMap() {
 	}
 
 	for (Side side = Side_Left; side <= Side_Right; side++) {
-		Army* army = &shared->armies[(U32)side];
-		memset(army->attackMap, 0, sizeof(army->attackMap));
-		for (U32 i = 0; i < army->unitsLen; i++) {
-			Unit const* unit = &army->units[i];
-			U64 const unitBit = (U64)1 << (U64)(unit - army->units);
-			for (U32 j = 0; j < MaxHexes; j++) {
-				// directly reachable
-				if (unit->pathMap.parents[j]) {
-					army->attackMap[j] |= unitBit;
-					Logf("Unit (%u, %u) directly reaches (%u, %u)", unit->hex->c, unit->hex->r, shared->hexes[j].c, shared->hexes[j].r);
-					continue;
-				}
-				// j has a reachable neighbor
-				// TODO: pretty sure we have a utility fn for this
-				Hex const* hex = &shared->hexes[j];
-				for (U32 k = 0; k < 6; k++) {
-					Hex const* const neighbor = hex->neighbors[k];
-					if (
-						neighbor &&
-						!neighbor->unit &&
-						unit->pathMap.parents[neighbor->idx] &&
-						HexDistance(neighbor, hex) <= unit->range
-					) {
-						army->attackMap[j] |= unitBit;
-						Logf("Unit (%u, %u) neighbor reaches (%u, %u)", unit->hex->c, unit->hex->r, neighbor->c, neighbor->r);
-						break;
-					}
-				}
-			}
-		}
+		BuildAttackMap(&shared->armies[(U32)side]);
 	}
 
 	shared->activeSide = Side_Left;
@@ -468,7 +472,7 @@ static void LockOrderTarget(Hex* targetHex) {
 
 //--------------------------------------------------------------------------------------------------
 
-static void SetSelected(Unit* unit) {
+static void SelectOrderUnit(Unit* unit) {
 	if (orderUnit == unit) { return; }
 	orderUnit             = unit;
 	orderPath.len         = 0;
@@ -478,6 +482,43 @@ static void SetSelected(Unit* unit) {
 	drawDef.selected.type = DrawType_Selected;
 	state                 = State::OrderUnitSelected;
 	Logf("Selected (%u, %u)", unit->hex->c, unit->hex->r);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static void UpdateHover();
+static void RebuildOverlay();
+
+void SelectNextUnit() {
+	Army* const army = &shared->armies[shared->activeSide];
+	if (army->unitsLen == 0) { return; }
+	U8 idx = 0;
+	if (orderUnit) {
+		idx = (U8)(orderUnit - army->units);
+	}
+	U8 i = idx;
+	for (;;) {
+		i = (i + 1) % (army->unitsLen - 1);
+		if (i == idx) { return; }
+		if (!army->units[i].acted) {
+			SelectOrderUnit(&army->units[i]);
+			UpdateHover();
+			RebuildOverlay();
+			return;
+		}
+	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void EndSelectedUnitTurn() {
+	if (orderUnit && !orderUnit->acted) {
+		orderUnit->acted = true;
+		orderUnit->move = 0;
+		BuildPathMap(shared->hexes, orderUnit);
+		BuildAttackMap(&shared->armies[orderUnit->side]);
+		SelectNextUnit();
+	}
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -525,13 +566,13 @@ void LeftClick(Hex* clickHex) {
 
 	if (state == State::NoOrderUnitSelected) {
 		if (clickUnit && Selectable(clickUnit)) {
-			SetSelected(clickUnit);
+			SelectOrderUnit(clickUnit);
 		}
 
 	} else if (state == State::OrderUnitSelected) {
 		if (clickUnit) {
 			if (Selectable(clickUnit)) {
-				SetSelected(clickUnit);
+				SelectOrderUnit(clickUnit);
 			} else if (Attackable(orderUnit, clickUnit)) {
 				LockOrderTarget(clickHex);
 			}
@@ -557,8 +598,6 @@ void LeftClick(Hex* clickHex) {
 }
 
 //--------------------------------------------------------------------------------------------------
-
-static void UpdateHover();
 
 static void RightClick() {
 	if (state == State::OrderUnitSelected) {
@@ -796,37 +835,12 @@ static void ExecuteOrder(F32 sec) {
 
 		if (order.stepsIdx >= order.stepsLen) {
 			BuildPathMap(shared->hexes, order.unit);
-
-			// TODO: move this to a utility function
-			Army* const army      = &shared->armies[order.unit->side];
-			U64*  const attackMap = army->attackMap;
-			U64   const unitBit   = (U64)1 << (U64)(order.unit - army->units);
-			for (U16 j = 0; j < MaxHexes; j++) {
-				attackMap[j] &= ~unitBit;
-				if (order.unit->acted) { continue; }
-				if (order.unit->pathMap.parents[j]) {
-					attackMap[j] |= unitBit;
-					continue;
-				}
-				Hex const* hex = &shared->hexes[j];
-				for (U8 dir = 0; dir < 6; dir++) {
-					Hex const* const neighbor = hex->neighbors[dir];
-					if (
-						neighbor &&
-						!neighbor->unit &&
-						order.unit->pathMap.parents[neighbor->idx] &&
-						HexDistance(neighbor, hex) <= order.unit->range
-					) {
-						attackMap[j] |= unitBit;
-						break;
-					}
-				}
-			}
+			BuildAttackMap(&shared->armies[order.unit->side]);
 			if (!order.unit->acted) {
 				// TODO: should we only select if the unit is in range of something?
-				SetSelected(order.unit);
+				SelectOrderUnit(order.unit);
 			} else {
-				state = State::NoOrderUnitSelected;
+				SelectNextUnit();
 			}
 			UpdateHover();
 			RebuildOverlay();

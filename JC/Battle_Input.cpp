@@ -21,6 +21,8 @@ enum : U64 {
 	ActionId_ScrollMapUp,
 	ActionId_ScrollMapDown,
 	ActionId_ShowEnemyArmyThreatMap,
+	ActionId_NextUnit,
+	ActionId_EndUnitTurn,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -48,6 +50,8 @@ void InitInput(Mem permMem, Mem tempMemIn) {
 	Input::Bind(bindingSet, Key::Key::S,              Input::BindingType::Continuous, ActionId_ScrollMapDown);
 	Input::Bind(bindingSet, Key::Key::AltLeft,        Input::BindingType::Continuous, ActionId_ShowEnemyArmyThreatMap);
 	Input::Bind(bindingSet, Key::Key::AltRight,       Input::BindingType::Continuous, ActionId_ShowEnemyArmyThreatMap);
+	Input::Bind(bindingSet, Key::Key::N,              Input::BindingType::OnKeyUp,    ActionId_NextUnit);
+	Input::Bind(bindingSet, Key::Key::Space,          Input::BindingType::OnKeyUp,    ActionId_EndUnitTurn);
 	Input::SetBindingSetStack({ bindingSet });
 
 	clickHexes = Mem::AllocT<Hex*>(permMem, MaxClickHexes);
@@ -88,6 +92,10 @@ Res<InputResult> HandleInput(F32 sec, U32 mouseX, U32 mouseY, Span<Input::Action
 			case ActionId_ScrollMapDown:  cameraDY++; break;
 
 			case ActionId_ShowEnemyArmyThreatMap: showEnemyArmyThreatMap = true; break;
+
+			case ActionId_NextUnit: SelectNextUnit(); break;
+
+			case ActionId_EndUnitTurn: EndSelectedUnitTurn(); break;
 		}
 	}
 
