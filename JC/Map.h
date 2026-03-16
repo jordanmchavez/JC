@@ -63,7 +63,7 @@ template <class K, class V> struct Map {
 		}
 	}
 
-	V* FindChecked(K k) {
+	V* FindOrPanic(K k) {
 		V* v = FindOrNull(k);
 		Assert(v);
 		return v;

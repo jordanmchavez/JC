@@ -1,6 +1,7 @@
 #include "JC/Battle_Internal.h"
 
 #include "JC/Draw.h"
+#include "JC/Effect.h"
 #include "JC/Log.h"
 #include "JC/UnitDef.h"
 #include "JC/Window.h"
@@ -20,7 +21,8 @@ static constexpr F32 Z_TargetPath   = 1.05f;
 static constexpr F32 Z_Unit         = 1.06f;
 static constexpr F32 Z_HoverAttack  = 1.07f;
 static constexpr F32 Z_TargetAttack = 1.08f;
-static constexpr F32 Z_HexUi        = 1.09f;
+static constexpr F32 Z_Effect       = 1.09f;
+static constexpr F32 Z_HexUi        = 1.10f;
 static constexpr F32 Z_UiBackground = 3.00f;
 static constexpr F32 Z_Ui           = 3.01f;
 
@@ -211,6 +213,8 @@ void Draw(Data const* data, DrawDef const* drawDef) {
 	DrawObjs(&drawDef->selected, 1);
 	DrawObjs(drawDef->hoverPath, drawDef->hoverPathLen);
 	DrawObjs(drawDef->targetPath, drawDef->targetPathLen);
+
+	Effect::Draw(Z_Effect);
 }
 
 //--------------------------------------------------------------------------------------------------

@@ -131,16 +131,14 @@ void BuildPathMap(Hex* hexes, Unit* unit) {
 //--------------------------------------------------------------------------------------------------
 
 // Simple back-traversal using `parents`
-bool FindPath(Unit const* unit, Hex* end, Path* pathOut) {
+void FindPathOrPanic(Unit const* unit, Hex* end, Path* pathOut) {
 	pathOut->len = 0;
 	if (end == unit->hex) {
-		return true;
+		return;
 	}
 
 	Hex* const* parents = unit->pathMap.parents;
-	if (!parents[end->idx]) {
-		return false;
-	}
+	Assert(parents[end->idx]);
 
 	for (Hex* hex = end; hex != unit->hex; hex = parents[hex->idx]) {
 		pathOut->hexes[pathOut->len++] = hex;
@@ -149,7 +147,6 @@ bool FindPath(Unit const* unit, Hex* end, Path* pathOut) {
 	for (U64 i = 0; i < halfLen; i++) {
 		Swap(pathOut->hexes[i], pathOut->hexes[pathOut->len - i - 1]);
 	}
-	return true;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -162,38 +159,22 @@ Unit_Test("Battle_Path") {
 	Terrain const blocked  = { .moveCost = 0 };
 
 	//----------------------------------------------------------------------------------------------
-	// FindPath: trivial case — destination is the unit's own hex
+	// FindPathOrPanic: trivial case — destination is the unit's own hex
 
-	Unit_SubTest("FindPath: same hex") {
+	Unit_SubTest("FindPathOrPanic: same hex") {
 		Hex h; memset(&h, 0, sizeof(h)); h.idx = 0; h.terrain = &passable;
 		Unit unit; memset(&unit, 0, sizeof(unit));
 		unit.hex = &h; unit.move = 5; unit.side = Side_Left;
 		BuildPathMap(&h, &unit);
 		Path path;
-		Unit_Check(FindPath(&unit, &h, &path));
+		FindPathOrPanic(&unit, &h, &path);
 		Unit_CheckEq(path.len, (U16)0);
 	}
 
 	//----------------------------------------------------------------------------------------------
-	// FindPath: destination has no parent entry — should return false
+	// FindPathOrPanic: verify path is returned in forward (start → end) order
 
-	Unit_SubTest("FindPath: unreachable hex") {
-		// hex0 and hex1 are isolated (no neighbors)
-		Hex hexes[2];
-		memset(hexes, 0, sizeof(hexes));
-		hexes[0].idx = 0; hexes[0].terrain = &passable;
-		hexes[1].idx = 1; hexes[1].terrain = &passable;
-		Unit unit; memset(&unit, 0, sizeof(unit));
-		unit.hex = &hexes[0]; unit.move = 10; unit.side = Side_Left;
-		BuildPathMap(hexes, &unit);
-		Path path;
-		Unit_CheckFalse(FindPath(&unit, &hexes[1], &path));
-	}
-
-	//----------------------------------------------------------------------------------------------
-	// FindPath: verify path is returned in forward (start → end) order
-
-	Unit_SubTest("FindPath: forward path order") {
+	Unit_SubTest("FindPathOrPanic: forward path order") {
 		// 4-hex chain; path from hex0 to hex3 should be [hex1, hex2, hex3]
 		Hex hexes[4];
 		memset(hexes, 0, sizeof(hexes));
@@ -206,7 +187,7 @@ Unit_Test("Battle_Path") {
 		unit.hex = &hexes[0]; unit.move = 10; unit.side = Side_Left;
 		BuildPathMap(hexes, &unit);
 		Path path;
-		Unit_Check(FindPath(&unit, &hexes[3], &path));
+		FindPathOrPanic(&unit, &hexes[3], &path);
 		Unit_CheckEq(path.len, (U16)3);
 		Unit_Check(path.hexes[0] == &hexes[1]);
 		Unit_Check(path.hexes[1] == &hexes[2]);
@@ -255,9 +236,9 @@ Unit_Test("Battle_Path") {
 		// Cost 4 — never pushed
 		Unit_Check(unit.pathMap.parents[4] == nullptr);
 		Unit_CheckEq(unit.pathMap.moveCosts[4], (U16)0xffff);
+		// cost == move: reachable
 		Path path;
-		Unit_Check(FindPath(&unit, &hexes[3], &path));     // cost == move: reachable
-		Unit_CheckFalse(FindPath(&unit, &hexes[4], &path)); // cost > move: not reachable
+		FindPathOrPanic(&unit, &hexes[3], &path);
 	}
 
 	//----------------------------------------------------------------------------------------------
@@ -304,9 +285,6 @@ Unit_Test("Battle_Path") {
 		BuildPathMap(hexes, &unit);
 		Unit_Check(unit.pathMap.parents[1] == nullptr);
 		Unit_Check(unit.pathMap.parents[2] == nullptr);
-		Path path;
-		Unit_CheckFalse(FindPath(&unit, &hexes[1], &path));
-		Unit_CheckFalse(FindPath(&unit, &hexes[2], &path));
 	}
 
 	//----------------------------------------------------------------------------------------------
@@ -348,7 +326,7 @@ Unit_Test("Battle_Path") {
 		Unit_Check(unit.pathMap.parents[1] != nullptr);
 		Unit_Check(unit.pathMap.parents[2] != nullptr);
 		Path path;
-		Unit_Check(FindPath(&unit, &hexes[2], &path));
+		FindPathOrPanic(&unit, &hexes[2], &path);
 		Unit_CheckEq(path.len, (U16)2);
 	}
 
@@ -377,14 +355,14 @@ Unit_Test("Battle_Path") {
 		Unit_CheckEq(unit.pathMap.moveCosts[3], (U16)3);
 		Unit_Check(unit.pathMap.parents[3] == &hexes[1]); // Path A wins
 		Path path;
-		Unit_Check(FindPath(&unit, &hexes[3], &path));
+		FindPathOrPanic(&unit, &hexes[3], &path);
 		Unit_CheckEq(path.len, (U16)2);
 		Unit_Check(path.hexes[0] == &hexes[1]);
 		Unit_Check(path.hexes[1] == &hexes[3]);
 	}
 
 	//----------------------------------------------------------------------------------------------
-	// End-to-end: build a map with varied costs, verify moveCosts and multiple FindPath calls
+	// End-to-end: build a map with varied costs, verify moveCosts and multiple FindPathOrPanic calls
 
 	Unit_SubTest("End-to-end") {
 		// Chain: hex0 → hex1(1) → hex2(3) → hex3(1) → hex4(1)
@@ -414,22 +392,20 @@ Unit_Test("Battle_Path") {
 
 		// Path to a single adjacent hex
 		Path path;
-		Unit_Check(FindPath(&unit, &hexes[1], &path));
+		FindPathOrPanic(&unit, &hexes[1], &path);
 		Unit_CheckEq(path.len, (U16)1);
 		Unit_Check(path.hexes[0] == &hexes[1]);
 
 		// Path across the costly hex to hex3 (cost == move, still reachable)
-		Unit_Check(FindPath(&unit, &hexes[3], &path));
+		FindPathOrPanic(&unit, &hexes[3], &path);
 		Unit_CheckEq(path.len, (U16)3);
 		Unit_Check(path.hexes[0] == &hexes[1]);
 		Unit_Check(path.hexes[1] == &hexes[2]);
 		Unit_Check(path.hexes[2] == &hexes[3]);
 
-		// hex4 is beyond move range
-		Unit_CheckFalse(FindPath(&unit, &hexes[4], &path));
+		// hex4 is beyond move range — verified via parents/moveCosts above, not callable
 	}
 }
-
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC::Battle

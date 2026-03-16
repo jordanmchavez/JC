@@ -197,7 +197,7 @@ Res<InputResult> HandleInput(Data* data, F32 sec, U32 mouseX, U32 mouseY, Span<I
 // Battle_Path.cpp
 void             InitPath(Mem permMem);
 void             BuildPathMap(Hex* hexes, Unit* unit);
-bool             FindPath(Unit const* unit, Hex* end, Path* pathOut);
+void             FindPathOrPanic(Unit const* unit, Hex* end, Path* pathOut);
 
 // Battle_Util.cpp
 void             InitUtil();
