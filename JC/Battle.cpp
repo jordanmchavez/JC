@@ -474,6 +474,7 @@ static void LockOrderTarget(Hex* targetHex) {
 
 static void SelectOrderUnit(Unit* unit) {
 	if (orderUnit == unit) { return; }
+	orderTargetHex        = nullptr;
 	orderUnit             = unit;
 	orderPath.len         = 0;
 	rebuildOverlay        = true;
@@ -498,15 +499,23 @@ void SelectNextUnit() {
 	}
 	U8 i = idx;
 	for (;;) {
-		i = (i + 1) % (army->unitsLen - 1);
-		if (i == idx) { return; }
+		i = (i + 1) % army->unitsLen;
+		if (i == idx) { break; }
 		if (!army->units[i].acted) {
 			SelectOrderUnit(&army->units[i]);
-			UpdateHover();
-			RebuildOverlay();
-			return;
+			break;
 		}
 	}
+	if (i == idx) {
+		orderUnit = nullptr;
+		orderPath.len         = 0;
+		drawDef.pathLen = 0;
+		drawDef.selected.type = DrawType_None;
+		state                 = State::NoOrderUnitSelected;
+
+	}
+	UpdateHover();
+	RebuildOverlay();
 }
 
 //--------------------------------------------------------------------------------------------------
