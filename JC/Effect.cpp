@@ -52,7 +52,7 @@ void Update(F32 sec) {
 		FloatingStr* const fs = &floatingStrs[i];
 		fs->sec += sec;
 		if (fs->sec >= fs->durSec) {
-			floatingStrs[i] = floatingStrs[floatingStrsLen--];
+			floatingStrs[i] = floatingStrs[--floatingStrsLen];
 			continue;	// no i++
 		}
 		fs->t = fs->sec / fs->durSec;

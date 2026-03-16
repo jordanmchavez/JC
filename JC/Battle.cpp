@@ -500,7 +500,7 @@ static void SetTargetAttackHex(Hex const* hex) {
 		Logf("Targetted (%u, %u) for attack from targetPath", targetAttackHex->c, targetAttackHex->r);
 
 
-//Problem: ambiguous what to do with target hex and hver hex pointing to the same hex.;
+Problem: ambiguous what to do with target hex and hver hex pointing to the same hex.;
 	} else if (TryFindPathToNeighbor(selectedUnit, hex, &targetPath)) {
 		targetAttackHex = hex;
 		drawDef.targetPathLen = BuildDrawPathObjs(selectedUnit->hex, &targetPath, targetAttackHex, DrawType_TargetPathBase, DrawType_TargetAttack, drawDef.targetPath);
@@ -748,21 +748,22 @@ static void ExecuteOrder(F32 sec) {
 			}
 
 			case OrderStepType::AttackIn: {
+				F32 const yStart = step->unit->pos.y - step->unit->def->size.y / 2.f;
 				Effect::CreateFloatingStr({
 					.font   = numberFont,
 					.str    = SPrintf(tempMem, "-1"),
-					.durSec = 2.f,
+					.durSec = 3.f,
 					.x      = step->unit->pos.x,
-					.yStart = step->unit->pos.y - step->unit->def->size.y,
-					.yEnd   = step->unit->pos.y - step->unit->def->size.y - 10.f,
+					.yStart = yStart,
+					.yEnd   = yStart - 20.f,	// TODO: make this configurable
 				});
-				step->unit->hp = Max(0u, step->unit->hp - 1);
+				step->unit->hp = Max(0u, step->unit->hp - 1);	// TODO: real damage
 				if (step->unit->hp == 0) {
 					order.steps[order.stepsLen++] = {
 						.type  = OrderStepType::Die,
 						.hex   = nullptr,
 						.unit  = step->unit,
-						.durSec = 1.f,
+						.durSec = 1.f,	// TODO: configurable dur
 					};
 				}
 				break;
