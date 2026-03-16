@@ -36,7 +36,8 @@ static constexpr U16 MaxOrderSteps = 512;
 
 enum struct OrderStepType {
 	None = 0,
-	Move,
+	MoveThrough,
+	MoveOnto,
 	AttackIn,
 	AttackOut,
 	Die,
@@ -44,7 +45,9 @@ enum struct OrderStepType {
 
 struct OrderStep {
 	OrderStepType type;
-	Hex*          hex;
+	Hex*          fromHex;
+	Hex*          toHex;
+	Unit*         unit;
 	F32           durSec;
 };
 
@@ -350,22 +353,34 @@ static void CreateOrder(Unit* unit, Path* movePath, Hex* targetHex) {
 	memset(&order, 0, sizeof(order));
 
 	order.unit = unit;
-	for (U16 i = 0; i < movePath->len; i++) {
+	Hex* fromHex = order.unit->hex;
+	for (U16 i = 0; i < movePath->len - 1; i++) {
 		order.steps[order.stepsLen++] = {
-			.type   = OrderStepType::Move,
-			.hex    = movePath->hexes[i],
-			.durSec = 0.5f,
+			.type    = OrderStepType::MoveThrough,
+			.fromHex = fromHex,
+			.toHex   = movePath->hexes[i],
+			.durSec  = 0.5f,
+		};
+		fromHex = movePath->hexes[i];
+	}
+	if (movePath->len) {
+		order.steps[order.stepsLen++] = {
+			.type    = OrderStepType::MoveOnto,
+			.fromHex = fromHex,
+			.toHex   = movePath->hexes[movePath->len - 1],
+			.durSec  = 0.5f,
 		};
 	}
 	if (targetHex) {
+		Assert(targetHex->unit);
 		order.steps[order.stepsLen++] = {
-			.type   = OrderStepType::AttackIn,
-			.hex    = targetHex,
+			.type    = OrderStepType::AttackIn,
+			.unit   = targetHex->unit,
 			.durSec = 0.5f,
 		};
 		order.steps[order.stepsLen++] = {
 			.type   = OrderStepType::AttackOut,
-			.hex    = targetHex,
+			.unit   = targetHex->unit,
 			.durSec = 0.5f,
 		};
 	}
@@ -782,12 +797,24 @@ static void ExecuteOrder(F32 sec) {
 	order.elapsedSec += sec;
 	if (order.elapsedSec >= step->durSec) {
 		switch (step->type) {
-			case OrderStepType::Move: {
-				order.unit->hex->unit = nullptr;
-				order.unit->hex = step->hex;
-				step->hex->unit = order.unit;
-				if (order.unit->move >= step->hex->terrain->moveCost) {
-					order.unit->move -= step->hex->terrain->moveCost;
+			case OrderStepType::MoveThrough: {
+				if (order.unit->move >= step->toHex->terrain->moveCost) {
+					order.unit->move -= step->toHex->terrain->moveCost;
+				} else {
+					order.unit->move = 0;
+				}
+				break;
+			}
+
+			case OrderStepType::MoveOnto: {
+				Hex* const oldHex = order.unit->hex;
+				Hex* const newHex = step->toHex;
+				Assert(!newHex->unit);
+				oldHex->unit = nullptr;
+				newHex->unit = order.unit;
+				order.unit->hex = newHex;
+				if (order.unit->move >= step->toHex->terrain->moveCost) {
+					order.unit->move -= step->toHex->terrain->moveCost;
 				} else {
 					order.unit->move = 0;
 				}
@@ -795,8 +822,8 @@ static void ExecuteOrder(F32 sec) {
 			}
 
 			case OrderStepType::AttackIn: {
-				Unit* const unit = step->hex->unit;
-				F32 const yStart = unit->pos.y - unit->def->size.y / 2.f;
+				Unit* const unit   = step->unit;
+				F32   const yStart = unit->pos.y - unit->def->size.y / 2.f;
 				Effect::CreateFloatingStr({
 					.font   = numberFont,
 					.str    = SPrintf(tempMem, "-1"),
@@ -810,8 +837,8 @@ static void ExecuteOrder(F32 sec) {
 				}
 				if (unit->hp == 0) {
 					order.steps[order.stepsLen++] = {
-						.type  = OrderStepType::Die,
-						.hex   = step->hex,
+						.type   = OrderStepType::Die,
+						.unit   = step->unit,
 						.durSec = 1.f,	// TODO: configurable dur
 					};
 				}
@@ -860,19 +887,20 @@ static void ExecuteOrder(F32 sec) {
 
 	F32 const t = order.elapsedSec / step->durSec;
 	switch (step->type) {
-		case OrderStepType::Move: {
-			order.unit->pos = Math::Lerp(order.unit->hex->pos, step->hex->pos, t);
+		case OrderStepType::MoveThrough: [[fallthrough]];
+		case OrderStepType::MoveOnto: {
+			order.unit->pos = Math::Lerp(step->fromHex->pos, step->toHex->pos, t);
 			break;
 		}
 
 		case OrderStepType::AttackIn: {
-			Vec2 const pos = GetBorderPosBetween(order.unit->hex, step->hex);
+			Vec2 const pos = GetBorderPosBetween(order.unit->hex, step->unit->hex);
 			order.unit->pos = Math::Lerp(order.unit->hex->pos, pos, t);
 			break;
 		}
 
 		case OrderStepType::AttackOut: {
-			Vec2 const pos = GetBorderPosBetween(order.unit->hex, step->hex);
+			Vec2 const pos = GetBorderPosBetween(order.unit->hex, step->unit->hex);
 			order.unit->pos = Math::Lerp(pos, order.unit->hex->pos, t);
 			break;
 		}
