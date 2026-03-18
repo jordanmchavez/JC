@@ -75,17 +75,17 @@ template<class T> constexpr Traits GetTraitsHelper(T) { return GetJsonTraits(T()
 		}; \
 	}
 
-Res<> ToObject(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, Span<const Member> members, U8* out);
-Res<> ToArray(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, const Traits* traits, U8* out);
+Res<> ToObjectImpl(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, Span<const Member> members, U8* out);
+Res<> ToArrayImpl(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, const Traits* traits, U8* out);
 
 template <class T> Res<> ToObject(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, T* obj) {
-	return ToObject(permMem, tempMem, json, jsonLen, GetJsonTraits(*obj).members, (U8*)obj);
+	return ToObjectImpl(permMem, tempMem, json, jsonLen, GetJsonTraits(*obj).members, (U8*)obj);
 }
 
 template <class T> Res<> ToArray(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, Span<T>* out) {
-	Json::Traits traits = GetJsonTraits(T());
+	Json::Traits traits = GetJsonTraits(T());	// TODO: declval
 	traits.arrayDepth++;
-	return ToArray(permMem, tempMem, json, jsonLen, &traits, (U8*)out);
+	return ToArrayImpl(permMem, tempMem, json, jsonLen, &traits, (U8*)out);
 }
 //--------------------------------------------------------------------------------------------------
 

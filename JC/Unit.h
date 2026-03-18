@@ -4,22 +4,17 @@
 
 namespace JC::Draw { DefHandle(Sprite); }
 
-namespace JC::UnitDef {
+namespace JC::Unit {
 
 //--------------------------------------------------------------------------------------------------
 
-struct Def {
-	Str          name;
-	Draw::Sprite sprite;
-	Vec2         size;
-	U32          hp;
-	U32          move;
-};
+DefHandle(ResourceType);
 
-void            Init(Mem permMem, Mem tempMem);
-Res<>           LoadDefs(Str path);
-Res<Def const*> GetDef(Str name);
+void         Init(Mem permMem);
+Res<>        InitDefs();
+ResourceType CreateResourceType(Str name, Draw::Sprite sprite);
+ResourceType GetResourceType(Str name);
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::UnitDef
+}	// namespace JC::Unit

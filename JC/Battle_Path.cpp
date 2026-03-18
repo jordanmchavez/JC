@@ -1,4 +1,4 @@
-#include "JC/Battle_Internal.h"
+#include "JC/Battle_Common.h"
 #include "JC/UnitTest.h"
 
 namespace JC::Battle {

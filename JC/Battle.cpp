@@ -1,6 +1,6 @@
 #include "JC/Battle.h"
 #include "JC/Battle.h"
-#include "JC/Battle_Internal.h"
+#include "JC/Battle_Common.h"
 
 #include "JC/App.h"
 #include "JC/Bit.h"

@@ -425,7 +425,7 @@ static Res<> ParseVal(Ctx* ctx, const Traits* traits, U8* out) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> ToObject(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, Span<const Member> members, U8* out) {
+Res<> ToObjectImpl(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, Span<const Member> members, U8* out) {
 	MemMark mark = Mem::Mark(tempMem);
 	Defer { if (permMem != tempMem) { Mem::Reset(tempMem, mark); } };
 	Ctx ctx = {
@@ -440,7 +440,7 @@ Res<> ToObject(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, Span<con
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> ToArray(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, const Traits* traits, U8* out) {
+Res<> ToArrayImpl(Mem permMem, Mem tempMem, char const* json, U32 jsonLen, const Traits* traits, U8* out) {
 	MemMark mark = Mem::Mark(tempMem);
 	Defer { if (permMem != tempMem) { Mem::Reset(tempMem, mark); } };
 	Ctx ctx = {

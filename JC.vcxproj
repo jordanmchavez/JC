@@ -120,12 +120,13 @@
     <ClInclude Include="JC\App.h" />
     <ClInclude Include="JC\Array.h" />
     <ClInclude Include="JC\Battle.h" />
-    <ClInclude Include="JC\Battle_Internal.h" />
+    <ClInclude Include="JC\Battle_Common.h" />
     <ClInclude Include="JC\Bit.h" />
     <ClInclude Include="JC\Cfg.h" />
     <ClInclude Include="JC\Cmd.h" />
     <ClInclude Include="JC\Common.h" />
     <ClInclude Include="JC\Console.h" />
+    <ClInclude Include="JC\Def.h" />
     <ClInclude Include="JC\Draw.h" />
     <ClInclude Include="JC\Effect.h" />
     <ClInclude Include="JC\File.h" />
@@ -149,11 +150,12 @@
     <ClInclude Include="JC\Unicode.h" />
     <ClInclude Include="JC\UnitTest.h" />
     <ClInclude Include="JC\Window.h" />
-    <ClInclude Include="JC\UnitDef.h" />
+    <ClInclude Include="JC\Unit.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="3rd\spirv-reflect\spirv_reflect.c" />
     <ClCompile Include="3rd\stb\stb_image.cpp" />
+    <ClCompile Include="JC\Def.cpp" />
     <ClCompile Include="JC\Battle.cpp" />
     <ClCompile Include="JC\Battle_Input.cpp" />
     <ClCompile Include="JC\Battle_Draw.cpp" />
@@ -192,7 +194,7 @@
     <ClCompile Include="JC\Time_Win.cpp" />
     <ClCompile Include="JC\Ui.cpp" />
     <ClCompile Include="JC\Unicode.cpp" />
-    <ClCompile Include="JC\UnitDef.cpp" />
+    <ClCompile Include="JC\Unit.cpp" />
     <ClCompile Include="JC\UnitTest.cpp" />
     <ClCompile Include="JC\Window_Win.cpp" />
   </ItemGroup>
