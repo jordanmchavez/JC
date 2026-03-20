@@ -81,12 +81,6 @@
 				{ type: "DefensePercent", percent: -50, },
 			]
 		},
-		{
-			name: "ThrowSpear",
-		},
-		{
-			name: "Brace",
-		}
 	],
 
 	unitDefs: [
@@ -101,8 +95,8 @@
 				{ name: "ThrowingSpears", max: 1, },
 			],
 			defenses: [
-				{ type: "DefenseType_Physical", amount: 3 },
-				{ type: "DefenseType_Magical",  amount: 1 },
+				{ type: "Physical", amount: 3 },
+				{ type: "Magical", amount: 1 },
 			],
 			abilities: [
 				{
@@ -113,8 +107,8 @@
 					minDamage: 5,
 					maxDamage: 7,
 					resourceCosts: [
-						{ name: "Stamina",  amount: 1 },
-						{ name: "Attacks",  amount: 1 },
+						{ name: "Stamina", amount: 1 },
+						{ name: "Attacks", amount: 1 },
 					],
 				},
 				{
@@ -126,9 +120,19 @@
 					maxDamage: 5,
 					range: 3,
 					resourceCosts: [
-						{ name: "Stamina",        amount: 1 },
+						{ name: "Stamina",amount: 1 },
 						{ name: "ThrowingSpears", amount: 1 },
 					],
+				},
+				{
+					name: "Brace",
+					sprite: "Icon_Brace",
+					type: "SelfBuff",
+					turns: 1,
+					modifiers: [
+						{ type: "Defense", "type": "Physical", amount: 2 },
+						{ type: "CounterAttackDamage", amount: 2 },
+					]
 				},
 			],
 			abilities: [

@@ -328,3 +328,5 @@ make all perm arrays use the perm allocator
 	- hover over enemy: shortest path
 	- hover over enemy border: shortest path going through that border
 - Clear keys on refocus window
+- Err/Res conversion should push the current fiel/line on the err stack
+- All static sizes should be data driven

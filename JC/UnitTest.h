@@ -84,7 +84,15 @@ struct Subtest {
 #define Unit_CheckNeq(x, y)          Unit_CheckNeqAt(   SrcLoc::Here(), x, y)
 #define Unit_CheckSpanEq(x, y)       Unit_CheckSpanEqAt(SrcLoc::Here(), x, y)
 #define Unit_CheckRes(expr)          Unit_CheckResAt(   SrcLoc::Here(), expr)
+/*
+#define Unit_CheckToAt(sl, expr, out) (Unit::Check
+#define Unit_CheckTo(expr, out)
 
+		Unit_CheckToAt(sl, (Expr).To(Out));
+	} while (false);
+		return MacroConcat(r, __LINE__).err; \
+	} } while (false)
+	*/
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC::UnitTest

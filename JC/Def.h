@@ -8,15 +8,39 @@ namespace JC::Def {
 
 //--------------------------------------------------------------------------------------------------
 
-template<class T> void RegisterObject(Str name) { RegisterJsonTraits(name, GetJsonTraits(T(), 1); }
-template<class T> void RegisterArray(Str name, U32 maxLen) { RegisterJsonTraits(name, GetJsonTraits(T(), m1xLen); }
+DefHandle(Reg);
 
-void RegisterJsonTraits(Str name, Json::Traits const* jsonTraits, U32 maxLen);
+void        Init(Mem permMem, Mem tempMem);
+Res<>       Load(Str path);
+void        Register(Reg reg, Str name, Json::Traits const* jsonTraits, U32 maxLen);
+void const* GetData(Reg reg);
+U32         GetLen(Reg reg);
 
-template <class T> T const* GetObject(Str name);
-template <class T> Span<T> GetArray(Str name);
+template <class T>
+struct RegId {
+	static inline char Val;
+};
 
-Res<> Load(Str path);
+template<class T> Reg RegisterArray(Str name, U32 maxLen) {
+	Reg reg = { .handle = &RegId<T>::Val };
+	RegisterJsonTraits(reg, name, GetJsonTraits(T(), maxLen);
+	return reg;
+}
+
+template<class T> Reg RegisterObject(Str name) {
+	Reg reg = { .handle = &RegId<T>::Val };
+	Register(reg, name, GetJsonTraits(T(), 1);
+	return reg;
+}
+
+template <class T> T const* GetObject(Reg reg) {
+	return return (T const*)GetData(reg);
+}
+
+template <class T> Span<T const> GetArray(Reg reg) {
+	return return Span<T const>((T const*)GetData(reg), GetLen(reg));
+}
+
 
 //--------------------------------------------------------------------------------------------------
 
