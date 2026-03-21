@@ -80,34 +80,12 @@ template<class T> constexpr Traits GetTraitsHelper(T) { return GetJsonTraits(T()
 		}; \
 	}
 
-Res<> JsonToObjectImpl(Mem mem, char const* json, U32 jsonLen, Traits const* traits, U8* out);
+Res<> JsonToObjectImpl(Mem mem, Str json, Traits const* traits, U8* out);
 
-template <class T> Res<> JsonToObject(Mem mem, char const* json, U32 jsonLen, T* obj) {
+template <class T> Res<> JsonToObject(Mem mem, Str json, U32 jsonLen, T* obj) {
 	Json::Traits traits = GetJsonTraits(T());	// TODO: declval
 	return ToObjectImpl(mem, json, jsonLen, &traits, (U8*)obj);
 }
-
-using TraitsFn = Traits* (Str memberName);
-using DataFn = Res<void*> (Str memberName, U32 len);
-Res<> ToObjectFoo(Mem mem, char const* json, U32 jsonLen, TraitsFn* traitsFn, DataFn* dataFn);
-
-struct Ctx;
-
-Res<Ctx*> CreateCtx(Mem mem, char const* json, U32 jsonLen);
-char      CurChar(Ctx* ctx);
-Res<>     Expect(Ctx* ctx, char c);
-bool      Maybe(Ctx* ctx, char c);
-Res<Str>  ParseName(Ctx* ctx);
-Res<bool> ParseBool(Ctx* ctx);
-Res<U32>  ParseU32(Ctx* ctx);
-Res<U64>  ParseU64(Ctx* ctx);
-Res<I32>  ParseI32(Ctx* ctx);
-Res<I64>  ParseI64(Ctx* ctx);
-Res<F32>  ParseF32(Ctx* ctx);
-Res<F64>  ParseF64(Ctx* ctx);
-Res<Str>  ParseStr(Ctx* ctx);
-Res<>     ParseArray(Ctx* ctx, Traits* traits, U8* arrayData, U64* arrayLen);
-Res<>     ParseObject(Ctx* ctx, Traits* traits);
 
 //--------------------------------------------------------------------------------------------------
 

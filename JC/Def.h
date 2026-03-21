@@ -2,31 +2,60 @@
 
 #include "JC/Common.h"
 
-namespace JC::Json { struct Traits; }
-
 namespace JC::Def {
 
 //--------------------------------------------------------------------------------------------------
 
-DefHandle(Reg);
+using JsonFn = Res<> (Str json);
 
-void       Init(Mem permMem, Mem tempMem);
-Reg        Register(Str name, Json::Traits const* jsonTraits, U64 maxLen);
-Res<>      Load(Str path);
-Span<void> Get(Str name);
+struct Reg {
+	Str     jsonMemberName;
+	JsonFn* jsonFn;
+};
 
-template<class T> void RegisterArray(Str name, U64 maxLen) { RegisterJsonTraits(name, GetJsonTraits(T(), maxLen); }
-template<class T> void RegisterObject(Str name) { Register(reg, name, GetJsonTraits(T(), 1); }
+struct JsonSection {
+	Str          json;
+	JsonSection* next;
+};
 
-template <class T> T const* GetObject(Str name) {
-	Span<void> span = Get(name);
-	Assert(span.len == 1);
-	return (T const*) span.data;
-}
+struct RegObj {
+	Str          jsonMemberName;
+	JsonFn*      jsonFn;
+	JsonSection* jsonSections;
+};
+struct Module {
+	Str name;
+	Span<RegObj> regObjs;
+};
 
-template <class T> Span<T const> GetArray(Str name) {
-	Span<void> span = Get(name);
-	return Span<T>((T const*)span.data, span.len);
+static constexpr U64 MaxRegs = 1024;
+
+static RegObj regObjs[MaxRegs];
+static U64 regObjsLen;
+
+static constexpr U64 MaxModules = 64;
+static Module modules[MaxModules];
+static U64 modulesLen;
+
+static constexpr U64 MaxJsonSections = 1024;
+static JsonSection jsonSections[MaxJsonSections];
+static U64 jsonSectionsLen;
+
+void RegisterModule(Str name, Span<Reg> regs) {
+	Assert(modulesLen < MaxModules);
+	Assert(regObjsLen + regs.len <= MaxRegs);
+	Module* module = &modules[modulesLen++];
+	module->name = StrDb::Intern(name);
+	module->regObjs.data = regObjs;
+	module->regObjs.len  = regs.len;
+	regObjsLen += regs.len;
+	for (U64 i = 0; i < regs.len; i++) {
+		module->regObjs[i] = {
+			.jsonMemberName = StrDb::Intern(regs[i].jsonMemberName),
+			.jsonFn         = regs[i].jsonFn,
+			.jsonSections   = nullptr,
+		};
+	}
 }
 
 //--------------------------------------------------------------------------------------------------

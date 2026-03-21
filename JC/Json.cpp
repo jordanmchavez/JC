@@ -102,7 +102,7 @@ static bool Maybe(Ctx* ctx) {
 }
 
 //--------------------------------------------------------------------------------------------------
-
+make json work with non null terminated strings
 // Returns a pointer to the terminating quote
 static Res<char const*> ScanStr(char const* json, char const* iter) {
 	Assert(*iter == '"');
