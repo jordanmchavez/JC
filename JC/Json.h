@@ -27,8 +27,8 @@ struct Member;
 struct Traits {
 	Type               type;
 	U32                size;
-	U32                arrayMaxLen;
 	U32                arrayDepth;
+	U64                arrayMaxLen;
 	Span<Json::Member> members;
 };
 
@@ -106,7 +106,7 @@ Res<I64>  ParseI64(Ctx* ctx);
 Res<F32>  ParseF32(Ctx* ctx);
 Res<F64>  ParseF64(Ctx* ctx);
 Res<Str>  ParseStr(Ctx* ctx);
-Res<>     ParseArray(Ctx* ctx, Traits* traits, U8* out);
+Res<>     ParseArray(Ctx* ctx, Traits* traits, U8* arrayData, U64* arrayLen);
 Res<>     ParseObject(Ctx* ctx, Traits* traits);
 
 //--------------------------------------------------------------------------------------------------

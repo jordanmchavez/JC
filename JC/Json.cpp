@@ -329,10 +329,11 @@ static Res<Str> ParseName(Ctx* ctx) {
 
 //--------------------------------------------------------------------------------------------------
 
-
 static Res<> ParseVal(Ctx* ctx, Traits* traits, U8* out) {
 	if (traits->arrayDepth > 0) {
-		return ParseArray(ctx, traits, out);
+		U64* arrayLen   = (U64*)out;
+		U8*  arrayData  = out + 8;
+		return ParseArray(ctx, traits, arrayData, arrayLen);
 	}
 	switch (traits->type) {
 		case Type::Bool: return ParseBool(ctx).To(*(bool*)out);
@@ -350,9 +351,9 @@ static Res<> ParseVal(Ctx* ctx, Traits* traits, U8* out) {
 
 //--------------------------------------------------------------------------------------------------
 
-static U32 CalcArrayLen(Ctx* ctx) {
+static U64 CalcArrayLen(Ctx* ctx) {
 	U32* const saved = ctx->structPosIter;
-	U32 len = 0;
+	U64 len = 0;
 	U32 depth = 0;
 	for (;;) {
 		char const c = ctx->json[*ctx->structPosIter];
@@ -385,21 +386,19 @@ static U32 CalcArrayLen(Ctx* ctx) {
 
 //--------------------------------------------------------------------------------------------------
 
-static Res<> ParseArray(Ctx* ctx, Traits* traits, U8* out) {
+Res<> ParseArray(Ctx* ctx, Traits* traits, U8* arrayData, U64* arrayLen) {
 	Try(Expect(ctx, '['));
 
-	U32 outLen  = (U32)*((U64*)out);
-	U8* outData = out + 8;
-	U32 len = CalcArrayLen(ctx);
-	if (outLen + len > traits->arrayMaxLen) {
+	U64 incLen = CalcArrayLen(ctx);
+	if (*arrayLen + incLen > traits->arrayMaxLen) {
 		return Err_ArrayMaxLen("pos", *ctx->structPosIter);
 	}
 
 	Traits elemTraits = *traits;
-	U32  elemSize = elemTraits.arrayDepth == 0 ? elemTraits.size : sizeof(Array<U8, 1>);
-	U8*  outIter  = outData + (outLen * elemSize);
+	U64  elemSize = elemTraits.arrayDepth == 0 ? elemTraits.size : sizeof(Array<U8, 1>);
+	U8*  outIter  = arrayData + (*arrayLen * elemSize);
 	elemTraits.arrayDepth--;
-	for (U32 i = 0; i < len - 1; i++) {
+	for (U32 i = 0; i < incLen - 1; i++) {
 		Try(ParseVal(ctx, &elemTraits, outIter));
 		Try(Expect(ctx, ','));
 		outIter += elemSize;
@@ -408,7 +407,9 @@ static Res<> ParseArray(Ctx* ctx, Traits* traits, U8* out) {
 	Maybe(ctx, ',');
 	Try(Expect(ctx, ']'));
 
-	*(U64*)out = (U64)len;
+	*arrayLen += incLen;
+
+	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
