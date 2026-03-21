@@ -253,6 +253,7 @@ struct Mem {
 	static MemMark                    Mark(Mem mem);
 	static void                       Reset(Mem mem, MemMark mark);
 	template <class T> static T*      AllocT(Mem mem, U64 n, SrcLoc sl = SrcLoc::Here()) { return (T*)Mem::Alloc(mem, n * sizeof(T), sl); }
+	template <class T> static T*      AllocT(Mem mem, SrcLoc sl = SrcLoc::Here()) { return (T*)Mem::Alloc(mem, sizeof(T), sl); }
 	template <class T> static Span<T> AllocSpan(Mem mem, U64 n, SrcLoc sl = SrcLoc::Here()) { return Span<T>((T*)Mem::Alloc(mem, n * sizeof(T), sl), n); }
 	template <class T> static T*      ReallocT(Mem mem, T* oldPtr, U64 oldN, U64 newN, SrcLoc sl = SrcLoc::Here()) { return (T*)Mem::Realloc(mem, oldPtr, oldN * sizeof(T), newN * sizeof(T), sl); }
 };
@@ -531,6 +532,16 @@ PanicFn* SetPanicFn(PanicFn* panicFn);
 		Panicf(SrcLoc::Here(), #expr, ##__VA_ARGS__); \
 	} } while (false)
 	
+//--------------------------------------------------------------------------------------------------
+
+template<class T> struct AddRValueRef                      { using Type = T&&; };
+template<>        struct AddRValueRef<void>                { using Type = void; };
+template<>        struct AddRValueRef<const void>          { using Type = const void; };
+template<>        struct AddRValueRef<volatile void>       { using Type = volatile void; };
+template<>        struct AddRValueRef<const volatile void> { using Type = const volatile void; };
+
+template<class T> typename AddRValueRef<T>::Type DeclVal() noexcept;
+
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC

@@ -3,7 +3,7 @@
 #include "JC/Draw.h"
 
 #include "JC/Array.h"
-#include "JC/Bit.h"
+#include "JC/Def.h"
 #include "JC/File.h"
 #include "JC/HandlePool.h"
 #include "JC/Hash.h"
@@ -30,13 +30,13 @@ DefErr(Draw, Ttf);
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr U32 MaxDrawCmds      = 128 * 1024;
-static constexpr U32 MaxAtlases = 64;
-static constexpr U32 MaxSprites       = 64 * 1024;
-static constexpr U32 MaxFonts         = 64;
-static constexpr U32 MaxCanvases      = 64;
-static constexpr U32 MaxPasses        = 64;
-static constexpr U32 ErrorImageSize   = 64;
+static constexpr U32 MaxDrawCmds    = 128 * 1024;
+static constexpr U32 MaxAtlases     = 64;
+static constexpr U32 MaxSprites     = 64 * 1024;
+static constexpr U32 MaxFonts       = 64;
+static constexpr U32 MaxCanvases    = 64;
+static constexpr U32 MaxPasses      = 64;
+static constexpr U32 ErrorImageSize = 64;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -115,37 +115,71 @@ struct Pass {
 
 //--------------------------------------------------------------------------------------------------
 
-static Mem           permMem;
-static Mem           tempMem;
-static U32           windowWidth;
-static U32           windowHeight;
-static Gpu::Image    errorImage;
-static U32           errorImageIdx;
-static Atlas*        atlases;
-static U32           atlasesLen;
-static SpriteObj*    spriteObjs;
-static U32           spriteObjsLen;
-static Map<Str, U32> spriteObjsByName;
-static FontObj*      fontObjs;
-static U32           fontObjsLen;
-static CanvasPool    canvasObjs;
-static Gpu::Image    depthImage;
-static Gpu::Shader   vertexShader;
-static Gpu::Shader   fragmentShader;
-static Gpu::Pipeline pipeline;
-static Gpu::Buffer   sceneBuffers[Gpu::MaxFrames];
-static void*         sceneBufferPtrs[Gpu::MaxFrames];
-static U64           sceneBufferAddrs[Gpu::MaxFrames];
-static Scene         scene;
-static Gpu::Buffer   drawCmdBuffers[Gpu::MaxFrames];
-static void*         drawCmdBufferPtrs[Gpu::MaxFrames];
-static U64           drawCmdBufferAddrs[Gpu::MaxFrames];
-static DrawCmd*      drawCmds;
-static U32           drawCmdCount;
-static Canvas        swapchainCanvas;
-static Pass*         passes;
-static U32           passesLen;
-static Camera        camera;
+struct SpriteDef {
+	U32 x = 0;
+	U32 y = 0;
+	U32 w = 0;
+	U32 h = 0;
+	Str name;
+};
+
+Json_Begin(SpriteDef)
+	Json_Member("x",    x)
+	Json_Member("y",    y)
+	Json_Member("w",    w)
+	Json_Member("h",    h)
+	Json_Member("name", name)
+Json_End(SpriteDef)
+
+struct AtlasDef {
+	Str             imagePath;
+	Span<SpriteDef> sprites;
+};
+Json_Begin(AtlasDef)
+	Json_Member("imagePath", imagePath)
+	Json_Member("sprites",   sprites)
+Json_End(AtlasDef)
+
+struct DrawDef {
+	Span<AtlasDef> atlses;
+};
+Json_Begin(DrawDef)
+	Json_Member("atlases", atlases)
+Json_End(DrawDef)
+
+//--------------------------------------------------------------------------------------------------
+
+struct State {
+	Mem                          tempMem;
+	U32                          windowWidth;
+	U32                          windowHeight;
+	Gpu::Image                   errorImage;
+	U32                          errorImageIdx;
+	Array<Atlas, MaxAtlases>     atlases;
+	Array<SpriteObj, MaxSprites> spriteObjs;
+	U32                          spriteObjsLen;
+	Map<Str, U32>                spriteObjsByName;
+	Array<FontObj, MaxFonts>     fontObjs;
+	CanvasPool                   canvasObjs;
+	Gpu::Image                   depthImage;
+	Gpu::Shader                  vertexShader;
+	Gpu::Shader                  fragmentShader;
+	Gpu::Pipeline                pipeline;
+	Gpu::Buffer                  sceneBuffers[Gpu::MaxFrames];
+	void*                        sceneBufferPtrs[Gpu::MaxFrames];
+	U64                          sceneBufferAddrs[Gpu::MaxFrames];
+	Scene                        scene;
+	Gpu::Buffer                  drawCmdBuffers[Gpu::MaxFrames];
+	void*                        drawCmdBufferPtrs[Gpu::MaxFrames];
+	U64                          drawCmdBufferAddrs[Gpu::MaxFrames];
+	DrawCmd*                     drawCmds;
+	U32                          drawCmdCount;
+	Canvas                       swapchainCanvas;
+	Array<Pass, MaxPasses>       passes;
+	Camera                       camera;
+};
+
+static State* state;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -157,78 +191,73 @@ static Res<Gpu::Shader> LoadShader(Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Init(InitDef const* initDef) {
-	permMem      = initDef->permMem;
-	tempMem      = initDef->tempMem;
-	windowWidth  = initDef->windowWidth;
-	windowHeight = initDef->windowHeight;
+Res<> Init(InitDesc const* initDesc) {
+	state = Mem::AllocT<State>(initDesc->permMem);
+	state->tempMem      = initDesc->tempMem;
+	state->windowWidth  = initDesc->windowWidth;
+	state->windowHeight = initDesc->windowHeight;
+	state->spriteObjsByName.Init(initDesc->permMem, MaxSprites);
+	state->canvasObjs.Init(initDesc->permMem, MaxCanvases);
 
-	atlases       = Mem::AllocT<Atlas>(permMem, MaxAtlases);
-	atlasesLen    = 0;
-	spriteObjs    = Mem::AllocT<SpriteObj>(permMem, MaxSprites);
-	spriteObjsLen = 1;	// reserve 0 for invalid
-	fontObjs      = Mem::AllocT<FontObj>(permMem, MaxFonts);
-	fontObjsLen   = 1;	// reserve 0 for invalid
-	passes        = Mem::AllocT<Pass>(permMem, MaxPasses);
-	passesLen     = 0;
-	spriteObjsByName.Init(permMem, MaxSprites);
-	canvasObjs.Init(permMem, MaxCanvases);
-
-	TryTo(Gpu::CreateImage(ErrorImageSize, ErrorImageSize, Gpu::ImageFormat::B8G8R8A8_UNorm, Gpu::ImageUsage::Sampled | Gpu::ImageUsage::Copy), errorImage);
-	errorImageIdx = Gpu::GetImageBindIdx(errorImage);
-	Gpu_Name(errorImage);
-	U8* errorImageData = Mem::AllocT<U8>(tempMem, ErrorImageSize * ErrorImageSize * 4);
+	TryTo(Gpu::CreateImage(ErrorImageSize, ErrorImageSize, Gpu::ImageFormat::B8G8R8A8_UNorm, Gpu::ImageUsage::Sampled | Gpu::ImageUsage::Copy), state->errorImage);
+	state->errorImageIdx = Gpu::GetImageBindIdx(state->errorImage);
+	Gpu_Name(state->errorImage);
+	U8* errorImageData = Mem::AllocT<U8>(state->tempMem, ErrorImageSize * ErrorImageSize * 4);
 	for (U32 i = 0; i < ErrorImageSize * ErrorImageSize * 4; i++) {
 		errorImageData[i] = 0xff;
 	}
-	Try(Gpu::ImmediateCopyToImage(errorImageData, errorImage, Gpu::BarrierStage::VertexShader_SamplerRead, Gpu::ImageLayout::ShaderRead));
+	Try(Gpu::ImmediateCopyToImage(errorImageData, state->errorImage, Gpu::BarrierStage::VertexShader_SamplerRead, Gpu::ImageLayout::ShaderRead));
 	Try(Gpu::ImmediateWait());
 
-	TryTo(Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth), depthImage);
-	Gpu_Name(depthImage);
+	TryTo(Gpu::CreateImage(state->windowWidth, state->windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth), state->depthImage);
+	Gpu_Name(state->depthImage);
 
-	Try(LoadShader("Shaders/SpriteVert.spv").To(vertexShader));
-	Gpu_Name(vertexShader);
-	Try(LoadShader("Shaders/SpriteFrag.spv").To(fragmentShader));
-	Gpu_Name(fragmentShader);
+	Try(LoadShader("Shaders/SpriteVert.spv").To(state->vertexShader));
+	Gpu_Name(state->vertexShader);
+	Try(LoadShader("Shaders/SpriteFrag.spv").To(state->fragmentShader));
+	Gpu_Name(state->fragmentShader);
 
 	Try(Gpu::CreateGraphicsPipeline(
-		{ vertexShader, fragmentShader },
+		{ state->vertexShader, state->fragmentShader },
 		{ Gpu::GetSwapchainImageFormat() },
 		Gpu::ImageFormat::D32_Float
-	).To(pipeline));
-	Gpu_Name(pipeline);
+	).To(state->pipeline));
+	Gpu_Name(state->pipeline);
 
 	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		TryTo(Gpu::CreateBuffer(sizeof(Scene), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Addr, Gpu::MemoryLocation::Cpu), sceneBuffers[i]);
-		Gpu_Namef(sceneBuffers[i], "sceneBuffers[%u]", i);
-		TryTo(Gpu::MapBuffer(sceneBuffers[i]), sceneBufferPtrs[i]);
-		sceneBufferAddrs[i] = Gpu::GetBufferGpuAddr(sceneBuffers[i]);
+		TryTo(Gpu::CreateBuffer(sizeof(Scene), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Addr, Gpu::MemoryLocation::Cpu), state->sceneBuffers[i]);
+		Gpu_Namef(state->sceneBuffers[i], "sceneBuffers[%u]", i);
+		TryTo(Gpu::MapBuffer(state->sceneBuffers[i]), state->sceneBufferPtrs[i]);
+		state->sceneBufferAddrs[i] = Gpu::GetBufferGpuAddr(state->sceneBuffers[i]);
 
-		TryTo(Gpu::CreateBuffer(MaxDrawCmds * sizeof(DrawCmd), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Addr, Gpu::MemoryLocation::Cpu), drawCmdBuffers[i]);
-		Gpu_Namef(drawCmdBuffers[i], "drawCmdBuffers[%u]", i);
-		TryTo(Gpu::MapBuffer(drawCmdBuffers[i]), drawCmdBufferPtrs[i]);
-		drawCmdBufferAddrs[i] = Gpu::GetBufferGpuAddr(drawCmdBuffers[i]);
+		TryTo(Gpu::CreateBuffer(MaxDrawCmds * sizeof(DrawCmd), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Addr, Gpu::MemoryLocation::Cpu), state->drawCmdBuffers[i]);
+		Gpu_Namef(state->drawCmdBuffers[i], "drawCmdBuffers[%u]", i);
+		TryTo(Gpu::MapBuffer(state->drawCmdBuffers[i]), state->drawCmdBufferPtrs[i]);
+		state->drawCmdBufferAddrs[i] = Gpu::GetBufferGpuAddr(state->drawCmdBuffers[i]);
 	}
 
-	Vec2 const windowSize = Vec2((F32)windowWidth, (F32)windowHeight);
-	CanvasPool::Entry* const entry = canvasObjs.Alloc();
+	Vec2 const windowSize = Vec2((F32)state->windowWidth, (F32)state->windowHeight);
+	CanvasPool::Entry* const entry = state->canvasObjs.Alloc();
 	entry->obj = {
 		.colorImage       = Gpu::Image(),
 		.colorImageIdx    = 0,
 		.colorImageLayout = Gpu::ImageLayout::Color,
-		.depthImage       = depthImage,
+		.depthImage       = state->depthImage,
 		.size             = windowSize,
 	};
-	swapchainCanvas = entry->Handle();
-	scene.projViews[entry->idx] = Math::Ortho(
+	state->swapchainCanvas = entry->Handle();
+	state->scene.projViews[entry->idx] = Math::Ortho(
 		0.0f, windowSize.x,
 		windowSize.y, 0.0f,
 		-100.0f, 100.0f
 	);
 
-	camera.pos   = Vec2(0.f, 0.f);
-	camera.scale = 1.f;
+	state->camera.pos   = Vec2(0.f, 0.f);
+	state->camera.scale = 1.f;
+
+	Def::RegisterModule("Draw", {
+		Json::GetTraitsHelper(DrawDef());
+	});
 
 	return Ok();
 }
@@ -236,21 +265,21 @@ Res<> Init(InitDef const* initDef) {
 //--------------------------------------------------------------------------------------------------
 
 void Shutdown() {
-	for (U32 i = 0; i < atlasesLen; i++) {
-		Gpu::DestroyImage(atlases[i].image);
+	for (U32 i = 0; i < state->atlases.len; i++) {
+		Gpu::DestroyImage(state->atlases[i].image);
 	}
-	for (U32 i = 1; i < fontObjsLen; i++) {	// 0 reserved for invalid
-		Gpu::DestroyImage(fontObjs[i].image);
+	for (U32 i = 1; i < state->fontObjs.len; i++) {	// 0 reserved for invalid
+		Gpu::DestroyImage(state->fontObjs[i].image);
 	}
 	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		Gpu::DestroyBuffer(sceneBuffers[i]);
-		Gpu::DestroyBuffer(drawCmdBuffers[i]);
+		Gpu::DestroyBuffer(state->sceneBuffers[i]);
+		Gpu::DestroyBuffer(state->drawCmdBuffers[i]);
 	}
-	Gpu::DestroyPipeline(pipeline);
-	Gpu::DestroyShader(vertexShader);
-	Gpu::DestroyShader(fragmentShader);
-	Gpu::DestroyImage(depthImage);
-	Gpu::DestroyImage(errorImage);
+	Gpu::DestroyPipeline(state->pipeline);
+	Gpu::DestroyShader(state->vertexShader);
+	Gpu::DestroyShader(state->fragmentShader);
+	Gpu::DestroyImage(state->depthImage);
+	Gpu::DestroyImage(state->errorImage);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -300,30 +329,6 @@ static Res<Gpu::Image> LoadImage(Str path) {
 }
 
 //--------------------------------------------------------------------------------------------------
-
-struct SpriteJson {
-	U32 x = 0;
-	U32 y = 0;
-	U32 w = 0;
-	U32 h = 0;
-	Str name;
-};
-Json_Begin(SpriteJson)
-	Json_Member("x",    x)
-	Json_Member("y",    y)
-	Json_Member("w",    w)
-	Json_Member("h",    h)
-	Json_Member("name", name)
-Json_End(SpriteJson)
-
-struct AtlasJson {
-	Str              imagePath;
-	Span<SpriteJson> sprites;
-};
-Json_Begin(AtlasJson)
-	Json_Member("imagePath", imagePath)
-	Json_Member("sprites",   sprites)
-Json_End(AtlasJson)
 
 Res<> LoadAtlas(Str path) {
 	for (U32 i = 0; i < atlasesLen; i++) {
