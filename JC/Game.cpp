@@ -11,7 +11,6 @@
 #include "JC/Math.h"
 #include "JC/Rng.h"
 #include "JC/Time.h"
-#include "JC/UnitDef.h"
 #include "JC/Window.h"
 
 namespace JC::Game {
@@ -35,13 +34,10 @@ Res<> PreInit(Mem permMemIn, Mem tempMemIn) {
 //--------------------------------------------------------------------------------------------------
 
 Res<> Init(Window::State const* windowState) {
-	Try(Battle::Init(permMem, tempMem, windowState));
-	UnitDef::Init(permMem, tempMem);
-	Effect::Init(permMem);
+	windowState;//Try(Battle::Init(permMem, tempMem, windowState));
+	//Effect::Init(permMem);
 
-	Try(UnitDef::LoadDefs("Assets/Units.json5"));
-	Try(Battle::Load("Assets/Battle.json5"));
-	Try(Battle::GenerateMap());
+	//Try(Battle::GenerateMap());
 
 	return Ok();
 }
@@ -52,13 +48,13 @@ Res<> Update(App::UpdateData const* updateData) {
 	if (updateData->exit) {
 		return App::Err_Exit();
 	}
-	return Battle::Update(updateData);
+	return Ok();//return Battle::Update(updateData);
 }
 
 //--------------------------------------------------------------------------------------------------
 
 Res<> Draw() {
-	Battle::Draw();
+	//Battle::Draw();
 	return Ok();
 }
 

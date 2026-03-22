@@ -92,7 +92,6 @@ Res<Font>   LoadFont(Str path);
 Str         GetFontPath(Font font);
 F32         GetFontLineHeight(Font font);
 Res<Canvas> CreateCanvas(U32 width, U32 height);
-void        DestroyCanvas(Canvas canvas);
 void        BeginFrame(Gpu::FrameData const* gpuFrameData);
 void        EndFrame();
 void        SetDefaultCanvas();

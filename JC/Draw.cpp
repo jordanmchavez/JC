@@ -3,9 +3,7 @@
 #include "JC/Draw.h"
 
 #include "JC/Array.h"
-#include "JC/Def.h"
 #include "JC/File.h"
-#include "JC/HandlePool.h"
 #include "JC/Hash.h"
 #include "JC/Gpu.h"
 #include "JC/Json.h"
@@ -20,8 +18,11 @@ namespace JC::Draw {
 
 //--------------------------------------------------------------------------------------------------
 
+DefErr(Draw, MaxAtlases);
+DefErr(Draw, MaxSprites);
+DefErr(Draw, MaxFonts);
 DefErr(Draw, AtlasFmt);
-DefErr(Draw, DuplicateSpriteName);
+DefErr(Draw, DuplicateSprite);
 DefErr(Draw, ImageFmt);
 DefErr(Draw, LoadImage);
 DefErr(Draw, SpriteNotFound);
@@ -30,10 +31,11 @@ DefErr(Draw, Ttf);
 
 //--------------------------------------------------------------------------------------------------
 
+static constexpr U32 Cfg_MaxAtlases  = 64;
+static constexpr U32 Cfg_MaxSprites  = 64 * 1024;
+static constexpr U32 Cfg_MaxFonts    = 64;
+
 static constexpr U32 MaxDrawCmds    = 128 * 1024;
-static constexpr U32 MaxAtlases     = 64;
-static constexpr U32 MaxSprites     = 64 * 1024;
-static constexpr U32 MaxFonts       = 64;
 static constexpr U32 MaxCanvases    = 64;
 static constexpr U32 MaxPasses      = 64;
 static constexpr U32 ErrorImageSize = 64;
@@ -83,10 +85,8 @@ struct CanvasObj {
 	Vec2             size;
 };
 
-using CanvasPool = HandlePool<Canvas, CanvasObj>;
-
 struct Scene {
-	Mat4 projViews[MaxCanvases + 1];	// +1 for the no-canvas pass
+	Mat4* projViews;
 };
 
 struct PushConstants {
@@ -140,124 +140,112 @@ Json_Begin(AtlasDef)
 	Json_Member("sprites",   sprites)
 Json_End(AtlasDef)
 
-struct DrawDef {
-	Span<AtlasDef> atlses;
-};
-Json_Begin(DrawDef)
-	Json_Member("atlases", atlases)
-Json_End(DrawDef)
-
 //--------------------------------------------------------------------------------------------------
 
-struct State {
-	Mem                          tempMem;
-	U32                          windowWidth;
-	U32                          windowHeight;
-	Gpu::Image                   errorImage;
-	U32                          errorImageIdx;
-	Array<Atlas, MaxAtlases>     atlases;
-	Array<SpriteObj, MaxSprites> spriteObjs;
-	U32                          spriteObjsLen;
-	Map<Str, U32>                spriteObjsByName;
-	Array<FontObj, MaxFonts>     fontObjs;
-	CanvasPool                   canvasObjs;
-	Gpu::Image                   depthImage;
-	Gpu::Shader                  vertexShader;
-	Gpu::Shader                  fragmentShader;
-	Gpu::Pipeline                pipeline;
-	Gpu::Buffer                  sceneBuffers[Gpu::MaxFrames];
-	void*                        sceneBufferPtrs[Gpu::MaxFrames];
-	U64                          sceneBufferAddrs[Gpu::MaxFrames];
-	Scene                        scene;
-	Gpu::Buffer                  drawCmdBuffers[Gpu::MaxFrames];
-	void*                        drawCmdBufferPtrs[Gpu::MaxFrames];
-	U64                          drawCmdBufferAddrs[Gpu::MaxFrames];
-	DrawCmd*                     drawCmds;
-	U32                          drawCmdCount;
-	Canvas                       swapchainCanvas;
-	Array<Pass, MaxPasses>       passes;
-	Camera                       camera;
-};
-
-static State* state;
+static Mem              tempMem;
+static U32              windowWidth;
+static U32              windowHeight;
+static Gpu::Image       errorImage;
+static U32              errorImageIdx;
+static Array<Atlas>     atlases;
+static Array<SpriteObj> spriteObjs;
+static Map<Str, U64>    spriteObjsByName;
+static Array<FontObj>   fontObjs;
+static Array<CanvasObj> canvasObjs;
+static Gpu::Image       depthImage;
+static Gpu::Shader      vertexShader;
+static Gpu::Shader      fragmentShader;
+static Gpu::Pipeline    pipeline;
+static Gpu::Buffer      sceneBuffers[Gpu::MaxFrames];
+static void*            sceneBufferPtrs[Gpu::MaxFrames];
+static U64              sceneBufferAddrs[Gpu::MaxFrames];
+static Scene            scene;
+static Gpu::Buffer      drawCmdBuffers[Gpu::MaxFrames];
+static void*            drawCmdBufferPtrs[Gpu::MaxFrames];
+static U64              drawCmdBufferAddrs[Gpu::MaxFrames];
+static DrawCmd*         drawCmds;
+static U32              drawCmdCount;
+static Array<Pass>      passes;
+static Camera           camera;
+static U64              frameIdx;
 
 //--------------------------------------------------------------------------------------------------
 
 static Res<Gpu::Shader> LoadShader(Str path) {
 	Span<U8> data;
-	if (Res<> r = File::ReadAll(path).To(data); !r) { return r.err; }
+	if (Res<> r = File::ReadAllBytes(tempMem, path).To(data); !r) { return r.err; }
 	return Gpu::CreateShader(data.data, data.len);
 }
 
 //--------------------------------------------------------------------------------------------------
 
 Res<> Init(InitDesc const* initDesc) {
-	state = Mem::AllocT<State>(initDesc->permMem);
-	state->tempMem      = initDesc->tempMem;
-	state->windowWidth  = initDesc->windowWidth;
-	state->windowHeight = initDesc->windowHeight;
-	state->spriteObjsByName.Init(initDesc->permMem, MaxSprites);
-	state->canvasObjs.Init(initDesc->permMem, MaxCanvases);
+	tempMem      = initDesc->tempMem;
+	windowWidth  = initDesc->windowWidth;
+	windowHeight = initDesc->windowHeight;
+	atlases.Init(initDesc->permMem, Cfg_MaxAtlases);
+	spriteObjs.Init(initDesc->permMem, Cfg_MaxSprites);
+	spriteObjs.Add();// Reserve 0 for invalid
+	spriteObjsByName.Init(initDesc->permMem, Cfg_MaxSprites);
+	fontObjs.Init(initDesc->permMem, Cfg_MaxFonts);
+	fontObjs.Add();// Reserve 0 for invalid
+	canvasObjs.Init(initDesc->permMem, MaxCanvases);
+	canvasObjs.Add();// Reserve 0 for invalid/swapchain canvas
+	scene.projViews = Mem::AllocT<Mat4>(initDesc->permMem, MaxCanvases);
 
-	TryTo(Gpu::CreateImage(ErrorImageSize, ErrorImageSize, Gpu::ImageFormat::B8G8R8A8_UNorm, Gpu::ImageUsage::Sampled | Gpu::ImageUsage::Copy), state->errorImage);
-	state->errorImageIdx = Gpu::GetImageBindIdx(state->errorImage);
-	Gpu_Name(state->errorImage);
-	U8* errorImageData = Mem::AllocT<U8>(state->tempMem, ErrorImageSize * ErrorImageSize * 4);
+	TryTo(Gpu::CreateImage(ErrorImageSize, ErrorImageSize, Gpu::ImageFormat::B8G8R8A8_UNorm, Gpu::ImageUsage::Sampled | Gpu::ImageUsage::Copy), errorImage);
+	errorImageIdx = Gpu::GetImageBindIdx(errorImage);
+	Gpu_Name(errorImage);
+	U8* errorImageData = Mem::AllocT<U8>(tempMem, ErrorImageSize * ErrorImageSize * 4);
 	for (U32 i = 0; i < ErrorImageSize * ErrorImageSize * 4; i++) {
 		errorImageData[i] = 0xff;
 	}
-	Try(Gpu::ImmediateCopyToImage(errorImageData, state->errorImage, Gpu::BarrierStage::VertexShader_SamplerRead, Gpu::ImageLayout::ShaderRead));
+	Try(Gpu::ImmediateCopyToImage(errorImageData, errorImage, Gpu::BarrierStage::VertexShader_SamplerRead, Gpu::ImageLayout::ShaderRead));
 	Try(Gpu::ImmediateWait());
 
-	TryTo(Gpu::CreateImage(state->windowWidth, state->windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth), state->depthImage);
-	Gpu_Name(state->depthImage);
+	TryTo(Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth), depthImage);
+	Gpu_Name(depthImage);
 
-	Try(LoadShader("Shaders/SpriteVert.spv").To(state->vertexShader));
-	Gpu_Name(state->vertexShader);
-	Try(LoadShader("Shaders/SpriteFrag.spv").To(state->fragmentShader));
-	Gpu_Name(state->fragmentShader);
+	Try(LoadShader("Shaders/SpriteVert.spv").To(vertexShader));
+	Gpu_Name(vertexShader);
+	Try(LoadShader("Shaders/SpriteFrag.spv").To(fragmentShader));
+	Gpu_Name(fragmentShader);
 
 	Try(Gpu::CreateGraphicsPipeline(
-		{ state->vertexShader, state->fragmentShader },
+		{ vertexShader, fragmentShader },
 		{ Gpu::GetSwapchainImageFormat() },
 		Gpu::ImageFormat::D32_Float
-	).To(state->pipeline));
-	Gpu_Name(state->pipeline);
+	).To(pipeline));
+	Gpu_Name(pipeline);
 
 	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		TryTo(Gpu::CreateBuffer(sizeof(Scene), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Addr, Gpu::MemoryLocation::Cpu), state->sceneBuffers[i]);
-		Gpu_Namef(state->sceneBuffers[i], "sceneBuffers[%u]", i);
-		TryTo(Gpu::MapBuffer(state->sceneBuffers[i]), state->sceneBufferPtrs[i]);
-		state->sceneBufferAddrs[i] = Gpu::GetBufferGpuAddr(state->sceneBuffers[i]);
+		TryTo(Gpu::CreateBuffer(sizeof(Scene), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Addr, Gpu::MemoryLocation::Cpu), sceneBuffers[i]);
+		Gpu_Namef(sceneBuffers[i], "sceneBuffers[%u]", i);
+		TryTo(Gpu::MapBuffer(sceneBuffers[i]), sceneBufferPtrs[i]);
+		sceneBufferAddrs[i] = Gpu::GetBufferGpuAddr(sceneBuffers[i]);
 
-		TryTo(Gpu::CreateBuffer(MaxDrawCmds * sizeof(DrawCmd), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Addr, Gpu::MemoryLocation::Cpu), state->drawCmdBuffers[i]);
-		Gpu_Namef(state->drawCmdBuffers[i], "drawCmdBuffers[%u]", i);
-		TryTo(Gpu::MapBuffer(state->drawCmdBuffers[i]), state->drawCmdBufferPtrs[i]);
-		state->drawCmdBufferAddrs[i] = Gpu::GetBufferGpuAddr(state->drawCmdBuffers[i]);
+		TryTo(Gpu::CreateBuffer(MaxDrawCmds * sizeof(DrawCmd), Gpu::BufferUsage::Storage | Gpu::BufferUsage::Addr, Gpu::MemoryLocation::Cpu), drawCmdBuffers[i]);
+		Gpu_Namef(drawCmdBuffers[i], "drawCmdBuffers[%u]", i);
+		TryTo(Gpu::MapBuffer(drawCmdBuffers[i]), drawCmdBufferPtrs[i]);
+		drawCmdBufferAddrs[i] = Gpu::GetBufferGpuAddr(drawCmdBuffers[i]);
 	}
 
-	Vec2 const windowSize = Vec2((F32)state->windowWidth, (F32)state->windowHeight);
-	CanvasPool::Entry* const entry = state->canvasObjs.Alloc();
-	entry->obj = {
+	Vec2 const windowSize = Vec2((F32)windowWidth, (F32)windowHeight);
+	canvasObjs[0] = {
 		.colorImage       = Gpu::Image(),
 		.colorImageIdx    = 0,
 		.colorImageLayout = Gpu::ImageLayout::Color,
-		.depthImage       = state->depthImage,
+		.depthImage       = depthImage,
 		.size             = windowSize,
 	};
-	state->swapchainCanvas = entry->Handle();
-	state->scene.projViews[entry->idx] = Math::Ortho(
+	scene.projViews[0] = Math::Ortho(
 		0.0f, windowSize.x,
 		windowSize.y, 0.0f,
 		-100.0f, 100.0f
 	);
 
-	state->camera.pos   = Vec2(0.f, 0.f);
-	state->camera.scale = 1.f;
-
-	Def::RegisterModule("Draw", {
-		Json::GetTraitsHelper(DrawDef());
-	});
+	camera.pos   = Vec2(0.f, 0.f);
+	camera.scale = 1.f;
 
 	return Ok();
 }
@@ -265,21 +253,21 @@ Res<> Init(InitDesc const* initDesc) {
 //--------------------------------------------------------------------------------------------------
 
 void Shutdown() {
-	for (U32 i = 0; i < state->atlases.len; i++) {
-		Gpu::DestroyImage(state->atlases[i].image);
+	for (U32 i = 0; i < atlases.len; i++) {
+		Gpu::DestroyImage(atlases[i].image);
 	}
-	for (U32 i = 1; i < state->fontObjs.len; i++) {	// 0 reserved for invalid
-		Gpu::DestroyImage(state->fontObjs[i].image);
+	for (U32 i = 1; i < fontObjs.len; i++) {	// 0 reserved for invalid
+		Gpu::DestroyImage(fontObjs[i].image);
 	}
 	for (U32 i = 0; i < Gpu::MaxFrames; i++) {
-		Gpu::DestroyBuffer(state->sceneBuffers[i]);
-		Gpu::DestroyBuffer(state->drawCmdBuffers[i]);
+		Gpu::DestroyBuffer(sceneBuffers[i]);
+		Gpu::DestroyBuffer(drawCmdBuffers[i]);
 	}
-	Gpu::DestroyPipeline(state->pipeline);
-	Gpu::DestroyShader(state->vertexShader);
-	Gpu::DestroyShader(state->fragmentShader);
-	Gpu::DestroyImage(state->depthImage);
-	Gpu::DestroyImage(state->errorImage);
+	Gpu::DestroyPipeline(pipeline);
+	Gpu::DestroyShader(vertexShader);
+	Gpu::DestroyShader(fragmentShader);
+	Gpu::DestroyImage(depthImage);
+	Gpu::DestroyImage(errorImage);
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -294,15 +282,14 @@ Res<> ResizeWindow(U32 windowWidthIn, U32 windowHeightIn) {
 	Try(Gpu::CreateImage(windowWidth, windowHeight, Gpu::ImageFormat::D32_Float, Gpu::ImageUsage::Depth).To(depthImage));
 
 	Vec2 const windowSize = Vec2((F32)windowWidth, (F32)windowHeight);
-	scene.projViews[canvasObjs.GetEntry(swapchainCanvas)->idx] = Math::Ortho(
+	scene.projViews[0] = Math::Ortho(
 		0.0f, windowSize.x,
 		windowSize.y, 0.0f,
 		-100.0f, 100.0f
 	);
 
-	CanvasObj* const canvasObj = canvasObjs.Get(swapchainCanvas);
-	canvasObj->depthImage = depthImage;
-	canvasObj->size = windowSize;
+	canvasObjs[0].depthImage = depthImage;
+	canvasObjs[0].size       = windowSize;
 
 	return Ok();
 }
@@ -310,7 +297,7 @@ Res<> ResizeWindow(U32 windowWidthIn, U32 windowHeightIn) {
 //--------------------------------------------------------------------------------------------------
 
 static Res<Gpu::Image> LoadImage(Str path) {
-	Span<U8> data; TryTo(File::ReadAll(path), data);
+	Span<U8> data; TryTo(File::ReadAllBytes(tempMem, path), data);
 
 	int width = 0;
 	int height = 0;
@@ -331,46 +318,48 @@ static Res<Gpu::Image> LoadImage(Str path) {
 //--------------------------------------------------------------------------------------------------
 
 Res<> LoadAtlas(Str path) {
-	for (U32 i = 0; i < atlasesLen; i++) {
+	for (U32 i = 0; i < atlases.len; i++) {
 		if (File::PathsEq(path, atlases[i].path)) {
 			return Ok();
 		}
 	}
-	Assert(atlasesLen < MaxAtlases);
 
-	Span<char> json; TryTo(File::ReadAllZ(path), json);
-	AtlasJson atlasJson; Try(Json::ToObject(tempMem, tempMem, json.data, (U32)json.len, &atlasJson));
+	if (atlases.len == atlases.cap) { return Err_MaxAtlases("max", atlases.cap); }
 
-	Gpu::Image image; TryTo(LoadImage(atlasJson.imagePath), image);
+	Str json; TryTo(File::ReadAllStr(tempMem, path), json);
+	AtlasDef atlasDef; Try(Json::JsonToObject(tempMem, json, &atlasDef));
+
+	Gpu::Image image; TryTo(LoadImage(atlasDef.imagePath), image);
 	U32 const imageIdx    = Gpu::GetImageBindIdx(image);
 	F32 const imageWidth  = (F32)Gpu::GetImageWidth(image);
 	F32 const imageHeight = (F32)Gpu::GetImageHeight(image);
-	atlases[atlasesLen++] = {
+	atlases.Add({
 		.path     = StrDb::Intern(path),
 		.image    = image,
 		.imageIdx = imageIdx,
-	};
+	});
 
-	Assert(spriteObjsLen + atlasJson.sprites.len <= MaxSprites);
-	for (U64 i = 0; i < atlasJson.sprites.len; i++) {
-		SpriteJson* const spriteJson = &atlasJson.sprites[i];
-		if (spriteObjsByName.FindOrNull(spriteJson->name)) {
-			return Err_DuplicateSpriteName("path", path, "name", spriteJson->name);
+	if (spriteObjs.len + atlasDef.sprites.len >= spriteObjs.cap) { return Err_MaxSprites("max", spriteObjs.cap); }
+
+	for (U64 i = 0; i < atlasDef.sprites.len; i++) {
+		SpriteDef* const spriteDef = &atlasDef.sprites[i];
+		if (spriteObjsByName.FindOrNull(spriteDef->name)) {
+			return Err_DuplicateSprite("path", path, "name", spriteDef->name);
 		}
-		F32 const x = (F32)spriteJson->x;
-		F32 const y = (F32)spriteJson->y;
-		F32 const w = (F32)spriteJson->w;
-		F32 const h = (F32)spriteJson->h;
+		F32 const x = (F32)spriteDef->x;
+		F32 const y = (F32)spriteDef->y;
+		F32 const w = (F32)spriteDef->w;
+		F32 const h = (F32)spriteDef->h;
 
-		spriteObjsByName.Put(spriteJson->name, spriteObjsLen);
-		spriteObjs[spriteObjsLen++] = {
+		spriteObjsByName.Put(spriteDef->name, spriteObjs.len);
+		spriteObjs.Add({
 			.imageIdx  = imageIdx,
 			.uv1       = { x / imageWidth, y / imageHeight },
 			.uv2       = { (x + w) / imageWidth, (y + h) / imageHeight },
 			.size      = { w, h },
 			.texelSize = { 1.f / imageWidth, 1.f / imageHeight },
-			.name      = spriteJson->name,	// Json interns this for us
-		};
+			.name      = spriteDef->name,	// Json interns this for us
+		});
 	}
 	return Ok();
 }
@@ -378,7 +367,7 @@ Res<> LoadAtlas(Str path) {
 //--------------------------------------------------------------------------------------------------
 
 Res<Sprite> GetSprite(Str name) {
-	U32 const* const idx = spriteObjsByName.FindOrNull(name);
+	U64 const* idx = spriteObjsByName.FindOrNull(name);
 	if (!idx) {
 		return Err_SpriteNotFound("name", name);
 	}
@@ -388,7 +377,7 @@ Res<Sprite> GetSprite(Str name) {
 //--------------------------------------------------------------------------------------------------
 
 Vec2 GetSpriteSize(Sprite sprite) {
-	Assert(sprite.handle > 0 && sprite.handle < spriteObjsLen);
+	Assert(sprite.handle > 0 && sprite.handle < spriteObjs.len);
 	return spriteObjs[sprite.handle].size;
 }
 
@@ -429,10 +418,10 @@ Json_Begin(FontJson)
 Json_End(FontJson)
 
 Res<Font> LoadFont(Str path) {
-	Assert(fontObjsLen < MaxFonts);
+	if (fontObjs.len >= fontObjs.cap) { return Err_MaxFonts("max", fontObjs.cap); }
 
-	Span<char> json; TryTo(File::ReadAllZ(path), json);
-	FontJson fontJson; Try(Json::ToObject(tempMem, tempMem, json.data, (U32)json.len, &fontJson));
+	Str json; TryTo(File::ReadAllStr(tempMem, path), json);
+	FontJson fontJson; Try(Json::JsonToObject(tempMem, json, &fontJson));
 
 
 	Gpu::Image image; TryTo(LoadImage(fontJson.imagePath), image);
@@ -440,7 +429,7 @@ Res<Font> LoadFont(Str path) {
 	F32 const imageWidth  = (F32)Gpu::GetImageWidth(image);
 	F32 const imageHeight = (F32)Gpu::GetImageHeight(image);
 
-	FontObj* const fontObj = &fontObjs[fontObjsLen++];
+	FontObj* const fontObj = fontObjs.Add();
 	fontObj->path       = StrDb::Intern(path);
 	fontObj->image      = image;
 	fontObj->imageIdx   = imageIdx;
@@ -492,24 +481,26 @@ Res<Font> LoadFont(Str path) {
 	}
 
 
-	return Font { .handle = (U64)(fontObj - fontObjs) };
+	return Font { .handle = (U64)(fontObj - fontObjs.data) };
 }
 
 //--------------------------------------------------------------------------------------------------
 
 Str GetFontPath(Font font) {
-	Assert(font.handle > 0 && font.handle < fontObjsLen);
+	Assert(font.handle > 0 && font.handle < fontObjs.len);
 	return fontObjs[font.handle].path;
 }
 
 F32 GetFontLineHeight(Font font) {
-	Assert(font.handle > 0 && font.handle < fontObjsLen);
+	Assert(font.handle > 0 && font.handle < fontObjs.len);
 	return fontObjs[font.handle].lineHeight;
 }
 
 //--------------------------------------------------------------------------------------------------
 
 Res<Canvas> CreateCanvas(U32 width, U32 height) {
+	Assert(canvasObjs.HasCapacity());
+
 	Gpu::Image canvasColorImage;
 	Try(Gpu::CreateImage(width, height, Gpu::ImageFormat::B8G8R8A8_UNorm, Gpu::ImageUsage::Color | Gpu::ImageUsage::Sampled).To(canvasColorImage));
 
@@ -520,54 +511,43 @@ Res<Canvas> CreateCanvas(U32 width, U32 height) {
 	}
 
 	Vec2 const size = Vec2((F32)width, (F32)height);
-	CanvasPool::Entry* const entry = canvasObjs.Alloc();
-	entry->obj = {
+	CanvasObj* canvasObj = canvasObjs.Add();
+	U64 canvasObjIdx = (U64)(canvasObj = canvasObjs.data);
+	*canvasObj = {
 		.colorImage       = canvasColorImage,
 		.colorImageIdx    = Gpu::GetImageBindIdx(canvasColorImage),
 		.colorImageLayout = Gpu::ImageLayout::Undefined,
 		.depthImage       = canvasDepthImage,
 		.size             = size,
 	};
-	Gpu_Namef(canvasColorImage, "canvasColor#%u", entry->idx);
-	Gpu_Namef(canvasDepthImage, "canvasDepth#%u", entry->idx);
+	Gpu_Namef(canvasColorImage, "canvasColor#%u", canvasObjIdx);
+	Gpu_Namef(canvasDepthImage, "canvasDepth#%u", canvasObjIdx);
 
-	scene.projViews[entry->idx] = Math::Ortho(
+	scene.projViews[canvasObjIdx] = Math::Ortho(
 		0.0f, size.x,
 		size.y, 0.0f,
 		-100.0f, 100.0f
 	);
 
-	return entry->Handle();
+	return Canvas { .handle = canvasObjIdx };
 }
 
 //--------------------------------------------------------------------------------------------------
-
-void DestroyCanvas(Canvas canvas) {
-	CanvasObj* const canvasObj = canvasObjs.Get(canvas);
-	Gpu::DestroyImage(canvasObj->colorImage);
-	Gpu::DestroyImage(canvasObj->depthImage);
-	canvasObjs.Free(canvas);
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static U64 frameIdx;
 
 void BeginFrame(const Gpu::FrameData* gpuFrameData) {
 	frameIdx = gpuFrameData->frameIdx;
 
-	CanvasObj* const canvasObj = canvasObjs.Get(swapchainCanvas);
-	canvasObj->colorImage = gpuFrameData->swapchainImage;
+	canvasObjs[0].colorImage = gpuFrameData->swapchainImage;
 
 	drawCmds = (DrawCmd*)drawCmdBufferPtrs[frameIdx];
 	drawCmdCount = 0;
 
-	passesLen = 0;
-	passes[passesLen++] = {
-		.canvas       = swapchainCanvas,
+	passes.len = 0;
+	passes.Add({
+		.canvas       = { .handle = 0 },
 		.drawCmdStart = 0,
 		.drawCmdEnd   = U32Max,
-	};
+	});
 
 	camera.pos = Vec2(0.f, 0.f);
 	camera.scale = 1.f;
@@ -578,16 +558,15 @@ void BeginFrame(const Gpu::FrameData* gpuFrameData) {
 void EndFrame() {
 	memcpy(sceneBufferPtrs[frameIdx], &scene, sizeof(Scene));
 
-	passes[passesLen - 1].drawCmdEnd = drawCmdCount;
-	for (U64 i = 0; i < passesLen; i++) {
+	passes[passes.len - 1].drawCmdEnd = drawCmdCount;
+	for (U64 i = 0; i < passes.len; i++) {
 		Pass const* const pass = &passes[i];
 		U32 const passDrawCmdCount = pass->drawCmdEnd - pass->drawCmdStart;
 		if (passDrawCmdCount == 0) {
 			continue;
 		}
 
-		CanvasPool::Entry* const entry = canvasObjs.GetEntry(pass->canvas);
-		CanvasObj* canvasObj = &entry->obj;
+		CanvasObj* canvasObj = &canvasObjs[pass->canvas.handle];
 		Gpu::Pass const gpuPass = {
 			.pipeline         = pipeline,
 			.colorAttachments = { canvasObj->colorImage },
@@ -597,7 +576,7 @@ void EndFrame() {
 			.clear            = true,
 		};
 
-		if (pass->canvas.handle != swapchainCanvas.handle) {
+		if (pass->canvas.handle) {	// not swapchain canvas
 			if (canvasObj->colorImageLayout == Gpu::ImageLayout::Undefined) {
 				Gpu::ImageBarrier(
 					canvasObj->colorImage,
@@ -622,14 +601,14 @@ void EndFrame() {
 		PushConstants pushConstants = {
 			.sceneBufferAddr   = sceneBufferAddrs[frameIdx],
 			.drawCmdBufferAddr = drawCmdBufferAddrs[frameIdx],
-			.sceneBufferIdx    = entry->idx,
+			.sceneBufferIdx    = (U32)pass->canvas.handle,
 			.drawCmdStart      = pass->drawCmdStart,
 		};
 		Gpu::PushConstants(pipeline, &pushConstants, sizeof(pushConstants));
 		Gpu::Draw(6, passDrawCmdCount);
 		Gpu::EndPass();
 
-		if (pass->canvas.handle != swapchainCanvas.handle) {
+		if (pass->canvas.handle) {	// not swapchain canvas
 			Gpu::ImageBarrier(
 				canvasObj->colorImage,
 				Gpu::BarrierStage::ColorOutput_ColorWrite,
@@ -645,23 +624,24 @@ void EndFrame() {
 //--------------------------------------------------------------------------------------------------
 
 void SetDefaultCanvas() {
-	Assert(passesLen < MaxPasses);
-	passes[passesLen - 1].drawCmdEnd = drawCmdCount;
-	passes[passesLen++] = {
-		.canvas       = swapchainCanvas,
+	Assert(passes.HasCapacity());
+	passes[passes.len - 1].drawCmdEnd = drawCmdCount;
+	passes.Add({
+		.canvas       = { .handle = 0 },
 		.drawCmdStart = drawCmdCount,
 		.drawCmdEnd   = U32Max,
-	};
+	});
 }
 
 void SetCanvas(Canvas canvas) {
-	Assert(passesLen < MaxPasses);
-	passes[passesLen - 1].drawCmdEnd = drawCmdCount;
-	passes[passesLen++] = {
-		.canvas       = canvas.handle ? canvas : swapchainCanvas,
+	Assert(canvas.handle > 0 && canvas.handle < canvasObjs.len);
+	Assert(passes.HasCapacity());
+	passes[passes.len - 1].drawCmdEnd = drawCmdCount;
+	passes.Add({
+		.canvas       = canvas,
 		.drawCmdStart = drawCmdCount,
 		.drawCmdEnd   = U32Max,
-	};
+	});
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -691,57 +671,57 @@ static inline Vec3 MakePos(F32 x, F32 y, F32 z) {
 
 //--------------------------------------------------------------------------------------------------
 
-void DrawRect(RectDrawDef drawDef) {
-	F32 x = drawDef.pos.x;
-	F32 y = drawDef.pos.y;
+void DrawRect(DrawRectDesc drawRectDesc) {
+	F32 x = drawRectDesc.pos.x;
+	F32 y = drawRectDesc.pos.y;
 
-	switch (drawDef.origin) {
+	switch (drawRectDesc.origin) {
 		case Origin::BottomLeft:
 		case Origin::BottomCenter:
 		case Origin::BottomRight:
-			y -= drawDef.size.y;
+			y -= drawRectDesc.size.y;
 			break;
 		case Origin::Left:
 		case Origin::Center:
 		case Origin::Right:
-			y -= drawDef.size.y * 0.5f;
+			y -= drawRectDesc.size.y * 0.5f;
 			break;
 	}
-	switch (drawDef.origin) {
+	switch (drawRectDesc.origin) {
 		case Origin::BottomCenter:
 		case Origin::Center:
 		case Origin::TopCenter:
-			x -= drawDef.size.x * 0.5f;
+			x -= drawRectDesc.size.x * 0.5f;
 			break;
 		case Origin::BottomRight:
 		case Origin::Right:
 		case Origin::TopRight:
-			x -= drawDef.size.x;
+			x -= drawRectDesc.size.x;
 			break;
 	}
 
 	DrawCmd* const drawCmd = AllocDrawCmds(1);
 	drawCmd->textureIdx   = 0;
-	drawCmd->pos          = MakePos(x, y, drawDef.z);
-	drawCmd->size         = Vec2(drawDef.size.x * camera.scale, drawDef.size.y * camera.scale);
+	drawCmd->pos          = MakePos(x, y, drawRectDesc.z);
+	drawCmd->size         = Vec2(drawRectDesc.size.x * camera.scale, drawRectDesc.size.y * camera.scale);
 	drawCmd->uv1          = Vec2(0.f, 0.f);
 	drawCmd->uv2          = Vec2(0.f, 0.f);
-	drawCmd->color        = drawDef.color;
+	drawCmd->color        = drawRectDesc.color;
 	drawCmd->outlineWidth = 0.f;
 	drawCmd->outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void DrawSprite(SpriteDrawDef drawDef) {
-	Assert(drawDef.sprite.handle > 0 && drawDef.sprite.handle < spriteObjsLen);
-	SpriteObj const* const spriteObj = &spriteObjs[drawDef.sprite.handle];
+void DrawSprite(DrawSpriteDesc drawSpriteDesc) {
+	Assert(drawSpriteDesc.sprite.handle > 0 && drawSpriteDesc.sprite.handle < spriteObjs.len);
+	SpriteObj const* const spriteObj = &spriteObjs[drawSpriteDesc.sprite.handle];
 
-	F32 x = drawDef.pos.x;
-	F32 y = drawDef.pos.y;
-	F32 const scaledSizeX = spriteObj->size.x * drawDef.scale.x;
-	F32 const scaledSizeY = spriteObj->size.y * drawDef.scale.y;
-	switch (drawDef.origin) {
+	F32 x = drawSpriteDesc.pos.x;
+	F32 y = drawSpriteDesc.pos.y;
+	F32 const scaledSizeX = spriteObj->size.x * drawSpriteDesc.scale.x;
+	F32 const scaledSizeY = spriteObj->size.y * drawSpriteDesc.scale.y;
+	switch (drawSpriteDesc.origin) {
 		case Origin::BottomLeft:
 		case Origin::BottomCenter:
 		case Origin::BottomRight:
@@ -753,7 +733,7 @@ void DrawSprite(SpriteDrawDef drawDef) {
 			y -= scaledSizeY * 0.5f;
 			break;
 	}
-	switch (drawDef.origin) {
+	switch (drawSpriteDesc.origin) {
 		case Origin::BottomCenter:
 		case Origin::Center:
 		case Origin::TopCenter:
@@ -768,18 +748,18 @@ void DrawSprite(SpriteDrawDef drawDef) {
 
 	DrawCmd* const drawCmd = AllocDrawCmds(1);
 	drawCmd->textureIdx   = spriteObj->imageIdx;
-	drawCmd->pos          = MakePos(x, y, drawDef.z);
+	drawCmd->pos          = MakePos(x, y, drawSpriteDesc.z);
 	drawCmd->size         = Vec2(scaledSizeX * camera.scale, scaledSizeY * camera.scale);
 	drawCmd->uv1          = spriteObj->uv1;
 	drawCmd->uv2          = spriteObj->uv2;
-	drawCmd->color        = drawDef.color;
-	drawCmd->outlineWidth = drawDef.outlineWidth;
-	drawCmd->outlineColor = drawDef.outlineColor;
+	drawCmd->color        = drawSpriteDesc.color;
+	drawCmd->outlineWidth = drawSpriteDesc.outlineWidth;
+	drawCmd->outlineColor = drawSpriteDesc.outlineColor;
 
-	if (drawDef.flip) {
+	if (drawSpriteDesc.flip) {
 		Swap(drawCmd->uv1.x, drawCmd->uv2.x);
 	}
-	if (drawDef.outlineWidth > 0.f) {
+	if (drawSpriteDesc.outlineWidth > 0.f) {
 		drawCmd->pos.x -= 1 * camera.scale;
 		drawCmd->pos.y -= 1 * camera.scale;
 		drawCmd->size.x += 2 * camera.scale;
@@ -800,10 +780,10 @@ static F32 StrWidth(FontObj const* fontObj, Str str) {
 
 	F32 width = 0;
 	for (U32 i = 0; i < str.len - 1; i++) {
-		Glyph const* const glyph = &fontObj->glyphs[str[i]];
+		Glyph const* glyph = &fontObj->glyphs[str[i]];
 		width += glyph->xAdv;
 	}
-	Glyph const* const lastGlyph = &fontObj->glyphs[str[str.len - 1]];
+	Glyph const* lastGlyph = &fontObj->glyphs[str[str.len - 1]];
 	width += lastGlyph->off.x + lastGlyph->size.x;
 	//width += lastGlyph->xAdv;
 	return width;
@@ -811,53 +791,53 @@ static F32 StrWidth(FontObj const* fontObj, Str str) {
 
 //--------------------------------------------------------------------------------------------------
 
-void DrawStr(StrDrawDef drawDef) {
-	Assert(drawDef.font.handle > 0 && drawDef.font.handle < fontObjsLen);
-	FontObj const* const fontObj = &fontObjs[drawDef.font.handle];
+void DrawStr(DrawStrDesc drawStrDesc) {
+	Assert(drawStrDesc.font.handle > 0 && drawStrDesc.font.handle < fontObjs.len);
+	FontObj const* fontObj = &fontObjs[drawStrDesc.font.handle];
 
-	F32 x = drawDef.pos.x;
-	F32 y = drawDef.pos.y;
-	switch (drawDef.origin) {
+	F32 x = drawStrDesc.pos.x;
+	F32 y = drawStrDesc.pos.y;
+	switch (drawStrDesc.origin) {
 		case Origin::BottomLeft:
 		case Origin::BottomCenter:
 		case Origin::BottomRight:
-			y -= fontObj->lineHeight * drawDef.scale.y;
+			y -= fontObj->lineHeight * drawStrDesc.scale.y;
 			break;
 		case Origin::Left:
 		case Origin::Center:
 		case Origin::Right:
-			y -= (fontObj->lineHeight / 2.f) * drawDef.scale.y;
+			y -= (fontObj->lineHeight / 2.f) * drawStrDesc.scale.y;
 			break;
 		case Origin::BaselineLeft:
 		case Origin::BaselineCenter:
 		case Origin::BaselineRight:
-			y -= fontObj->base * drawDef.scale.y;
+			y -= fontObj->base * drawStrDesc.scale.y;
 			break;
 	}
-	switch (drawDef.origin) {
+	switch (drawStrDesc.origin) {
 		case Origin::BottomCenter:
 		case Origin::Center:
 		case Origin::TopCenter:
-			x -= StrWidth(fontObj, drawDef.str) * drawDef.scale.x * 0.5f;
+			x -= StrWidth(fontObj, drawStrDesc.str) * drawStrDesc.scale.x * 0.5f;
 			break;
 		case Origin::BottomRight:
 		case Origin::Right:
 		case Origin::TopRight:
-			x -= StrWidth(fontObj, drawDef.str) * drawDef.scale.x;
+			x -= StrWidth(fontObj, drawStrDesc.str) * drawStrDesc.scale.x;
 			break;
 	}
-	for (U32 i = 0; i < drawDef.str.len; i++) {
-		Glyph const* glyph = &fontObj->glyphs[drawDef.str[i]];
-		DrawCmd* const drawCmd = AllocDrawCmds(1);
+	for (U32 i = 0; i < drawStrDesc.str.len; i++) {
+		Glyph const* glyph = &fontObj->glyphs[drawStrDesc.str[i]];
+		DrawCmd* drawCmd = AllocDrawCmds(1);
 		drawCmd->textureIdx   = glyph->imageIdx;
-		drawCmd->pos          = MakePos(x + (glyph->off.x * drawDef.scale.x), y + (glyph->off.y * drawDef.scale.y), drawDef.z);
-		drawCmd->size         = Vec2(glyph->size.x * drawDef.scale.x * camera.scale, glyph->size.y * drawDef.scale.y * camera.scale);
+		drawCmd->pos          = MakePos(x + (glyph->off.x * drawStrDesc.scale.x), y + (glyph->off.y * drawStrDesc.scale.y), drawStrDesc.z);
+		drawCmd->size         = Vec2(glyph->size.x * drawStrDesc.scale.x * camera.scale, glyph->size.y * drawStrDesc.scale.y * camera.scale);
 		drawCmd->uv1          = glyph->uv1;
 		drawCmd->uv2          = glyph->uv2;
-		drawCmd->color        = drawDef.color;
-		drawCmd->outlineWidth = drawDef.outlineWidth;
-		drawCmd->outlineColor = drawDef.outlineColor;
-		if (drawDef.outlineWidth > 0.f) {
+		drawCmd->color        = drawStrDesc.color;
+		drawCmd->outlineWidth = drawStrDesc.outlineWidth;
+		drawCmd->outlineColor = drawStrDesc.outlineColor;
+		if (drawStrDesc.outlineWidth > 0.f) {
 			drawCmd->pos.x -= 1 * camera.scale;
 			drawCmd->pos.y -= 1 * camera.scale;
 			drawCmd->size.x += 2 * camera.scale;
@@ -867,22 +847,23 @@ void DrawStr(StrDrawDef drawDef) {
 			drawCmd->uv2.x += fontObj->texelSize.x;
 			drawCmd->uv2.y += fontObj->texelSize.y;
 		}
-		x += glyph->xAdv * drawDef.scale.x;
+		x += glyph->xAdv * drawStrDesc.scale.x;
 	}
 }
 
 //--------------------------------------------------------------------------------------------------
 
-void DrawCanvas(CanvasDrawDef drawDef) {
-	CanvasObj const* const canvasObj = canvasObjs.Get(drawDef.canvas);
+void DrawCanvas(DrawCanvasDesc drawCanvasDesc) {
+	Assert(drawCanvasDesc.canvas.handle > 0 && drawCanvasDesc.canvas.handle < canvasObjs.len);
+	CanvasObj const* canvasObj = &canvasObjs[drawCanvasDesc.canvas.handle];
 
-	DrawCmd* const drawCmd = AllocDrawCmds(1);
+	DrawCmd* drawCmd = AllocDrawCmds(1);
 	drawCmd->textureIdx   = canvasObj->colorImageIdx;
-	drawCmd->pos          = Vec3(Math::Round(drawDef.pos.x), Math::Round(drawDef.pos.y), drawDef.z);
-	drawCmd->size         = Vec2(canvasObj->size.x * drawDef.scale.x * camera.scale, canvasObj->size.y * drawDef.scale.y * camera.scale);
+	drawCmd->pos          = Vec3(Math::Round(drawCanvasDesc.pos.x), Math::Round(drawCanvasDesc.pos.y), drawCanvasDesc.z);
+	drawCmd->size         = Vec2(canvasObj->size.x * drawCanvasDesc.scale.x * camera.scale, canvasObj->size.y * drawCanvasDesc.scale.y * camera.scale);
 	drawCmd->uv1          = Vec2(0.f, 0.f);
 	drawCmd->uv2          = Vec2(1.f, 1.f);
-	drawCmd->color        = drawDef.color;
+	drawCmd->color        = drawCanvasDesc.color;
 	drawCmd->outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
 	drawCmd->outlineWidth = 0.f;
 }

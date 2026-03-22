@@ -1,3 +1,6 @@
+// TODO: make this match real json5: https://spec.json5.org/
+
+
 #include "JC/Json.h"
 
 #include "JC/Array.h"
@@ -11,6 +14,8 @@ namespace JC::Json {
 
 DefErr(Json, MissingClosingQuote);
 DefErr(Json, Unexpected);
+DefErr(Json, MissingMember);
+DefErr(Json, UnknownMember);
 DefErr(Json, BadEscChar);
 DefErr(Json, BadName);
 DefErr(Json, BadBool);
@@ -22,190 +27,198 @@ DefErr(Json, ArrayMaxLen);
 
 //--------------------------------------------------------------------------------------------------
 
-struct Ctx {
-	Mem         mem;
-	char const* json;
-	U32         jsonLen;
-	U32*        structPos = 0;
-	U32*        structPosEnd = 0;
-	U32*        structPosEndCap = 0;
-	U32*        structPosIter = 0;
-};
-
-//--------------------------------------------------------------------------------------------------
-
 enum struct CharType : U8 {
-	Normal = 0,
-	Space  = 1,
-	Quote  = 2,
-	Op     = 3,
-	Eof    = 4,
+	Other = 0,
+	Space,
+	Operator,
+	Quote,
+	Underscore,
+	Alpha,
+	Digit,
 };
 
 struct CharTable {
-	CharType data[256] = {};
+	CharType table[256];
+
 	constexpr CharTable() {
-		data[' ' ] = CharType::Space;
-		data['\t'] = CharType::Space;
-		data['\r'] = CharType::Space;
-		data['\n'] = CharType::Space;
-		data['"' ] = CharType::Quote;
-		data['{' ] = CharType::Op;
-		data['}' ] = CharType::Op;
-		data['[' ] = CharType::Op;
-		data[']' ] = CharType::Op;
-		data[':' ] = CharType::Op;
-		data[',' ] = CharType::Op;
-		data['\0'] = CharType::Eof;
+		for (U32 i = 0; i < 256; i++) { table[i] = CharType::Other; }
+		table[' ' ] = CharType::Space;
+		table['\t'] = CharType::Space;
+		table['\r'] = CharType::Space;
+		table['\n'] = CharType::Space;
+		table['{' ] = CharType::Operator;
+		table['}' ] = CharType::Operator;
+		table['[' ] = CharType::Operator;
+		table[']' ] = CharType::Operator;
+		table[':' ] = CharType::Operator;
+		table[',' ] = CharType::Operator;
+		table['"' ] = CharType::Quote;
+		table['_' ] = CharType::Underscore;
+		for (char c = 'a'; c <= 'z'; c++) { table[c] = CharType::Alpha; }
+		for (char c = 'A'; c <= 'Z'; c++) { table[c] = CharType::Alpha; }
+		for (char c = '0'; c <= '9'; c++) { table[c] = CharType::Digit; }
 	}
 };
-constexpr CharTable charTable;
 
-static constexpr bool IsDigit(char c) { return c >= '0' && c <= '9'; }
-static constexpr bool IsNormal(char c) { return charTable.data[c] == CharType::Normal; }
-// TODO: IsNormal() and IsDigit() tables
+static constexpr CharTable charTable;
+
+static constexpr bool IsName(char c) {
+	CharType charType = charTable.table[c];
+	return charType == CharType::Underscore || charType == CharType::Alpha || charType == CharType::Digit;
+}
+
+static constexpr bool IsStructural(char c) {
+	CharType charType = charTable.table[c];
+	return charType == CharType::Space || charType == CharType::Quote || charType == CharType::Operator;
+}
+
+static constexpr bool IsDigit(char c) {
+	return charTable.table[c] == CharType::Digit;
+}
+//--------------------------------------------------------------------------------------------------
+
+struct Ctx {
+	Mem         mem;
+	char const* data;
+	char const* end;
+	Str const*  elemIter;
+	Str const*  elemEnd;
+};
 
 //--------------------------------------------------------------------------------------------------
 
-static void AddStructPos(Ctx* ctx, U32 pos) {
-	U32 const cap = (U32)(ctx->structPosEndCap - ctx->structPos);
-	U32 const len = (U32)(ctx->structPosEnd - ctx->structPos);
-	if (ctx->structPosEnd == ctx->structPosEndCap) {
-		U32 const newCap     = cap ? cap * 2 : 256;
-		// TODO: replace this whole thing with Array
-		ctx->structPos       = Mem::ReallocT<U32>(ctx->mem, ctx->structPos, cap, newCap);
-		ctx->structPosEnd    = ctx->structPos + len;	// bleh
-		ctx->structPosEndCap = ctx->structPos + newCap;
-		ctx->structPosIter   = ctx->structPos;	// bleh
+static Res<Ctx> CreateCtx(Mem mem, Str json) {
+	Ctx ctx = {
+		.mem      = mem,
+		.data     = json.data,
+		.end      = json.data + json.len,
+		.elemIter = nullptr,
+		.elemEnd  = nullptr,
+	};
+
+	Array<Str> elems(mem, 256);
+
+	// TODO: Replace with SIMD scanning
+	// Use vpshufb-based vectorized classification
+	// Can classify 32 bytes per instruction into: structural, whitespace, quote, backslash, other
+	char const* iter = ctx.data;
+	while (iter < ctx.end) {
+		CharType charType = charTable.table[*iter];
+		switch (charType) {
+			case CharType::Space:
+				iter++;
+				continue;
+
+			case CharType::Operator:
+				elems.Add(Str(iter, 1));
+				iter++;
+				break;
+
+			case CharType::Quote: {
+				elems.Add(Str(iter, 1));
+				iter++;
+				char const* begin = iter;
+				for (;;) {
+					if (iter >= ctx.end) { return Err_MissingClosingQuote("pos", iter - ctx.data); }
+					char const c = *iter;
+					if (c == '"') {
+						elems.Add(Str(begin, (U32)(iter - begin)));
+						elems.Add(Str(iter, 1));
+						iter++;
+						break;
+					}
+					iter++;
+					if (c == '\\') {
+						if (iter > ctx.end) { return Err_BadEscChar("pos", iter - ctx.data); }
+						iter++;
+					}
+				}
+				break;
+			}
+
+			case CharType::Other:      [[fallthrough]];
+			case CharType::Underscore: [[fallthrough]];
+			case CharType::Alpha:      [[fallthrough]];
+			case CharType::Digit: {
+				char const* begin = iter;
+				do {
+					iter++;
+				} while (iter < ctx.end && IsName(*iter));
+				elems.Add(Str(begin, (U32)(iter - begin)));
+				break;
+			}
+		}
 	}
-	*ctx->structPosEnd++ = pos;
+
+	ctx.elemIter = elems.data;
+	ctx.elemEnd  = elems.data + elems.len;
+
+	return ctx;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static U32 Pos(Ctx* ctx, Str elem) {
+	return (U32)(elem.data - ctx->data);
 }
 
 //--------------------------------------------------------------------------------------------------
 
 static Res<> Expect(Ctx* ctx, char expected) {
-	U32 const pos = *ctx->structPosIter;
-	char const actual = ctx->json[pos];
-	if (actual != expected) {
-		return Err_Unexpected("pos", pos, "expected", expected, "actual", actual ? Str(&actual, 1) : "eof");
+	if (ctx->elemIter >= ctx->elemEnd) {
+		return Err_Eof("expected", expected);
 	}
-	ctx->structPosIter++;
+	Str actual = *ctx->elemIter++;
+	if (actual[0] != expected) {
+		return Err_Unexpected("pos", Pos(ctx, actual), "expected", expected, "actual", actual);
+	}
 	return Ok();
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static bool Maybe(Ctx* ctx) {
-	if (ctx->json[*ctx->structPosIter] == ',') {
-		ctx->structPosIter++;
+static bool Maybe(Ctx* ctx, char maybe) {
+	if (ctx->elemIter < ctx->elemEnd && ctx->elemIter->data[0] == maybe) {
+		ctx->elemIter++;
+		return true;
 	}
-}
-
-//--------------------------------------------------------------------------------------------------
-make json work with non null terminated strings
-// Returns a pointer to the terminating quote
-static Res<char const*> ScanStr(char const* json, char const* iter) {
-	Assert(*iter == '"');
-	iter++;
-	for (;;) {
-		char const c = *iter;
-		if (c == '\0') { return Err_MissingClosingQuote("pos", iter - json); }
-		if (c == '"') { return iter; }
-		iter++;
-		if (c == '\\') {
-			if (*iter == '\0') { return Err_BadEscChar("pos", iter - json); }
-			iter++;
-		}
-	}
+	return false;
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static Res<> Scan(Ctx* ctx) {
-	// TODO: Replace with SIMD scanning
-	// Use vpshufb-based vectorized classification
-	// Can classify 32 bytes per instruction into: structural, whitespace, quote, backslash, other
-	char const* iter = ctx->json;
-	for (;;) {
-		char const c = *iter;
-		switch (charTable.data[c]) {
-			case CharType::Normal:
-				AddStructPos(ctx, (U32)(iter - ctx->json));
-				do {
-					iter++;
-				} while (charTable.data[*iter] == CharType::Normal);
-				break;
-			case CharType::Space:
-				iter++;
-				continue;
-			case CharType::Quote:
-				AddStructPos(ctx, (U32)(iter - ctx->json));
-				TryTo(ScanStr(ctx->json, iter), iter);
-				Assert(*iter == '"');
-				AddStructPos(ctx, (U32)(iter - ctx->json));
-				iter++;
-				break;
-			case CharType::Op:
-				AddStructPos(ctx, (U32)(iter - ctx->json));
-				iter++;
-				break;
-			case CharType::Eof:
-				AddStructPos(ctx, (U32)(iter - ctx->json));
-				iter++;
-				return Ok();
-			default:
-				Panic("Unhandled CharType: %u", (U32)charTable.data[c]);
-		}
-	}
+static Res<Str> Read(Ctx* ctx) {
+	if (ctx->elemIter >= ctx->elemEnd) { return Err_Eof(); }
+	return *ctx->elemIter++;
 }
 
 //--------------------------------------------------------------------------------------------------
 
 static Res<bool> ParseBool(Ctx* ctx) {
-	if (ctx->structPosIter >= ctx->structPosEnd) { return Err_Eof("expected", "bool"); }
-	char const*       iter = ctx->json + *ctx->structPosIter; ctx->structPosIter++;
-	char const* const end  = ctx->json + *ctx->structPosIter;
-	U32 const len = (U32)(end - iter);
-	if (*iter == 't') {
-		iter++;
-		if (len < 4) { return Err_BadBool("pos", iter - ctx->json); }
-		if (*iter++ != 'r') { return Err_BadBool("pos", iter - ctx->json); }
-		if (*iter++ != 'u') { return Err_BadBool("pos", iter - ctx->json); }
-		if (*iter++ != 'e') { return Err_BadBool("pos", iter - ctx->json); }
-		if (IsNormal(*iter)) { return Err_BadBool("pos", iter - ctx->json); }
-		return true;
-	}
-	if (*iter == 'f') {
-		iter++;
-		if (len < 5) { return Err_BadBool("pos", iter - ctx->json); }
-		if (*iter++ != 'a') { return Err_BadBool("pos", iter - ctx->json); }
-		if (*iter++ != 'l') { return Err_BadBool("pos", iter - ctx->json); }
-		if (*iter++ != 's') { return Err_BadBool("pos", iter - ctx->json); }
-		if (*iter++ != 'e') { return Err_BadBool("pos", iter - ctx->json); }
-		if (IsNormal(*iter)) { return Err_BadBool("pos", iter - ctx->json); }
-		return false;
-	}
-	return Err_BadBool("pos", iter - ctx->json);
+	Str str; TryTo(Read(ctx), str);
+	if (str == "true") { return true; }
+	else if (str == "false") { return false; }
+	else { return Err_BadBool("pos", Pos(ctx, str)); }
 }
 
 //--------------------------------------------------------------------------------------------------
 
 static Res<I64> ParseI64(Ctx* ctx) {
-	if (ctx->structPosIter >= ctx->structPosEnd) { return Err_Eof("expected", "int"); }
-	char const* iter = ctx->json + *ctx->structPosIter; ctx->structPosIter++;
+	Str str; TryTo(Read(ctx), str);
+	char const* iter = str.data;
+	char const* end  = str.data + str.len;
 	I64 sign = 1;
 	if (*iter == '-') {
 		sign = -1;
 		iter++;
+		if (iter >= end) { return Err_BadInt("pos", Pos(ctx, str)); }
 	}
-	if (!IsDigit(*iter)) { return Err_BadInt("pos", iter - ctx->json); }
-	I64 val = (I64)(*iter - '0');
-	iter++;
-	while (IsDigit(*iter)) {
+	I64 val = 0;
+	do {
+		if (!IsDigit(*iter)) { return Err_BadInt("pos", Pos(ctx, str)); }
 		val = (val * 10) + (I64)(*iter - '0');
 		iter++;
-	};
-	if (IsNormal(*iter)) { return Err_BadInt("pos", iter - ctx->json); }
+	} while (iter < end);
 	return sign * val;
 }
 
@@ -216,52 +229,55 @@ static Res<U32> ParseU32(Ctx* ctx) { I64 val; TryTo(ParseI64(ctx), val); return 
 //--------------------------------------------------------------------------------------------------
 
 static Res<F64> ParseF64(Ctx* ctx) {
-	if (ctx->structPosIter >= ctx->structPosEnd) { return Err_Eof("expected", "float"); }
-	char const* iter = ctx->json + *ctx->structPosIter; ctx->structPosIter++;
+	Str str; TryTo(Read(ctx), str);
+	char const* iter = str.data;
+	char const* end  = str.data + str.len;
 	F64 sign = 1.0;
 	if (*iter == '-') {
 		sign = -1.0;
 		iter++;
 	}
-	if (!IsDigit(*iter)) { return Err_BadFloat("pos", iter - ctx->json); }
-	U64 intVal = (U64)(*iter - '0');
-	iter++;
-	while (IsDigit(*iter)) {
-		intVal = (intVal * 10) + (U64)(*iter - '0');
-		iter++;
-	}
 
-	U64 fracVal = 0;
-	F64 fracDenom = 1.0;
-	if (*iter == '.') {
+	if (iter >= end || !IsDigit(*iter)) { return Err_BadFloat("pos", Pos(ctx, str)); }
+	I64 intVal = 0;
+	do {
+		intVal = (intVal * 10) + (I64)(*iter - '0');
 		iter++;
-		while (IsDigit(*iter)) {
-			fracVal = (fracVal * 10) + (*iter - '0');
+	} while (iter < end && IsDigit(*iter));
+
+	I64 fracVal = 0;
+	F64 fracDenom = 1.0;
+	if (iter < end && *iter == '.') {
+		iter++;
+		if (iter >= end || !IsDigit(*iter)) { return Err_BadFloat("pos", Pos(ctx, str)); }
+		do {
+			fracVal = (fracVal * 10) + (I64)(*iter - '0');
 			fracDenom *= 10.0;
 			iter++;
 		}
+		while (iter < end && IsDigit(*iter));
 	}
 
 	F64 expSign = 1.0;
-	U32 exp = 0;
-	if (*iter == 'e' || *iter == 'E') {
+	I32 exp = 0;
+	if (iter < end && (*iter == 'e' || *iter == 'E')) {
 		iter++;
-		if (*iter == '+') {
-			iter++;
-		} else if (*iter == '-') {
-			expSign = -1.0;
-			iter++;
+		if (iter < end) {
+			if (*iter == '+') {
+				iter++;
+			} else if (*iter == '-') {
+				expSign = -1.0;
+				iter++;
+			}
 		}
-		if (!IsDigit(*iter)) {  return Err_BadSci("pos", iter - ctx->json); }
-		exp = *iter - '0';
-		iter++;
-		while (IsDigit(*iter)) {
-			exp = (exp * 10) + (*iter - '0');
+		if (iter >= end || !IsDigit(*iter)) {  return Err_BadSci("pos", iter - ctx->data); }
+		do {
+			exp = (exp * 10) + (I64)(*iter - '0');
 			iter++;
-		}
+		} while (iter < end && IsDigit(*iter));
 	}
 
-	if (IsNormal(*iter)) { return Err_BadFloat("pos", iter - ctx->json); }
+	if (iter != end) {  return Err_BadFloat("pos", iter - ctx->data); }
 
 	return sign * ((F64)intVal + ((F64)fracVal / fracDenom)) * pow(10.0, expSign * (F64)exp);
 }
@@ -270,70 +286,141 @@ static Res<F32> ParseF32(Ctx* ctx) { F64 val; TryTo(ParseF64(ctx), val); return 
 
 //--------------------------------------------------------------------------------------------------
 
-static Res<Str> ParseStr(Ctx* ctx) {
-	char const* iter = ctx->json + *ctx->structPosIter + 1;
-	Try(Expect(ctx, '"'));
-	char const* const end = ctx->json + *ctx->structPosIter;
-	Try(Expect(ctx, '"'));
-
-	if (iter == end) { return Str(); }
+static Res<Str> UnescapeAndIntern(Ctx* ctx, Str str) {
+	if (str.len == 0) { return Str(); }
 
 	MemScope memScope(ctx->mem);
-	char* data = Mem::AllocT<char>(ctx->mem, end - iter);
-	char* dataIter = data;
+	char*       unescaped     = Mem::AllocT<char>(ctx->mem, str.len);
+	char*       unescapedIter = unescaped;
+	char const* iter          = str.data;
+	char const* end           = str.data + str.len;
 	while (iter < end) {
 		if (*iter != '\\') {
-			*dataIter++ = *iter;
+			*unescapedIter++ = *iter;
 		} else {
 			iter++;
 			switch (*iter) {
-				case '"':  *dataIter++ = '"';  break;
-				case '\\': *dataIter++ = '\\'; break;
-				case '/':  *dataIter++ = '/';  break;
-				case 'b':  *dataIter++ = '\b';  break;
-				case 'f':  *dataIter++ = '\f';  break;
-				case 'n':  *dataIter++ = '\n';  break;
-				case 'r':  *dataIter++ = '\r';  break;
-				case 't':  *dataIter++ = '\t';  break;
+				case '"':  *unescapedIter++ = '"';  break;
+				case '\\': *unescapedIter++ = '\\'; break;
+				case '/':  *unescapedIter++ = '/';  break;
+				case 'b':  *unescapedIter++ = '\b'; break;
+				case 'f':  *unescapedIter++ = '\f'; break;
+				case 'n':  *unescapedIter++ = '\n'; break;
+				case 'r':  *unescapedIter++ = '\r'; break;
+				case 't':  *unescapedIter++ = '\t'; break;
 				default: return Err_BadEscChar("pos", *iter);
 			}
 		}
 		iter++;
 	}
-
-	return StrDb::Intern(Str(data, (U32)(dataIter - data)));
+	return StrDb::Intern(Str(unescaped, (U32)(unescapedIter - unescaped)));
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr bool IsName(char c) {
-	return
-		(c >= '0' && c <= '9') ||
-		(c >= 'a' && c <= 'z') ||
-		(c >= 'A' && c <= 'Z') ||
-		c == '_';
+static Res<Str> ParseStr(Ctx* ctx) {
+	Try(Expect(ctx, '"'));
+	Str str; TryTo(Read(ctx), str);
+	TryTo(UnescapeAndIntern(ctx, str), str);
+	Try(Expect(ctx, '"'));
+	return str;
 }
+
+//--------------------------------------------------------------------------------------------------
 
 static Res<Str> ParseName(Ctx* ctx) {
-	char const* iter = ctx->json + *ctx->structPosIter;
-	if (*iter == '"') { return ParseStr(ctx); }
+	Str str; TryTo(Read(ctx), str);
+	if (str[0] == '"') {
+		TryTo(Read(ctx), str);
+		TryTo(UnescapeAndIntern(ctx, str), str);
+		Try(Expect(ctx, '"'));
+		return str;
 
-	ctx->structPosIter++;
-	char const* const begin = iter;
-	while (IsName(*iter)) {
-		iter++;
+	} else {
+		char const* iter = str.data;
+		char const* end  = str.data + str.len;
+		while (iter < end) {
+			if (!IsName(*iter)) {
+				return Err_BadName("pos", Pos(ctx, str));
+			}
+			iter++;
+		}
+		return StrDb::Intern(str);
 	}
-	if (begin == iter || IsNormal(*iter)) { return Err_BadName("pos", begin - ctx->json); }
-	return StrDb::Intern(Str(begin, (U32)(iter - begin)));
 }
 
 //--------------------------------------------------------------------------------------------------
 
-static Res<> ParseVal(Ctx* ctx, Traits* traits, U8* out) {
+static U64 CalcArrayLen(Ctx* ctx) {
+	Str const* elemIter = ctx->elemIter;
+	Assert(elemIter->data[0] != '[');
+	U64 len = 0;
+	U32 depth = 0;
+	for (;;) {
+		char const c = elemIter->data[0];
+		elemIter++;
+		if (depth == 0) {
+			if (c == '[' || c == '{') {
+				depth++;
+				len++;
+			} else if (c == ']' || c == '}') {
+				break;
+			} else if (c == ',') {
+				// skip
+			} else if (c == '"') {
+				len++;
+				elemIter++;	// skip the paired closing-quote token
+			} else {
+				len++;
+			}
+		} else {
+			if (c == '[' || c == '{') {
+				depth++;
+			} else if (c == ']' || c == '}') {
+				depth--;
+			}
+		}
+	}
+	return len;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static Res<> ParseVal(Ctx* ctx, Traits const* traits, U8* out);
+
+static Res<> ParseArray(Ctx* ctx, Traits const* traits, U8* out) {
+	Try(Expect(ctx, '['));
+
+	U64 len = CalcArrayLen(ctx);
+
+	Traits elemTraits = *traits;
+	elemTraits.arrayDepth--;
+	U8* data = 0;
+	if (len > 0) {
+		U32 elemSize = elemTraits.arrayDepth == 0 ? elemTraits.size : sizeof(Span<U8>);
+		data = Mem::AllocT<U8>(ctx->mem, len * elemSize);
+		U8* elemOut = data;
+		for (U32 i = 0; i < len - 1; i++) {
+			Try(ParseVal(ctx, &elemTraits, elemOut));
+			Try(Expect(ctx, ','));
+			elemOut += elemSize;
+		}
+		Try(ParseVal(ctx, &elemTraits, elemOut));
+		Maybe(ctx, ',');
+	}
+	Try(Expect(ctx, ']'));
+	*(Span<U8>*)out = Span<U8>(data, len);
+
+	return Ok();
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static Res<> ParseObject(Ctx* ctx, Traits const* traits, U8* out);
+
+static Res<> ParseVal(Ctx* ctx, Traits const* traits, U8* out) {
 	if (traits->arrayDepth > 0) {
-		U64* arrayLen   = (U64*)out;
-		U8*  arrayData  = out + 8;
-		return ParseArray(ctx, traits, arrayData, arrayLen);
+		return ParseArray(ctx, traits, out);
 	}
 	switch (traits->type) {
 		case Type::Bool: return ParseBool(ctx).To(*(bool*)out);
@@ -351,80 +438,20 @@ static Res<> ParseVal(Ctx* ctx, Traits* traits, U8* out) {
 
 //--------------------------------------------------------------------------------------------------
 
-static U64 CalcArrayLen(Ctx* ctx) {
-	U32* const saved = ctx->structPosIter;
-	U64 len = 0;
-	U32 depth = 0;
-	for (;;) {
-		char const c = ctx->json[*ctx->structPosIter];
-		ctx->structPosIter++;
-		if (depth == 0) {
-			if (c == '[' || c == '{') {
-				depth++;
-				len++;
-			} else if (c == ']' || c == '}') {
-				break;
-			} else if (c == ',') {
-				// skip
-			} else if (c == '"') {
-				len++;
-				ctx->structPosIter++;	// skip the paired closing-quote token
-			} else {
-				len++;
-			}
-		} else {
-			if (c == '[' || c == '{') {
-				depth++;
-			} else if (c == ']' || c == '}') {
-				depth--;
-			}
-		}
-	}
-	ctx->structPosIter = saved;
-	return len;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-Res<> ParseArray(Ctx* ctx, Traits* traits, U8* arrayData, U64* arrayLen) {
-	Try(Expect(ctx, '['));
-
-	U64 incLen = CalcArrayLen(ctx);
-	if (*arrayLen + incLen > traits->arrayMaxLen) {
-		return Err_ArrayMaxLen("pos", *ctx->structPosIter);
-	}
-
-	Traits elemTraits = *traits;
-	U64  elemSize = elemTraits.arrayDepth == 0 ? elemTraits.size : sizeof(Array<U8, 1>);
-	U8*  outIter  = arrayData + (*arrayLen * elemSize);
-	elemTraits.arrayDepth--;
-	for (U32 i = 0; i < incLen - 1; i++) {
-		Try(ParseVal(ctx, &elemTraits, outIter));
-		Try(Expect(ctx, ','));
-		outIter += elemSize;
-	}
-	Try(ParseVal(ctx, &elemTraits, outIter));
-	Maybe(ctx, ',');
-	Try(Expect(ctx, ']'));
-
-	*arrayLen += incLen;
-
-	return Ok();
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static Res<> ParseObject(Ctx* ctx, Traits* traits, U8* out) {
+static Res<> ParseObject(Ctx* ctx, Traits const* traits, U8* out) {
 	Try(Expect(ctx, '{'));
-	Span<Member> members = traits->members;
+	Span<Member const> members = traits->members;
 	for (U64 i = 0; i < members.len; i++) {
-		Member* member = &members[i];
-		Str memberName; TryTo(ParseName(ctx), memberName);
-		if (memberName != member->name) {
-			return Err_Unexpected("expected", member->name, "actual", memberName);
+		Member const* member = &members[i];
+		Str name; TryTo(ParseName(ctx), name);
+		while (member->name != name) {
+			if (!member->optional) { return Err_MissingMember("expected", member->name, "actual", name); }
+			i++;
+			if (i >= members.len) { return Err_UnknownMember("name", name); }
+			member = &members[i];
 		}
 		Try(Expect(ctx, ':'));
-		Try(ParseVal(ctx, &member->traits, out + member->offset));
+		Try(ParseVal(ctx, member->traits, out + member->offset));
 
 		if (i < members.len - 1) {
 			Try(Expect(ctx, ','));
@@ -437,13 +464,8 @@ static Res<> ParseObject(Ctx* ctx, Traits* traits, U8* out) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> JsonToObjectImpl(Mem mem, char const* json, U32 jsonLen, Traits* traits, U8* out) {
-	Ctx ctx = {
-		.mem     = mem,
-		.json    = json,
-		.jsonLen = jsonLen,
-	};
-	Try(Scan(&ctx));
+Res<> JsonToObjectImpl(Mem mem, Str json, Traits const* traits, U8* out) {
+	Ctx ctx; TryTo(CreateCtx(mem, json), ctx);
 	return ParseObject(&ctx, traits, out);
 }
 

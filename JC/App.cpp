@@ -52,7 +52,6 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 
 	Err::SetBreakOnErr(true);
 	Time::Init();
-	File::Init(tempMem);
 	StrDb::Init();
 	U64 rngSeed = Time::Now();
 	rngSeed = 0x14bd05373a90;
@@ -99,7 +98,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 		.windowPlatformDef = &windowPlatformDef,
 	};
 	Try(Gpu::Init(&gpuInitDef));
-
+	/*
 	Draw::InitDef const drawInitDef = {
 		.permMem      = permMem,
 		.tempMem      = tempMem,
@@ -107,7 +106,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 		.windowHeight = windowState.height,
 	};
 	Try(Draw::Init(&drawInitDef));
-
+	*/
 	Try(app->Init(&windowState));
 
 	U64 frame = 0;

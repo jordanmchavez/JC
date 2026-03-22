@@ -534,14 +534,4 @@ PanicFn* SetPanicFn(PanicFn* panicFn);
 	
 //--------------------------------------------------------------------------------------------------
 
-template<class T> struct AddRValueRef                      { using Type = T&&; };
-template<>        struct AddRValueRef<void>                { using Type = void; };
-template<>        struct AddRValueRef<const void>          { using Type = const void; };
-template<>        struct AddRValueRef<volatile void>       { using Type = volatile void; };
-template<>        struct AddRValueRef<const volatile void> { using Type = const volatile void; };
-
-template<class T> typename AddRValueRef<T>::Type DeclVal() noexcept;
-
-//--------------------------------------------------------------------------------------------------
-
 }	// namespace JC
