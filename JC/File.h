@@ -8,6 +8,7 @@ namespace JC::File {
 
 DefHandle(File);
 
+void           Init(Mem tempMem);
 Res<File>      Open(Str path);
 void           Close(File file);
 Res<U64>       Len(File file);

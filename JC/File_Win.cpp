@@ -90,11 +90,11 @@ Res<> Read(File file, void* out, U64 outLen) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Span<U8>> ReadAll(Str path) {
+Res<Span<U8>> ReadAllBytes(Mem mem, Str path) {
 	File file; TryTo(Open(path), file);
 	Defer { Close(file); };
 	U64 len = 0; TryTo(Len(file), len);
-	U8* buf = (U8*)Mem::Alloc(tempMem, len);
+	U8* buf = (U8*)Mem::Alloc(mem, len);
 	if (Res<> r = Read(file, buf, len); !r) {
 		return r.err;
 	}
@@ -103,16 +103,10 @@ Res<Span<U8>> ReadAll(Str path) {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<Span<char>> ReadAllZ(Str path) {
-	File file; TryTo(Open(path), file);
-	Defer { Close(file); };
-	U64 len = 0; TryTo(Len(file), len);
-	char* buf = (char*)Mem::Alloc(tempMem, len + 1);
-	if (Res<> r = Read(file, buf, len); !r) {
-		return r.err;
-	}
-	buf[len] = '\0';
-	return Span<char>(buf, len);
+Res<Str> ReadAllStr(Mem mem, Str path) {
+	Span<U8> bytes; TryTo(ReadAllBytes(mem, path), bytes);
+	Assert(bytes.len <= (U64)U32Max);
+	return Str((char const*)bytes.data, (U32)bytes.len);
 }
 
 //--------------------------------------------------------------------------------------------------

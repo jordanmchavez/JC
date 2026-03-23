@@ -1,12 +1,12 @@
+// TODO: go through this and make the errors a little bit more specific, eg dont use Err_Eof for everyhing (unclosed string, unclosed array, etc)
 // TODO: make this match real json5: https://spec.json5.org/
-
 
 #include "JC/Json.h"
 
 #include "JC/Array.h"
 #include "JC/StrDb.h"
 #include "JC/UnitTest.h"
-#include <math.h>
+#include <math.h>	// TODO: add Pow() to math.h so we can remove this (only thing we use)
 
 namespace JC::Json {
 
@@ -15,6 +15,7 @@ namespace JC::Json {
 DefErr(Json, MissingClosingQuote);
 DefErr(Json, Unexpected);
 DefErr(Json, MissingMember);
+DefErr(Json, WrongMember);
 DefErr(Json, UnknownMember);
 DefErr(Json, BadEscChar);
 DefErr(Json, BadName);
@@ -23,7 +24,6 @@ DefErr(Json, BadInt);
 DefErr(Json, BadFloat);
 DefErr(Json, BadSci);
 DefErr(Json, Eof);
-DefErr(Json, ArrayMaxLen);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -54,26 +54,26 @@ struct CharTable {
 		table[',' ] = CharType::Operator;
 		table['"' ] = CharType::Quote;
 		table['_' ] = CharType::Underscore;
-		for (char c = 'a'; c <= 'z'; c++) { table[c] = CharType::Alpha; }
-		for (char c = 'A'; c <= 'Z'; c++) { table[c] = CharType::Alpha; }
-		for (char c = '0'; c <= '9'; c++) { table[c] = CharType::Digit; }
+		for (U32 c = (U32)'a'; c <= (U32)'z'; c++) { table[c] = CharType::Alpha; }
+		for (U32 c = (U32)'A'; c <= (U32)'Z'; c++) { table[c] = CharType::Alpha; }
+		for (U32 c = (U32)'0'; c <= (U32)'9'; c++) { table[c] = CharType::Digit; }
 	}
 };
 
 static constexpr CharTable charTable;
 
+static constexpr bool IsStructural(char c) {
+	CharType charType = charTable.table[(U32)c];
+	return charType == CharType::Space || charType == CharType::Operator || charType == CharType::Quote;
+}
+
 static constexpr bool IsName(char c) {
-	CharType charType = charTable.table[c];
+	CharType charType = charTable.table[(U32)c];
 	return charType == CharType::Underscore || charType == CharType::Alpha || charType == CharType::Digit;
 }
 
-static constexpr bool IsStructural(char c) {
-	CharType charType = charTable.table[c];
-	return charType == CharType::Space || charType == CharType::Quote || charType == CharType::Operator;
-}
-
 static constexpr bool IsDigit(char c) {
-	return charTable.table[c] == CharType::Digit;
+	return charTable.table[(U32)c] == CharType::Digit;
 }
 //--------------------------------------------------------------------------------------------------
 
@@ -129,7 +129,7 @@ static Res<Ctx> CreateCtx(Mem mem, Str json) {
 					}
 					iter++;
 					if (c == '\\') {
-						if (iter > ctx.end) { return Err_BadEscChar("pos", iter - ctx.data); }
+						if (iter >= ctx.end) { return Err_BadEscChar("pos", iter - ctx.data); }
 						iter++;
 					}
 				}
@@ -143,7 +143,7 @@ static Res<Ctx> CreateCtx(Mem mem, Str json) {
 				char const* begin = iter;
 				do {
 					iter++;
-				} while (iter < ctx.end && IsName(*iter));
+				} while (iter < ctx.end && !IsStructural(*iter));
 				elems.Add(Str(begin, (U32)(iter - begin)));
 				break;
 			}
@@ -222,6 +222,7 @@ static Res<I64> ParseI64(Ctx* ctx) {
 	return sign * val;
 }
 
+// TODO: asserts or errors for range overflows (some cases in ParseF64/32 too)
 static Res<I32> ParseI32(Ctx* ctx) { I64 val; TryTo(ParseI64(ctx), val); return (I32)val; }
 static Res<U64> ParseU64(Ctx* ctx) { I64 val; TryTo(ParseI64(ctx), val); return (U64)val; }
 static Res<U32> ParseU32(Ctx* ctx) { I64 val; TryTo(ParseI64(ctx), val); return (U32)val; }
@@ -308,7 +309,7 @@ static Res<Str> UnescapeAndIntern(Ctx* ctx, Str str) {
 				case 'n':  *unescapedIter++ = '\n'; break;
 				case 'r':  *unescapedIter++ = '\r'; break;
 				case 't':  *unescapedIter++ = '\t'; break;
-				default: return Err_BadEscChar("pos", *iter);
+				default: return Err_BadEscChar("pos", Pos(ctx, str));
 			}
 		}
 		iter++;
@@ -351,12 +352,16 @@ static Res<Str> ParseName(Ctx* ctx) {
 
 //--------------------------------------------------------------------------------------------------
 
-static U64 CalcArrayLen(Ctx* ctx) {
+static Res<> ParseVal(Ctx* ctx, Traits const* traits, U8* out);
+
+static Res<> ParseArray(Ctx* ctx, Traits const* traits, U8* out) {
+	Try(Expect(ctx, '['));
+
 	Str const* elemIter = ctx->elemIter;
-	Assert(elemIter->data[0] != '[');
 	U64 len = 0;
 	U32 depth = 0;
 	for (;;) {
+		if (elemIter >= ctx->elemEnd) { return Err_Eof("pos", Pos(ctx, *ctx->elemIter)); }
 		char const c = elemIter->data[0];
 		elemIter++;
 		if (depth == 0) {
@@ -369,7 +374,8 @@ static U64 CalcArrayLen(Ctx* ctx) {
 				// skip
 			} else if (c == '"') {
 				len++;
-				elemIter++;	// skip the paired closing-quote token
+				elemIter++;	// skip the quoted string
+				elemIter++;	// skip the closing quote
 			} else {
 				len++;
 			}
@@ -381,17 +387,6 @@ static U64 CalcArrayLen(Ctx* ctx) {
 			}
 		}
 	}
-	return len;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-static Res<> ParseVal(Ctx* ctx, Traits const* traits, U8* out);
-
-static Res<> ParseArray(Ctx* ctx, Traits const* traits, U8* out) {
-	Try(Expect(ctx, '['));
-
-	U64 len = CalcArrayLen(ctx);
 
 	Traits elemTraits = *traits;
 	elemTraits.arrayDepth--;
@@ -441,22 +436,32 @@ static Res<> ParseVal(Ctx* ctx, Traits const* traits, U8* out) {
 static Res<> ParseObject(Ctx* ctx, Traits const* traits, U8* out) {
 	Try(Expect(ctx, '{'));
 	Span<Member const> members = traits->members;
-	for (U64 i = 0; i < members.len; i++) {
-		Member const* member = &members[i];
+	Member const* member = members.data;
+	Member const* end    = members.data + members.len;
+	while (member < end) {
+		if (Maybe(ctx, '}')) {
+			break;
+		}
+
 		Str name; TryTo(ParseName(ctx), name);
 		while (member->name != name) {
-			if (!member->optional) { return Err_MissingMember("expected", member->name, "actual", name); }
-			i++;
-			if (i >= members.len) { return Err_UnknownMember("name", name); }
-			member = &members[i];
+			if (!member->optional) { return Err_WrongMember("expected", member->name, "actual", name); }
+			member++;
+			if (member >= end) { return Err_UnknownMember("name", name); }
 		}
 		Try(Expect(ctx, ':'));
 		Try(ParseVal(ctx, member->traits, out + member->offset));
 
-		if (i < members.len - 1) {
-			Try(Expect(ctx, ','));
+		if (!Maybe(ctx, ',')) {
+			break;
 		}
+		member++;
 	}
+
+	while (member < end) {
+		if (!member->optional) { return Err_MissingMember("name", member->name); }
+	}
+
 	Maybe(ctx, ',');
 	Try(Expect(ctx, '}'));
 	return Ok();
