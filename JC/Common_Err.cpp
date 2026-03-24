@@ -1,5 +1,6 @@
 #include "JC/Common.h"
 
+#include "JC/Array.h"
 #include "JC/Log.h"
 #include "JC/Sys.h"
 
@@ -49,14 +50,14 @@ static Arg CloneArg(Arg arg) {
 
 //--------------------------------------------------------------------------------------------------
 
-static bool recursive = false;
+static bool                               recursive = false;
+static Array<NamedArg, Err::MaxNamedArgs> pushedNamedArgs;
 
-Err const* Err::Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, Span<NamedArg const> namedArgs) {
-
+Err const* Err::Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, NamedArg const* namedArgs, U32 namedArgsLen) {
 	Assert(errsLen < MaxErrs);
-	Assert(namedArgs.len <= Err::MaxNamedArgs);
+	Assert(pushedNamedArgs.len + namedArgsLen <= Err::MaxNamedArgs);
 
-	Err* const err = &errs[errsLen++];
+	Err* err = &errs[errsLen++];
 
 	if (prev) {
 		Assert(prev >= errs && prev < errs + errsLen);
@@ -69,9 +70,15 @@ Err const* Err::Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, 
 	err->ns           = ns;
 	err->sCode        = sCode;
 	err->uCode        = uCode;
-	err->namedArgsLen = (U32)namedArgs.len;
-	for (U64 i = 0; i < namedArgs.len; i++) {
-		err->namedArgs[i] = {
+	err->namedArgsLen = (U32)pushedNamedArgs.len + namedArgsLen;
+	for (U32 i = 0; i < pushedNamedArgs.len; i++) {
+		err->namedArgs[err->namedArgsLen++] = {
+			.name = pushedNamedArgs[i].name,
+			.arg  = CloneArg(pushedNamedArgs[i].arg),
+		};
+	}
+	for (U64 i = 0; i < namedArgsLen; i++) {
+		err->namedArgs[err->namedArgsLen++] = {
 			.name = namedArgs[i].name,
 			.arg  = CloneArg(namedArgs[i].arg),
 		};
@@ -83,7 +90,6 @@ Err const* Err::Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, 
 		recursive = false;
 		DbgBreak;
 	}
-
 
 	return err;
 }
@@ -106,6 +112,13 @@ void Err::Update(U64 frameIn) {
 
 bool operator==(ErrCode ec, Err const* err) { return err->ns == ec.ns && err->sCode == ec.code; }
 bool operator==(Err const* err, ErrCode ec) { return err->ns == ec.ns && err->sCode == ec.code; }
+
+//--------------------------------------------------------------------------------------------------
+
+void ErrScope::Init(NamedArg const* namedArgs) {
+	Assert(pushedNamedArgs.len + namedArgsLen <= Err::MaxNamedArgs);
+	pushedNamedArgs.Add(namedArgs, namedArgsLen);
+}
 
 //--------------------------------------------------------------------------------------------------
 

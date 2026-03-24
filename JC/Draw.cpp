@@ -18,16 +18,14 @@ namespace JC::Draw {
 
 //--------------------------------------------------------------------------------------------------
 
-DefErr(Draw, MaxAtlases);
-DefErr(Draw, MaxSprites);
-DefErr(Draw, MaxFonts);
-DefErr(Draw, AtlasFmt);
-DefErr(Draw, DuplicateSprite);
-DefErr(Draw, ImageFmt);
-DefErr(Draw, LoadImage);
-DefErr(Draw, SpriteNotFound);
-DefErr(Draw, BadFontChar);
-DefErr(Draw, Ttf);
+Err_Def(Draw, Max);
+Err_Def(Draw, AtlasFmt);
+Err_Def(Draw, DuplicateSprite);
+Err_Def(Draw, ImageFmt);
+Err_Def(Draw, LoadImage);
+Err_Def(Draw, SpriteNotFound);
+Err_Def(Draw, BadFontChar);
+Err_Def(Draw, Ttf);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -142,32 +140,32 @@ Json_End(AtlasDef)
 
 //--------------------------------------------------------------------------------------------------
 
-static Mem              tempMem;
-static U32              windowWidth;
-static U32              windowHeight;
-static Gpu::Image       errorImage;
-static U32              errorImageIdx;
-static Array<Atlas>     atlases;
-static Array<SpriteObj> spriteObjs;
-static Map<Str, U64>    spriteObjsByName;
-static Array<FontObj>   fontObjs;
-static Array<CanvasObj> canvasObjs;
-static Gpu::Image       depthImage;
-static Gpu::Shader      vertexShader;
-static Gpu::Shader      fragmentShader;
-static Gpu::Pipeline    pipeline;
-static Gpu::Buffer      sceneBuffers[Gpu::MaxFrames];
-static void*            sceneBufferPtrs[Gpu::MaxFrames];
-static U64              sceneBufferAddrs[Gpu::MaxFrames];
-static Scene            scene;
-static Gpu::Buffer      drawCmdBuffers[Gpu::MaxFrames];
-static void*            drawCmdBufferPtrs[Gpu::MaxFrames];
-static U64              drawCmdBufferAddrs[Gpu::MaxFrames];
-static DrawCmd*         drawCmds;
-static U32              drawCmdCount;
-static Array<Pass>      passes;
-static Camera           camera;
-static U64              frameIdx;
+static Mem               tempMem;
+static U32               windowWidth;
+static U32               windowHeight;
+static Gpu::Image        errorImage;
+static U32               errorImageIdx;
+static MArray<Atlas>     atlases;
+static MArray<SpriteObj> spriteObjs;
+static Map<Str, U64>     spriteObjsByName;
+static MArray<FontObj>   fontObjs;
+static MArray<CanvasObj> canvasObjs;
+static Gpu::Image        depthImage;
+static Gpu::Shader       vertexShader;
+static Gpu::Shader       fragmentShader;
+static Gpu::Pipeline     pipeline;
+static Gpu::Buffer       sceneBuffers[Gpu::MaxFrames];
+static void*             sceneBufferPtrs[Gpu::MaxFrames];
+static U64               sceneBufferAddrs[Gpu::MaxFrames];
+static Scene             scene;
+static Gpu::Buffer       drawCmdBuffers[Gpu::MaxFrames];
+static void*             drawCmdBufferPtrs[Gpu::MaxFrames];
+static U64               drawCmdBufferAddrs[Gpu::MaxFrames];
+static DrawCmd*          drawCmds;
+static U32               drawCmdCount;
+static MArray<Pass>      passes;
+static Camera            camera;
+static U64               frameIdx;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -324,7 +322,7 @@ Res<> LoadAtlas(Str path) {
 		}
 	}
 
-	if (atlases.len == atlases.cap) { return Err_MaxAtlases("max", atlases.cap); }
+	if (!atlases.HasCapacity()) { return Err_Max("type", "atlases", "max", Cfg_MaxAtlases); }
 
 	Str json; TryTo(File::ReadAllStr(tempMem, path), json);
 	AtlasDef atlasDef; Try(Json::JsonToObject(tempMem, json, &atlasDef));
@@ -339,7 +337,7 @@ Res<> LoadAtlas(Str path) {
 		.imageIdx = imageIdx,
 	});
 
-	if (spriteObjs.len + atlasDef.sprites.len >= spriteObjs.cap) { return Err_MaxSprites("max", spriteObjs.cap); }
+	if (!spriteObjs.HasCapacity(atlasDef.sprites.len)) { return Err_Max("type", "sprites", "max", Cfg_MaxSprites); }
 
 	for (U64 i = 0; i < atlasDef.sprites.len; i++) {
 		SpriteDef* const spriteDef = &atlasDef.sprites[i];
@@ -418,7 +416,7 @@ Json_Begin(FontJson)
 Json_End(FontJson)
 
 Res<Font> LoadFont(Str path) {
-	if (fontObjs.len >= fontObjs.cap) { return Err_MaxFonts("max", fontObjs.cap); }
+	if (!fontObjs.HasCapacity()) { return Err_Max("type", "fonts", "max", Cfg_MaxFonts); }
 
 	Str json; TryTo(File::ReadAllStr(tempMem, path), json);
 	FontJson fontJson; Try(Json::JsonToObject(tempMem, json, &fontJson));

@@ -13,14 +13,14 @@ namespace JC::Gpu {
 
 //--------------------------------------------------------------------------------------------------
 
-DefErr(Gpu, Version);
-DefErr(Gpu, NoLayer);
-DefErr(Gpu, NoExt);
-DefErr(Gpu, NoDevice);
-DefErr(Gpu, NoMemType);
-DefErr(Gpu, NoMem);
-DefErr(Gpu, ShaderTooManyPushConstantBlocks);
-DefErr(Gpu, SpvReflect);
+Err_Def(Gpu, Version);
+Err_Def(Gpu, NoLayer);
+Err_Def(Gpu, NoExt);
+Err_Def(Gpu, NoDevice);
+Err_Def(Gpu, NoMemType);
+Err_Def(Gpu, NoMem);
+Err_Def(Gpu, ShaderTooManyPushConstantBlocks);
+Err_Def(Gpu, SpvReflect);
 
 //--------------------------------------------------------------------------------------------------
 

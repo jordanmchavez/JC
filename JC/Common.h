@@ -293,20 +293,21 @@ struct [[nodiscard]] Err {
 		FillNamedArgs(namedArgs + 1, args...);
 	}
 
-	static Err const* Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, Span<NamedArg const> namedArgs);
+	static Err const* Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, NamedArg const* namedArgs, U32 namedArgsLen);
 
 	template <class... A> static Err const* Make(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, A... args) {
 		constexpr U32 NamedArgsLen = sizeof...(A) / 2;
 		static_assert(NamedArgsLen < MaxNamedArgs);
 		static_assert((sizeof...(A) & 1) == 0);
-
 		NamedArg namedArgs[NamedArgsLen + 1];	// + 1 to allow zero args
 		FillNamedArgs(namedArgs, args...);
-		return Makev(prev, sl, ns, sCode, uCode, Span<NamedArg const>(namedArgs, NamedArgsLen));
+		return Makev(prev, sl, ns, sCode, uCode, namedArgs, NamedArgsLen);
 	}
 
 	static void SetBreakOnErr(bool breakOnErr);
 	static void Update(U64 frame);
+	static void PushNamedArgs(Span<NamedArg const> namedArgs);
+	static void PopNamedArgs(U32 n);
 };
 
 
@@ -327,7 +328,25 @@ struct ErrCode {
 bool operator==(ErrCode ec, Err const* err);
 bool operator==(Err const* err, ErrCode ec);
 
-#define DefErr(NsIn, CodeIn) constexpr ErrCode Err_##CodeIn = { .ns = #NsIn, .code = #CodeIn }
+#define Err_Def(NsIn, CodeIn) constexpr ErrCode Err_##CodeIn = { .ns = #NsIn, .code = #CodeIn }
+
+struct ErrScope {
+	U32 namedArgsLen;
+
+	template <class... A> ErrScope(A... args) {
+		constexpr U32 NamedArgsLen = sizeof...(A) / 2;
+		static_assert(NamedArgsLen < Err::MaxNamedArgs);
+		namedArgsLen = namedArgsLen;
+		static_assert((sizeof...(A) & 1) == 0);
+		NamedArg namedArgs[NamedArgsLen + 1];	// + 1 to allow zero args
+		FillNamedArgs(namedArgs, args...);
+		Init(namedArgs, NamedArgsLen);
+	}
+	void Init(NamedArg const* namedArgs);
+	~ErrScope() { Err::PopNamedArgs(namedArgsLen); }
+};
+
+#define Err_Scope(...) ErrScope MacroUniqueName(errScope)(##__VA_ARGS__)
 
 //--------------------------------------------------------------------------------------------------
 

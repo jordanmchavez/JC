@@ -140,7 +140,7 @@ Res<Span<Str>> EnumFiles(Str dir, Str ext) {
 	}
 	Defer { FindClose(hFind); };
 
-	Array<Str> resultPaths(tempMem, 128);
+	DArray<Str> resultPaths(tempMem, 128);
 	do {
 		if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
 			continue;

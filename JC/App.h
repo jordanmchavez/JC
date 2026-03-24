@@ -10,7 +10,7 @@ namespace JC::App {
 
 //--------------------------------------------------------------------------------------------------
 
-DefErr(App, Exit);
+Err_Def(App, Exit);
 
 constexpr Str Cfg_Title            = "App.Title";
 constexpr Str Cfg_WindowStyle      = "App.WindowStyle";

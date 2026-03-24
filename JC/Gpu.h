@@ -8,7 +8,7 @@ namespace JC::Gpu {
 
 //--------------------------------------------------------------------------------------------------
 
-DefErr(Gpu, RecreateSwapchain);
+Err_Def(Gpu, RecreateSwapchain);
 
 constexpr U32 MaxFrames = 3;
 

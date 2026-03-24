@@ -2,6 +2,8 @@
 	// Health, Movement are predefined resources
 	resourceTypes: [
 		{ name: "Actions",        sprite: "Icon_Actions", replenishesEachTurn: true },
+		{ name: "Health",         sprite: "Icon_Health", },
+		{ name: "Movement",       sprite: "Icon_Movement", replenishesEachTurn: true },
 		{ name: "Stamina",        sprite: "Icon_Stamina", },
 		{ name: "Mana",           sprite: "Icon_Mana", },
 		{ name: "Arrows",         sprite: "Icon_Arrows", },
@@ -114,67 +116,74 @@
 		},
 	],
 */
-	unitDefs: [
+	units: [
 		{
 			name: "Spearmen",
 			sprite: "Unit_Spearmen",
-			health: 20,
-			movement: 3,
 			resources: [
+				{ name: "Actions",        max:  1, },
+				{ name: "Movement",       max:  3, },
+				{ name: "Health",         max: 20, },
 				{ name: "Stamina",        max: 10, },
-				{ name: "Actions",        max: 1, },
-				{ name: "ThrowingSpears", max: 1, },
+				{ name: "ThrowingSpears", max:  1, },
 			],
 			defenses: [
 				{ type: "Physical", amount: 3 },
 				{ type: "Magical",  amount: 1 },
 			],
-			meleeAttack: {
+			attacks: [{
+				name: "Spear",
+				sprite: "Atk_Spearmen_Spear",
 				damageType: "Physical",
 				damage: 6,
 				counterDamage: 7,
 				resourceCosts: [
-					{ name: "Stamina", amount: 1 },
 					{ name: "Actions", amount: 1 },
+					{ name: "Stamina", amount: 1 },
 				],
-			},
+			}],
 		},
 		{
 			name: "Bowmen",
 			sprite: "Unit_Bowmen",
-			health: 8,
-			movement: 3,
 			resources: [
-				{ name: "Stamina", max: 10, },
-				{ name: "Actions", max: 1, },
-				{ name: "Arrows",  max: 8, },
+				{ name: "Actions",  max:  1, },
+				{ name: "Health",   max: 14, },
+				{ name: "Movement", max:  3, },
+				{ name: "Stamina",  max: 10, },
+				{ name: "Arrows",   max:  8, },
 			],
 			defenses: [
 				{ type: "Physical", amount: 1 },
 				{ type: "Magical",  amount: 1 },
 			],
-			meleeAttack: {
-				damageType: "Physical",
-				damage: 3,
-				counterDamage: 3,
-				resourceCosts: [
-					{ name: "Stamina", amount: 1 },
-					{ name: "Actions", amount: 1 },
-				],
-			},
-			rangedAttack: {
-				damageType: "Physical",
-				damage: 5,
-				ranges: [
-					{ max: 3 },
-					{ max: 5, modifiers: [ { type: "Damage", val: -1 } ] },
-				]
-				resourceCosts: [
-					{ name: "Stamina", amount: 1 },
-					{ name: "Actions", amount: 1 },
-					{ name: "Arrows",  amount: 1 },
-				]
-			},
+			attacks: [
+				{
+					name: "Short Sword",
+					sprite: "Atk_Bowmen_ShortSword",
+					damageType: "Physical",
+					damage: 3,
+					counterDamage: 3,
+					resourceCosts: [
+						{ name: "Stamina", amount: 1 },
+						{ name: "Actions", amount: 1 },
+					],
+				}, {
+					name: "Bow",
+					sprite: "Atk_Bowmen_Bow",
+					damageType: "Physical",
+					damage: 5,
+					ranges: [
+						{ max: 3 },
+						{ max: 5, modifiers: [ { type: "Damage", amount: -1 } ] },
+					],
+					resourceCosts: [
+						{ name: "Stamina", amount: 1 },
+						{ name: "Actions", amount: 1 },
+						{ name: "Arrows",  amount: 1 },
+					],
+				},
+			],
 		},
 	],
 }

@@ -12,19 +12,19 @@ namespace JC::Json {
 
 //--------------------------------------------------------------------------------------------------
 
-DefErr(Json, BadComment);
-DefErr(Json, MissingClosingQuote);
-DefErr(Json, Unexpected);
-DefErr(Json, MissingMember);
-DefErr(Json, WrongMember);
-DefErr(Json, UnknownMember);
-DefErr(Json, BadEscChar);
-DefErr(Json, BadName);
-DefErr(Json, BadBool);
-DefErr(Json, BadInt);
-DefErr(Json, BadFloat);
-DefErr(Json, BadSci);
-DefErr(Json, Eof);
+Err_Def(Json, BadComment);
+Err_Def(Json, MissingClosingQuote);
+Err_Def(Json, Unexpected);
+Err_Def(Json, MissingMember);
+Err_Def(Json, WrongMember);
+Err_Def(Json, UnknownMember);
+Err_Def(Json, BadEscChar);
+Err_Def(Json, BadName);
+Err_Def(Json, BadBool);
+Err_Def(Json, BadInt);
+Err_Def(Json, BadFloat);
+Err_Def(Json, BadSci);
+Err_Def(Json, Eof);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -99,7 +99,7 @@ static Res<Ctx> CreateCtx(Mem mem, Str json) {
 		.elemEnd  = nullptr,
 	};
 
-	Array<Str> elems(mem, 256);
+	DArray<Str> elems(mem, 256);
 
 	// TODO: Replace with SIMD scanning
 	// Use vpshufb-based vectorized classification

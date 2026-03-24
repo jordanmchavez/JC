@@ -9,9 +9,9 @@ namespace JC::Cmd {
 
 //--------------------------------------------------------------------------------------------------
 
-DefErr(Cmd, UnmatchedQuote);
-DefErr(Cmd, MaxArgs);
-DefErr(Cmd, UnknownCmd);
+Err_Def(Cmd, UnmatchedQuote);
+Err_Def(Cmd, MaxArgs);
+Err_Def(Cmd, UnknownCmd);
 
 static constexpr U32 MaxCmds = 1024;
 static constexpr U32 MaxArgs = 64;

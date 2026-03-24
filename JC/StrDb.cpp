@@ -21,6 +21,7 @@ void Init() {
 
 //--------------------------------------------------------------------------------------------------
 
+// TODO: interned strings are pointer-comparable
 Str Intern(Str s) {
 	if (Str* intern = index.FindOrNull(s)) {
 		return *intern;
