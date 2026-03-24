@@ -501,8 +501,465 @@ Res<> JsonToObjectImpl(Mem mem, Str json, Traits const* traits, U8* out) {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Test-only types
+
+struct JT_Bool  { bool x; };
+Json_Begin(JT_Bool)  Json_Member("x", x) Json_End(JT_Bool)
+
+struct JT_I32   { I32  x; };
+Json_Begin(JT_I32)   Json_Member("x", x) Json_End(JT_I32)
+
+struct JT_U32   { U32  x; };
+Json_Begin(JT_U32)   Json_Member("x", x) Json_End(JT_U32)
+
+struct JT_I64   { I64  x; };
+Json_Begin(JT_I64)   Json_Member("x", x) Json_End(JT_I64)
+
+struct JT_U64   { U64  x; };
+Json_Begin(JT_U64)   Json_Member("x", x) Json_End(JT_U64)
+
+struct JT_F32   { F32  x; };
+Json_Begin(JT_F32)   Json_Member("x", x) Json_End(JT_F32)
+
+struct JT_F64   { F64  x; };
+Json_Begin(JT_F64)   Json_Member("x", x) Json_End(JT_F64)
+
+struct JT_Str   { Str  x; };
+Json_Begin(JT_Str)   Json_Member("x", x) Json_End(JT_Str)
+
+struct JT_IntArr { Span<I32> items; };
+Json_Begin(JT_IntArr) Json_Member("items", items) Json_End(JT_IntArr)
+
+struct JT_StrArr { Span<Str> items; };
+Json_Begin(JT_StrArr) Json_Member("items", items) Json_End(JT_StrArr)
+
+struct JT_Inner  { I32 y; };
+Json_Begin(JT_Inner) Json_Member("y", y) Json_End(JT_Inner)
+
+struct JT_Nested { JT_Inner inner; };
+Json_Begin(JT_Nested) Json_Member("inner", inner) Json_End(JT_Nested)
+
+struct JT_Opt { I32 req; I32 opt; };
+Json_Begin(JT_Opt)
+	Json_Member   ("req", req)
+	Json_MemberOpt("opt", opt)
+Json_End(JT_Opt)
+
+struct JT_ComplexItem { Str name; I32 val; };
+Json_Begin(JT_ComplexItem)
+	Json_Member("name", name)
+	Json_Member("val",  val)
+Json_End(JT_ComplexItem)
+
+struct JT_Complex {
+	Str                  label;
+	I32                  count;
+	F64                  ratio;
+	bool                 active;
+	Span<I32>            ids;
+	JT_ComplexItem       first;
+	Span<JT_ComplexItem> items;
+};
+Json_Begin(JT_Complex)
+	Json_Member("label",  label)
+	Json_Member("count",  count)
+	Json_Member("ratio",  ratio)
+	Json_Member("active", active)
+	Json_Member("ids",    ids)
+	Json_Member("first",  first)
+	Json_Member("items",  items)
+Json_End(JT_Complex)
+
+//--------------------------------------------------------------------------------------------------
 
 Unit_Test("Json") {
+
+	// --- Bool ---
+
+	Unit_SubTest("Bool true") {
+		JT_Bool obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: true }"), &obj));
+		Unit_Check(obj.x == true);
+	}
+
+	Unit_SubTest("Bool false") {
+		JT_Bool obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: false }"), &obj));
+		Unit_Check(obj.x == false);
+	}
+
+	// --- Integer types ---
+
+	Unit_SubTest("I32 positive") {
+		JT_I32 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: 42 }"), &obj));
+		Unit_CheckEq(obj.x, (I32)42);
+	}
+
+	Unit_SubTest("I32 negative") {
+		JT_I32 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: -7 }"), &obj));
+		Unit_CheckEq(obj.x, (I32)-7);
+	}
+
+	Unit_SubTest("I32 zero") {
+		JT_I32 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: 0 }"), &obj));
+		Unit_CheckEq(obj.x, (I32)0);
+	}
+
+	Unit_SubTest("U32") {
+		JT_U32 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: 100 }"), &obj));
+		Unit_CheckEq(obj.x, (U32)100);
+	}
+
+	Unit_SubTest("I64 large positive") {
+		JT_I64 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: 9000000000 }"), &obj));
+		Unit_CheckEq(obj.x, (I64)9000000000);
+	}
+
+	Unit_SubTest("I64 large negative") {
+		JT_I64 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: -9000000000 }"), &obj));
+		Unit_CheckEq(obj.x, (I64)-9000000000);
+	}
+
+	Unit_SubTest("U64 large") {
+		JT_U64 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: 18000000000 }"), &obj));
+		Unit_CheckEq(obj.x, (U64)18000000000);
+	}
+
+	// --- Float types ---
+
+	Unit_SubTest("F64 integer value") {
+		JT_F64 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: 3 }"), &obj));
+		Unit_CheckEq(obj.x, 3.0);
+	}
+
+	Unit_SubTest("F64 decimal") {
+		JT_F64 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: 1.5 }"), &obj));
+		Unit_CheckEq(obj.x, 1.5);
+	}
+
+	Unit_SubTest("F64 negative decimal") {
+		JT_F64 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: -2.5 }"), &obj));
+		Unit_CheckEq(obj.x, -2.5);
+	}
+
+	Unit_SubTest("F64 scientific e+") {
+		JT_F64 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: 1.5e2 }"), &obj));
+		Unit_CheckEq(obj.x, 150.0);
+	}
+
+	Unit_SubTest("F64 scientific e-") {
+		JT_F64 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: 5e-1 }"), &obj));
+		Unit_CheckEq(obj.x, 0.5);
+	}
+
+	Unit_SubTest("F64 scientific uppercase E") {
+		JT_F64 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: 1E3 }"), &obj));
+		Unit_CheckEq(obj.x, 1000.0);
+	}
+
+	Unit_SubTest("F32") {
+		JT_F32 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: 1.5 }"), &obj));
+		Unit_CheckEq(obj.x, 1.5f);
+	}
+
+	// --- String ---
+
+	Unit_SubTest("String basic") {
+		JT_Str obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str(R"({ x: "hello" })"), &obj));
+		Unit_CheckEq(obj.x, Str("hello"));
+	}
+
+	Unit_SubTest("String empty") {
+		JT_Str obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str(R"({ x: "" })"), &obj));
+		Unit_CheckEq(obj.x.len, (U32)0);
+	}
+
+	Unit_SubTest("String escape newline") {
+		JT_Str obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str(R"({ x: "a\nb" })"), &obj));
+		Unit_CheckEq(obj.x.len, (U32)3);
+		Unit_Check(obj.x[1] == '\n');
+	}
+
+	Unit_SubTest("String escape tab") {
+		JT_Str obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str(R"({ x: "a\tb" })"), &obj));
+		Unit_CheckEq(obj.x.len, (U32)3);
+		Unit_Check(obj.x[1] == '\t');
+	}
+
+	Unit_SubTest("String escape double quote") {
+		JT_Str obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str(R"({ x: "a\"b" })"), &obj));
+		Unit_CheckEq(obj.x.len, (U32)3);
+		Unit_Check(obj.x[1] == '"');
+	}
+
+	Unit_SubTest("String escape backslash") {
+		JT_Str obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str(R"({ x: "a\\b" })"), &obj));
+		Unit_CheckEq(obj.x.len, (U32)3);
+		Unit_Check(obj.x[1] == '\\');
+	}
+
+	Unit_SubTest("String escape slash") {
+		JT_Str obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str(R"({ x: "a\/b" })"), &obj));
+		Unit_CheckEq(obj.x.len, (U32)3);
+		Unit_Check(obj.x[1] == '/');
+	}
+
+	Unit_SubTest("String escape carriage return") {
+		JT_Str obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str(R"({ x: "a\rb" })"), &obj));
+		Unit_CheckEq(obj.x.len, (U32)3);
+		Unit_Check(obj.x[1] == '\r');
+	}
+
+	Unit_SubTest("String escape backspace") {
+		JT_Str obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str(R"({ x: "a\bb" })"), &obj));
+		Unit_CheckEq(obj.x.len, (U32)3);
+		Unit_Check(obj.x[1] == '\b');
+	}
+
+	Unit_SubTest("String escape formfeed") {
+		JT_Str obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str(R"({ x: "a\fb" })"), &obj));
+		Unit_CheckEq(obj.x.len, (U32)3);
+		Unit_Check(obj.x[1] == '\f');
+	}
+
+	// --- JSON5 syntax features ---
+
+	Unit_SubTest("Quoted key") {
+		JT_I32 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str(R"({ "x": 5 })"), &obj));
+		Unit_CheckEq(obj.x, (I32)5);
+	}
+
+	Unit_SubTest("Unquoted key") {
+		JT_I32 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: 5 }"), &obj));
+		Unit_CheckEq(obj.x, (I32)5);
+	}
+
+	Unit_SubTest("Trailing comma in object") {
+		JT_I32 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: 9, }"), &obj));
+		Unit_CheckEq(obj.x, (I32)9);
+	}
+
+	Unit_SubTest("Trailing comma in array") {
+		JT_IntArr obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ items: [1, 2, 3,] }"), &obj));
+		Unit_CheckEq(obj.items.len, (U64)3);
+	}
+
+	Unit_SubTest("Single-line comment") {
+		JT_I32 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ // comment\nx: 5 }"), &obj));
+		Unit_CheckEq(obj.x, (I32)5);
+	}
+
+	Unit_SubTest("Block comment") {
+		JT_I32 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ /* comment */ x: 5 }"), &obj));
+		Unit_CheckEq(obj.x, (I32)5);
+	}
+
+	Unit_SubTest("Block comment spanning key and value") {
+		JT_I32 obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ x: /* comment */ 7 }"), &obj));
+		Unit_CheckEq(obj.x, (I32)7);
+	}
+
+	// --- Arrays ---
+
+	Unit_SubTest("Array of ints") {
+		JT_IntArr obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ items: [10, 20, 30] }"), &obj));
+		Unit_CheckEq(obj.items.len, (U64)3);
+		Unit_CheckEq(obj.items[0], (I32)10);
+		Unit_CheckEq(obj.items[1], (I32)20);
+		Unit_CheckEq(obj.items[2], (I32)30);
+	}
+
+	Unit_SubTest("Array empty") {
+		JT_IntArr obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ items: [] }"), &obj));
+		Unit_CheckEq(obj.items.len, (U64)0);
+	}
+
+	Unit_SubTest("Array of strings") {
+		JT_StrArr obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str(R"({ items: ["foo", "bar"] })"), &obj));
+		Unit_CheckEq(obj.items.len, (U64)2);
+		Unit_CheckEq(obj.items[0], Str("foo"));
+		Unit_CheckEq(obj.items[1], Str("bar"));
+	}
+
+	Unit_SubTest("Array single element") {
+		JT_IntArr obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ items: [42] }"), &obj));
+		Unit_CheckEq(obj.items.len, (U64)1);
+		Unit_CheckEq(obj.items[0], (I32)42);
+	}
+
+	// --- Nested objects ---
+
+	Unit_SubTest("Nested object") {
+		JT_Nested obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ inner: { y: 7 } }"), &obj));
+		Unit_CheckEq(obj.inner.y, (I32)7);
+	}
+
+	// --- Optional members ---
+
+	Unit_SubTest("Optional member present") {
+		JT_Opt obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str("{ req: 1, opt: 2 }"), &obj));
+		Unit_CheckEq(obj.req, (I32)1);
+		Unit_CheckEq(obj.opt, (I32)2);
+	}
+
+	Unit_SubTest("Optional member absent") {
+		JT_Opt obj{ .opt = 99 };
+		Unit_CheckRes(JsonToObject(testMem, Str("{ req: 3 }"), &obj));
+		Unit_CheckEq(obj.req, (I32)3);
+		Unit_CheckEq(obj.opt, (I32)99); // unchanged
+	}
+
+	// --- Complex object ---
+
+	Unit_SubTest("Complex object") {
+		JT_Complex obj{};
+		Unit_CheckRes(JsonToObject(testMem, Str(R"({
+			// general metadata
+			label: "mission_alpha",
+			count: 42,
+			ratio: 3.14,  /* pi-ish */
+			active: true,
+			ids: [1, 2, 3, 4, 5],
+			first: { name: "primary", val: 100 },
+			items: [
+				{ name: "a", val: 1 },
+				{ name: "b", val: 2 },
+			]
+		})"), &obj));
+		Unit_CheckEq(obj.label,        Str("mission_alpha"));
+		Unit_CheckEq(obj.count,        (I32)42);
+		Unit_Check(obj.ratio > 3.13 && obj.ratio < 3.15);
+		Unit_Check(obj.active == true);
+		Unit_CheckEq(obj.ids.len,      (U64)5);
+		Unit_CheckEq(obj.ids[0],       (I32)1);
+		Unit_CheckEq(obj.ids[4],       (I32)5);
+		Unit_CheckEq(obj.first.val,    (I32)100);
+		Unit_CheckEq(obj.first.name,   Str("primary"));
+		Unit_CheckEq(obj.items.len,    (U64)2);
+		Unit_CheckEq(obj.items[0].val, (I32)1);
+		Unit_CheckEq(obj.items[1].val, (I32)2);
+		Unit_CheckEq(obj.items[0].name, Str("a"));
+		Unit_CheckEq(obj.items[1].name, Str("b"));
+	}
+
+	// --- Error: malformed inputs ---
+
+	Unit_SubTest("Error: unclosed string") {
+		JT_Str obj{};
+		Unit_Check(!JsonToObject(testMem, Str(R"({ x: "hello )"), &obj));
+	}
+
+	Unit_SubTest("Error: unclosed object") {
+		JT_I32 obj{};
+		Unit_Check(!JsonToObject(testMem, Str("{ x: 1"), &obj));
+	}
+
+	Unit_SubTest("Error: unclosed array") {
+		JT_IntArr obj{};
+		Unit_Check(!JsonToObject(testMem, Str("{ items: [1, 2"), &obj));
+	}
+
+	Unit_SubTest("Error: bad bool") {
+		JT_Bool obj{};
+		Unit_Check(!JsonToObject(testMem, Str("{ x: tru }"), &obj));
+	}
+
+	Unit_SubTest("Error: bad bool garbage") {
+		JT_Bool obj{};
+		Unit_Check(!JsonToObject(testMem, Str("{ x: maybe }"), &obj));
+	}
+
+	Unit_SubTest("Error: bad int non-digit") {
+		JT_I32 obj{};
+		Unit_Check(!JsonToObject(testMem, Str("{ x: 12abc }"), &obj));
+	}
+
+	Unit_SubTest("Error: bad int just minus") {
+		JT_I32 obj{};
+		Unit_Check(!JsonToObject(testMem, Str("{ x: - }"), &obj));
+	}
+
+	Unit_SubTest("Error: bad float trailing dot") {
+		JT_F64 obj{};
+		Unit_Check(!JsonToObject(testMem, Str("{ x: 1. }"), &obj));
+	}
+
+	Unit_SubTest("Error: bad float letter after dot") {
+		JT_F64 obj{};
+		Unit_Check(!JsonToObject(testMem, Str("{ x: 1.e5 }"), &obj));
+	}
+
+	Unit_SubTest("Error: bad sci no digit after e") {
+		JT_F64 obj{};
+		Unit_Check(!JsonToObject(testMem, Str("{ x: 1e }"), &obj));
+	}
+
+	Unit_SubTest("Error: bad escape char") {
+		JT_Str obj{};
+		Unit_Check(!JsonToObject(testMem, Str(R"({ x: "\x" })"), &obj));
+	}
+
+	Unit_SubTest("Error: unclosed block comment") {
+		JT_I32 obj{};
+		Unit_Check(!JsonToObject(testMem, Str("{ /* unclosed"), &obj));
+	}
+
+	Unit_SubTest("Error: single slash at end") {
+		JT_I32 obj{};
+		Unit_Check(!JsonToObject(testMem, Str("{ x: 1 }/"), &obj));
+	}
+
+	Unit_SubTest("Error: missing required member") {
+		JT_I32 obj{};
+		Unit_Check(!JsonToObject(testMem, Str("{}"), &obj));
+	}
+
+	Unit_SubTest("Error: wrong member order") {
+		JT_Opt obj{};
+		Unit_Check(!JsonToObject(testMem, Str("{ opt: 2 }"), &obj));
+	}
+
+	Unit_SubTest("Error: unknown member") {
+		JT_Opt obj{};
+		Unit_Check(!JsonToObject(testMem, Str("{ req: 1, unk: 5 }"), &obj));
+	}
 
 }
 

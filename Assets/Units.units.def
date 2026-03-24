@@ -15,8 +15,10 @@
 		{ name: "Physical", sprite: "Icon_PhysicalAttack", defenseType: "Armor", },
 		{ name: "Magical",  sprite: "Icon_MagicalAttack",  defenseType: "Resistance", },
 	],
+	/*
 	abilities: [
 		{
+			type: "Conditional",
 			name: "WeakensAtMidHealth",
 			condition: {
 				type: "ResourcePercentRange",
@@ -30,6 +32,7 @@
 			} ],
 		},
 		{
+			type: "Conditional",
 			name: "WeakensAtLowHealth",
 			condition: {
 				type: "ResourcePercentRange",
@@ -40,6 +43,7 @@
 			modifiers: [ { type: "DamagePercent", val: -20 } ],
 		},
 		{
+			type: "Conditional",
 			name: "WeakensAtMidStamina",
 			condition: {
 				type: "ResourcePercentRange",
@@ -50,6 +54,7 @@
 			modifiers: [ { type: "DamagePercent", val: -10 } ],
 		},
 		{
+			type: "Conditional",
 			name: "WeakensAtLowStamina",
 			condition: {
 				type: "ResourcePercentRange",
@@ -60,6 +65,7 @@
 			modifiers: [ { type: "DamagePercent", val: -20 } ],
 		},
 		{
+			type: "Conditional",
 			name: "ExhaustedAtZeroStamina",
 			condition: {
 				type: "ResourcePercentRange",
@@ -72,13 +78,47 @@
 				{ type: "DefensePercent", val: -50, },
 			]
 		},
+		{
+			type: "Activated",
+			name: "ThrowSpear",
+			sprite: "Icon_ThrowSpear",
+			damageType: "Physical",
+			minDamage: 4,
+			maxDamage: 5,
+			range: 3,
+			resourceCosts: [
+				{ name: "Stamina",amount: 1 },
+				{ name: "ThrowingSpears", amount: 1 },
+			],
+		},
+		{
+			type: "Buff",
+			name: "Braced",
+			sprite: "Icon_Brace",
+			turns: 1,
+			modifiers: [
+				{ type: "Defense", "type": "Physical", amount: 2 },
+				{ type: "CounterAttackDamage", amount: 2 },
+			]
+		},
+		{
+			type: "Activated",
+			name: "Brace",
+			sprite: "Icon_Brace",
+			type: "SelfBuff",
+			turns: 1,
+			modifiers: [
+				{ type: "Defense", "type": "Physical", amount: 2 },
+				{ type: "CounterAttackDamage", amount: 2 },
+			]
+		},
 	],
-
+*/
 	unitDefs: [
 		{
 			name: "Spearmen",
 			sprite: "Unit_Spearmen",
-			health: 10,
+			health: 20,
 			movement: 3,
 			resources: [
 				{ name: "Stamina",        max: 10, },
@@ -87,45 +127,54 @@
 			],
 			defenses: [
 				{ type: "Physical", amount: 3 },
-				{ type: "Magical", amount: 1 },
+				{ type: "Magical",  amount: 1 },
 			],
-			abilities: [
-				{
-					name: "Spear",
-					sprite: "Icon_SpearAttack",
-					type: "Attack",
-					damageType: "Physical",
-					minDamage: 5,
-					maxDamage: 7,
-					resourceCosts: [
-						{ name: "Stamina", amount: 1 },
-						{ name: "Actions", amount: 1 },
-					],
-				},
-				{
-					name: "ThrowSpear",
-					sprite: "Icon_ThrowSpear",
-					type: "Attack",
-					damageType: "Physical",
-					minDamage: 4,
-					maxDamage: 5,
-					range: 3,
-					resourceCosts: [
-						{ name: "Stamina",amount: 1 },
-						{ name: "ThrowingSpears", amount: 1 },
-					],
-				},
-				{
-					name: "Brace",
-					sprite: "Icon_Brace",
-					type: "SelfBuff",
-					turns: 1,
-					modifiers: [
-						{ type: "Defense", "type": "Physical", amount: 2 },
-						{ type: "CounterAttackDamage", amount: 2 },
-					]
-				},
+			meleeAttack: {
+				damageType: "Physical",
+				damage: 6,
+				counterDamage: 7,
+				resourceCosts: [
+					{ name: "Stamina", amount: 1 },
+					{ name: "Actions", amount: 1 },
+				],
+			},
+		},
+		{
+			name: "Bowmen",
+			sprite: "Unit_Bowmen",
+			health: 8,
+			movement: 3,
+			resources: [
+				{ name: "Stamina", max: 10, },
+				{ name: "Actions", max: 1, },
+				{ name: "Arrows",  max: 8, },
 			],
+			defenses: [
+				{ type: "Physical", amount: 1 },
+				{ type: "Magical",  amount: 1 },
+			],
+			meleeAttack: {
+				damageType: "Physical",
+				damage: 3,
+				counterDamage: 3,
+				resourceCosts: [
+					{ name: "Stamina", amount: 1 },
+					{ name: "Actions", amount: 1 },
+				],
+			},
+			rangedAttack: {
+				damageType: "Physical",
+				damage: 5,
+				ranges: [
+					{ max: 3 },
+					{ max: 5, modifiers: [ { type: "Damage", val: -1 } ] },
+				]
+				resourceCosts: [
+					{ name: "Stamina", amount: 1 },
+					{ name: "Actions", amount: 1 },
+					{ name: "Arrows",  amount: 1 },
+				]
+			},
 		},
 	],
 }

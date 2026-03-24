@@ -46,39 +46,6 @@ Json_Begin(DamageTypeDef)
 	Json_Member("defenseType", defenseType)
 Json_End(DamageTypeDef)
 
-struct ConditionDef {
-	Str type;
-	Str resourceType;
-	I32 min;
-	I32 max;
-};
-Json_Begin(ConditionDef)
-	Json_Member("type",         type)
-	Json_Member("resourceType", resourceType)
-	Json_Member("min",          min)
-	Json_Member("max",          max)
-Json_End(ConditionDef)
-
-struct ModifierDef {
-	Str type;
-	I32 val;
-};
-Json_Begin(ModifierDef)
-	Json_Member("type", type)
-	Json_Member("val",  val)
-Json_End(ModifierDef)
-
-struct AbilityDef {
-	Str               name;
-	ConditionDef      condition;
-	Span<ModifierDef> modifiers;
-};
-Json_Begin(AbilityDef)
-	Json_Member("name",      name)
-	Json_Member("condition", condition)
-	Json_Member("modifiers", modifiers)
-Json_End(AbilityDef)
-
 struct UnitResourceDef {
 	Str name;
 	U32 max;
@@ -97,14 +64,27 @@ Json_Begin(UnitDefenseDef)
 	Json_Member("amount", amount)
 Json_End(UnitDefenseDef)
 
-struct UnitAbilityDef {
+struct ResourceCostDef {
 	Str name;
-	Str sprite;
-	Str type;
-	Str damageType;
+	U32 amount;
 };
-Json_Begin(UnitAbilityDef)
-Json_End(UnitAbilityDef)
+Json_Begin(ResourceCostDef)
+	Json_Member("name",   name)
+	Json_Member("amount", amount)
+Json_End(ResourceCostDef)
+
+struct MeleeAttackDef {
+	Str dxamageType;
+	U32 damage;
+
+};
+Json_Begin(MeleeAttackDef)
+Json_End(MeleeAttackDef)
+
+struct RangedAttackDef {
+};
+Json_Begin(RangedAttackDef)
+Json_End(RangedAttackDef)
 
 struct UnitDef {
 	Str name;
