@@ -66,6 +66,7 @@ template <class T> constexpr Traits MakeSpanTraits() {
 template <class T> constexpr Traits SpanTraits = MakeSpanTraits<T>();
 
 template <class T> constexpr Traits const* GetJsonTraits(Span<T>) { return &SpanTraits<T>; }
+template <class T> constexpr Traits const* GetJsonTraits(Span<T const>) { return &SpanTraits<T const>; }
 
 template<class T> constexpr Traits const* GetTraitsHelper() { return GetJsonTraits(T()); }
 
@@ -105,6 +106,12 @@ Res<> JsonToObjectImpl(Mem mem, Str json, Traits const* traits, U8* out);
 
 template <class T> Res<> JsonToObject(Mem mem, Str json, T* obj) {
 	return JsonToObjectImpl(mem, json, GetJsonTraits(T()), (U8*)obj);
+}
+
+Res<> LoadImpl(Mem mem, Str path, Traits const* traits, U8* out);
+
+template <class T> Res<> Load(Mem mem, Str path, T* obj) {
+	return LoadImpl(mem, path, GetJsonTraits(T()), (U8*)obj);
 }
 
 //--------------------------------------------------------------------------------------------------

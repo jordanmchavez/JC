@@ -8,12 +8,8 @@ namespace JC::Unit {
 
 //--------------------------------------------------------------------------------------------------
 
-DefHandle(ResourceType);
-
-void         Init(Mem permMem);
-Res<>        InitDefs();
-ResourceType CreateResourceType(Str name, Draw::Sprite sprite);
-ResourceType GetResourceType(Str name);
+Res<> Init(Mem permMem, Mem tempMem);
+Res<> Load(Str path);
 
 //--------------------------------------------------------------------------------------------------
 

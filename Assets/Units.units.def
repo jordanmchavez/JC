@@ -1,32 +1,32 @@
 {
 	// Health, Movement are predefined resources
-	unitResources: [
-		{ name: "Attacks",        sprite: "Icon_Attacks", replenishesEachTurn: true },
+	resourceTypes: [
+		{ name: "Actions",        sprite: "Icon_Actions", replenishesEachTurn: true },
 		{ name: "Stamina",        sprite: "Icon_Stamina", },
 		{ name: "Mana",           sprite: "Icon_Mana", },
 		{ name: "Arrows",         sprite: "Icon_Arrows", },
 		{ name: "ThrowingSpears", sprite: "Icon_ThrowingSpears", },
 	],
-	damageTypes: [
-		{ name: "Physical", sprite: "Icon_PhysicalAttack", defenseType: "Armor", },
-		{ name: "Magical",  sprite: "Icon_MagicalAttack",  defenseType: "Resistance", },
-	],
 	defenseTypes: [
 		{ name: "Armor",      sprite: "Icon_Armor", },
 		{ name: "Resistance", sprite: "Icon_Resistance", },
 	],
-	abilityDefs: [
+	damageTypes: [
+		{ name: "Physical", sprite: "Icon_PhysicalAttack", defenseType: "Armor", },
+		{ name: "Magical",  sprite: "Icon_MagicalAttack",  defenseType: "Resistance", },
+	],
+	abilities: [
 		{
 			name: "WeakensAtMidHealth",
 			condition: {
 				type: "ResourcePercentRange",
 				resourceType: "Health",
-				minPercent: 26,
-				maxPercent: 50,
+				min: 26,
+				max: 50,
 			},
 			modifiers: [ {
 				type: "DamagePercent",
-				percent: -10
+				val: -10
 			} ],
 		},
 		{
@@ -34,51 +34,42 @@
 			condition: {
 				type: "ResourcePercentRange",
 				resourceType: "Health",
-				minPercent: 0,
-				maxPercent: 25,
+				min: 0,
+				max: 25,
 			},
-			modifiers: [ {
-				type: "DamagePercent",
-				percent: -20
-			} ],
+			modifiers: [ { type: "DamagePercent", val: -20 } ],
 		},
 		{
 			name: "WeakensAtMidStamina",
 			condition: {
 				type: "ResourcePercentRange",
 				resourceType: "Stamina",
-				minPercent: 26,
-				maxPercent: 50,
+				min: 26,
+				max: 50,
 			},
-			modifiers: [ {
-				type: "DamagePercent",
-				percent: -10
-			} ],
+			modifiers: [ { type: "DamagePercent", val: -10 } ],
 		},
 		{
 			name: "WeakensAtLowStamina",
 			condition: {
 				type: "ResourcePercentRange",
 				resourceType: "Stamina",
-				minPercent: 1,
-				maxPercent: 25,
+				min: 1,
+				max: 25,
 			},
-			modifiers: [ {
-				type: "DamagePercent",
-				percent: -20,
-			} ],
+			modifiers: [ { type: "DamagePercent", val: -20 } ],
 		},
 		{
 			name: "ExhaustedAtZeroStamina",
 			condition: {
 				type: "ResourcePercentRange",
 				resourceType: "Stamina",
-				minPercent: 0,
-				maxPercent: 0,
+				min: 0,
+				max: 0,
 			},
 			modifiers: [
-				{ type: "DamagePercent", percent: -50, },
-				{ type: "DefensePercent", percent: -50, },
+				{ type: "DamagePercent", val: -50, },
+				{ type: "DefensePercent", val: -50, },
 			]
 		},
 	],
@@ -91,7 +82,7 @@
 			movement: 3,
 			resources: [
 				{ name: "Stamina",        max: 10, },
-				{ name: "Attacks",        max: 1, },
+				{ name: "Actions",        max: 1, },
 				{ name: "ThrowingSpears", max: 1, },
 			],
 			defenses: [
@@ -108,7 +99,7 @@
 					maxDamage: 7,
 					resourceCosts: [
 						{ name: "Stamina", amount: 1 },
-						{ name: "Attacks", amount: 1 },
+						{ name: "Actions", amount: 1 },
 					],
 				},
 				{
@@ -134,9 +125,6 @@
 						{ type: "CounterAttackDamage", amount: 2 },
 					]
 				},
-			],
-			abilities: [
-				// TODO
 			],
 		},
 	],

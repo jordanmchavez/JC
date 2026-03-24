@@ -12,6 +12,7 @@ namespace JC::Json {
 
 //--------------------------------------------------------------------------------------------------
 
+DefErr(Json, BadComment);
 DefErr(Json, MissingClosingQuote);
 DefErr(Json, Unexpected);
 DefErr(Json, MissingMember);
@@ -29,6 +30,7 @@ DefErr(Json, Eof);
 
 enum struct CharType : U8 {
 	Other = 0,
+	Comment,
 	Space,
 	Operator,
 	Quote,
@@ -42,6 +44,7 @@ struct CharTable {
 
 	constexpr CharTable() {
 		for (U32 i = 0; i < 256; i++) { table[i] = CharType::Other; }
+		table['/' ] = CharType::Comment;
 		table[' ' ] = CharType::Space;
 		table['\t'] = CharType::Space;
 		table['\r'] = CharType::Space;
@@ -54,26 +57,26 @@ struct CharTable {
 		table[',' ] = CharType::Operator;
 		table['"' ] = CharType::Quote;
 		table['_' ] = CharType::Underscore;
-		for (U32 c = (U32)'a'; c <= (U32)'z'; c++) { table[c] = CharType::Alpha; }
-		for (U32 c = (U32)'A'; c <= (U32)'Z'; c++) { table[c] = CharType::Alpha; }
-		for (U32 c = (U32)'0'; c <= (U32)'9'; c++) { table[c] = CharType::Digit; }
+		for (char c = 'a'; c <= 'z'; c++) { table[(U8)c] = CharType::Alpha; }
+		for (char c = 'A'; c <= 'Z'; c++) { table[(U8)c] = CharType::Alpha; }
+		for (char c = '0'; c <= '9'; c++) { table[(U8)c] = CharType::Digit; }
 	}
 };
 
 static constexpr CharTable charTable;
 
 static constexpr bool IsStructural(char c) {
-	CharType charType = charTable.table[(U32)c];
+	CharType charType = charTable.table[(U8)c];
 	return charType == CharType::Space || charType == CharType::Operator || charType == CharType::Quote;
 }
 
 static constexpr bool IsName(char c) {
-	CharType charType = charTable.table[(U32)c];
+	CharType charType = charTable.table[(U8)c];
 	return charType == CharType::Underscore || charType == CharType::Alpha || charType == CharType::Digit;
 }
 
 static constexpr bool IsDigit(char c) {
-	return charTable.table[(U32)c] == CharType::Digit;
+	return charTable.table[(U8)c] == CharType::Digit;
 }
 //--------------------------------------------------------------------------------------------------
 
@@ -103,11 +106,31 @@ static Res<Ctx> CreateCtx(Mem mem, Str json) {
 	// Can classify 32 bytes per instruction into: structural, whitespace, quote, backslash, other
 	char const* iter = ctx.data;
 	while (iter < ctx.end) {
-		CharType charType = charTable.table[*iter];
+		CharType charType = charTable.table[(U8)*iter];
 		switch (charType) {
+			case CharType::Comment: {
+				char const* comment = iter;
+				iter++;
+				if (iter >= ctx.end) { return Err_BadComment("pos", comment - ctx.data); }
+				if (*iter == '/') {
+					do {
+						iter++;
+					} while (iter < ctx.end && *iter != '\n');
+				} else if (*iter == '*') {
+					char prev = 0;
+					for (;;) {
+						iter++;
+						if (iter >= ctx.end) { return Err_BadComment("pos", comment - ctx.data); }
+						if (prev == '*' && *iter == '/') { iter++; break; }
+						prev = *iter;
+					}
+				}
+				break;
+			}
+
 			case CharType::Space:
 				iter++;
-				continue;
+				break;
 
 			case CharType::Operator:
 				elems.Add(Str(iter, 1));
@@ -205,6 +228,7 @@ static Res<bool> ParseBool(Ctx* ctx) {
 
 static Res<I64> ParseI64(Ctx* ctx) {
 	Str str; TryTo(Read(ctx), str);
+	if (str.len == 0) { return Err_BadInt("pos", Pos(ctx, str)); }
 	char const* iter = str.data;
 	char const* end  = str.data + str.len;
 	I64 sign = 1;
@@ -231,6 +255,7 @@ static Res<U32> ParseU32(Ctx* ctx) { I64 val; TryTo(ParseI64(ctx), val); return 
 
 static Res<F64> ParseF64(Ctx* ctx) {
 	Str str; TryTo(Read(ctx), str);
+	if (str.len == 0) { return Err_BadInt("pos", Pos(ctx, str)); }
 	char const* iter = str.data;
 	char const* end  = str.data + str.len;
 	F64 sign = 1.0;
@@ -452,14 +477,15 @@ static Res<> ParseObject(Ctx* ctx, Traits const* traits, U8* out) {
 		Try(Expect(ctx, ':'));
 		Try(ParseVal(ctx, member->traits, out + member->offset));
 
+		member++;
 		if (!Maybe(ctx, ',')) {
 			break;
 		}
-		member++;
 	}
 
 	while (member < end) {
 		if (!member->optional) { return Err_MissingMember("name", member->name); }
+		member++;
 	}
 
 	Maybe(ctx, ',');
@@ -477,6 +503,7 @@ Res<> JsonToObjectImpl(Mem mem, Str json, Traits const* traits, U8* out) {
 //--------------------------------------------------------------------------------------------------
 
 Unit_Test("Json") {
+
 }
 
 //--------------------------------------------------------------------------------------------------
