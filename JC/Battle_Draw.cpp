@@ -116,9 +116,6 @@ Hex* ScreenPosToHex(I32 x, I32 y) {
 
 //--------------------------------------------------------------------------------------------------
 
-
-//--------------------------------------------------------------------------------------------------
-
 static void DrawObjs(DrawObj const* drawObjs, U16 len) {
 	for (U64 i = 0; i < len; i++) {
 		DrawTypeData const* const data = &drawTypeData[drawObjs[i].type];

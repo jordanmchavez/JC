@@ -2,13 +2,13 @@
 
 #include "JC/Common.h"
 
-namespace JC::Battle::Map {
+namespace JC::Def {
 
 //--------------------------------------------------------------------------------------------------
 
-void  Init(Mem permMem, Mem tempMemIn, F32 drawZ);
-void  Draw();
+void Init();
+
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Battle::Map
+}	// namespace JC::Def

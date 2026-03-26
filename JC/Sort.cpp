@@ -1,14 +1,15 @@
-#pragma once
+#include "JC/Sort.h"
 
-#include "JC/Common.h"
+#include "JC/UnitTest.h"
 
-namespace JC::Battle::Map {
-
-//--------------------------------------------------------------------------------------------------
-
-void  Init(Mem permMem, Mem tempMemIn, F32 drawZ);
-void  Draw();
+namespace JC::Sort {
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Battle::Map
+Unit_Test("Sort") {
+	// TODO:
+}
+
+//--------------------------------------------------------------------------------------------------
+
+}	// namespace JC::Sort

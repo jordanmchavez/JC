@@ -2,7 +2,6 @@
 
 #include "JC/Draw.h"
 
-#include "JC/Array.h"
 #include "JC/File.h"
 #include "JC/Hash.h"
 #include "JC/Gpu.h"
@@ -103,8 +102,6 @@ struct DrawCmd {
 	Vec2 uv1;
 	Vec2 uv2;
 	Vec4 color = Vec4(1.f, 1.f, 1.f, 1.f);
-	Vec4 outlineColor;
-	F32  outlineWidth = 0.f;
 };
 
 struct Pass {
@@ -180,32 +177,32 @@ Json_End(FontDef)
 
 //--------------------------------------------------------------------------------------------------
 
-static Mem                  tempMem;
-static U32                  windowWidth;
-static U32                  windowHeight;
-static Gpu::Image           errorImage;
-static U32                  errorImageIdx;
-static MArray<Atlas>        atlases;
-static MArray<SpriteObj>    spriteObjs;
-static Map<Str, SpriteObj*> spriteObjsByName;
-static MArray<FontObj>      fontObjs;
-static MArray<CanvasObj>    canvasObjs;
-static Gpu::Image           depthImage;
-static Gpu::Shader          vertexShader;
-static Gpu::Shader          fragmentShader;
-static Gpu::Pipeline        pipeline;
-static Gpu::Buffer          sceneBuffers[Gpu::MaxFrames];
-static void*                sceneBufferPtrs[Gpu::MaxFrames];
-static U64                  sceneBufferAddrs[Gpu::MaxFrames];
-static Scene*               scene;
-static Gpu::Buffer          drawCmdBuffers[Gpu::MaxFrames];
-static void*                drawCmdBufferPtrs[Gpu::MaxFrames];
-static U64                  drawCmdBufferAddrs[Gpu::MaxFrames];
-static DrawCmd*             drawCmds;
-static U32                  drawCmdCount;
-static MArray<Pass>         passes;
-static Camera               camera;
-static U64                  frameIdx;
+static Mem                 tempMem;
+static U32                 windowWidth;
+static U32                 windowHeight;
+static Gpu::Image          errorImage;
+static U32                 errorImageIdx;
+static Array<Atlas>        atlases;
+static Array<SpriteObj>    spriteObjs;
+static Map<Str, SpriteObj*>spriteObjsByName;
+static Array<FontObj>      fontObjs;
+static Array<CanvasObj>    canvasObjs;
+static Gpu::Image          depthImage;
+static Gpu::Shader         vertexShader;
+static Gpu::Shader         fragmentShader;
+static Gpu::Pipeline       pipeline;
+static Gpu::Buffer         sceneBuffers[Gpu::MaxFrames];
+static void*               sceneBufferPtrs[Gpu::MaxFrames];
+static U64                 sceneBufferAddrs[Gpu::MaxFrames];
+static Scene*              scene;
+static Gpu::Buffer         drawCmdBuffers[Gpu::MaxFrames];
+static void*               drawCmdBufferPtrs[Gpu::MaxFrames];
+static U64                 drawCmdBufferAddrs[Gpu::MaxFrames];
+static DrawCmd*            drawCmds;
+static U32                 drawCmdCount;
+static Array<Pass>         passes;
+static Camera              camera;
+static U64                 frameIdx;
 
 //--------------------------------------------------------------------------------------------------
 
@@ -725,60 +722,57 @@ void DrawRect(DrawRectDesc drawRectDesc) {
 //--------------------------------------------------------------------------------------------------
 
 void DrawSprite(DrawSpriteDesc drawSpriteDesc) {
-	Assert(drawSpriteDesc.sprite.handle > 0 && drawSpriteDesc.sprite.handle < spriteObjs.len);
-	SpriteObj const* const spriteObj = &spriteObjs[drawSpriteDesc.sprite.handle];
+}
 
-	F32 x = drawSpriteDesc.pos.x;
-	F32 y = drawSpriteDesc.pos.y;
-	F32 const scaledSizeX = spriteObj->size.x * drawSpriteDesc.scale.x;
-	F32 const scaledSizeY = spriteObj->size.y * drawSpriteDesc.scale.y;
-	switch (drawSpriteDesc.origin) {
-		case Origin::BottomLeft:
-		case Origin::BottomCenter:
-		case Origin::BottomRight:
-			y -= scaledSizeY;
-			break;
-		case Origin::Left:
-		case Origin::Center:
-		case Origin::Right:
-			y -= scaledSizeY * 0.5f;
-			break;
-	}
-	switch (drawSpriteDesc.origin) {
-		case Origin::BottomCenter:
-		case Origin::Center:
-		case Origin::TopCenter:
-			x -= scaledSizeX * 0.5f;
-			break;
-		case Origin::BottomRight:
-		case Origin::Right:
-		case Origin::TopRight:
-			x -= scaledSizeX;
-			break;
-	}
+void DrawSprites(Span<DrawSpriteDesc> drawSpriteDescs) {
+	DrawCmd* const drawCmds = AllocDrawCmds(drawSpriteDescs.len);
 
-	DrawCmd* const drawCmd = AllocDrawCmds(1);
-	drawCmd->textureIdx   = spriteObj->imageIdx;
-	drawCmd->pos          = MakePos(x, y, drawSpriteDesc.z);
-	drawCmd->size         = Vec2(scaledSizeX * camera.scale, scaledSizeY * camera.scale);
-	drawCmd->uv1          = spriteObj->uv1;
-	drawCmd->uv2          = spriteObj->uv2;
-	drawCmd->color        = drawSpriteDesc.color;
-	drawCmd->outlineWidth = drawSpriteDesc.outlineWidth;
-	drawCmd->outlineColor = drawSpriteDesc.outlineColor;
+	for (U64 i = 0; i < drawSpriteDescs.len; i++) {
+		DrawSpriteDesc drawSpriteDesc = drawSpriteDescs[i];
+		Assert(drawSpriteDesc.sprite.handle > 0 && drawSpriteDesc.sprite.handle < spriteObjs.len);
+		SpriteObj const* const spriteObj = &spriteObjs[drawSpriteDesc.sprite.handle];
 
-	if (drawSpriteDesc.flip) {
-		Swap(drawCmd->uv1.x, drawCmd->uv2.x);
-	}
-	if (drawSpriteDesc.outlineWidth > 0.f) {
-		drawCmd->pos.x -= 1 * camera.scale;
-		drawCmd->pos.y -= 1 * camera.scale;
-		drawCmd->size.x += 2 * camera.scale;
-		drawCmd->size.y += 2 * camera.scale;
-		drawCmd->uv1.x -= spriteObj->texelSize.x;
-		drawCmd->uv1.y -= spriteObj->texelSize.y;
-		drawCmd->uv2.x += spriteObj->texelSize.x;
-		drawCmd->uv2.y += spriteObj->texelSize.y;
+		F32 x = drawSpriteDesc.pos.x;
+		F32 y = drawSpriteDesc.pos.y;
+		F32 const scaledSizeX = spriteObj->size.x * drawSpriteDesc.scale.x;
+		F32 const scaledSizeY = spriteObj->size.y * drawSpriteDesc.scale.y;
+		switch (drawSpriteDesc.origin) {
+			case Origin::BottomLeft:
+			case Origin::BottomCenter:
+			case Origin::BottomRight:
+				y -= scaledSizeY;
+				break;
+			case Origin::Left:
+			case Origin::Center:
+			case Origin::Right:
+				y -= scaledSizeY * 0.5f;
+				break;
+		}
+		switch (drawSpriteDesc.origin) {
+			case Origin::BottomCenter:
+			case Origin::Center:
+			case Origin::TopCenter:
+				x -= scaledSizeX * 0.5f;
+				break;
+			case Origin::BottomRight:
+			case Origin::Right:
+			case Origin::TopRight:
+				x -= scaledSizeX;
+				break;
+		}
+
+		drawCmd->textureIdx   = spriteObj->imageIdx;
+		drawCmd->pos          = MakePos(x, y, drawSpriteDesc.z);
+		drawCmd->size         = Vec2(scaledSizeX * camera.scale, scaledSizeY * camera.scale);
+		drawCmd->uv1          = spriteObj->uv1;
+		drawCmd->uv2          = spriteObj->uv2;
+		drawCmd->color        = drawSpriteDesc.color;
+		drawCmd->outlineWidth = drawSpriteDesc.outlineWidth;
+		drawCmd->outlineColor = drawSpriteDesc.outlineColor;
+
+		if (drawSpriteDesc.flip) {
+			Swap(&drawCmd->uv1.x, &drawCmd->uv2.x);
+		}
 	}
 }
 

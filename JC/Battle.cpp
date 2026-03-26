@@ -5,6 +5,7 @@
 #include "JC/Draw.h"
 #include "JC/Input.h"
 #include "JC/Key.h"
+#include "JC/Unit.h"
 #include "JC/Window.h"
 
 namespace JC::Battle {
@@ -26,16 +27,28 @@ enum : U64 {
 	ActionId_EndUnitTurn,
 };
 
-static constexpr U16 MaxClickHexes = Input::MaxActionsPerFrame;
+using Side = U32;
+static constexpr Side Side_Friendly = 0;
+static constexpr Side Side_Enemy    = 1;
 
-static Vec2              windowSize;
-static Draw::Camera      camera;
-static Input::BindingSet bindingSet;
+static constexpr U32 MaxArmyUnits = 32;
+
+static constexpr F32 Z_Map  = 1.f;
+static constexpr F32 Z_Unit = 2.f;
+
+static Vec2                        windowSize;
+static Draw::Camera                camera;
+static Input::BindingSet           bindingSet;
+static Array<Unit::Unit>           units[2];
+static Array<Draw::DrawSpriteDesc> unitDrawDescs[2];
 
 //--------------------------------------------------------------------------------------------------
 
 void Init(Mem permMem, Mem tempMem, Window::State const* windowState) {
-	permMem;tempMem;
+	units[Side_Friendly].Init(permMem, MaxArmyUnits);
+	units[Side_Enemy].Init(permMem, MaxArmyUnits);
+	unitDrawDescs[Side_Friendly].Init(permMem, MaxArmyUnits);
+	unitDrawDescs[Side_Enemy].Init(permMem, MaxArmyUnits);
 
 	windowSize  = Vec2((F32)windowState->width, (F32)windowState->height);
 
@@ -57,6 +70,40 @@ void Init(Mem permMem, Mem tempMem, Window::State const* windowState) {
 	Input::Bind(bindingSet, Key::Key::N,              Input::BindingType::OnKeyUp,    ActionId_NextUnit);
 	Input::Bind(bindingSet, Key::Key::Space,          Input::BindingType::OnKeyUp,    ActionId_EndUnitTurn);
 	Input::SetBindingSetStack({ bindingSet });
+
+	Battle::Map::Init(permMem, tempMem, Z_Map);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static void RebuildUnitDrawDescs() {
+	for (U64 i = 0; i < units[Side_Friendly].len; i++) {
+		Unit::Unit const* unit = &units[Side_Friendly][i];
+		unitDrawDescs[Side_Friendly][i] = {
+			.sprite = unit->sprite,
+			.pos    = unit->pos,
+			.z      = Z_Unit,
+			.flip   = false,
+
+		};
+	}
+	for (U64 i = 0; i < units[Side_Friendly].len; i++) {
+		Unit::Unit const* unit = &units[Side_Friendly][i];
+		unitDrawDescs[Side_Friendly][i] = {
+			.sprite = unit->sprite,
+			.pos    = unit->pos,
+			.z      = Z_Unit,
+			.flip   = true,
+
+		};
+	}
+}
+
+//--------------------------------------------------------------------------------------------------
+
+void GenerateRandomArmies() {
+	
+	RebuildUnitDrawDescs();
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -121,7 +168,9 @@ Res<> Update(App::UpdateData const* appUpdateData) {
 
 void Draw() {
 	Draw::SetCamera(camera);
-	Map::Draw(1.f);
+	Map::Draw();
+	Draw::DrawSprites(unitDrawDescs[Side_Friendly]);
+	Draw::DrawSprites(unitDrawDescs[Side_Enemy]);
 }
 
 //--------------------------------------------------------------------------------------------------

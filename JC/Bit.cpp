@@ -1,5 +1,3 @@
-#pragma once
-
 #include "JC/Bit.h"
 #include "JC/UnitTest.h"
 
@@ -52,45 +50,54 @@ U64 MoveBit(U64 u,U8 fromBit, U8 toBit) {
 	U64 fromVal = (u >> fromBit) & 1;
 	u &= ~((U64)1 << fromBit);	// clear from
 	u &= ~((U64)1 << toBit);	// clear to
-	u |= fromVal << toBit;		// set from
+	u |= fromVal << toBit;		// set to
 	return u;
 }
 
 //--------------------------------------------------------------------------------------------------
 
 Unit_Test("Bit") {
-	Unit_CheckEq(Bsf64(0),                  0u);
-	Unit_CheckEq(Bsr64(0),                  0u);
-	Unit_CheckEq(Bsf64(1),                  0u);
-	Unit_CheckEq(Bsr64(1),                  0u);
-	Unit_CheckEq(Bsf64(0x80000000),         31u);
-	Unit_CheckEq(Bsf64(0x80008000),         15u);
-	Unit_CheckEq(Bsr64(0x80000008),         31u);
-	Unit_CheckEq(Bsr64(0x7fffffff),         30u);
-	Unit_CheckEq(Bsr64(0x80000000),         31u);
-	Unit_CheckEq(Bsr64(0x100000000),        32u);
-	Unit_CheckEq(Bsr64(0xffffffffffffffff), 63u);
+	Unit_SubTest("Bsf64") {
+		Unit_CheckEq(Bsf64(0),                  0u);
+		Unit_CheckEq(Bsr64(0),                  0u);
+		Unit_CheckEq(Bsf64(1),                  0u);
+		Unit_CheckEq(Bsr64(1),                  0u);
+		Unit_CheckEq(Bsf64(0x80000000),         31u);
+		Unit_CheckEq(Bsf64(0x80008000),         15u);
+		Unit_CheckEq(Bsr64(0x80000008),         31u);
+		Unit_CheckEq(Bsr64(0x7fffffff),         30u);
+		Unit_CheckEq(Bsr64(0x80000000),         31u);
+		Unit_CheckEq(Bsr64(0x100000000),        32u);
+		Unit_CheckEq(Bsr64(0xffffffffffffffff), 63u);
+	}
 
-	Unit_CheckEq(PopCount64(0), 0u);
-	Unit_CheckEq(PopCount64(1), 1u);
-	Unit_CheckEq(PopCount64((U64)0b10101010), 4u);
-	Unit_CheckEq(PopCount64((U64)0xffffffffffffffff), 64u);
+	Unit_SubTest("PopCount64") {
+		Unit_CheckEq(PopCount64(0), 0u);
+		Unit_CheckEq(PopCount64(1), 1u);
+		Unit_CheckEq(PopCount64((U64)0b10101010), 4u);
+		Unit_CheckEq(PopCount64((U64)0xffffffffffffffff), 64u);
 
-	Unit_CheckEq(AlignUp(0, 0), 0);
-	Unit_CheckEq(AlignUp(0, 8), 0);
-	Unit_CheckEq(AlignUp(1, 8), 8);
-	Unit_CheckEq(AlignUp(7, 8), 8);
-	Unit_CheckEq(AlignUp(8, 8), 8);
-	Unit_CheckEq(AlignUp(9, 8), 16);
+	}
 
-	Unit_CheckEq(AlignPow2(0), 0);
-	Unit_CheckEq(AlignPow2(1), 1);
-	Unit_CheckEq(AlignPow2(2), 2);
-	for (U64 i = 2; i < 64; i++) {
-		U64 const pow2 = (U64)1 << i;
-		Unit_CheckEq(AlignPow2(pow2 - 1), pow2);
-		Unit_CheckEq(AlignPow2(pow2    ), pow2);
-		Unit_CheckEq(AlignPow2(pow2 + 1), pow2 << 1);
+	Unit_SubTest("AlignUp") {
+		Unit_CheckEq(AlignUp(0, 0), 0);
+		Unit_CheckEq(AlignUp(0, 8), 0);
+		Unit_CheckEq(AlignUp(1, 8), 8);
+		Unit_CheckEq(AlignUp(7, 8), 8);
+		Unit_CheckEq(AlignUp(8, 8), 8);
+		Unit_CheckEq(AlignUp(9, 8), 16);
+	}
+
+	Unit_SubTest("AlignPow2") {
+		Unit_CheckEq(AlignPow2(0), 0);
+		Unit_CheckEq(AlignPow2(1), 1);
+		Unit_CheckEq(AlignPow2(2), 2);
+		for (U64 i = 2; i < 64; i++) {
+			U64 const pow2 = (U64)1 << i;
+			Unit_CheckEq(AlignPow2(pow2 - 1), pow2);
+			Unit_CheckEq(AlignPow2(pow2    ), pow2);
+			Unit_CheckEq(AlignPow2(pow2 + 1), pow2 << 1);
+		}
 	}
 }
 

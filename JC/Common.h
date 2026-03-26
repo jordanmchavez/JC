@@ -149,7 +149,7 @@ template <class T> struct Span {
 template <class T> constexpr T Min(T x, T y) { return x < y ? x : y; }
 template <class T> constexpr T Max(T x, T y) { return x > y ? x : y; }
 template <class T> constexpr T Clamp(T x, T lo, T hi) { return x < lo ? lo : (x > hi ? hi : x); }
-template <class T> constexpr void Swap(T& x, T& y) { T tmp; tmp = x; x = y; y = tmp; }
+template <class T> constexpr void Swap(T* x, T* y) { T tmp; tmp = *x; *x = *y; *y = tmp; }
 
 //--------------------------------------------------------------------------------------------------
 
@@ -551,6 +551,126 @@ PanicFn* SetPanicFn(PanicFn* panicFn);
 		Panicf(SrcLoc::Here(), #expr, ##__VA_ARGS__); \
 	} } while (false)
 	
+//--------------------------------------------------------------------------------------------------
+
+template <class T> struct Array {
+	U64  len = 0;
+	U64  maxLen = 0;
+	T*   data = 0;
+
+	Array() = default;
+
+	Array(Mem mem, U64 maxLenIn, SrcLoc sl = SrcLoc::Here()) {
+		Init(mem, maxLenIn, sl);
+	}
+
+	Array(Array const&) = delete;
+	Array& operator=(Array const&) = delete;
+
+	void Init(Mem mem, U64 maxLenIn, SrcLoc sl = SrcLoc::Here()) {
+		len    = 0;
+		maxLen = maxLenIn;
+		data   = Mem::AllocT<T>(mem, maxLenIn, sl);
+	}
+
+	constexpr T      & operator[](U64 i)       { Assert(i < len); return data[i]; }
+	constexpr T const& operator[](U64 i) const { Assert(i < len); return data[i]; }
+
+	constexpr operator Span<T      >()       { return Span<T      >(data, len); }
+	constexpr operator Span<T const>() const { return Span<T const>(data, len); }
+
+	T* Add() {
+		Assert(len + 1 <= maxLen);
+		memset(&data[len], 0, sizeof(T));
+		return &data[len++];
+	}
+
+	T* Add(T val) {
+		Assert(len + 1 <= maxLen);
+		data[len] = val;
+		return &data[len++];
+	}
+
+	T* Add(T const* vals, U64 valsLen) {
+		Assert(!valsLen || vals);
+		Assert(len + valsLen <= maxLen);
+		memcpy(data + len, vals, valsLen * sizeof(T));
+		T* const result = &data[len];
+		len += valsLen;
+		return result;
+	}
+
+	T* Add(T const* begin, T const* end) {
+		Assert((!begin && !end) || (begin && end && begin <= end));
+		U64 const valsLen = (U64)(end - begin);
+		Assert(len + valsLen <= maxLen);
+		memcpy(data + len, begin, valsLen * sizeof(T));
+		T* const result = &data[len];
+		len += valsLen;
+		return result;
+	}
+
+	T* Add(Span<T> vals) {
+		Assert(len + vals.len <= maxLen);
+		memcpy(data + len, vals.data, vals.len * sizeof(T));
+		T* const result = &data[len];
+		len += vals.len;
+		return result;
+	}
+
+	T* Add(Span<T const> vals) {
+		Assert(len + vals.len <= maxLen);
+		memcpy(data + len, vals.data, vals.len * sizeof(T));
+		T* const result = &data[len];
+		len += vals.len;
+		return result;
+	}
+
+	T* AddN(U64 n) {
+		Assert(len + n <= maxLen);
+		T* res = data + len;
+		memset(data + len, 0, n * sizeof(T));
+		len += n;
+		return res;
+	}
+
+	T* AddN(T val, U64 n) {
+		Assert(len + n <= maxLen);
+		if constexpr (sizeof(T) == 1) {
+			memset(data + len, (int)val, n);
+		} else {
+			T* const end = data + len + n;
+			for (T* iter = data + len; iter < end; ++iter) {
+				*iter = val;
+			}
+		}
+		T* const result = &data[len];
+		len += n;
+		return result;
+	}
+
+	void Remove() {
+		Assert(len > 0);
+		len--;
+	}
+
+	void Remove(U64 n) {
+		Assert(len >= n);
+		len -= n;
+	}
+
+	void RemoveUnordered(U64 i) {
+		Assert(len > 0);
+		Assert(i < len);
+		len--;
+		data[i] = data[len];
+	}
+
+	bool HasCapacity(U64 n = 1) {
+		return len + n <= maxLen;
+	}
+};
+
 //--------------------------------------------------------------------------------------------------
 
 }	// namespace JC

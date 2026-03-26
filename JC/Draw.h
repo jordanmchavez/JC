@@ -57,8 +57,6 @@ struct DrawSpriteDesc {
 	Vec2   scale = Vec2(1.f, 1.f);
 	Vec4   color = Vec4(1.f, 1.f, 1.f, 1.f);
 	bool   flip = false;
-	F32    outlineWidth = 0.f;
-	Vec4   outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
 };
 
 struct DrawStrDesc {
@@ -69,8 +67,6 @@ struct DrawStrDesc {
 	Origin origin = Origin::Left;
 	Vec2   scale = Vec2(1.f, 1.f);
 	Vec4   color = Vec4(1.f, 1.f, 1.f, 1.f);
-	F32    outlineWidth = 0.f;
-	Vec4   outlineColor = Vec4(0.f, 0.f, 0.f, 0.f);
 };
 
 struct DrawCanvasDesc {
@@ -100,6 +96,7 @@ void        SetCamera(Camera camera);
 void        ClearCamera();
 void        DrawRect(DrawRectDesc drawRectDesc);
 void        DrawSprite(DrawSpriteDesc drawSpriteDesc);
+void        DrawSprites(Span<DrawSpriteDesc> drawSpriteDescs);
 void        DrawStr(DrawStrDesc drawStrDesc);
 void        DrawCanvas(DrawCanvasDesc drawCanvasDesc);
 

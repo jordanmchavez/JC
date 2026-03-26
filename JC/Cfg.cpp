@@ -1,6 +1,5 @@
 #include "JC/Cfg.h"
 
-#include "JC/Array.h"
 #include "JC/Hash.h"
 #include "JC/Map.h"
 
@@ -16,7 +15,7 @@ struct Cfg {
 
 static constexpr U32 MaxCfgs = 1024;
 
-static MArray<Cfg>    cfgs;
+static Array<Cfg>     cfgs;
 static Map<Str, Cfg*> cfgsMap;
 
 //--------------------------------------------------------------------------------------------------

@@ -228,6 +228,20 @@ bool HasExt(Str path, Str ext) {
 
 //--------------------------------------------------------------------------------------------------
 
+// Returns maximum extension: GetMaxExt("foo.bar.baz.qux") -> "bar.baz.qux"
+Str GetMaxExt(Str path) {
+	U32 nameStart = 0;
+	for (U32 i = 0; i < path.len; i++) {
+		if (path[i] == '/' || path[i] == '\\') { nameStart = i + 1; }
+	}
+	for (U32 i = nameStart; i < path.len; i++) {
+		if (path[i] == '.') { return Str(path.data + i + 1, path.len - i - 1); }
+	}
+	return Str();
+}
+
+//--------------------------------------------------------------------------------------------------
+
 Unit_Test("File") {
 	Unit_SubTest("RemoveExt") {
 		Unit_CheckEq(RemoveExt(""), "");
@@ -242,6 +256,21 @@ Unit_Test("File") {
 		Unit_CheckEq(RemoveExt("file.tar.gz"), "file.tar");
 		Unit_CheckEq(RemoveExt(".hidden"), "");
 		Unit_CheckEq(RemoveExt("path/.hidden"), "path/");
+	}
+
+	Unit_SubTest("GetMaxExt") {
+		Unit_CheckEq(GetMaxExt(""),                        "");
+		Unit_CheckEq(GetMaxExt("a"),                       "");
+		Unit_CheckEq(GetMaxExt("a."),                      "");
+		Unit_CheckEq(GetMaxExt("a.b"),                     "b");
+		Unit_CheckEq(GetMaxExt("a.b.c"),                   "b.c");
+		Unit_CheckEq(GetMaxExt("foo.bar.baz.qux"),         "bar.baz.qux");
+		Unit_CheckEq(GetMaxExt(".hidden"),                 "hidden");
+		Unit_CheckEq(GetMaxExt("a.foo/b.bar/c.qux/d"),    "");
+		Unit_CheckEq(GetMaxExt("a.foo/b.bar/c.qux/d.e"),  "e");
+		Unit_CheckEq(GetMaxExt("a.foo\\b.bar\\c.qux\\d"), "");
+		Unit_CheckEq(GetMaxExt("dir/file.tar.gz"),         "tar.gz");
+		Unit_CheckEq(GetMaxExt("path/.hidden"),            "hidden");
 	}
 
 	Unit_SubTest("PathsEq") {

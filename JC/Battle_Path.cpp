@@ -145,7 +145,7 @@ void BuildPathOrPanic(Unit const* unit, Hex* end, Path* pathOut) {
 	}
 	U16 const halfLen = pathOut->len / 2;
 	for (U64 i = 0; i < halfLen; i++) {
-		Swap(pathOut->hexes[i], pathOut->hexes[pathOut->len - i - 1]);
+		Swap(&pathOut->hexes[i], &pathOut->hexes[pathOut->len - i - 1]);
 	}
 }
 

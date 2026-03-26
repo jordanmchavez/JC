@@ -19,6 +19,7 @@ Res<Span<Str>> EnumFiles(Str dir, Str ext);
 Str            RemoveExt(Str path);
 bool           PathsEq(Str path1, Str path2);
 bool           HasExt(Str path, Str ext);
+Str            GetMaxExt(Str path);
 
 //--------------------------------------------------------------------------------------------------
 

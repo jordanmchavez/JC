@@ -1,6 +1,5 @@
 #include "JC/Battle_Map.h"
 
-#include "JC/Array.h"
 #include "JC/Draw.h"
 #include "JC/Hash.h"
 #include "JC/Json.h"
@@ -74,22 +73,39 @@ struct Hex {
 	Hex*           neighbors[6];
 };
 
-static Mem                    tempMem;
-static U32                    hexSize;
-static MArray<Terrain>        terrains;
-static JC::Map<Str, Terrain*> terrainsMap;
-static MArray<TerrainChance>  terrainChances;
-static MArray<Hex>            hexes;
-static Draw::Font             font;
+static Mem                         tempMem;
+static U32                         hexSize;
+static Array<Terrain>              terrains;
+static JC::Map<Str, Terrain*>      terrainsMap;
+static Array<TerrainChance>        terrainChances;
+static Array<Hex>                  hexes;
+static Draw::Font                  font;
+static Array<Draw::DrawSpriteDesc> hexDrawDescs;
+static F32                         drawZ;
 
 //--------------------------------------------------------------------------------------------------
 
-void Init(Mem permMem, Mem tempMemIn) {
+void Init(Mem permMem, Mem tempMemIn, F32 drawZIn) {
 	tempMem = tempMemIn;
 	terrains.Init(permMem, MaxTerrains);
 	terrainsMap.Init(permMem, MaxTerrains);
 	terrainChances.Init(permMem, MaxTerrains);
 	hexes.Init(permMem, MaxHexes);
+	hexDrawDescs.Init(permMem, MaxHexes);
+	drawZ = drawZIn;
+}
+
+//--------------------------------------------------------------------------------------------------
+
+static void RebuildHexDrawDescs() {
+	hexDrawDescs.len = 0;
+	for (U64 i = 0; i < hexes.len; i++) {
+		hexDrawDescs[i] = {
+			.sprite = hexes[i].terrain->sprite,
+			.pos    = hexes[i].pos,
+			.z      = drawZ,
+		};
+	}
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -119,6 +135,8 @@ Res<> Load(Str path) {
 			.chance  = accumulatedChance,
 		});
 	}
+
+	RebuildHexDrawDescs();
 
 	return Ok();
 }
@@ -152,7 +170,7 @@ void GenerateRandomMap(U32 cols, U32 rows) {
 	JC::Map<U64, Hex*> colRowMap(tempMem, cols * rows);
 	auto Key = [](U32 c, U32 r) { return (U64)c | ((U64)r << 32); };
 
-	hexes.Clear();
+	hexes.len = 0;
 
 	for (U32 c = 0; c < cols; c++) {
 		for (U32 r = 0; r < rows; r++) {
@@ -190,27 +208,19 @@ void GenerateRandomMap(U32 cols, U32 rows) {
 
 //--------------------------------------------------------------------------------------------------
 
-void Draw(F32 z) {
-	for (U32 i = 0; i < hexes.len; i++) {
-		Hex const* hex = &hexes[i];
-		Draw::DrawSprite({
-			.sprite = hex->terrain->sprite,
-			.pos    = hex->pos,
-			.z      = z,
-		});
-
-		/*
-		Draw::DrawStr({
-			.font   = font,
-			.str    = SPrintf(tempMem, "%u,%u[%u]", hex->c, hex->r, hex->idx),
-			.pos    = Vec2(hex->pos.x, hex->pos.y + HexSize / 2 - 2.f),
-			.z      = Z_Ui + 10,
-			.origin = Draw::Origin::BottomCenter,
-			.scale = Vec2(1.f / cameraScale, 1.f / cameraScale),
-			.color  = Vec4(1.f, 1.f, 1.f, 1.f),
-		});
-		*/
-	}
+void Draw() {
+	Draw::DrawSprites(hexDrawDescs);
+	/*
+	Draw::DrawStr({
+		.font   = font,
+		.str    = SPrintf(tempMem, "%u,%u[%u]", hex->c, hex->r, hex->idx),
+		.pos    = Vec2(hex->pos.x, hex->pos.y + HexSize / 2 - 2.f),
+		.z      = Z_Ui + 10,
+		.origin = Draw::Origin::BottomCenter,
+		.scale = Vec2(1.f / cameraScale, 1.f / cameraScale),
+		.color  = Vec4(1.f, 1.f, 1.f, 1.f),
+	});
+	*/
 }
 
 //--------------------------------------------------------------------------------------------------

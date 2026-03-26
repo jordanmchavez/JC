@@ -1,10 +1,10 @@
 #include "JC/App.h"
 #include "JC/Battle.h"
-#include "JC/Battle_Map.h"
 #include "JC/Cfg.h"
 #include "JC/Draw.h"
 #include "JC/File.h"
 #include "JC/Gpu.h"
+#include "JC/Hash.h"
 #include "JC/Window.h"
 
 namespace JC::Game {
@@ -27,36 +27,60 @@ Res<> PreInit(Mem permMemIn, Mem tempMemIn) {
 
 //--------------------------------------------------------------------------------------------------
 
+static Str ToLower(Mem mem, Str str) {
+	char* lower = Mem::AllocT<char>(mem, str.len);
+	for (U32 i = 0; i < str.len; i++) {
+		char c = str[i];
+		if (c >= 'A' && c <= 'Z') {
+			lower[i] = c - 'A';
+		} else {
+			lower[i] = c;
+		}
+	}
+	return Str(lower, str.len);
+}
+
+using LoadFn = Res<> (Str path);
+
+struct Loader {
+	Str     ext;
+	LoadFn* loadFn;
+};
+
+static constexpr Loader loaders[] = {
+	{ "sprites.def", Draw::LoadSprites },
+	{ "font.def", Draw::LoadFont },
+	{ "map.def", Battle::LoadMap },
+};
+
+static Res<> Load() {
+	Span<Str> paths; TryTo(File::EnumFiles("Assets", "def"), paths);
+	Span<U64> extHashes = Mem::AllocSpan<U64>(tempMem, paths.len);
+	for (U64 i = 0; i < paths.len; i++) {
+		extHashes[i] = Hash(ToLower(tempMem, File::GetMaxExt(paths[i])));
+	}
+
+	for (U64 i = 0; i < LenOf(loaders); i++) {
+		U64 extHash = Hash(loaders[i].ext);
+		for (U64 i = 0; i < extHashes.len; i++) {
+			if (extHashes[i] == extHash) {
+				Try(loaders[i].loadFn(paths[i]));
+			}
+		}
+	}
+};
+
+//--------------------------------------------------------------------------------------------------
+
 Res<> Init(Window::State const* windowState) {
 	Battle::Init(permMem, tempMem, windowState);
-	Battle::Map::Init(permMem, tempMem);
 	//Effect::Init(permMem);
 
-	Span<Str> paths; TryTo(File::EnumFiles("Assets", ".def"), paths);
-	for (U64 i = 0; i < paths.len;) {
-		if (File::HasExt(paths[i], ".sprites.def")) {
-			Try(Draw::LoadSprites(paths[i]));
-			paths.data[i] = paths.data[--paths.len];
-		} else if (File::HasExt(paths[i], ".font.def")) {
-			Try(Draw::LoadFont(paths[i]));
-			paths.data[i] = paths.data[--paths.len];
-		} else {
-			i++;
-		}
-	}
-
-	for (U64 i = 0; i < paths.len;) {
-		if (File::HasExt(paths[i], ".map.def")) {
-			Try(Battle::Map::Load(paths[i]));
-			paths.data[i] = paths.data[--paths.len];
-		} else {
-			i++;
-		}
-	}
-
+	Try(Load());
 	Try(Gpu::ImmediateWait());
 
-	Battle::Map::GenerateRandomMap(16, 16);
+	Battle::GenerateRandomMap(16, 16);
+	Battle::GenerateRandomArmies();
 
 	return Ok();
 }

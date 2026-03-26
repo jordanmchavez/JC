@@ -8,10 +8,8 @@
 layout (location = 0)      out vec2  uvOut;
 layout (location = 1) flat out vec4  colorOut;
 layout (location = 2) flat out uint  textureIdxOut;
-layout (location = 3) flat out vec4  outlineColorOut;
-layout (location = 4) flat out float outlineWidthOut;
-layout (location = 5) flat out vec2  uv1Out;
-layout (location = 6) flat out vec2  uv2Out;
+layout (location = 3) flat out vec2  uv1Out;
+layout (location = 4) flat out vec2  uv2Out;
 
 vec2 offsets[6] = vec2[6](
 	vec2(0.0, 0.0),
@@ -33,8 +31,6 @@ void main() {
 	);
 	colorOut         = drawCmd.color;
 	textureIdxOut    = drawCmd.textureIdx;
-	outlineColorOut  = drawCmd.outlineColor;
-	outlineWidthOut  = drawCmd.outlineWidth;
 	uv1Out           = drawCmd.uv1;
 	uv2Out           = drawCmd.uv2;
 }
