@@ -1,16 +1,11 @@
-#pragma once
+#include "JC/Shard_Common.h"
 
-#include "JC/Common.h"
-
-namespace JC::Draw { DefHandle(Sprite); }
-
-namespace JC::Unit {
+namespace JC::Shard {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Init(Mem permMem, Mem tempMem);
-Res<> Load(Str path);
+
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Unit
+}	// namespace JC::Shard

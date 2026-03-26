@@ -9,9 +9,9 @@ namespace JC::Cmd {
 
 //--------------------------------------------------------------------------------------------------
 
-Err_Def(Cmd, UnmatchedQuote);
-Err_Def(Cmd, MaxArgs);
-Err_Def(Cmd, UnknownCmd);
+DefErr(Cmd, UnmatchedQuote);
+DefErr(Cmd, MaxArgs);
+DefErr(Cmd, UnknownCmd);
 
 static constexpr U32 MaxCmds = 1024;
 static constexpr U32 MaxArgs = 64;
@@ -158,11 +158,11 @@ Res<> Exec(Str buf) {
 		parseCtx.argsLen = 0;
 		TryTo(ParseLine(parseCtx), parseCtx);
 		if (parseCtx.argsLen > 0) {
-			CmdObj** cmdObjPtr = cmdObjMap.FindOrNull(parseCtx.args[0]);
-			if (!cmdObjPtr) {
+			CmdObj* cmdObj = cmdObjMap.FindOrZero(parseCtx.args[0]);
+			if (!cmdObj) {
 				return Err_UnknownCmd("cmd", parseCtx.args[0]);
 			}
-			Try((*cmdObjPtr)->cmdFn(Span<Str>(parseCtx.args, (U64)parseCtx.argsLen)));
+			Try(cmdObj->cmdFn(Span<Str>(parseCtx.args, (U64)parseCtx.argsLen)));
 		}
 	} while (!parseCtx.Eof());
 

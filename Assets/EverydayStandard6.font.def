@@ -1,5 +1,6 @@
 {
-	imagePath: "Assets/Font_EverydayStandard6.png",
+	name: "EverydayStandard6",
+	imagePath: "Assets/EverydayStandard6.font.png",
 	lineHeight: 8,
 	base: 6,
 	glyphs: [

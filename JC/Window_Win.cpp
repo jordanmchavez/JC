@@ -359,12 +359,12 @@ static BOOL MonitorEnumFn(HMONITOR hmonitor, HDC, LPRECT rect, LPARAM) {
 
 //----------------------------------------------------------------------------------------------
 
-Res<> Init(const InitDef* initDef) {
+Res<> Init(const InitDesc* initDesc) {
 
-	tempMem = initDef->tempMem;
+	tempMem = initDesc->tempMem;
 
-	displays = Mem::AllocT<Display>(initDef->permMem, MaxDisplays);
-	keyEvents = Mem::AllocT<KeyEvent>(initDef->permMem, MaxKeyEvents);
+	displays = Mem::AllocT<Display>(initDesc->permMem, MaxDisplays);
+	keyEvents = Mem::AllocT<KeyEvent>(initDesc->permMem, MaxKeyEvents);
 
 	if (EnumDisplayMonitors(0, 0, MonitorEnumFn, 0) == FALSE) {
 		return Win_LastErr("EnumDisplayMonitors");
@@ -393,9 +393,9 @@ Res<> Init(const InitDef* initDef) {
 		return Win_LastErr("RegisterClassExW");
 	}
 
-	Span<wchar_t> titlew = Unicode::Utf8ToWtf16z(tempMem, initDef->title);
+	Span<wchar_t> titlew = Unicode::Utf8ToWtf16z(tempMem, initDesc->title);
 
-	window.style = initDef->style;
+	window.style = initDesc->style;
 	window.winStyle = 0;
 	switch (window.style) {
 		case Style::Bordered:
@@ -412,16 +412,16 @@ Res<> Init(const InitDef* initDef) {
 			break;
 	}
 
-	Display const* const display = &displays[(initDef->displayIdx >= displaysLen) ? 0 : initDef->displayIdx];
+	Display const* const display = &displays[(initDesc->displayIdx >= displaysLen) ? 0 : initDesc->displayIdx];
 	RECT r = {};
-	if (initDef->style == Style::Fullscreen) {
+	if (initDesc->style == Style::Fullscreen) {
 		r.left =   display->x;
 		r.top    = display->y;
 		r.right  = display->x + display->width;
 		r.bottom = display->y + display->height;
 	} else {
-		U32 const w = Min(initDef->width,  display->width);
-		U32 const h = Min(initDef->height, display->height);
+		U32 const w = Min(initDesc->width,  display->width);
+		U32 const h = Min(initDesc->height, display->height);
 		I32 const x = display->x + (I32)(display->width  - w) / 2;
 		I32 const y = display->y + (I32)(display->height - h) / 2;
 		r.left =   x;
@@ -513,8 +513,8 @@ Span<Display const> GetDisplays() {
 
 //----------------------------------------------------------------------------------------------
 
-PlatformDef GetPlatformDef() {
-	return PlatformDef {
+PlatformDesc GetPlatformDesc() {
+	return PlatformDesc {
 		.hinstance = GetModuleHandleW(0),
 		.hwnd      = window.hwnd,
 	};

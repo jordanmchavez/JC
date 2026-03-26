@@ -1,0 +1,43 @@
+{
+	terrain: [
+		{
+			name: "Grassland",
+			sprite: "Hex32_Grassland",
+			chance: 5,
+			movementCost: 1,
+		},
+		{
+			name: "Forest",
+			sprite: "Hex32_Forest",
+			chance: 3,
+			movementCost: 2,
+		},
+		{
+			name: "Swamp",
+			sprite: "Hex32_Swamp",
+			chance: 1,
+			movementCost: 3,
+			staminaCost: 1,
+		},
+		{
+			name: "Hill",
+			sprite: "Hex32_Hill",
+			chance: 2,
+			movementCost: 2,
+		},
+		{
+			name: "Mountain",
+			sprite: "Hex32_Mountain",
+			chance: 1,
+			movementCost: 0,
+			staminaCost: 1,
+		},
+		{
+			name: "Water",
+			sprite: "Hex32_Water",
+			chance: 1,
+			movementCost: 0,
+		},
+	],
+	font: "EverydayStandard6",
+}

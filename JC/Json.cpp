@@ -4,6 +4,7 @@
 #include "JC/Json.h"
 
 #include "JC/Array.h"
+#include "JC/File.h"
 #include "JC/StrDb.h"
 #include "JC/UnitTest.h"
 #include <math.h>	// TODO: add Pow() to math.h so we can remove this (only thing we use)
@@ -12,19 +13,19 @@ namespace JC::Json {
 
 //--------------------------------------------------------------------------------------------------
 
-Err_Def(Json, BadComment);
-Err_Def(Json, MissingClosingQuote);
-Err_Def(Json, Unexpected);
-Err_Def(Json, MissingMember);
-Err_Def(Json, WrongMember);
-Err_Def(Json, UnknownMember);
-Err_Def(Json, BadEscChar);
-Err_Def(Json, BadName);
-Err_Def(Json, BadBool);
-Err_Def(Json, BadInt);
-Err_Def(Json, BadFloat);
-Err_Def(Json, BadSci);
-Err_Def(Json, Eof);
+DefErr(Json, BadComment);
+DefErr(Json, MissingClosingQuote);
+DefErr(Json, Unexpected);
+DefErr(Json, MissingMember);
+DefErr(Json, WrongMember);
+DefErr(Json, UnknownMember);
+DefErr(Json, BadEscChar);
+DefErr(Json, BadName);
+DefErr(Json, BadBool);
+DefErr(Json, BadInt);
+DefErr(Json, BadFloat);
+DefErr(Json, BadSci);
+DefErr(Json, Eof);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -315,7 +316,7 @@ static Res<F32> ParseF32(Ctx* ctx) { F64 val; TryTo(ParseF64(ctx), val); return 
 static Res<Str> UnescapeAndIntern(Ctx* ctx, Str str) {
 	if (str.len == 0) { return Str(); }
 
-	MemScope memScope(ctx->mem);
+	MemScope(ctx->mem);
 	char*       unescaped     = Mem::AllocT<char>(ctx->mem, str.len);
 	char*       unescapedIter = unescaped;
 	char const* iter          = str.data;
@@ -465,7 +466,7 @@ static Res<> ParseObject(Ctx* ctx, Traits const* traits, U8* out) {
 	Member const* end    = members.data + members.len;
 	while (member < end) {
 		if (Maybe(ctx, '}')) {
-			break;
+			return Ok();
 		}
 
 		Str name; TryTo(ParseName(ctx), name);
@@ -498,6 +499,14 @@ static Res<> ParseObject(Ctx* ctx, Traits const* traits, U8* out) {
 Res<> JsonToObjectImpl(Mem mem, Str json, Traits const* traits, U8* out) {
 	Ctx ctx; TryTo(CreateCtx(mem, json), ctx);
 	return ParseObject(&ctx, traits, out);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+Res<> LoadImpl(Mem mem, Str path, Traits const* traits, U8* out) {
+	ErrScope("path", path);
+	Str json; TryTo(File::ReadAllStr(mem, path), json);
+	return JsonToObjectImpl(mem, json, traits, out);
 }
 
 //--------------------------------------------------------------------------------------------------

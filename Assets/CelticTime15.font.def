@@ -1,5 +1,6 @@
 {
-	imagePath: "Assets/Font_CelticTime15.png",
+	name: "CelticTime15",
+	imagePath: "Assets/CelticTime15.font.png",
 	lineHeight: 10,
 	base: 7,
 	glyphs: [

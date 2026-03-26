@@ -1,5 +1,6 @@
 {
-	imagePath: "Assets/Font_OldeTome21.png",
+	name: "OldeTime21",
+	imagePath: "Assets/OldeTome21.font.png",
 	lineHeight: 21,
 	base: 15,
 	glyphs: [

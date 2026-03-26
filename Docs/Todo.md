@@ -330,3 +330,4 @@ make all perm arrays use the perm allocator
 - Clear keys on refocus window
 - Err/Res conversion should push the current fiel/line on the err stack
 - All static sizes should be data driven
+- Error push scope/context in json..path at least

@@ -3,14 +3,11 @@
 #include "JC/Draw.h"
 #include "JC/Effect.h"
 #include "JC/Log.h"
-#include "JC/UnitDef.h"
 #include "JC/Window.h"
 
 namespace JC::Battle {
 
 //--------------------------------------------------------------------------------------------------
-
-static constexpr F32 CameraSpeedPixelsPerSec = 1000.f;
 
 static constexpr F32 Z_Background   = 0.00f;
 static constexpr F32 Z_Hex          = 1.01f;
@@ -53,19 +50,7 @@ static Draw::Font   numberFont;
 static Draw::Font   uiFont;
 static F32          uiFontLineHeight;
 static Draw::Font   fancyFont;
-static Vec2         cameraPos;
-static F32          cameraScale;
 static DrawTypeData drawTypeData[DrawType_Max];
-
-//--------------------------------------------------------------------------------------------------
-
-void InitDraw(Mem tempMemIn, Shared* sharedIn, Window::State const* windowState) {
-	tempMem     = tempMemIn;
-	shared      = sharedIn;
-	windowSize  = Vec2((F32)windowState->width, (F32)windowState->height);
-	cameraPos   = { 0.f, 0.f };
-	cameraScale = 3.f;
-}
 
 //--------------------------------------------------------------------------------------------------
 
@@ -131,23 +116,6 @@ Hex* ScreenPosToHex(I32 x, I32 y) {
 
 //--------------------------------------------------------------------------------------------------
 
-void MoveCamera(F32 sec, F32 dx, F32 dy) {
-	cameraPos.x += dx * CameraSpeedPixelsPerSec * sec / cameraScale;
-	cameraPos.y += dy * CameraSpeedPixelsPerSec * sec / cameraScale;
-}
-
-//--------------------------------------------------------------------------------------------------
-
-void ZoomCamera(F32 d) {
-	F32 const oldScale = cameraScale;
-	if (cameraScale + d >= 1.f) {
-		cameraScale += d;
-	}
-	F32 const windowCenterX = windowSize.x * 0.5f;
-	F32 const windowCenterY = windowSize.y * 0.5f;
-	cameraPos.x -= windowCenterX / cameraScale - windowCenterX / oldScale;
-	cameraPos.y -= windowCenterY / cameraScale - windowCenterY / oldScale;
-}
 
 //--------------------------------------------------------------------------------------------------
 
@@ -167,25 +135,6 @@ static void DrawObjs(DrawObj const* drawObjs, U16 len) {
 
 void Draw(DrawDef const* drawDef) {
 	Draw::SetCamera({ .pos = cameraPos, .scale = cameraScale });
-
-	for (U32 i = 0; i < shared->hexesLen; i++) {
-		Hex const* const hex = &shared->hexes[i];
-		Draw::DrawSprite({
-			.sprite = hex->terrain->sprite,
-			.pos    = hex->pos,
-			.z      = Z_Hex,
-		});
-
-		Draw::DrawStr({
-			.font   = numberFont,
-			.str    = SPrintf(tempMem, "%u,%u[%u]", hex->c, hex->r, hex->idx),
-			.pos    = Vec2(hex->pos.x, hex->pos.y + HexSize / 2 - 2.f),
-			.z      = Z_Ui + 10,
-			.origin = Draw::Origin::BottomCenter,
-			.scale = Vec2(1.f / cameraScale, 1.f / cameraScale),
-			.color  = Vec4(1.f, 1.f, 1.f, 1.f),
-		});
-	}
 
 	for (Side side = Side_Left; side <= Side_Right; side++) {
 		Army const* const army = &shared->armies[side];

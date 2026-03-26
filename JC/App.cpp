@@ -76,7 +76,7 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 
 	Try(app->PreInit(permMem, tempMem));
 
-	Window::InitDef const windowInitDef = {
+	Window::InitDesc const windowInitDesc = {
 		.permMem    = permMem,
 		.tempMem    = tempMem,
 		.title      = Cfg::GetStr(Cfg_Title, "Untitled"),
@@ -85,29 +85,29 @@ Res<> RunImpl(App* app, int argc, char const* const* argv) {
 		.height     = Cfg::GetU32(Cfg_WindowHeight, 768),
 		.displayIdx = Cfg::GetU32(Cfg_WindowDisplayIdx, 1),
 	};
-	Try(Window::Init(&windowInitDef));
+	Try(Window::Init(&windowInitDesc));
 
 	Window::Update();
 	Window::State windowState = Window::GetState();
 
-	Window::PlatformDef const windowPlatformDef = Window::GetPlatformDef();
-	const Gpu::InitDef gpuInitDef = {
-		.permMem           = permMem,
-		.tempMem           = tempMem,
-		.windowWidth       = windowState.width,
-		.windowHeight      = windowState.height,
-		.windowPlatformDef = &windowPlatformDef,
+	Window::PlatformDesc const windowPlatformDesc = Window::GetPlatformDesc();
+	const Gpu::InitDesc gpuInitDesc = {
+		.permMem            = permMem,
+		.tempMem            = tempMem,
+		.windowWidth        = windowState.width,
+		.windowHeight       = windowState.height,
+		.windowPlatformDesc = &windowPlatformDesc,
 	};
-	Try(Gpu::Init(&gpuInitDef));
-	/*
-	Draw::InitDef const drawInitDef = {
+	Try(Gpu::Init(&gpuInitDesc));
+
+	Draw::InitDesc const drawInitDesc = {
 		.permMem      = permMem,
 		.tempMem      = tempMem,
 		.windowWidth  = windowState.width,
 		.windowHeight = windowState.height,
 	};
-	Try(Draw::Init(&drawInitDef));
-	*/
+	Try(Draw::Init(&drawInitDesc));
+
 	Try(app->Init(&windowState));
 
 	U64 frame = 0;

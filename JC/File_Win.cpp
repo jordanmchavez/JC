@@ -204,6 +204,30 @@ bool PathsEq(Str path1, Str path2) {
 
 //--------------------------------------------------------------------------------------------------
 
+// returns true if `path` has extension `ext`. Extension may include multiple dots, like ".sprites.def"
+// `ext` may either have a preceding dot '.' or not. It should function the same in both cases:
+// HasExt(path, ".exe") equivalent to HasExt(path, "exe")
+bool HasExt(Str path, Str ext) {
+	if (ext.len > 0 && ext[0] == '.') {
+		ext = Str(ext.data + 1, ext.len - 1);
+	}
+	if (ext.len == 0 || path.len <= ext.len) {
+		return false;
+	}
+	if (path.data[path.len - ext.len - 1] != '.') {
+		return false;
+	}
+	char const* suffix = path.data + path.len - ext.len;
+	for (U32 i = 0; i < ext.len; i++) {
+		if (suffix[i] != ext.data[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+//--------------------------------------------------------------------------------------------------
+
 Unit_Test("File") {
 	Unit_SubTest("RemoveExt") {
 		Unit_CheckEq(RemoveExt(""), "");
@@ -231,7 +255,37 @@ Unit_Test("File") {
 		Unit_CheckEq(PathsEq("C:/foo/bar.txt",       "c:\fOo/BaR.TXT"),       true);
 		Unit_CheckEq(PathsEq("C:/foo/baz/../bar.txt","C:/foo/bar.txt"),       true);
 		Unit_CheckEq(PathsEq("C:/foo/bar.txt",       "foo/bar.txt"),          false);  // abs vs rel
-		Unit_CheckEq(PathsEq("C:",                   "c:/"),                  true); 
+		Unit_CheckEq(PathsEq("C:",                   "c:/"),                  true);
+	}
+
+	Unit_SubTest("HasExt") {
+		// Basic matching, with and without leading dot
+		Unit_CheckEq(HasExt("foo.exe",            "exe"),          true);
+		Unit_CheckEq(HasExt("foo.exe",            ".exe"),         true);
+		Unit_CheckEq(HasExt("foo.exe",            "png"),          false);
+		Unit_CheckEq(HasExt("foo",                "exe"),          false);
+		Unit_CheckEq(HasExt("",                   "exe"),          false);
+
+		// Multi-dot extensions
+		Unit_CheckEq(HasExt("foo.sprites.def",    ".sprites.def"), true);
+		Unit_CheckEq(HasExt("foo.sprites.def",    "sprites.def"),  true);
+		Unit_CheckEq(HasExt("foo.sprites.def",    ".def"),         true);
+		Unit_CheckEq(HasExt("foo.def",            ".sprites.def"), false);
+
+		// Path with directory components
+		Unit_CheckEq(HasExt("a.foo/b.bar/c.exe",  "exe"),          true);
+		Unit_CheckEq(HasExt("a.exe/b",            "exe"),          false);
+
+		// Hidden files (dot-prefixed names)
+		Unit_CheckEq(HasExt(".hidden",            "hidden"),       true);
+		Unit_CheckEq(HasExt("path/.hidden",       "hidden"),       true);
+
+		// Case sensitive
+		Unit_CheckEq(HasExt("foo.EXE",            "exe"),          false);
+		Unit_CheckEq(HasExt("foo.EXE",            "EXE"),          true);
+
+		// Just the extension
+		Unit_CheckEq(HasExt(".exe",               "exe"),          true);
 	}
 }
 

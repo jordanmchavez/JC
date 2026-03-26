@@ -258,14 +258,16 @@ struct Mem {
 	template <class T> static T*      ReallocT(Mem mem, T* oldPtr, U64 oldN, U64 newN, SrcLoc sl = SrcLoc::Here()) { return (T*)Mem::Realloc(mem, oldPtr, oldN * sizeof(T), newN * sizeof(T), sl); }
 };
 
-struct MemScope {
+struct MemScopeObj {
 	Mem mem;
 	MemMark mark;
-	MemScope(Mem memIn) { mem = memIn; mark = Mem::Mark(mem); }
-	~MemScope() { Mem::Reset(mem, mark); }
-	MemScope(MemScope const&) = delete;
-	MemScope& operator=(MemScope const&) = delete;
+	MemScopeObj(Mem memIn) { mem = memIn; mark = Mem::Mark(mem); }
+	~MemScopeObj() { Mem::Reset(mem, mark); }
+	MemScopeObj(MemScopeObj const&) = delete;
+	MemScopeObj& operator=(MemScopeObj const&) = delete;
 };
+
+#define MemScope(mem) MemScopeObj MacroUniqueName(memScope)(mem)
 
 //--------------------------------------------------------------------------------------------------
 
@@ -306,8 +308,6 @@ struct [[nodiscard]] Err {
 
 	static void SetBreakOnErr(bool breakOnErr);
 	static void Update(U64 frame);
-	static void PushNamedArgs(Span<NamedArg const> namedArgs);
-	static void PopNamedArgs(U32 n);
 };
 
 
@@ -328,25 +328,25 @@ struct ErrCode {
 bool operator==(ErrCode ec, Err const* err);
 bool operator==(Err const* err, ErrCode ec);
 
-#define Err_Def(NsIn, CodeIn) constexpr ErrCode Err_##CodeIn = { .ns = #NsIn, .code = #CodeIn }
+#define DefErr(NsIn, CodeIn) constexpr ErrCode Err_##CodeIn = { .ns = #NsIn, .code = #CodeIn }
 
-struct ErrScope {
+struct ErrScopeObj {
 	U32 namedArgsLen;
 
-	template <class... A> ErrScope(A... args) {
+	template <class... A> ErrScopeObj(A... args) {
 		constexpr U32 NamedArgsLen = sizeof...(A) / 2;
 		static_assert(NamedArgsLen < Err::MaxNamedArgs);
-		namedArgsLen = namedArgsLen;
+		namedArgsLen = NamedArgsLen;
 		static_assert((sizeof...(A) & 1) == 0);
 		NamedArg namedArgs[NamedArgsLen + 1];	// + 1 to allow zero args
-		FillNamedArgs(namedArgs, args...);
-		Init(namedArgs, NamedArgsLen);
+		Err::FillNamedArgs(namedArgs, args...);
+		Init(namedArgs);
 	}
 	void Init(NamedArg const* namedArgs);
-	~ErrScope() { Err::PopNamedArgs(namedArgsLen); }
+	~ErrScopeObj();
 };
 
-#define Err_Scope(...) ErrScope MacroUniqueName(errScope)(##__VA_ARGS__)
+#define ErrScope(...) ErrScopeObj MacroUniqueName(errScope)(__VA_ARGS__)
 
 //--------------------------------------------------------------------------------------------------
 

@@ -8,8 +8,8 @@ namespace JC::Unit {
 
 //--------------------------------------------------------------------------------------------------
 
-Err_Def(Unit, Max);
-Err_Def(Unit, ResourceTypeNotFound);
+DefErr(Unit, Max);
+DefErr(Unit, ResourceTypeNotFound);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -118,56 +118,150 @@ Json_End(Def)
 
 //--------------------------------------------------------------------------------------------------
 
-static constexpr U32 MaxUnitResources  = 32;
-static constexpr U32 MaxUnitDefenses   = 32;
-static constexpr U32 MaxUnitAttacks    = 32;
+static constexpr U32 MaxAttackResourceCosts = 32;
+static constexpr U32 MaxUnitStats           = 32;
+static constexpr U32 MaxUnitAttacks         = 32;
 
-struct ResourceType {
-	Str          name;
-	Draw::Sprite sprite;
-	bool         replenishesEachTurn;
+namespace StatFlags {
+	constexpr U64 Resource            = (U64)1 << 0;
+	constexpr U64 ReplenishesEachTurn = (U64)1 << 1;
 };
 
-struct DefenseType {
+// brace: 1 turn: +2 physical def and +2 counterattack damage
+// level up: add points / wounding / debuff to attack
+// Attack can be modified
+// spells and suchcan't
+
+struct Buff {
+	U32 duration;
+	Span<Modifier> modifiers;
+};
+
+struct StatType {
 	Str          name;
 	Draw::Sprite sprite;
+	U64          flags;
+};
+
+enum struct SpellType {
+	Invalid = 0,
+	RangedProjectile,
+	Buff,
+};
+
+struct Spell {
+	SpellType type;
+	U32 range;
+};
+
+enum struct AbilityType {
+	Invalid = 0,
+	Modifier,
+	Aura,
+	Spell,
+};
+
+// hp 1-25% -> -20% damage
+
+enum struct ConditionType {
+	Invalid = 0,
+	StatPercentRange,
+};
+
+struct Condition {
+	ConditionType type;
+	StatType const* statType;
+	U32 min;
+	U32 max;
+};
+
+enum struct ModifierTarget {
+	Invalid = 0,
+	AttackDamagePercent,
+};
+
+enum struct ModifierSourceType {
+	Invalid = 0,
+	Ability,
+	Buff,
+	Item,
+};
+
+struct Modifier {
+	Span<Condition> conditions;
+	ModifierTarget target;
+	I32 amount;
+	Modifier* next;
+	ModifierSourceType sourceType;
+	union {
+	} source;
+};
+
+struct Ability {
+	Str             name;
+	Draw::Sprite    sprite;
+	AbilityType     type;
+	Span<Modifier>  modifiers;
+};
+
+StatType healthStatType;
+
+Ability foo = {
+	.name = "WeakensAtLowHealth",
+	.type = AbilityType::Modifier,
+	.modifiers = {{
+		.conditions = {{
+			.type = ConditionType::StatPercentRange,
+			.statType = &healthStatType,
+			.min = 1,
+			.max = 25,
+		}},
+		.target = ModifierTarget::AttackDamagePercent,
+		.amount = -20,
+	}},
+};
+
+struct Stat {
+	StatType const* statType;
+	U32             max;
+	U32             cur;
+	Modifier*       modifiers;
+	Condition*      conditions;
 };
 
 struct DamageType {
-	Str                name;
-	Draw::Sprite       sprite;
-	DefenseType const* defenseType;
+	Str          name;
+	Draw::Sprite sprite;
+	StatType*    defensStatType;
 };
 
-struct Resource {
+struct ResourceCost {
 	ResourceType const* resourceType;
-	U32                 amount;
-	U32                 max;
+	U32                 cost;
 };
 
-struct Defense {
-	DefenseType const* defenseType;
-	U32                amount;
-};
-
-struct UnitAttack {
-
+struct Attack {
+	Str                                         name;
+	Draw::Sprite                                sprite;
+	DamageType const*                           damageType;
+	U32                                         damage;
+	U32                                         counterDamage;
+	Array<ResourceCost, MaxAttackResourceCosts> resourceCosts;
 };
 
 struct Unit {
-	Str                                 name;
-	Draw::Sprite                        sprite;
-	Array<Resource,   MaxUnitResources> resources;
-	Array<Defense,    MaxUnitDefenses>  defenses;
-	Array<UnitAttack, MaxUnitAttacks>   attacks;
+	Str                               name;
+	Draw::Sprite                      sprite;
+	Array<Stat, MaxUnitStats> stats;
+	Array<Attack,   MaxUnitAttacks>   attacks;
 };
-
-//--------------------------------------------------------------------------------------------------
 
 static constexpr U32 Cfg_MaxResourceTypes = 32;
 static constexpr U32 Cfg_MaxDefenseTypes  = 32;
 static constexpr U32 Cfg_MaxDamageTypes   = 32;
 static constexpr U32 Cfg_MaxUnits         = 1024;
+
+//--------------------------------------------------------------------------------------------------
 
 static Mem                  tempMem;
 static MArray<ResourceType> resourceTypes;
@@ -203,7 +297,7 @@ static Res<ResourceType const*> FindResourceType(Str name) {
 //--------------------------------------------------------------------------------------------------
 
 Res<> Load(Str path) {
-	Err_Scope("path", path);
+	ErrScope("path", path);
 
 	Def def; Try(Json::Load(tempMem, path, &def));
 
@@ -238,10 +332,9 @@ Res<> Load(Str path) {
 		if (unitDef->resources.len >= MaxUnitResources) { return Err_Max("type", "unitResources", "max", MaxUnitResources); }
 		for (U64 j = 0; j < unitDef->resources.len; j++) {
 			Resource* resource = unit->resources.Add();
-				TryTo(FindResourceType(unitDef->resources[j].name), resource->resourceType);
-				.max= unitDef->resources[j].
-				.amount = unitDef->resources[j].
-			});
+			resource->max      = unitDef->resources[j].max;
+			resource->amount   = unitDef->resources[j].max;
+			TryTo(FindResourceType(unitDef->resources[j].name), resource->resourceType);
 		}
 	}
 

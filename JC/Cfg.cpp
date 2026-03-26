@@ -1,4 +1,6 @@
 #include "JC/Cfg.h"
+
+#include "JC/Array.h"
 #include "JC/Hash.h"
 #include "JC/Map.h"
 
@@ -14,78 +16,70 @@ struct Cfg {
 
 static constexpr U32 MaxCfgs = 1024;
 
-static Cfg           cfgs[MaxCfgs];
-static U32           cfgsLen = 0;
-static Map<Str, U32> cfgsIndex;
+static MArray<Cfg>    cfgs;
+static Map<Str, Cfg*> cfgsMap;
 
 //--------------------------------------------------------------------------------------------------
 
 void Init(Mem permMem, int argc, char const* const* argv) {
 	argc;argv;
-	cfgsIndex.Init(permMem, MaxCfgs);
+	cfgs.Init(permMem, MaxCfgs);
+	cfgsMap.Init(permMem, MaxCfgs);
 }
 
 //--------------------------------------------------------------------------------------------------
 
 Str GetStr(Str name, Str defVal) {
-	U32* idx = cfgsIndex.FindOrNull(name);
-	if (!idx) {
-		Assert(cfgsLen < MaxCfgs);
-		cfgsIndex.Put(name, cfgsLen);
-		cfgs[cfgsLen++] = {
-			.name = name,
-			.str  = defVal,
-		};
+	Cfg* cfg = cfgsMap.FindOrZero(name);
+	if (!cfg) {
+		cfg = cfgs.Add();
+		cfg->name = name;
+		cfg->str  = defVal;
+		cfgsMap.Put(name, cfg);
 		return defVal;
 	}
-	return cfgs[*idx].str;
+	return cfg->str;
 }
 
 //--------------------------------------------------------------------------------------------------
 
 U32 GetU32(Str name, U32 defVal) {
-	U32* idx = cfgsIndex.FindOrNull(name);
-	if (!idx) {
-		Assert(cfgsLen < MaxCfgs);
-		cfgsIndex.Put(name, cfgsLen);
-		cfgs[cfgsLen++] = {
-			.name = name,
-			.u32  = defVal,
-		};
+	Cfg* cfg = cfgsMap.FindOrZero(name);
+	if (!cfg) {
+		cfg = cfgs.Add();
+		cfg->name = name;
+		cfg->u32  = defVal;
+		cfgsMap.Put(name, cfg);
 		return defVal;
 	}
-	return cfgs[*idx].u32;
+	return cfg->u32;
 }
 
 //--------------------------------------------------------------------------------------------------
 
 void SetStr(Str name, Str val) {
-	U32* idx = cfgsIndex.FindOrNull(name);
-	if (!idx) {
-		Assert(cfgsLen < MaxCfgs);
-		cfgsIndex.Put(name, cfgsLen);
-		cfgs[cfgsLen++] = {
-			.name = name,
-			.str= val,
-		};
+	Cfg* cfg = cfgsMap.FindOrZero(name);
+	if (!cfg) {
+		cfg = cfgs.Add();
+		cfg->name = name;
+		cfg->str  = val;
+		cfgsMap.Put(name, cfg);
 	} else {
-		cfgs[*idx].str = val;
+		cfg->str = val;
 	}
 }
 
 //--------------------------------------------------------------------------------------------------
 
 void SetU32(Str name, U32 val) {
-	U32* idx = cfgsIndex.FindOrNull(name);
-	if (!idx) {
-		Assert(cfgsLen < MaxCfgs);
-		cfgsIndex.Put(name, cfgsLen);
-		cfgs[cfgsLen++] = {
-			.name = name,
-			.u32  = val,
-		};
+	Cfg* cfg = cfgsMap.FindOrZero(name);
+	if (!cfg) {
+		cfg = cfgs.Add();
+		cfg->name = name;
+		cfg->u32  = val;
+		cfgsMap.Put(name, cfg);
 	} else {
-		cfgs[*idx].u32 = val;
+		cfg->u32 = val;
 	}
 }
 

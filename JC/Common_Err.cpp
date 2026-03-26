@@ -70,7 +70,7 @@ Err const* Err::Makev(Err const* prev, SrcLoc sl, Str ns, Str sCode, U64 uCode, 
 	err->ns           = ns;
 	err->sCode        = sCode;
 	err->uCode        = uCode;
-	err->namedArgsLen = (U32)pushedNamedArgs.len + namedArgsLen;
+	err->namedArgsLen = 0;
 	for (U32 i = 0; i < pushedNamedArgs.len; i++) {
 		err->namedArgs[err->namedArgsLen++] = {
 			.name = pushedNamedArgs[i].name,
@@ -103,6 +103,7 @@ void Err::SetBreakOnErr(bool breakOnErr) {
 //--------------------------------------------------------------------------------------------------
 
 void Err::Update(U64 frameIn) {
+	Assert(pushedNamedArgs.len == 0);
 	errFrame = frameIn;
 	memset(errs, 0, errsLen * sizeof(Err));
 	errsLen = 0;
@@ -115,9 +116,16 @@ bool operator==(Err const* err, ErrCode ec) { return err->ns == ec.ns && err->sC
 
 //--------------------------------------------------------------------------------------------------
 
-void ErrScope::Init(NamedArg const* namedArgs) {
+void ErrScopeObj::Init(NamedArg const* namedArgs) {
 	Assert(pushedNamedArgs.len + namedArgsLen <= Err::MaxNamedArgs);
 	pushedNamedArgs.Add(namedArgs, namedArgsLen);
+}
+
+//--------------------------------------------------------------------------------------------------
+
+ErrScopeObj::~ErrScopeObj() {
+	Assert(pushedNamedArgs.len >= namedArgsLen);
+	pushedNamedArgs.len -= namedArgsLen;
 }
 
 //--------------------------------------------------------------------------------------------------

@@ -594,7 +594,7 @@ const char* StrBuf::ToStrZ(SrcLoc sl) const {
 Unit_Test("Fmt") {
 	#define CheckPrintf(expect, fmt, ...) \
 		{ \
-			MemScope scope(testMem); \
+			MemScope(testMem); \
 			StrBuf sb(testMem); \
 			sb.Printf(fmt, ##__VA_ARGS__); \
 			Unit_CheckEq(expect, Str(sb.data, sb.len)); \

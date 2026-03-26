@@ -17,3 +17,87 @@ At start of campaign player creates/customizes their god with a point-buy system
 
 # Battle
 See Battle.md
+
+
+
+ 15' = red
+ 75' = yellow
+135' = green
+195' = cyan
+255' = blue
+315' = purple
+
+FFH2
+
+Air 	(none)
+Earth 	Increases chance of discovering resources from Mines
+Fire 	(none)
+Water 	(none) 
+
+Body 	Friendly units heal +5% per turn within your Cultural Borders
+Mind 	+3% BeakerIcon
+
+
+Sun 	(none)
+Shadow 	(none)
+
+Law 	-5% maintenance costs
+Chaos 	2% mutation chance
+
+Life 	+1 Health
+Death 	-1 relations with most civilizations (does not stack)
+
+Enchantment 	+1 Happy
+
+Entropy 	-2 relations with most civilizations (does not stack), enemy units heal -5% per turn within your Cultural Borders
+Metamagic 	(none)
+Nature 	(none)
+Spirit 	+5% Greatperson
+
+Ice 	(none)
+
+Elements
+	earth
+	air
+	fire
+	water
+	light
+	dark
+	entropy
+	gravity
+	time
+	aether
+	life
+	death
+
+Red    vs Cyan   | fire vs water, passion vs cold/reason/calculating, example vs pattern?
+Yellow vs Blue   | 
+Green  vs Purple | natural vs synthetic, evolved vs designed
+
+White  vs Black  | 
+
+
+entropy/chaos vs law/order
+earth vs sky/air
+
+friends:
+	fire, heat
+	mind, reason
+	body, emotion
+	mind, design
+	body, evolve
+	body, life
+	mind
+
+
+[red] heat/fire/light/movement/chaos/optimism/freedom
+vs
+[blue] cold/ice/dark/stillness/order/pessimism/control
+
+[white] life/group/sacrifice/giving
+vs
+[black] death/self/greed/taking
+
+[green] body/emotion/natural/evolved/organic/reality/form
+vs
+[purple] mind/reason/artificial/designed/synthetic/illusion/void

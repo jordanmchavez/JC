@@ -9,9 +9,8 @@ namespace JC::Battle {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Init(Mem permMem, Mem tempMem, Window::State const* windowState);
+void  Init(Mem permMem, Mem tempMem, Window::State const* windowState);
 Res<> Load(Str path);
-Res<> GenerateMap();
 Res<> Update(App::UpdateData const* appUpdateData);
 void  Draw();
 

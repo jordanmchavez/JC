@@ -4,7 +4,6 @@
 
 namespace JC::Draw    { DefHandle(Sprite); }
 namespace JC::Input   { struct Action; }
-namespace JC::UnitDef { struct Def; }
 namespace JC::Window  { struct State; }
 
 namespace JC::Battle {
@@ -17,61 +16,33 @@ constexpr U16 MaxRows      = 16;
 constexpr U16 MaxHexes     = MaxCols * MaxRows;
 constexpr U16 MaxArmyUnits = 64;
 
-struct TerrainJson {
+struct TerrainDef {
 	Str name;
 	Str sprite;
 	U32 moveCost;
 };
 
-struct BattleJson {
-	Span<Str>         atlasPaths;
-	Str               numberFont;
-	Str               uiFont;
-	Str               fancyFont;
-	Str               borderSprite;
-	Str               innerSprite;
-	Str               pathTopLeftSprite;
-	Str               pathTopRightSprite;
-	Str               pathRightSprite;
-	Str               pathBottomRightSprite;
-	Str               pathBottomLeftSprite;
-	Str               pathLeftSprite;
-	Str               arrowTopLeftSprite;
-	Str               arrowTopRightSprite;
-	Str               arrowRightSprite;
-	Str               arrowBottomRightSprite;
-	Str               arrowBottomLeftSprite;
-	Str               arrowLeftSprite;
-	Span<TerrainJson> terrain;
+struct BattleDef {
+	Span<Str>        atlasPaths;
+	Str              numberFont;
+	Str              uiFont;
+	Str              fancyFont;
+	Str              borderSprite;
+	Str              innerSprite;
+	Str              pathTopLeftSprite;
+	Str              pathTopRightSprite;
+	Str              pathRightSprite;
+	Str              pathBottomRightSprite;
+	Str              pathBottomLeftSprite;
+	Str              pathLeftSprite;
+	Str              arrowTopLeftSprite;
+	Str              arrowTopRightSprite;
+	Str              arrowRightSprite;
+	Str              arrowBottomRightSprite;
+	Str              arrowBottomLeftSprite;
+	Str              arrowLeftSprite;
+	Span<TerrainDef> terrain;
 };
-
-struct Terrain {
-	Str          name;
-	Draw::Sprite sprite;
-	U16          moveCost;
-};
-
-namespace Dir {
-	constexpr U8 TopLeft     = 0;
-	constexpr U8 TopRight    = 1;
-	constexpr U8 Right       = 2;
-	constexpr U8 BottomRight = 3;
-	constexpr U8 BottomLeft  = 4;
-	constexpr U8 Left        = 5;
-	constexpr U8 Max         = 6;
-}
-
-struct Hex {
-	U16            idx;
-	U16            c, r;
-	Vec2           pos;
-	Hex*           neighbors[6];	// indexed by `Dir`, nullptr = no neighbor
-	Terrain const* terrain;
-	struct Unit*   unit;
-};
-
-enum Side : U8 { Side_Left = 0, Side_Right, Side_Max };
-inline Side operator++(Side& side, int) { Side tmp = side; side = (Side)((U8)side + 1); return tmp; }
 
 struct Path {
 	Hex* hexes[MaxHexes];
@@ -85,18 +56,11 @@ struct PathMap {
 
 struct Unit {
 	UnitDef::Def const* def;
-	Hex*                hex;
 	Vec2                pos;
-	Side                side;
-	U32                 hp;
-	U32                 move;
-	U32                 range;
 	PathMap             pathMap;
-	bool                acted;
 };
 
 struct Army {
-	Side side;
 	Unit units[MaxArmyUnits];
 	U8   unitsLen;
 	U64  attackMap[MaxHexes];	// [c, r] = bitmap of units that can attack this spot, updated on any unit create/destroy/move
@@ -170,12 +134,6 @@ struct Shared {
 	U8   activeSide;
 };
 
-struct InputResult {
-	Span<Hex*> clickHexes;	// nullptr = right click
-	Hex*       hoverHex;
-	bool       showEnemyArmyThreatMap;
-};
-
 //--------------------------------------------------------------------------------------------------
 
 // Battle.cpp
@@ -188,7 +146,7 @@ Hex *            ScreenPosToHex(I32 x, I32 y);
 void             MoveCamera(F32 sec, F32 dx, F32 dy);
 void             ZoomCamera(F32 d);
 void             Draw(DrawDef const* drawDef);
-Res<>            LoadDraw(BattleJson const* battleJson);
+Res<>            LoadDraw(BattleDef const* battleJson);
 
 // Battle_Input.cpp
 void             InitInput(Mem permMem, Mem tempMem);

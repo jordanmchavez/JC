@@ -1,5 +1,5 @@
 {
-	imagePath: "Assets/Atlas_Units.png",
+	imagePath: "Assets/Units.sprites.png",
 	sprites: [
 		{ x:   0, y:   0, w: 16, h: 16, name: "Unit_Spearmen" },
 		{ x:  16, y:   0, w: 16, h: 16, name: "Unit_Spearmen_Attack" },

@@ -38,7 +38,7 @@ void RemoveFn(Fn* fn) {
 //--------------------------------------------------------------------------------------------------
 
 void Printv(SrcLoc sl, Level level, char const* fmt, Span<Arg const> args) {
-	MemScope memScope(tempMem);
+	MemScope(tempMem);
 	StrBuf sb(tempMem);
 	sb.Printv(fmt, args);
 	sb.Add('\n');
@@ -58,7 +58,7 @@ void Printv(SrcLoc sl, Level level, char const* fmt, Span<Arg const> args) {
 
 void PrintErr(SrcLoc sl, const Err* err) {
 	Assert(err);
-	MemScope memScope(tempMem);
+	MemScope(tempMem);
 	StrBuf sb(tempMem);
 	for (const Err* e = err; e; e = e->prev) {
 		sb.Printf("%s-", e->ns);

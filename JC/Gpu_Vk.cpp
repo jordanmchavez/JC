@@ -13,14 +13,14 @@ namespace JC::Gpu {
 
 //--------------------------------------------------------------------------------------------------
 
-Err_Def(Gpu, Version);
-Err_Def(Gpu, NoLayer);
-Err_Def(Gpu, NoExt);
-Err_Def(Gpu, NoDevice);
-Err_Def(Gpu, NoMemType);
-Err_Def(Gpu, NoMem);
-Err_Def(Gpu, ShaderTooManyPushConstantBlocks);
-Err_Def(Gpu, SpvReflect);
+DefErr(Gpu, Version);
+DefErr(Gpu, NoLayer);
+DefErr(Gpu, NoExt);
+DefErr(Gpu, NoDevice);
+DefErr(Gpu, NoMemType);
+DefErr(Gpu, NoMem);
+DefErr(Gpu, ShaderTooManyPushConstantBlocks);
+DefErr(Gpu, SpvReflect);
 
 //--------------------------------------------------------------------------------------------------
 
@@ -405,14 +405,14 @@ static Res<> InitInstance() {
 
 //-------------------------------------------------------------------------------------------------
 
-static Res<> InitSurface(Window::PlatformDef const* windowPlatformDef) {
+static Res<> InitSurface(Window::PlatformDesc const* windowPlatformDesc) {
 	#if defined Platform_Windows
 		VkWin32SurfaceCreateInfoKHR win32SurfaceCreateInfo = {
 			.sType     = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
 			.pNext     = 0,
 			.flags     = 0,
-			.hinstance = (HINSTANCE)windowPlatformDef->hinstance,
-			.hwnd      = (HWND)windowPlatformDef->hwnd,
+			.hinstance = (HINSTANCE)windowPlatformDesc->hinstance,
+			.hwnd      = (HWND)windowPlatformDesc->hwnd,
 		};
 		TryVk(vkCreateWin32SurfaceKHR(vkInstance, &win32SurfaceCreateInfo, vkAllocationCallbacks, &vkSurface));
 	#endif	// Platform
@@ -991,9 +991,9 @@ static Res<> InitBindless() {
 
 //-------------------------------------------------------------------------------------------------
 
-Res<> Init(InitDef const* initDef) {
-	permMem = initDef->permMem;
-	tempMem = initDef->tempMem;
+Res<> Init(InitDesc const* initDesc) {
+	permMem = initDesc->permMem;
+	tempMem = initDesc->tempMem;
 
 	Sys::InitMutex(&mutex);
 
@@ -1003,9 +1003,9 @@ Res<> Init(InitDef const* initDef) {
 	pipelineObjs.Init(permMem, MaxPipelines);
 
 	Try(InitInstance());
-	Try(InitSurface(initDef->windowPlatformDef));
+	Try(InitSurface(initDesc->windowPlatformDesc));
 	Try(InitDevice());
-	Try(InitSwapchain(initDef->windowWidth, initDef->windowHeight, VK_NULL_HANDLE));
+	Try(InitSwapchain(initDesc->windowWidth, initDesc->windowHeight, VK_NULL_HANDLE));
 	Try(InitFrame());
 	Try(InitImmediate());
 	Try(InitBindless());

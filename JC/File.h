@@ -15,9 +15,10 @@ Res<U64>       Len(File file);
 Res<>          Read(File file, void* out, U64 outLen);
 Res<Span<U8>>  ReadAllBytes(Mem mem, Str path);
 Res<Str>       ReadAllStr(Mem mem, Str path);
-Res<Span<Str>> EnumFiles(Mem mem, Str dir, Str ext);
+Res<Span<Str>> EnumFiles(Str dir, Str ext);
 Str            RemoveExt(Str path);
 bool           PathsEq(Str path1, Str path2);
+bool           HasExt(Str path, Str ext);
 
 //--------------------------------------------------------------------------------------------------
 

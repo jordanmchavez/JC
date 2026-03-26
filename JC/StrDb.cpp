@@ -23,8 +23,8 @@ void Init() {
 
 // TODO: interned strings are pointer-comparable
 Str Intern(Str s) {
-	if (Str* intern = index.FindOrNull(s)) {
-		return *intern;
+	if (Str intern = index.FindOrZero(s); intern.len) {
+		return intern;
 	}
 	Str newIntern(Mem::AllocT<char>(mem, s.len), s.len);
 	memcpy((char*)newIntern.data, s.data, s.len);

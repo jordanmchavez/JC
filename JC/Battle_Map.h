@@ -2,15 +2,15 @@
 
 #include "JC/Common.h"
 
-namespace JC::Draw { DefHandle(Sprite); }
-
-namespace JC::Unit {
+namespace JC::Battle::Map {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Init(Mem permMem, Mem tempMem);
+void  Init(Mem permMem, Mem tempMemIn);
 Res<> Load(Str path);
+void  GenerateRandomMap(U32 cols, U32 rows);
+void  Draw(F32 z);
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Unit
+}	// namespace JC::Battle::Map

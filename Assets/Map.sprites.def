@@ -1,5 +1,5 @@
 {
-	imagePath: "Assets/Atlas_Terrain.png",
+	imagePath: "Assets/Map.sprites.png",
 	sprites: [
 		{ x:   0, y:   0, w:  0, h:  0, name: "Empty" },
 

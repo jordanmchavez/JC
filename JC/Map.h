@@ -22,6 +22,10 @@ template <class K, class V> struct Map {
 	U64      elemsLen;
 	U64      cap;
 
+	Map() = default;
+
+	Map(Mem mem, U64 capIn) { Init(mem, capIn); }
+
 	void Init(Mem mem, U64 capIn) {
 		Assert((capIn & (capIn - 1)) == 0);
 		buckets    = Mem::AllocT<Bucket>(mem, capIn);
@@ -30,20 +34,20 @@ template <class K, class V> struct Map {
 		cap        = capIn;
 	}
 
-	V* FindOrNull(K k) const {
+	V FindOrZero(K k) const {
 		U64 h = Hash(k);
 		U32 df = 0x100 | (h & 0xff);
 		U64 i = h & (cap - 1);
 		Bucket* bucket = &buckets[i];
 		if (df == bucket->df && elems[bucket->idx].key == k) {
-			return &elems[bucket->idx].val;
+			return elems[bucket->idx].val;
 		}
 
 		df += 0x100;
 		i = (i + 1 == cap) ? 0 : i + 1;
 		bucket = &buckets[i];
 		if (df == bucket->df && elems[bucket->idx].key == k) {
-			return &elems[bucket->idx].val;
+			return elems[bucket->idx].val;
 		}
 
 		df += 0x100;
@@ -52,21 +56,15 @@ template <class K, class V> struct Map {
 		while (true) {
 			if (df == bucket->df) {
 				if (elems[bucket->idx].key == k) {
-					return &elems[bucket->idx].val;
+					return elems[bucket->idx].val;
 				}
 			} else if (df > bucket->df) {
-				return 0;
+				return (V)0;
 			}
 			df += 0x100;
 			i = (i + 1 == cap) ? 0 : i + 1;
 			bucket = &buckets[i];
 		}
-	}
-
-	V* FindOrPanic(K k) {
-		V* v = FindOrNull(k);
-		Assert(v);
-		return v;
 	}
 
 	V* Put(K k, V v) {

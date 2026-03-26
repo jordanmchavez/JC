@@ -85,11 +85,11 @@ struct DrawCanvasDesc {
 Res<>       Init(InitDesc const* initDesc);
 void        Shutdown();
 Res<>       ResizeWindow(U32 width, U32 height);
-Res<>       LoadAtlas(Str path);
+Res<>       LoadSprites(Str path);
 Res<Sprite> GetSprite(Str name);
 Vec2        GetSpriteSize(Sprite sprite);
-Res<Font>   LoadFont(Str path);
-Str         GetFontPath(Font font);
+Res<>       LoadFont(Str path);
+Res<Font>   GetFont(Str name);
 F32         GetFontLineHeight(Font font);
 Res<Canvas> CreateCanvas(U32 width, U32 height);
 void        BeginFrame(Gpu::FrameData const* gpuFrameData);

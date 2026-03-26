@@ -1,16 +1,23 @@
 #pragma once
 
-#include "JC/Common.h"
+#include "JC/Json.h"
 
-namespace JC::Draw { DefHandle(Sprite); }
-
-namespace JC::Unit {
+namespace JC::Shard {
 
 //--------------------------------------------------------------------------------------------------
 
-Res<> Init(Mem permMem, Mem tempMem);
-Res<> Load(Str path);
+struct Hex {
+};
+
+struct Hero {
+};
+
+struct City {
+};
+
+struct Player {
+};
 
 //--------------------------------------------------------------------------------------------------
 
-}	// namespace JC::Unit
+}	// namespace JC::Shard

@@ -15,6 +15,8 @@ template <class T, U64 MaxLen> struct Array {
 	U64 len = 0;
 	T   data[MaxLen];
 
+	Array() = default;
+
 	Array(Array const&) = delete;
 	Array& operator=(Array const&) = delete;
 
@@ -233,6 +235,11 @@ template <class T> struct MArray {
 
 	bool HasCapacity(U64 n = 1) {
 		return len + n <= maxLen;
+	}
+
+	void Clear() {
+		memset(data, 0, maxLen * sizeof(T));
+		len = 0;
 	}
 };
 
